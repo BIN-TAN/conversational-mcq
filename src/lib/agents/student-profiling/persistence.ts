@@ -2,7 +2,11 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { toPrismaJson } from "@/lib/services/json";
-import { createOrGetFormativeConversationSessionInTransaction } from "@/lib/services/student-assessment/formative-conversation/service";
+import { createOrGetTrustedFormativeConversationSessionInTransaction } from "@/lib/services/student-assessment/formative-conversation/service";
+import {
+  FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
+  formativeConversationPersistenceError
+} from "@/lib/services/student-assessment/formative-conversation/persistence-errors";
 
 type StudentProfileOutput = AgentOutputByName["student_profiling_agent"];
 
@@ -45,48 +49,64 @@ export async function persistInitialStudentProfile(input: {
   based_on_agent_call_db_id: string | null;
   output: StudentProfileOutput;
 }) {
-  return prisma.$transaction(async (tx) => {
-    const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
+  const conceptUnitSession =
+    await prisma.conceptUnitSession.findUniqueOrThrow({
       where: { id: input.concept_unit_session_db_id },
       select: { assessment_session_db_id: true }
     });
-    const profile = await tx.studentProfile.create({
-      data: studentProfileCreateData(input),
-      include: {
-        based_on_agent_call: {
-          select: {
-            agent_name: true,
-            provider: true,
-            model_name: true,
-            agent_version: true,
-            prompt_version: true,
-            schema_version: true,
-            prompt_hash: true,
-            retry_count: true,
-            call_status: true,
-            output_validated: true,
-            live_call_allowed: true,
-            blocked_reason: true,
-            created_at: true,
-            completed_at: true
+  try {
+    return await prisma.$transaction(
+      async (tx) => {
+        const profile = await tx.studentProfile.create({
+          data: studentProfileCreateData(input),
+          include: {
+            based_on_agent_call: {
+              select: {
+                agent_name: true,
+                provider: true,
+                model_name: true,
+                agent_version: true,
+                prompt_version: true,
+                schema_version: true,
+                prompt_hash: true,
+                retry_count: true,
+                call_status: true,
+                output_validated: true,
+                live_call_allowed: true,
+                blocked_reason: true,
+                created_at: true,
+                completed_at: true
+              }
+            }
           }
-        }
-      }
-    });
+        });
 
-    await tx.conceptUnitSession.update({
-      where: { id: input.concept_unit_session_db_id },
-      data: {
-        latest_student_profile_db_id: profile.id
-      }
-    });
-    await createOrGetFormativeConversationSessionInTransaction(tx, {
-      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
-      concept_unit_session_db_id: input.concept_unit_session_db_id,
-      initial_student_profile_db_id: profile.id,
-      current_student_profile_db_id: profile.id
-    });
+        await tx.conceptUnitSession.update({
+          where: { id: input.concept_unit_session_db_id },
+          data: {
+            latest_student_profile_db_id: profile.id
+          }
+        });
+        await createOrGetTrustedFormativeConversationSessionInTransaction(
+          tx,
+          {
+            assessment_session_db_id:
+              conceptUnitSession.assessment_session_db_id,
+            concept_unit_session_db_id:
+              input.concept_unit_session_db_id,
+            initial_student_profile_db_id: profile.id,
+            current_student_profile_db_id: profile.id
+          }
+        );
 
-    return profile;
-  });
+        return profile;
+      },
+      FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS
+    );
+  } catch (error) {
+    throw formativeConversationPersistenceError(
+      error,
+      "conversation_creation"
+    );
+  }
 }

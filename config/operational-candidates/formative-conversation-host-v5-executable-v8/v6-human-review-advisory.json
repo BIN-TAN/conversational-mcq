@@ -1,0 +1,24 @@
+{
+  "artifact_version": "formative-conversation-v5-v6-human-review-advisory-v1",
+  "immutable_provider_run_id": "fcv5v6_provider_20260731032817_863a9cdd",
+  "immutable_derived_evaluation_id": "fcv5v6_derived_20260731032817_0bd6f382",
+  "review_status": "not_started",
+  "all_student_visible_outputs_reviewed": false,
+  "advisory_human_review_eligible": false,
+  "approval_evidence_eligible": false,
+  "activation_permitted": false,
+  "blocking_reasons": [
+    "Three of eight cases failed deterministic execution or output-contract checks.",
+    "Cases 5 and 6 did not preserve the complete structured model result after SDK parsing failed.",
+    "Case 7 did not persist its final tutor turn or teacher-assistance transition."
+  ],
+  "student_output_summary": {
+    "conceptual_accuracy_issue_confirmed": false,
+    "answer_visibility_issue_confirmed": false,
+    "privacy_issue_confirmed": false,
+    "deterministic_activity_language_confirmed": false,
+    "remaining_tone_review": "Case 7's earlier visible response used a directive fill-in structure; its final rejected provider output was never student-visible."
+  },
+  "required_next_step": "Review a separately authorized successor execution only after its no-provider package is frozen. Do not reinterpret or rerun v6.",
+  "provider_calls_during_advisory": 0
+}

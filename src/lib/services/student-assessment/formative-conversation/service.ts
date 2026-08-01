@@ -5,6 +5,10 @@ import {
   FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
   FORMATIVE_CONVERSATION_OPENING_VERSION
 } from "./opening-contract";
+import {
+  FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
+  formativeConversationPersistenceError
+} from "./persistence-errors";
 
 export const FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE =
   "FORMATIVE_CONVERSATION" as const;
@@ -138,43 +142,41 @@ async function ensureConversationStartedEvent(
   });
 }
 
-export async function createOrGetFormativeConversationSessionInTransaction(
+async function createConversationStartedEventForNewSession(
+  tx: Prisma.TransactionClient,
+  session: {
+    id: string;
+    concept_unit_session_db_id: string;
+    started_at: Date;
+  }
+) {
+  const clientEventId = `session-started:${session.concept_unit_session_db_id}`;
+  const eventPayload = {
+    event_type: "session_started",
+    event_source: "backend",
+    observed_interval_duration_ms: null,
+    client_instance_id: null,
+    occurred_at: session.started_at.toISOString()
+  };
+  await tx.formativeConversationLifecycleEvent.create({
+    data: {
+      formative_conversation_session_db_id: session.id,
+      conversation_local_event_sequence_index: 1,
+      client_event_id: clientEventId,
+      event_hash: createHash("sha256")
+        .update(JSON.stringify(eventPayload))
+        .digest("hex"),
+      event_type: "session_started",
+      event_source: "backend",
+      occurred_at: session.started_at
+    }
+  });
+}
+
+export async function createOrGetTrustedFormativeConversationSessionInTransaction(
   tx: Prisma.TransactionClient,
   input: CreateFormativeConversationSessionInput
 ) {
-  const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
-    where: { id: input.concept_unit_session_db_id },
-    select: { assessment_session_db_id: true }
-  });
-
-  if (conceptUnitSession.assessment_session_db_id !== input.assessment_session_db_id) {
-    throw new FormativeConversationFoundationError(
-      "conversation_session_mismatch",
-      "The concept-unit session does not belong to the assessment session."
-    );
-  }
-
-  const profileIds = [
-    input.initial_student_profile_db_id,
-    input.current_student_profile_db_id
-  ].filter((profileId): profileId is string => Boolean(profileId));
-
-  if (profileIds.length > 0) {
-    const profileCount = await tx.studentProfile.count({
-      where: {
-        id: { in: profileIds },
-        concept_unit_session_db_id: input.concept_unit_session_db_id
-      }
-    });
-
-    if (profileCount !== new Set(profileIds).size) {
-      throw new FormativeConversationFoundationError(
-        "conversation_profile_mismatch",
-        "A supplied profile does not belong to the concept-unit session."
-      );
-    }
-  }
-
   const existing = await tx.formativeConversationSession.findUnique({
     where: { concept_unit_session_db_id: input.concept_unit_session_db_id }
   });
@@ -215,20 +217,67 @@ export async function createOrGetFormativeConversationSessionInTransaction(
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       initial_student_profile_db_id: input.initial_student_profile_db_id,
       current_student_profile_db_id:
-        input.current_student_profile_db_id ?? input.initial_student_profile_db_id
+        input.current_student_profile_db_id ??
+        input.initial_student_profile_db_id,
+      telemetry_event_sequence_counter: 1
     }
   });
-  await ensureConversationStartedEvent(tx, session);
+  await createConversationStartedEventForNewSession(tx, session);
 
   return { session, created: true };
+}
+
+export async function createOrGetFormativeConversationSessionInTransaction(
+  tx: Prisma.TransactionClient,
+  input: CreateFormativeConversationSessionInput
+) {
+  const conceptUnitSession = await tx.conceptUnitSession.findUniqueOrThrow({
+    where: { id: input.concept_unit_session_db_id },
+    select: { assessment_session_db_id: true }
+  });
+
+  if (conceptUnitSession.assessment_session_db_id !== input.assessment_session_db_id) {
+    throw new FormativeConversationFoundationError(
+      "conversation_session_mismatch",
+      "The concept-unit session does not belong to the assessment session."
+    );
+  }
+
+  const profileIds = [
+    input.initial_student_profile_db_id,
+    input.current_student_profile_db_id
+  ].filter((profileId): profileId is string => Boolean(profileId));
+
+  if (profileIds.length > 0) {
+    const profileCount = await tx.studentProfile.count({
+      where: {
+        id: { in: profileIds },
+        concept_unit_session_db_id: input.concept_unit_session_db_id
+      }
+    });
+
+    if (profileCount !== new Set(profileIds).size) {
+      throw new FormativeConversationFoundationError(
+        "conversation_profile_mismatch",
+        "A supplied profile does not belong to the concept-unit session."
+      );
+    }
+  }
+
+  return createOrGetTrustedFormativeConversationSessionInTransaction(
+    tx,
+    input
+  );
 }
 
 export async function createOrGetFormativeConversationSession(
   input: CreateFormativeConversationSessionInput
 ) {
   const createSession = async () =>
-    prisma.$transaction((tx) =>
-      createOrGetFormativeConversationSessionInTransaction(tx, input)
+    prisma.$transaction(
+      (tx) =>
+        createOrGetFormativeConversationSessionInTransaction(tx, input),
+      FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS
     );
 
   try {
@@ -238,9 +287,22 @@ export async function createOrGetFormativeConversationSession(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      return createSession();
+      try {
+        return await createSession();
+      } catch (retryError) {
+        throw formativeConversationPersistenceError(
+          retryError,
+          "conversation_creation"
+        );
+      }
     }
-    throw error;
+    if (error instanceof FormativeConversationFoundationError) {
+      throw error;
+    }
+    throw formativeConversationPersistenceError(
+      error,
+      "conversation_creation"
+    );
   }
 }
 

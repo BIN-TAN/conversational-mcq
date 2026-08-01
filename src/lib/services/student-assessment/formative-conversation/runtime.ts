@@ -27,6 +27,11 @@ import {
 } from "./opening-contract";
 import { validateFormativeConversationAgentOutputForContext } from "./output-format";
 import {
+  FormativeConversationPersistenceError,
+  formativeConversationPersistenceError
+} from "./persistence-errors";
+import { executeFormativeConversationProviderOutsidePersistence } from "./provider-persistence-boundary";
+import {
   FormativeConversationProfileTransitionError,
   recordFormativeConversationProfileTransitionRecommendation,
   recordFormativeConversationProfileTransitionRejection
@@ -40,6 +45,7 @@ import {
   reserveAndPersistFormativeConversationStudentMessage
 } from "./service";
 import {
+  FormativeConversationTelemetryError,
   recordFormativeConversationInputTelemetry,
   recordFormativeConversationLifecycleEvent,
   recordFormativeConversationTurnTelemetry
@@ -200,12 +206,13 @@ async function persistAgentProfileEvidence(input: {
   source_tutor_turn_db_id: string;
   output: FormativeConversationAgentOutput;
 }) {
-  const evidence = await recordFormativeConversationProfileEvidenceReferences({
-    conversation_public_id: input.conversation_public_id,
-    source_agent_call_db_id: input.source_agent_call_db_id,
-    source_tutor_turn_db_id: input.source_tutor_turn_db_id,
-    evidence_observations: input.output.evidence_observations
-  });
+  const evidence =
+    await recordFormativeConversationProfileEvidenceReferences({
+      conversation_public_id: input.conversation_public_id,
+      source_agent_call_db_id: input.source_agent_call_db_id,
+      source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+      evidence_observations: input.output.evidence_observations
+    });
   let profileTransition = null;
   let profileTransitionRejection = null;
   if (input.output.profile_transition_recommendation) {
@@ -261,23 +268,36 @@ async function recordRuntimeEvent(input: {
   failure_category?: string | null;
   retry_count?: number | null;
 }) {
-  return recordFormativeConversationLifecycleEvent({
-    conversation_public_id: input.conversation_public_id,
-    client_event_id: eventId(
-      input.client_message_id,
-      input.event_type,
-      input.attempt_index
-    ),
-    event_type: input.event_type,
-    event_source: input.event_source,
-    agent_call_db_id: input.agent_call_db_id ?? null,
-    agent_name: input.agent_name ?? null,
-    failure_category: input.failure_category ?? null,
-    retry_count: input.retry_count ?? null,
-    observed_interval_duration_ms: null,
-    client_instance_id: null,
-    occurred_at: input.occurred_at
-  });
+  try {
+    return await recordFormativeConversationLifecycleEvent({
+      conversation_public_id: input.conversation_public_id,
+      client_event_id: eventId(
+        input.client_message_id,
+        input.event_type,
+        input.attempt_index
+      ),
+      event_type: input.event_type,
+      event_source: input.event_source,
+      agent_call_db_id: input.agent_call_db_id ?? null,
+      agent_name: input.agent_name ?? null,
+      failure_category: input.failure_category ?? null,
+      retry_count: input.retry_count ?? null,
+      observed_interval_duration_ms: null,
+      client_instance_id: null,
+      occurred_at: input.occurred_at
+    });
+  } catch (error) {
+    if (
+      error instanceof FormativeConversationTelemetryError ||
+      error instanceof FormativeConversationPersistenceError
+    ) {
+      throw error;
+    }
+    throw formativeConversationPersistenceError(
+      error,
+      "lifecycle_persistence"
+    );
+  }
 }
 
 async function loadRuntimeIdentity(conversationPublicId: string) {
@@ -484,10 +504,13 @@ async function executeOrResumeAgentCall(input: {
   let execution: z.infer<typeof FormativeConversationAgentExecutionSchema>;
   try {
     execution = FormativeConversationAgentExecutionSchema.parse(
-      await input.runner.execute({
-        agent_call_db_id: started.agent_call.id,
-        invocation_key: key,
-        context: input.context
+      await executeFormativeConversationProviderOutsidePersistence({
+        execute: () =>
+          input.runner.execute({
+            agent_call_db_id: started.agent_call.id,
+            invocation_key: key,
+            context: input.context
+          })
       })
     );
   } catch (error) {

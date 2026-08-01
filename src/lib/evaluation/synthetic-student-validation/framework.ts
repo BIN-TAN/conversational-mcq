@@ -18,6 +18,7 @@ import {
   processFormativeConversationStudentMessage,
   type FormativeConversationAgentRunner
 } from "@/lib/services/student-assessment/formative-conversation/runtime";
+import { FormativeConversationPersistenceError } from "@/lib/services/student-assessment/formative-conversation/persistence-errors";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { recordFormativeConversationLifecycleEvent } from "@/lib/services/student-assessment/formative-conversation/telemetry";
 import { getTeacherReviewItemResponses } from "@/lib/services/teacher-review/item-responses";
@@ -157,6 +158,12 @@ type SyntheticStudentExecution = {
   conversation_public_id: string | null;
   student_message_submission_attempt_count: number;
   execution_error: string | null;
+  execution_failure: {
+    category: string;
+    operation: string;
+    cause_code: string | null;
+    retryable: boolean;
+  } | null;
 };
 
 export type FormativeConversationValidationSubject = {
@@ -307,6 +314,9 @@ function reproducibleCsvContent(data: string) {
 }
 
 function safeExecutionError(error: unknown) {
+  if (error instanceof FormativeConversationPersistenceError) {
+    return error.category;
+  }
   if (error instanceof Error) {
     const candidate = error.message.split(":", 1)[0];
     if (/^[a-z0-9_]{3,120}$/.test(candidate)) {
@@ -314,6 +324,18 @@ function safeExecutionError(error: unknown) {
     }
   }
   return "synthetic_formative_conversation_execution_failed";
+}
+
+function safeExecutionFailure(error: unknown) {
+  if (!(error instanceof FormativeConversationPersistenceError)) {
+    return null;
+  }
+  return {
+    category: error.category,
+    operation: error.operation,
+    cause_code: error.cause_code,
+    retryable: error.retryable
+  };
 }
 
 function estimatedLogicalCalls(
@@ -809,6 +831,8 @@ async function runSyntheticStudent(input: {
   const assessment = await persistSyntheticAssessmentEvidence(input);
   let conversationPublicId: string | null = null;
   let executionError: string | null = null;
+  let executionFailure: SyntheticStudentExecution["execution_failure"] =
+    null;
   let studentMessageSubmissionAttemptCount = 0;
   try {
     if (input.frozen_initial_profile) {
@@ -961,6 +985,7 @@ async function runSyntheticStudent(input: {
     }
   } catch (error) {
     executionError = safeExecutionError(error);
+    executionFailure = safeExecutionFailure(error);
     if (!conversationPublicId) {
       const persistedConversation =
         await prisma.formativeConversationSession.findUnique({
@@ -981,7 +1006,8 @@ async function runSyntheticStudent(input: {
     conversation_public_id: conversationPublicId,
     student_message_submission_attempt_count:
       studentMessageSubmissionAttemptCount,
-    execution_error: executionError
+    execution_error: executionError,
+    execution_failure: executionFailure
   } satisfies SyntheticStudentExecution;
 }
 
@@ -1453,7 +1479,8 @@ async function buildStudentReport(execution: SyntheticStudentExecution) {
         teacherConversation?.learning_outcome ?? null
     },
     unresolved_issue_codes: uniqueStrings(unresolvedIssueCodes),
-    execution_error: execution.execution_error
+    execution_error: execution.execution_error,
+    execution_failure: execution.execution_failure
   };
 }
 
@@ -1914,7 +1941,7 @@ export async function cleanupSyntheticStudentValidationRun(
 ) {
   const assessments = await prisma.assessment.findMany({
     where: {
-      title: `${runPublicId} synthetic validation assessment`
+      title: { startsWith: `${runPublicId} ` }
     },
     select: { id: true }
   });

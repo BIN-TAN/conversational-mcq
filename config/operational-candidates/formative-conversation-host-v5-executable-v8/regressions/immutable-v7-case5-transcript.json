@@ -1,0 +1,479 @@
+{
+  "artifact_version": "formative-conversation-v5-safe-case-transcript-v1",
+  "data_classification": "synthetic_operational_evaluation",
+  "case_id": "fcv5_05_sound_profile_transition",
+  "fixture_hash": "ad15330adacaf5659da3dbebfc42d5f73f7f9aea43c00502ea64ad38a1aad8d9",
+  "session_public_id": "sess_20260801_wvynynm",
+  "conversation_public_id": "cms9pa3lk002qlddmbevptt0f",
+  "candidate_fingerprints": {
+    "runtime_candidate_hash": "81a60273d33976409e7450bffa6156e89a62e17e36edb7059e30c44979892356",
+    "evaluation_protocol_hash": "620ee46412f8ae4389014905249d8ce8fc1004ff55025ec5255bbd005ab6c68d",
+    "prompt_version": "formative-conversation-host-v5.2",
+    "prompt_hash": "b63e10469e071918e29c8bd9ba5c101908302b39c82917d052e81e547d98ef64",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v2"
+  },
+  "transcript": [
+    {
+      "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:623",
+      "sequence_index": 623,
+      "actor": "tutor",
+      "message_text": "Now that you’ve looked over the answers, here’s the key distinction tying them together: **consistency is not the same as correctness of interpretation**.\n\n- **Reliability or internal consistency** asks whether scores behave consistently.\n- **Standard error of measurement** describes uncertainty around an observed score; it does not reveal an exact true score.\n- **Validity** asks whether evidence supports a particular interpretation and use of scores in a particular context.\n\nA useful analogy is a bathroom scale that gives the same reading every time. It may be highly consistent, yet consistently five pounds too high. Its consistency alone does not prove that the reading is accurate or suitable for every purpose.\n\nSuppose an admissions test has high reliability. What additional question would you ask before deciding that its scores should be used to admit students? Explain your reasoning in your own words.",
+      "created_at": "2026-08-01T01:36:47.730Z",
+      "assistant_response_status": null,
+      "assistant_response_retry_count": 0,
+      "assistant_response_last_failed_at": null
+    },
+    {
+      "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:624",
+      "sequence_index": 624,
+      "actor": "student",
+      "message_text": "Could you show me why consistency alone does not establish validity?",
+      "created_at": "2026-08-01T01:36:57.730Z",
+      "assistant_response_status": "completed",
+      "assistant_response_retry_count": 0,
+      "assistant_response_last_failed_at": null
+    },
+    {
+      "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:625",
+      "sequence_index": 625,
+      "actor": "tutor",
+      "message_text": "Yes. The clearest way to see it is with a **counterexample**.\n\nImagine a test intended to measure algebra readiness, but nearly all its questions measure basic arithmetic. Students’ responses could be highly consistent: those who do well on one question tend to do well on the others. That supports the claim that the test scores are **internally consistent**.\n\nBut it does not establish that the test measures algebra readiness. The questions might omit equation solving, variables, and algebraic reasoning. The scores are consistent, but they consistently reflect the **wrong or incomplete target**.\n\nSo the reasoning is:\n\n- Consistency helps rule out excessive random instability.\n- It does not rule out systematic bias, measuring the wrong skill, or leaving out important parts of the intended skill.\n- Validity therefore requires additional evidence connecting the scores to their **intended interpretation and use**.\n\nReliability can be necessary for many uses—a wildly inconsistent score is difficult to interpret—but it is not sufficient. In short: **a measurement can be consistently wrong or consistently irrelevant to the intended decision**.\n\nTry this example: a typing-speed test consistently ranks applicants in the same order. Would that consistency make it valid for selecting strong essay writers? Why or why not?",
+      "created_at": "2026-08-01T01:37:29.198Z",
+      "assistant_response_status": null,
+      "assistant_response_retry_count": 0,
+      "assistant_response_last_failed_at": null
+    },
+    {
+      "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:626",
+      "sequence_index": 626,
+      "actor": "student",
+      "message_text": "I can apply the distinction now: if a hiring test gives consistent scores, that supports score stability, but it does not show the scores predict job performance. We would still need evidence linking the scores to that intended hiring use.",
+      "created_at": "2026-08-01T01:37:46.733Z",
+      "assistant_response_status": "completed",
+      "assistant_response_retry_count": 0,
+      "assistant_response_last_failed_at": null
+    },
+    {
+      "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:627",
+      "sequence_index": 627,
+      "actor": "tutor",
+      "message_text": "Yes—your hiring example correctly applies the distinction. **Consistent scores support stability, not the intended interpretation or decision.** Evidence that test scores relate to relevant job performance would contribute to the validity argument for that hiring use, alongside other relevant evidence.\n\nLet’s connect this with measurement error. Suppose someone receives an observed score of `80` on a test whose standard error of measurement is `3`. Is it more defensible to say that the person’s exact true score is 80, or that 80 is an estimate with uncertainty around it? Explain why.",
+      "created_at": "2026-08-01T01:38:45.585Z",
+      "assistant_response_status": null,
+      "assistant_response_retry_count": 0,
+      "assistant_response_last_failed_at": null
+    }
+  ],
+  "agent_calls": [
+    {
+      "agent_call_public_id": "cms9pak500030lddm4trzfzvp",
+      "receipt_public_id": "cms9paewa002ylddmu4feygry",
+      "assistant_turn_sequence_index": 623,
+      "agent_name": "formative_conversation_agent",
+      "agent_version": "formative-conversation-runtime-v2",
+      "model_name": "gpt-5.6-sol",
+      "provider": "openai",
+      "prompt_hash": "b63e10469e071918e29c8bd9ba5c101908302b39c82917d052e81e547d98ef64",
+      "prompt_version": "formative-conversation-host-v5.2",
+      "schema_version": "formative-conversation-agent-contract-v1",
+      "context_version": "formative-conversation-context-v1",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500,
+      "generation_source": "live_llm",
+      "output_validation": {
+        "status": "passed",
+        "validator_status": "opening_validated"
+      },
+      "safety_validation": {
+        "boundary_version": "formative-conversation-safety-boundary-v1",
+        "context_status": "passed_before_agent_dispatch"
+      },
+      "fallback_used": false,
+      "call_status": "succeeded",
+      "typed_failure": null,
+      "retry_count": 0,
+      "provider_attempt_count": 1,
+      "latency_ms": 8768,
+      "input_tokens": 6973,
+      "output_tokens": 450,
+      "total_tokens": 7423,
+      "started_at": "2026-08-01T01:36:36.069Z",
+      "completed_at": "2026-08-01T01:36:44.837Z",
+      "student_visible_tutor_output": "Now that you’ve looked over the answers, here’s the key distinction tying them together: **consistency is not the same as correctness of interpretation**.\n\n- **Reliability or internal consistency** asks whether scores behave consistently.\n- **Standard error of measurement** describes uncertainty around an observed score; it does not reveal an exact true score.\n- **Validity** asks whether evidence supports a particular interpretation and use of scores in a particular context.\n\nA useful analogy is a bathroom scale that gives the same reading every time. It may be highly consistent, yet consistently five pounds too high. Its consistency alone does not prove that the reading is accurate or suitable for every purpose.\n\nSuppose an admissions test has high reliability. What additional question would you ask before deciding that its scores should be used to admit students? Explain your reasoning in your own words.",
+      "student_visible_tutor_output_created_at": "2026-08-01T01:36:47.730Z",
+      "profile_recommendation": null,
+      "evidence_observations": [],
+      "teacher_assistance_recommendation": {
+        "reason_code": null,
+        "recommended": false
+      },
+      "lifecycle_recommendation": "continue"
+    },
+    {
+      "agent_call_public_id": "cms9pbbe6003clddmz2rnjxje",
+      "receipt_public_id": "cms9pb2om0038lddmar0v1ka4",
+      "assistant_turn_sequence_index": 625,
+      "agent_name": "formative_conversation_agent",
+      "agent_version": "formative-conversation-runtime-v2",
+      "model_name": "gpt-5.6-sol",
+      "provider": "openai",
+      "prompt_hash": "b63e10469e071918e29c8bd9ba5c101908302b39c82917d052e81e547d98ef64",
+      "prompt_version": "formative-conversation-host-v5.2",
+      "schema_version": "formative-conversation-agent-contract-v1",
+      "context_version": "formative-conversation-context-v1",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500,
+      "generation_source": "live_llm",
+      "output_validation": {
+        "status": "passed",
+        "validator_status": "passed"
+      },
+      "safety_validation": {
+        "boundary_version": "formative-conversation-safety-boundary-v1",
+        "context_status": "passed_before_agent_dispatch"
+      },
+      "fallback_used": false,
+      "call_status": "succeeded",
+      "typed_failure": null,
+      "retry_count": 0,
+      "provider_attempt_count": 1,
+      "latency_ms": 15580,
+      "input_tokens": 7238,
+      "output_tokens": 777,
+      "total_tokens": 8015,
+      "started_at": "2026-08-01T01:37:10.970Z",
+      "completed_at": "2026-08-01T01:37:26.550Z",
+      "student_visible_tutor_output": "Yes. The clearest way to see it is with a **counterexample**.\n\nImagine a test intended to measure algebra readiness, but nearly all its questions measure basic arithmetic. Students’ responses could be highly consistent: those who do well on one question tend to do well on the others. That supports the claim that the test scores are **internally consistent**.\n\nBut it does not establish that the test measures algebra readiness. The questions might omit equation solving, variables, and algebraic reasoning. The scores are consistent, but they consistently reflect the **wrong or incomplete target**.\n\nSo the reasoning is:\n\n- Consistency helps rule out excessive random instability.\n- It does not rule out systematic bias, measuring the wrong skill, or leaving out important parts of the intended skill.\n- Validity therefore requires additional evidence connecting the scores to their **intended interpretation and use**.\n\nReliability can be necessary for many uses—a wildly inconsistent score is difficult to interpret—but it is not sufficient. In short: **a measurement can be consistently wrong or consistently irrelevant to the intended decision**.\n\nTry this example: a typing-speed test consistently ranks applicants in the same order. Would that consistency make it valid for selecting strong essay writers? Why or why not?",
+      "student_visible_tutor_output_created_at": "2026-08-01T01:37:29.198Z",
+      "profile_recommendation": {
+        "rationale": "The student’s question supports continued instruction, but it does not yet provide independent evidence of revised conceptual understanding.",
+        "recommended": false,
+        "field_evidence": [],
+        "updated_profile": null,
+        "proposed_outcome": "continue_conversation",
+        "recommendation_version": "formative-conversation-profile-recommendation-v2",
+        "source_turn_sequence_indexes": [
+          624
+        ]
+      },
+      "evidence_observations": [
+        {
+          "observation": "The student requested an explanation of why consistency alone does not establish validity, but did not yet provide reasoning that would show whether the earlier misconception has changed.",
+          "evidence_type": "clarification_request",
+          "source_turn_sequence_indexes": [
+            624
+          ]
+        }
+      ],
+      "teacher_assistance_recommendation": {
+        "reason_code": null,
+        "recommended": false
+      },
+      "lifecycle_recommendation": "continue"
+    },
+    {
+      "agent_call_public_id": "cms9pchfz003plddmvv8xwgoh",
+      "receipt_public_id": "cms9pc4hy003llddmbwuekkdh",
+      "assistant_turn_sequence_index": 627,
+      "agent_name": "formative_conversation_agent",
+      "agent_version": "formative-conversation-runtime-v2",
+      "model_name": "gpt-5.6-sol",
+      "provider": "openai",
+      "prompt_hash": "b63e10469e071918e29c8bd9ba5c101908302b39c82917d052e81e547d98ef64",
+      "prompt_version": "formative-conversation-host-v5.2",
+      "schema_version": "formative-conversation-agent-contract-v1",
+      "context_version": "formative-conversation-context-v1",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 3500,
+      "generation_source": "live_llm",
+      "output_validation": {
+        "status": "passed",
+        "validator_status": "passed"
+      },
+      "safety_validation": {
+        "boundary_version": "formative-conversation-safety-boundary-v1",
+        "context_status": "passed_before_agent_dispatch"
+      },
+      "fallback_used": false,
+      "call_status": "succeeded",
+      "typed_failure": null,
+      "retry_count": 0,
+      "provider_attempt_count": 1,
+      "latency_ms": 36419,
+      "input_tokens": 7643,
+      "output_tokens": 2386,
+      "total_tokens": 10029,
+      "started_at": "2026-08-01T01:38:05.883Z",
+      "completed_at": "2026-08-01T01:38:42.302Z",
+      "student_visible_tutor_output": "Yes—your hiring example correctly applies the distinction. **Consistent scores support stability, not the intended interpretation or decision.** Evidence that test scores relate to relevant job performance would contribute to the validity argument for that hiring use, alongside other relevant evidence.\n\nLet’s connect this with measurement error. Suppose someone receives an observed score of `80` on a test whose standard error of measurement is `3`. Is it more defensible to say that the person’s exact true score is 80, or that 80 is an estimate with uncertainty around it? Explain why.",
+      "student_visible_tutor_output_created_at": "2026-08-01T01:38:45.585Z",
+      "profile_recommendation": {
+        "rationale": "The student independently articulated and applied the distinction between score consistency and validity evidence in a new hiring context. This is meaningful improvement over the initial reliability-validity misconception, but understanding of standard error of measurement has not yet been demonstrated in the conversation.",
+        "recommended": true,
+        "field_evidence": [
+          {
+            "rationale": "The latest student explanation correctly applies the reliability-validity distinction, changing the interpretation from a broad misconception-based profile to partial understanding while leaving SEM unresolved.",
+            "disposition": "updated_from_conversation_evidence",
+            "evidence_basis": "combined",
+            "profile_fields": [
+              "ability_profile",
+              "ability_pattern_flags",
+              "integrated_diagnostic_profile",
+              "integrated_profile_rationale",
+              "misconception_indicators",
+              "item_level_evidence",
+              "reasoning_quality_summary",
+              "rationale",
+              "recommended_next_evidence"
+            ],
+            "source_turn_sequence_indexes": [
+              626
+            ]
+          },
+          {
+            "rationale": "The student made a focused clarification request and subsequently applied the explanation to a new context.",
+            "disposition": "updated_from_conversation_evidence",
+            "evidence_basis": "conversation_evidence",
+            "profile_fields": [
+              "engagement_profile",
+              "engagement_pattern_flags",
+              "engagement_summary"
+            ],
+            "source_turn_sequence_indexes": [
+              624,
+              626
+            ]
+          },
+          {
+            "rationale": "These canonical values remain appropriate: evidence is adequate but not complete, no new confidence report was supplied, independence remains uncertain after direct instruction, and the existing process caution still applies.",
+            "disposition": "retained_evidence_remains_valid",
+            "evidence_basis": "combined",
+            "profile_fields": [
+              "integrated_profile_confidence",
+              "evidence_sufficiency",
+              "confidence_alignment",
+              "independence_interpretability",
+              "process_interpretation_cautions",
+              "profile_confidence"
+            ],
+            "source_turn_sequence_indexes": [
+              624,
+              626
+            ]
+          }
+        ],
+        "updated_profile": {
+          "rationale": "Conversation evidence supports meaningful correction of the reliability-validity misconception, while the SEM misconception and full breadth of the objective remain unresolved.",
+          "schema_version": "formative-conversation-learning-profile-v1",
+          "ability_profile": "partial_understanding",
+          "engagement_profile": "productive_engagement",
+          "engagement_summary": "The student asked a focused conceptual question and then supplied a relevant application in their own words.",
+          "profile_confidence": "medium",
+          "item_level_evidence": [
+            "The administered responses initially treated reliability as proof of validity, SEM as an exact true score, and validity as a permanent context-free property.",
+            "Conversation turn 626 correctly separates score stability from evidence linking scores to job performance for an intended hiring use.",
+            "No post-instruction application of SEM has yet been provided."
+          ],
+          "confidence_alignment": "mixed",
+          "evidence_sufficiency": "adequate",
+          "ability_pattern_flags": [
+            "correct_reliability_validity_distinction",
+            "successful_contextual_application",
+            "sem_understanding_not_yet_demonstrated"
+          ],
+          "engagement_pattern_flags": [
+            "focused_clarification_request",
+            "applies_explanation_to_new_context"
+          ],
+          "misconception_indicators": [
+            "The latest response no longer treats reliability as sufficient evidence of validity.",
+            "Whether the student still treats SEM as identifying an exact true score remains unresolved."
+          ],
+          "reasoning_quality_summary": "The latest reasoning is conceptually correct and uses an appropriate transfer example, but it demonstrates only the reliability-validity portion of the learning objective.",
+          "recommended_next_evidence": [
+            "Ask the student to interpret an observed score using a stated standard error of measurement and explain why it does not reveal an exact true score.",
+            "Seek another application distinguishing validity evidence from reliability in a different intended use."
+          ],
+          "integrated_profile_rationale": "The student used a hiring example to distinguish stable scores from evidence supporting an intended predictive use, correcting a central initial misconception. The broader objective also includes standard error of measurement, which remains untested after instruction.",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "integrated_diagnostic_profile": "developing_understanding_with_productive_engagement",
+          "integrated_profile_confidence": "medium",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ]
+        },
+        "proposed_outcome": "largely_improved_understanding",
+        "recommendation_version": "formative-conversation-profile-recommendation-v2",
+        "source_turn_sequence_indexes": [
+          624,
+          626
+        ]
+      },
+      "evidence_observations": [
+        {
+          "observation": "The student correctly applied the reliability-validity distinction to hiring by separating score stability from evidence that supports prediction for the intended use.",
+          "evidence_type": "correct_transfer_application",
+          "source_turn_sequence_indexes": [
+            626
+          ]
+        },
+        {
+          "observation": "The latest explanation reverses the initial claim that consistency automatically establishes validity and explicitly connects validity evidence to an intended use.",
+          "evidence_type": "conceptual_improvement",
+          "source_turn_sequence_indexes": [
+            626
+          ]
+        },
+        {
+          "observation": "The conversation does not yet include a student explanation of standard error of measurement or uncertainty around an observed score.",
+          "evidence_type": "remaining_evidence_gap",
+          "source_turn_sequence_indexes": [
+            624,
+            626
+          ]
+        }
+      ],
+      "teacher_assistance_recommendation": {
+        "reason_code": null,
+        "recommended": false
+      },
+      "lifecycle_recommendation": "continue"
+    }
+  ],
+  "profile_transition": null,
+  "transition_evidence": {
+    "supporting_turn_count": 0,
+    "evidence_reference_count": 0,
+    "source_agent_call_public_id": null
+  },
+  "teacher_projection": {
+    "starting_evidence": [
+      {
+        "item_public_id": "item_20260801_myijjh4",
+        "selected_option": "B",
+        "correctness": "incorrect",
+        "reasoning_text": "A consistent test should automatically be valid.",
+        "confidence_rating": "medium",
+        "item_response_time_ms": 42000,
+        "revision_count": 0
+      },
+      {
+        "item_public_id": "item_20260801_y27-jis",
+        "selected_option": "B",
+        "correctness": "incorrect",
+        "reasoning_text": "I thought SEM identifies the exact true score.",
+        "confidence_rating": "medium",
+        "item_response_time_ms": 42000,
+        "revision_count": 0
+      },
+      {
+        "item_public_id": "item_20260801_mw733sg",
+        "selected_option": "C",
+        "correctness": "incorrect",
+        "reasoning_text": "Validity seems like a permanent test property.",
+        "confidence_rating": "medium",
+        "item_response_time_ms": 42000,
+        "revision_count": 0
+      }
+    ],
+    "learning_conversation": [
+      {
+        "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:623",
+        "sequence_index": 623,
+        "actor": "tutor",
+        "message_text": "Now that you’ve looked over the answers, here’s the key distinction tying them together: **consistency is not the same as correctness of interpretation**.\n\n- **Reliability or internal consistency** asks whether scores behave consistently.\n- **Standard error of measurement** describes uncertainty around an observed score; it does not reveal an exact true score.\n- **Validity** asks whether evidence supports a particular interpretation and use of scores in a particular context.\n\nA useful analogy is a bathroom scale that gives the same reading every time. It may be highly consistent, yet consistently five pounds too high. Its consistency alone does not prove that the reading is accurate or suitable for every purpose.\n\nSuppose an admissions test has high reliability. What additional question would you ask before deciding that its scores should be used to admit students? Explain your reasoning in your own words.",
+        "created_at": "2026-08-01T01:36:47.730Z",
+        "assistant_response_status": null,
+        "assistant_response_retry_count": 0,
+        "assistant_response_last_failed_at": null
+      },
+      {
+        "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:624",
+        "sequence_index": 624,
+        "actor": "student",
+        "message_text": "Could you show me why consistency alone does not establish validity?",
+        "created_at": "2026-08-01T01:36:57.730Z",
+        "assistant_response_status": "completed",
+        "assistant_response_retry_count": 0,
+        "assistant_response_last_failed_at": null
+      },
+      {
+        "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:625",
+        "sequence_index": 625,
+        "actor": "tutor",
+        "message_text": "Yes. The clearest way to see it is with a **counterexample**.\n\nImagine a test intended to measure algebra readiness, but nearly all its questions measure basic arithmetic. Students’ responses could be highly consistent: those who do well on one question tend to do well on the others. That supports the claim that the test scores are **internally consistent**.\n\nBut it does not establish that the test measures algebra readiness. The questions might omit equation solving, variables, and algebraic reasoning. The scores are consistent, but they consistently reflect the **wrong or incomplete target**.\n\nSo the reasoning is:\n\n- Consistency helps rule out excessive random instability.\n- It does not rule out systematic bias, measuring the wrong skill, or leaving out important parts of the intended skill.\n- Validity therefore requires additional evidence connecting the scores to their **intended interpretation and use**.\n\nReliability can be necessary for many uses—a wildly inconsistent score is difficult to interpret—but it is not sufficient. In short: **a measurement can be consistently wrong or consistently irrelevant to the intended decision**.\n\nTry this example: a typing-speed test consistently ranks applicants in the same order. Would that consistency make it valid for selecting strong essay writers? Why or why not?",
+        "created_at": "2026-08-01T01:37:29.198Z",
+        "assistant_response_status": null,
+        "assistant_response_retry_count": 0,
+        "assistant_response_last_failed_at": null
+      },
+      {
+        "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:626",
+        "sequence_index": 626,
+        "actor": "student",
+        "message_text": "I can apply the distinction now: if a hiring test gives consistent scores, that supports score stability, but it does not show the scores predict job performance. We would still need evidence linking the scores to that intended hiring use.",
+        "created_at": "2026-08-01T01:37:46.733Z",
+        "assistant_response_status": "completed",
+        "assistant_response_retry_count": 0,
+        "assistant_response_last_failed_at": null
+      },
+      {
+        "turn_reference": "cms9pa3lk002qlddmbevptt0f:turn:627",
+        "sequence_index": 627,
+        "actor": "tutor",
+        "message_text": "Yes—your hiring example correctly applies the distinction. **Consistent scores support stability, not the intended interpretation or decision.** Evidence that test scores relate to relevant job performance would contribute to the validity argument for that hiring use, alongside other relevant evidence.\n\nLet’s connect this with measurement error. Suppose someone receives an observed score of `80` on a test whose standard error of measurement is `3`. Is it more defensible to say that the person’s exact true score is 80, or that 80 is an estimate with uncertainty around it? Explain why.",
+        "created_at": "2026-08-01T01:38:45.585Z",
+        "assistant_response_status": null,
+        "assistant_response_retry_count": 0,
+        "assistant_response_last_failed_at": null
+      }
+    ],
+    "validated_change": null,
+    "current_learning_profile": {
+      "profile_type": "initial",
+      "assessment_specific_understanding": "misconception_based_understanding",
+      "combined_evidence_pattern": "misconception_with_sufficient_engagement",
+      "evidence_sufficiency": "adequate",
+      "confidence_alignment": "mixed",
+      "independence_interpretability": "independent_understanding_uncertain",
+      "misconception_evidence": [
+        "Measurement statistics are treated as definitive proof without interpretation-specific evidence."
+      ],
+      "profile_confidence": "medium",
+      "evidence_summary": "The initial assessment consistently overstates what reliability, SEM, and a test alone establish.",
+      "reasoning_summary": "The initial explanations are coherent but conceptually incorrect.",
+      "created_at": "2026-08-01T01:36:10.145Z"
+    },
+    "learning_outcome": null
+  },
+  "export_projection": {
+    "session_public_id": "sess_20260801_wvynynm",
+    "conversation_public_id": "cms9pa3lk002qlddmbevptt0f",
+    "public_agent_call_ids": [
+      "cms9pak500030lddm4trzfzvp",
+      "cms9pbbe6003clddmz2rnjxje",
+      "cms9pchfz003plddmvv8xwgoh"
+    ],
+    "profile_transition_public_id": null
+  },
+  "telemetry_summary": {
+    "lifecycle_event_count": 14,
+    "turn_telemetry_count": 5,
+    "input_telemetry_count": 2,
+    "total_response_time_ms": 92767,
+    "total_typing_duration_ms": 24000,
+    "total_input_tokens": 21854,
+    "total_output_tokens": 3613
+  },
+  "prohibited_fields_excluded": [
+    "api_keys",
+    "hidden_prompts",
+    "chain_of_thought",
+    "raw_provider_payloads",
+    "internal_database_ids"
+  ]
+}

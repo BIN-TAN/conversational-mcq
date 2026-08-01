@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { toPrismaJson } from "@/lib/services/json";
 import type { FormativeConversationAgentOutput } from "./agent-contract";
+import { formativeConversationPersistenceError } from "./persistence-errors";
 
 export class FormativeConversationEvidenceReferenceError extends Error {
   constructor(
@@ -18,6 +19,25 @@ export class FormativeConversationEvidenceReferenceError extends Error {
 }
 
 export async function recordFormativeConversationProfileEvidenceReferences(input: {
+  conversation_public_id: string;
+  source_agent_call_db_id: string;
+  source_tutor_turn_db_id: string;
+  evidence_observations: FormativeConversationAgentOutput["evidence_observations"];
+}) {
+  try {
+    return await recordProfileEvidenceReferences(input);
+  } catch (error) {
+    if (error instanceof FormativeConversationEvidenceReferenceError) {
+      throw error;
+    }
+    throw formativeConversationPersistenceError(
+      error,
+      "evidence_reference_persistence"
+    );
+  }
+}
+
+async function recordProfileEvidenceReferences(input: {
   conversation_public_id: string;
   source_agent_call_db_id: string;
   source_tutor_turn_db_id: string;

@@ -260,7 +260,16 @@ export const SyntheticResearchValidationReportSchema = z
           transition_evidence: TransitionEvidenceSummarySchema,
           teacher_trajectory: z.record(z.string(), z.unknown()),
           unresolved_issue_codes: z.array(z.string()),
-          execution_error: z.string().nullable()
+          execution_error: z.string().nullable(),
+          execution_failure: z
+            .object({
+              category: z.string().min(1),
+              operation: z.string().min(1),
+              cause_code: z.string().nullable(),
+              retryable: z.boolean()
+            })
+            .strict()
+            .nullable()
         })
         .strict()
     ),

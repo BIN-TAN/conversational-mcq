@@ -1,0 +1,111 @@
+{
+  "artifact_version": "formative-conversation-v5-v5-failure-analysis-v1",
+  "immutable_source": {
+    "frozen_commit": "3b55bed5ff20831070c5d5ef1b1902aa77527236",
+    "runtime_candidate_hash": "a408b08c39aa614d967552e1fd321fabf0b83c96a3d83c82a7bd381fa8e899b3",
+    "protocol_hash": "7b42d2b1ffd3c5cfa1bef52cf60759b6eea7e891327077144d81e7f09788aa4c",
+    "provider_run_id": "fcv5v5_provider_20260730170219_4ac51142",
+    "derived_evaluation_id": "fcv5v5_derived_20260730170219_0a1eb734",
+    "dispatch_checkpoint_sha256": "1aceb19602ca99e5b26733a59cc565d2552d0a9f8d243e7a0243fcbd1ccdba4a",
+    "execution_status": "completed_failed",
+    "approval_eligible": false,
+    "activation_permitted": false,
+    "rerunnable": false
+  },
+  "findings": [
+    {
+      "finding_id": "cases_5_6_headers_without_body",
+      "classifications": [
+        "provider_transport_defect",
+        "retry_policy_defect",
+        "timeout_stream_handling_defect",
+        "evaluation_runner_defect"
+      ],
+      "observed": {
+        "response_headers_received": true,
+        "body_started": false,
+        "body_completed": false,
+        "body_bytes": 0,
+        "semantic_content_received": false,
+        "student_visible_output_persisted": false,
+        "tutor_turn_persisted": false,
+        "profile_transition_persisted": false,
+        "retry_attempted": false,
+        "operational_timeout_ms": 90000,
+        "case_5_elapsed_ms": 41266,
+        "case_6_elapsed_ms": 45288
+      },
+      "root_cause": "The adapter did not preserve body-consumption milestones and the approved retry classifier permitted only pre-header transient interruptions. A transient 2xx headers-only zero-body interruption therefore failed without its safe bounded retry.",
+      "remote_completion_cannot_be_excluded": true,
+      "correction": "Instrument body start, byte progress, and EOF completion; retry only a transient 2xx headers-received interruption with zero body bytes, no body start, no parsed semantic output, no persisted tutor turn, and no persisted transition. Partial-body and post-persistence failures remain non-retryable."
+    },
+    {
+      "finding_id": "cases_7_8_transition_contract_drift",
+      "classifications": [
+        "candidate_output_defect",
+        "output_contract_defect",
+        "profile_transition_validator_defect",
+        "evaluation_runner_defect"
+      ],
+      "observed": {
+        "structural_output_validation_passed": true,
+        "retained_process_cautions_rewritten": true,
+        "persistence_rejected": true,
+        "transition_persisted": false,
+        "teacher_projection_inferred_transition": false,
+        "research_export_inferred_transition": false
+      },
+      "root_cause": "The output boundary and persistence layer implemented different transition invariants. The model declared process_interpretation_cautions retained while rewriting or appending text; structural output validation accepted it and persistence later rejected it.",
+      "correction": "Use one canonical evidence-preserving transition validator before AgentCall success and tutor-turn persistence, during transition persistence, and when projecting teacher and research views. Retained fields must exactly preserve canonical prior values; changed fields require cited student evidence."
+    },
+    {
+      "finding_id": "case_8_markdown_table",
+      "classifications": [
+        "candidate_output_defect",
+        "output_contract_defect",
+        "ui_rendering_defect"
+      ],
+      "observed": {
+        "stored_text_modified": false,
+        "safe_renderer_table_support": false,
+        "rendered_as_literal_pipe_syntax": true
+      },
+      "root_cause": "The candidate emitted a Markdown table although the shared safe renderer intentionally excludes tables.",
+      "correction": "Keep the safe renderer unchanged and reject unsupported student-visible table syntax before persistence. Prompt guidance requests supported paragraphs and lists."
+    },
+    {
+      "finding_id": "case_7_directive_tone",
+      "classifications": [
+        "candidate_output_defect"
+      ],
+      "severity": "advisory_quality_issue",
+      "root_cause": "The final sentence was unusually directive but remained conceptually accurate, safe, and pedagogically relevant.",
+      "correction": "No teaching-prompt change is justified solely for this stylistic issue; retain it for human review."
+    },
+    {
+      "finding_id": "prisma_connection_closed_noise",
+      "classifications": [
+        "database_lifecycle_defect",
+        "evaluation_runner_defect"
+      ],
+      "observed": {
+        "connection_closed_message_count": 14,
+        "evidence_of_lost_artifact": false,
+        "evidence_of_lost_database_write": false,
+        "multiple_application_prisma_clients_found": false
+      },
+      "root_cause": "The evaluation CLI did not explicitly own the singleton Prisma client's final disconnect after all case, export, audit, and artifact work completed.",
+      "correction": "The v6 CLI uses an explicit evaluation database lifecycle boundary and disconnects once after all work or failure recording."
+    }
+  ],
+  "global_student_output_review": {
+    "conceptual_accuracy_issue_found": false,
+    "unjustified_mastery_claim_found": false,
+    "internal_terminology_found": false,
+    "deterministic_activity_language_found": false,
+    "privacy_or_answer_visibility_issue_found": false,
+    "remaining_human_review_required": true
+  },
+  "provider_calls_during_analysis": 0,
+  "network_requests_during_analysis": 0
+}

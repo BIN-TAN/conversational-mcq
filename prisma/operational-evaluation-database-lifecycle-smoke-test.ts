@@ -1,9 +1,15 @@
 import assert from "node:assert/strict";
-import { runWithEvaluationDatabaseLifecycle } from "../src/lib/operational/evaluation-database-lifecycle";
+import {
+  EVALUATION_DATABASE_LIFECYCLE_OWNER,
+  EVALUATION_DATABASE_LIFECYCLE_VERSION,
+  runWithEvaluationDatabaseLifecycle
+} from "../src/lib/operational/evaluation-database-lifecycle";
 
 async function successfulLifecycle() {
   const order: string[] = [];
   const result = await runWithEvaluationDatabaseLifecycle({
+    owner: EVALUATION_DATABASE_LIFECYCLE_OWNER,
+    on_lifecycle_event: (event) => order.push(event),
     run: async () => {
       order.push("case_1");
       order.push("case_2");
@@ -24,13 +30,17 @@ async function successfulLifecycle() {
   });
 
   assert.deepEqual(order, [
+    "run_started",
     "case_1",
     "case_2",
     "case_3",
     "research_export_complete",
     "artifact_manifest_complete",
     "database_audit_complete",
-    "prisma_disconnect"
+    "run_settled",
+    "disconnect_started",
+    "prisma_disconnect",
+    "disconnect_completed"
   ]);
   assert.deepEqual(result, {
     cases: 3,
@@ -90,6 +100,14 @@ async function main() {
   await successfulLifecycle();
   await failedLifecycle();
   await disconnectFailure();
+  await assert.rejects(
+    runWithEvaluationDatabaseLifecycle({
+      owner: "nested_service" as typeof EVALUATION_DATABASE_LIFECYCLE_OWNER,
+      run: async () => "not_reached",
+      disconnect: async () => undefined
+    }),
+    /evaluation_database_lifecycle_owner_invalid/
+  );
   console.log(
     JSON.stringify(
       {
@@ -101,7 +119,11 @@ async function main() {
         artifacts_before_disconnect: true,
         database_audit_before_disconnect: true,
         cleanup_on_failure: true,
-        connection_close_noise: 0
+        connection_close_noise: 0,
+        database_lifecycle_version:
+          EVALUATION_DATABASE_LIFECYCLE_VERSION,
+        database_client_owner: EVALUATION_DATABASE_LIFECYCLE_OWNER,
+        nested_service_ownership_rejected: true
       },
       null,
       2
