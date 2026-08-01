@@ -163,6 +163,12 @@ type SyntheticStudentExecution = {
     operation: string;
     cause_code: string | null;
     retryable: boolean;
+    logical_operation_id: string | null;
+    attempt_number: number;
+    mutation_may_have_occurred: boolean;
+    reconciliation_ran: boolean;
+    retry_permitted: boolean;
+    terminal_result: string;
   } | null;
 };
 
@@ -215,6 +221,11 @@ export type FormativeConversationProtocolValidationRunOptions = {
       >
     >
   >;
+  before_context_read?: (input: {
+    subject_id: FormativeConversationValidationSubject["subject_id"];
+    context_read_kind: "opening" | "student_message";
+    student_message_index: number | null;
+  }) => Promise<void>;
 };
 
 export type SyntheticResearchValidationRunOptions = {
@@ -334,7 +345,14 @@ function safeExecutionFailure(error: unknown) {
     category: error.category,
     operation: error.operation,
     cause_code: error.cause_code,
-    retryable: error.retryable
+    retryable: error.retryable,
+    logical_operation_id: error.logical_operation_id,
+    attempt_number: error.attempt_number,
+    mutation_may_have_occurred:
+      error.mutation_may_have_occurred,
+    reconciliation_ran: error.reconciliation_ran,
+    retry_permitted: error.retry_permitted,
+    terminal_result: error.terminal_result
   };
 }
 
@@ -827,6 +845,7 @@ async function runSyntheticStudent(input: {
   frozen_initial_profile?:
     | AgentOutputByName["student_profiling_agent"]
     | null;
+  before_context_read?: FormativeConversationProtocolValidationRunOptions["before_context_read"];
 }) {
   const assessment = await persistSyntheticAssessmentEvidence(input);
   let conversationPublicId: string | null = null;
@@ -929,6 +948,11 @@ async function runSyntheticStudent(input: {
       occurred_at: new Date()
     });
 
+    await input.before_context_read?.({
+      subject_id: input.subject.subject_id,
+      context_read_kind: "opening",
+      student_message_index: null
+    });
     const openingContext =
       await buildFormativeConversationRuntimeContextSeed({
         conversation_public_id: conversation.conversation_public_id,
@@ -949,6 +973,11 @@ async function runSyntheticStudent(input: {
     ) {
       const behavior = input.subject.conversation_behavior[turnIndex];
       const submittedAt = new Date();
+      await input.before_context_read?.({
+        subject_id: input.subject.subject_id,
+        context_read_kind: "student_message",
+        student_message_index: turnIndex
+      });
       const context = await buildFormativeConversationRuntimeContextSeed({
         conversation_public_id: conversation.conversation_public_id,
         student_user_db_id: assessment.student_user_db_id
@@ -1666,7 +1695,8 @@ async function runFormativeConversationValidationSubjects(
         runner_factory: options.runner_factory,
         frozen_initial_profile:
           options.frozen_initial_profiles[subject.subject_id] ??
-          null
+          null,
+        before_context_read: options.before_context_read
       })
     );
   }

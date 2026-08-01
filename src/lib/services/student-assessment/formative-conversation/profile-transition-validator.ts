@@ -5,9 +5,12 @@ import {
   type FormativeConversationAgentOutput,
   type FormativeConversationCanonicalProfile
 } from "./agent-contract";
+import { validateFormativeConversationMisconceptionEvidence } from "./profile-field-semantics";
 
-export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION =
-  "formative-conversation-profile-transition-validator-v4";
+export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION:
+  | "formative-conversation-profile-transition-validator-v4"
+  | "formative-conversation-profile-transition-validator-v5" =
+  "formative-conversation-profile-transition-validator-v5";
 
 type TransitionRecommendation = NonNullable<
   FormativeConversationAgentOutput["profile_transition_recommendation"]
@@ -29,6 +32,7 @@ export type FormativeConversationProfileTransitionValidationIssueCode =
   | "profile_transition_retained_field_changed"
   | "profile_transition_updated_field_unchanged"
   | "profile_transition_updated_field_evidence_missing"
+  | "profile_transition_misconception_field_semantics_invalid"
   | "profile_transition_snapshot_invalid"
   | "profile_transition_snapshot_outcome_mismatch"
   | "profile_transition_snapshot_profile_mismatch";
@@ -253,6 +257,23 @@ export function validateFormativeConversationProfileTransition(input: {
           )
         );
       }
+    }
+  }
+
+  if (updatedProfile) {
+    for (const semanticIssue of
+      validateFormativeConversationMisconceptionEvidence(
+        updatedProfile.misconception_indicators
+      )) {
+      issues.push(
+        issue(
+          "profile_transition_misconception_field_semantics_invalid",
+          `profile_transition_recommendation.updated_profile.misconception_indicators.${semanticIssue.index}`,
+          semanticIssue.role === "resolved_prior_misconception"
+            ? "Current misconception evidence must not contain a resolved or historical misconception."
+            : "Current misconception evidence must not contain a remaining limitation, uncertainty, or question."
+        )
+      );
     }
   }
 

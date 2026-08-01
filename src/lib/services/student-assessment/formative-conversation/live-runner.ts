@@ -22,8 +22,9 @@ import type {
 export const FORMATIVE_CONVERSATION_PROMPT_VERSION:
   | "formative-conversation-host-v5"
   | "formative-conversation-host-v5.1"
-  | "formative-conversation-host-v5.2" =
-  "formative-conversation-host-v5.2";
+  | "formative-conversation-host-v5.2"
+  | "formative-conversation-host-v5.3" =
+  "formative-conversation-host-v5.3";
 
 export const FORMATIVE_CONVERSATION_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -79,6 +80,13 @@ value is unchanged, you MUST use retained_evidence_remains_valid, even when the 
 your interpretation or discussed in the conversation. Use updated_from_conversation_evidence only
 when the canonical value actually changes, and cite a supporting student turn. Do not mark an
 unchanged field as updated merely to emphasize it.
+
+The updated_profile.misconception_indicators field contains only evidence for misconceptions that
+the student currently demonstrates. Do not put a corrected or resolved prior misconception there,
+and do not use it for a remaining limitation, uncertainty, question, or suggested next step. Put
+resolved evidence in item_level_evidence or the profile rationale, and put limitations or useful
+next evidence in reasoning_quality_summary, process_interpretation_cautions, or
+recommended_next_evidence as semantically appropriate.
 
 The profile_transition_recommendation.proposed_outcome is the single authoritative profile decision.
 The teacher_assistance_recommendation compatibility field must mirror that decision: set recommended

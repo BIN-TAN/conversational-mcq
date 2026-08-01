@@ -19,6 +19,10 @@ import {
   FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
   formativeConversationPersistenceError
 } from "./persistence-errors";
+import {
+  executeFormativeConversationIdempotentWrite,
+  measureFormativeConversationPersistencePhase
+} from "./persistence-observability";
 
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION:
   | "formative-conversation-profile-transition-v3"
@@ -337,6 +341,12 @@ export async function recordFormativeConversationProfileTransitionRecommendation
     recommendation: AgentTransitionRecommendation;
   }
 ) {
+  const logicalOperationId = `profile-transition:${createHash("sha256")
+    .update(
+      `${input.conversation_public_id}:${input.source_agent_call_db_id}`
+    )
+    .digest("hex")
+    .slice(0, 24)}`;
   const learningOutcome = storedLearningOutcome(
     input.recommendation.proposed_outcome
   );
@@ -414,14 +424,21 @@ export async function recordFormativeConversationProfileTransitionRecommendation
   };
   try {
     const session =
-      await prisma.formativeConversationSession.findUniqueOrThrow({
-        where: {
-          conversation_public_id: input.conversation_public_id
-        },
-        include: {
-          initial_student_profile: true,
-          current_student_profile: true
-        }
+      await measureFormativeConversationPersistencePhase({
+        operation_name: "formative_conversation_profile_transition",
+        logical_operation_id: logicalOperationId,
+        operation_kind: "read",
+        phase: "pre_transaction_read",
+        execute: () =>
+          prisma.formativeConversationSession.findUniqueOrThrow({
+            where: {
+              conversation_public_id: input.conversation_public_id
+            },
+            include: {
+              initial_student_profile: true,
+              current_student_profile: true
+            }
+          })
       });
     const priorProfile =
       session.current_student_profile ?? session.initial_student_profile;
@@ -432,40 +449,48 @@ export async function recordFormativeConversationProfileTransitionRecommendation
       );
     }
 
-    const [agentCall, tutorTurn, citedTurns] = await Promise.all([
-      prisma.agentCall.findUniqueOrThrow({
-        where: { id: input.source_agent_call_db_id },
-        select: {
-          id: true,
-          formative_conversation_session_db_id: true,
-          agent_name: true,
-          call_status: true,
-          output_validated: true
-        }
-      }),
-      prisma.conversationTurn.findUniqueOrThrow({
-        where: { id: input.source_tutor_turn_db_id },
-        select: {
-          id: true,
-          formative_conversation_session_db_id: true,
-          actor_type: true,
-          agent_name: true,
-          sequence_index: true,
-          created_at: true
-        }
-      }),
-      prisma.conversationTurn.findMany({
-        where: {
-          formative_conversation_session_db_id: session.id,
-          sequence_index: { in: citedSequenceIndexes }
-        },
-        select: {
-          id: true,
-          sequence_index: true,
-          actor_type: true
-        }
-      })
-    ]);
+    const [agentCall, tutorTurn, citedTurns] =
+      await measureFormativeConversationPersistencePhase({
+        operation_name: "formative_conversation_profile_transition",
+        logical_operation_id: logicalOperationId,
+        operation_kind: "read",
+        phase: "pre_transaction_read",
+        execute: () =>
+          Promise.all([
+            prisma.agentCall.findUniqueOrThrow({
+              where: { id: input.source_agent_call_db_id },
+              select: {
+                id: true,
+                formative_conversation_session_db_id: true,
+                agent_name: true,
+                call_status: true,
+                output_validated: true
+              }
+            }),
+            prisma.conversationTurn.findUniqueOrThrow({
+              where: { id: input.source_tutor_turn_db_id },
+              select: {
+                id: true,
+                formative_conversation_session_db_id: true,
+                actor_type: true,
+                agent_name: true,
+                sequence_index: true,
+                created_at: true
+              }
+            }),
+            prisma.conversationTurn.findMany({
+              where: {
+                formative_conversation_session_db_id: session.id,
+                sequence_index: { in: citedSequenceIndexes }
+              },
+              select: {
+                id: true,
+                sequence_index: true,
+                actor_type: true
+              }
+            })
+          ])
+      });
     if (
       agentCall.formative_conversation_session_db_id !== session.id ||
       agentCall.agent_name !== "formative_conversation_agent" ||
@@ -501,20 +526,28 @@ export async function recordFormativeConversationProfileTransitionRecommendation
     }
 
     const canonicalValidation =
-      validateFormativeConversationProfileTransition({
-        recommendation: input.recommendation,
-        prior_profile:
-          canonicalFormativeConversationProfileFromStudentProfile(
-            priorProfile
-          ),
-        evidence_observations: input.agent_evidence_observations,
-        available_turns: citedTurns.map((turn) => ({
-          sequence_index: turn.sequence_index,
-          actor:
-            turn.actor_type === "student"
-              ? ("student" as const)
-              : ("tutor" as const)
-        }))
+      await measureFormativeConversationPersistencePhase({
+        operation_name: "formative_conversation_profile_transition",
+        logical_operation_id: logicalOperationId,
+        operation_kind: "read",
+        phase: "validation",
+        execute: async () =>
+          validateFormativeConversationProfileTransition({
+            recommendation: input.recommendation,
+            prior_profile:
+              canonicalFormativeConversationProfileFromStudentProfile(
+                priorProfile
+              ),
+            evidence_observations:
+              input.agent_evidence_observations,
+            available_turns: citedTurns.map((turn) => ({
+              sequence_index: turn.sequence_index,
+              actor:
+                turn.actor_type === "student"
+                  ? ("student" as const)
+                  : ("tutor" as const)
+            }))
+          })
       });
     if (!canonicalValidation.valid) {
       const primaryIssue = canonicalValidation.issues[0];
@@ -560,8 +593,17 @@ export async function recordFormativeConversationProfileTransitionRecommendation
     })
   );
 
-  try {
-    const updatedProfile = await prisma.$transaction(async (tx) => {
+  const persistTransition = async () => {
+    const updatedProfile =
+      await measureFormativeConversationPersistencePhase({
+        operation_name: "formative_conversation_profile_transition",
+        logical_operation_id: logicalOperationId,
+        operation_kind: "write",
+        phase: "transaction",
+        transaction_timeout_ms:
+          FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS.timeout,
+        mutation_may_have_occurred: true,
+        execute: () => prisma.$transaction(async (tx) => {
       const claimed = await tx.formativeConversationSession.updateMany({
         where: {
           id: prepared.session.id,
@@ -744,12 +786,23 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         }
       });
 
-      return createdProfile;
-    }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS);
+          return createdProfile;
+        }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS)
+      });
 
-    const persisted = await existingTransitionForAgentCall(
-      input.source_agent_call_db_id
-    );
+    const persisted =
+      await measureFormativeConversationPersistencePhase({
+        operation_name: "formative_conversation_profile_transition",
+        logical_operation_id: logicalOperationId,
+        operation_kind: "reconciliation",
+        phase: "post_transaction_reconciliation",
+        mutation_may_have_occurred: true,
+        reconciliation_ran: true,
+        execute: () =>
+          existingTransitionForAgentCall(
+            input.source_agent_call_db_id
+          )
+      });
     if (!persisted) {
       throw new Error("profile_transition_finalization_missing");
     }
@@ -758,6 +811,44 @@ export async function recordFormativeConversationProfileTransitionRecommendation
       updated_profile: updatedProfile,
       replayed: false
     };
+  };
+
+  const reconcileTransition = async () => {
+    try {
+      const persisted = await existingTransitionForAgentCall(
+        input.source_agent_call_db_id
+      );
+      return persisted
+        ? {
+            status: "committed" as const,
+            value: {
+              transition: persisted,
+              updated_profile: persisted.updated_student_profile,
+              replayed: true
+            }
+          }
+        : { status: "not_committed" as const };
+    } catch (error) {
+      throw formativeConversationPersistenceError(
+        error,
+        "transition_reconciliation",
+        {
+          logical_operation_id: logicalOperationId,
+          mutation_may_have_occurred: true,
+          reconciliation_ran: true,
+          retry_permitted: false
+        }
+      );
+    }
+  };
+
+  try {
+    return await executeFormativeConversationIdempotentWrite({
+      operation_name: "formative_conversation_profile_transition",
+      logical_operation_id: logicalOperationId,
+      execute: persistTransition,
+      reconcile: reconcileTransition
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&

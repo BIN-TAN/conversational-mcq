@@ -9,6 +9,10 @@ import {
   FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
   formativeConversationPersistenceError
 } from "./persistence-errors";
+import {
+  executeFormativeConversationIdempotentWrite,
+  measureFormativeConversationPersistencePhase
+} from "./persistence-observability";
 
 export const FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE =
   "FORMATIVE_CONVERSATION" as const;
@@ -359,70 +363,120 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
     throw new Error("formative_conversation_student_message_invalid");
   }
   const requestHash = messageRequestHash(messageText);
+  const logicalOperationId =
+    `message-reservation:${input.conversation_public_id}:${input.client_message_id}`;
 
   const persist = async () =>
-    prisma.$transaction(async (tx) => {
-      const session = await getConversationPhase(tx, input.conversation_public_id);
-      const existing = await tx.formativeConversationMessageReceipt.findUnique({
-        where: {
-          formative_conversation_session_db_id_client_message_id: {
-            formative_conversation_session_db_id: session.session_id,
-            client_message_id: input.client_message_id
-          }
-        },
-        include: { student_turn: true, assistant_turn: true }
-      });
-
-      if (existing) {
-        if (existing.request_hash !== requestHash) {
-          throw new FormativeConversationFoundationError(
-            "idempotency_hash_mismatch",
-            "The client message ID was already used for different content."
+    measureFormativeConversationPersistencePhase({
+      operation_name: "formative_conversation_message_reservation",
+      logical_operation_id: logicalOperationId,
+      operation_kind: "write",
+      phase: "transaction",
+      transaction_timeout_ms:
+        FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS.timeout,
+      mutation_may_have_occurred: true,
+      execute: () =>
+        prisma.$transaction(async (tx) => {
+          const session = await getConversationPhase(
+            tx,
+            input.conversation_public_id
           );
-        }
-        return { receipt: existing, replayed: true };
-      }
+          const existing =
+            await tx.formativeConversationMessageReceipt.findUnique({
+              where: {
+                formative_conversation_session_db_id_client_message_id: {
+                  formative_conversation_session_db_id: session.session_id,
+                  client_message_id: input.client_message_id
+                }
+              },
+              include: { student_turn: true, assistant_turn: true }
+            });
 
-      const studentTurn = await tx.conversationTurn.create({
-        data: {
-          assessment_session_db_id: session.assessment_session_db_id,
-          concept_unit_session_db_id: session.concept_unit_session_db_id,
-          formative_conversation_session_db_id: session.session_id,
-          phase: session.phase,
-          actor_type: "student",
-          message_text: messageText,
-          structured_payload: {
-            message_type: "formative_conversation_student_message",
-            visibility: "student_visible",
-            client_message_id: input.client_message_id
+          if (existing) {
+            if (existing.request_hash !== requestHash) {
+              throw new FormativeConversationFoundationError(
+                "idempotency_hash_mismatch",
+                "The client message ID was already used for different content."
+              );
+            }
+            return { receipt: existing, replayed: true };
           }
-        }
-      });
-      const receipt = await tx.formativeConversationMessageReceipt.create({
-        data: {
-          formative_conversation_session_db_id: session.session_id,
-          client_message_id: input.client_message_id,
-          request_hash: requestHash,
-          status: "student_turn_persisted",
-          assistant_response_status: "pending",
-          student_turn_db_id: studentTurn.id
-        },
-        include: { student_turn: true, assistant_turn: true }
-      });
-      await tx.formativeConversationSession.update({
-        where: { id: session.session_id },
-        data: {
-          last_activity_at: new Date(),
-          last_processed_turn_sequence: studentTurn.sequence_index,
-          concurrency_version: { increment: 1 }
-        }
-      });
 
-      return { receipt, replayed: false };
+          const studentTurn = await tx.conversationTurn.create({
+            data: {
+              assessment_session_db_id: session.assessment_session_db_id,
+              concept_unit_session_db_id: session.concept_unit_session_db_id,
+              formative_conversation_session_db_id: session.session_id,
+              phase: session.phase,
+              actor_type: "student",
+              message_text: messageText,
+              structured_payload: {
+                message_type: "formative_conversation_student_message",
+                visibility: "student_visible",
+                client_message_id: input.client_message_id
+              }
+            }
+          });
+          const receipt =
+            await tx.formativeConversationMessageReceipt.create({
+              data: {
+                formative_conversation_session_db_id: session.session_id,
+                client_message_id: input.client_message_id,
+                request_hash: requestHash,
+                status: "student_turn_persisted",
+                assistant_response_status: "pending",
+                student_turn_db_id: studentTurn.id
+              },
+              include: { student_turn: true, assistant_turn: true }
+            });
+          await tx.formativeConversationSession.update({
+            where: { id: session.session_id },
+            data: {
+              last_activity_at: new Date(),
+              last_processed_turn_sequence: studentTurn.sequence_index,
+              concurrency_version: { increment: 1 }
+            }
+          });
+
+          return { receipt, replayed: false };
+        }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS)
     });
 
+  const reconcile = async () => {
+    const receipt =
+      await prisma.formativeConversationMessageReceipt.findFirst({
+        where: {
+          client_message_id: input.client_message_id,
+          formative_conversation_session: {
+            conversation_public_id: input.conversation_public_id
+          }
+        },
+        include: { student_turn: true, assistant_turn: true }
+      });
+    if (!receipt) {
+      return { status: "not_committed" as const };
+    }
+    if (receipt.request_hash !== requestHash) {
+      throw new FormativeConversationFoundationError(
+        "idempotency_hash_mismatch",
+        "The client message ID was already used for different content."
+      );
+    }
+    return {
+      status: "committed" as const,
+      value: { receipt, replayed: true }
+    };
+  };
+
   try {
-    return await persist();
+    return await executeFormativeConversationIdempotentWrite<
+      Awaited<ReturnType<typeof persist>>
+    >({
+      operation_name: "formative_conversation_message_reservation",
+      logical_operation_id: logicalOperationId,
+      execute: persist,
+      reconcile
+    });
   } catch (error) {
     if (
       error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -441,7 +495,17 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
         return { receipt, replayed: true };
       }
     }
-    throw error;
+    if (error instanceof FormativeConversationFoundationError) {
+      throw error;
+    }
+    throw formativeConversationPersistenceError(
+      error,
+      "message_reservation",
+      {
+        logical_operation_id: logicalOperationId,
+        mutation_may_have_occurred: true
+      }
+    );
   }
 }
 
@@ -811,85 +875,155 @@ export async function persistFormativeConversationAssistantMessage(input: {
   if (!messageText || messageText.length > 12_000) {
     throw new Error("formative_conversation_assistant_message_invalid");
   }
+  const logicalOperationId =
+    `assistant-response:${input.conversation_public_id}:${input.client_message_id}`;
 
-  return prisma.$transaction(async (tx) => {
-    const session = await getConversationPhase(tx, input.conversation_public_id);
-    const receipt = await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
-      where: {
-        formative_conversation_session_db_id_client_message_id: {
-          formative_conversation_session_db_id: session.session_id,
-          client_message_id: input.client_message_id
-        }
-      },
-      include: { assistant_turn: true }
+  const persist = () =>
+    measureFormativeConversationPersistencePhase({
+      operation_name: "formative_conversation_assistant_response",
+      logical_operation_id: logicalOperationId,
+      operation_kind: "write",
+      phase: "transaction",
+      transaction_timeout_ms:
+        FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS.timeout,
+      mutation_may_have_occurred: true,
+      execute: () =>
+        prisma.$transaction(async (tx) => {
+          const session = await getConversationPhase(
+            tx,
+            input.conversation_public_id
+          );
+          const receipt =
+            await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+              where: {
+                formative_conversation_session_db_id_client_message_id: {
+                  formative_conversation_session_db_id: session.session_id,
+                  client_message_id: input.client_message_id
+                }
+              },
+              include: { assistant_turn: true }
+            });
+
+          if (receipt.assistant_turn) {
+            return {
+              receipt,
+              assistant_turn: receipt.assistant_turn,
+              replayed: true
+            };
+          }
+
+          const assistantTurn = await tx.conversationTurn.create({
+            data: {
+              assessment_session_db_id: session.assessment_session_db_id,
+              concept_unit_session_db_id: session.concept_unit_session_db_id,
+              formative_conversation_session_db_id: session.session_id,
+              phase: session.phase,
+              actor_type: "agent",
+              agent_name: "formative_conversation_agent",
+              message_text: messageText,
+              structured_payload: {
+                message_type:
+                  input.message_type ??
+                  "formative_conversation_tutor_message",
+                visibility: "student_visible",
+                generation_source: input.generation_source,
+                validator_status: input.validator_status,
+                agent_call_db_id: input.agent_call_db_id ?? null,
+                fallback_used: input.fallback_used ?? false,
+                opening_version: input.opening_version ?? null
+              }
+            }
+          });
+          const updatedReceipt =
+            await tx.formativeConversationMessageReceipt.update({
+              where: { id: receipt.id },
+              data: {
+                status: "assistant_turn_persisted",
+                assistant_response_status: "completed",
+                assistant_turn_db_id: assistantTurn.id,
+                failure_code: null,
+                response_payload: {
+                  ...assistantResponsePayload({
+                    existing: receipt.response_payload,
+                    status: "completed",
+                    retry_count:
+                      receipt.assistant_response_retry_count
+                  }),
+                  agent_name: "formative_conversation_agent",
+                  agent_call_db_id: input.agent_call_db_id ?? null,
+                  generation_source: input.generation_source,
+                  validator_status: input.validator_status,
+                  fallback_used: input.fallback_used ?? false,
+                  message_type:
+                    input.message_type ??
+                    "formative_conversation_tutor_message",
+                  opening_version: input.opening_version ?? null
+                },
+                completed_at: new Date()
+              },
+              include: { student_turn: true, assistant_turn: true }
+            });
+          await tx.formativeConversationSession.update({
+            where: { id: session.session_id },
+            data: {
+              last_activity_at: new Date(),
+              last_processed_turn_sequence:
+                assistantTurn.sequence_index,
+              concurrency_version: { increment: 1 }
+            }
+          });
+
+          return {
+            receipt: updatedReceipt,
+            assistant_turn: assistantTurn,
+            replayed: false
+          };
+        }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS)
     });
 
-    if (receipt.assistant_turn) {
-      return { receipt, assistant_turn: receipt.assistant_turn, replayed: true };
-    }
-
-    const assistantTurn = await tx.conversationTurn.create({
-      data: {
-        assessment_session_db_id: session.assessment_session_db_id,
-        concept_unit_session_db_id: session.concept_unit_session_db_id,
-        formative_conversation_session_db_id: session.session_id,
-        phase: session.phase,
-        actor_type: "agent",
-        agent_name: "formative_conversation_agent",
-        message_text: messageText,
-        structured_payload: {
-          message_type:
-            input.message_type ?? "formative_conversation_tutor_message",
-          visibility: "student_visible",
-          generation_source: input.generation_source,
-          validator_status: input.validator_status,
-          agent_call_db_id: input.agent_call_db_id ?? null,
-          fallback_used: input.fallback_used ?? false,
-          opening_version: input.opening_version ?? null
-        }
-      }
-    });
-    const updatedReceipt = await tx.formativeConversationMessageReceipt.update({
-      where: { id: receipt.id },
-      data: {
-        status: "assistant_turn_persisted",
-        assistant_response_status: "completed",
-        assistant_turn_db_id: assistantTurn.id,
-        failure_code: null,
-        response_payload: {
-          ...assistantResponsePayload({
-            existing: receipt.response_payload,
-            status: "completed",
-            retry_count: receipt.assistant_response_retry_count
-          }),
-          agent_name: "formative_conversation_agent",
-          agent_call_db_id: input.agent_call_db_id ?? null,
-          generation_source: input.generation_source,
-          validator_status: input.validator_status,
-          fallback_used: input.fallback_used ?? false,
-          message_type:
-            input.message_type ?? "formative_conversation_tutor_message",
-          opening_version: input.opening_version ?? null
+  const reconcile = async () => {
+    const receipt =
+      await prisma.formativeConversationMessageReceipt.findFirst({
+        where: {
+          client_message_id: input.client_message_id,
+          formative_conversation_session: {
+            conversation_public_id: input.conversation_public_id
+          }
         },
-        completed_at: new Date()
-      },
-      include: { student_turn: true, assistant_turn: true }
-    });
-    await tx.formativeConversationSession.update({
-      where: { id: session.session_id },
-      data: {
-        last_activity_at: new Date(),
-        last_processed_turn_sequence: assistantTurn.sequence_index,
-        concurrency_version: { increment: 1 }
-      }
-    });
-
+        include: { student_turn: true, assistant_turn: true }
+      });
+    if (!receipt?.assistant_turn) {
+      return { status: "not_committed" as const };
+    }
     return {
-      receipt: updatedReceipt,
-      assistant_turn: assistantTurn,
-      replayed: false
+      status: "committed" as const,
+      value: {
+        receipt,
+        assistant_turn: receipt.assistant_turn,
+        replayed: true
+      }
     };
-  });
+  };
+
+  try {
+    return await executeFormativeConversationIdempotentWrite<
+      Awaited<ReturnType<typeof persist>>
+    >({
+      operation_name: "formative_conversation_assistant_response",
+      logical_operation_id: logicalOperationId,
+      execute: persist,
+      reconcile
+    });
+  } catch (error) {
+    throw formativeConversationPersistenceError(
+      error,
+      "assistant_response_persistence",
+      {
+        logical_operation_id: logicalOperationId,
+        mutation_may_have_occurred: true
+      }
+    );
+  }
 }
 
 export async function getFormativeConversationTranscript(conversationPublicId: string) {

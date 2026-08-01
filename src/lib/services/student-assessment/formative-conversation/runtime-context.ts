@@ -1,5 +1,6 @@
 import type { StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { executeFormativeConversationPersistenceRead } from "./persistence-observability";
 import { buildAssessmentInterpretationContextFromResponsePackage } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import type {
   FormativeConversationAdministeredItem,
@@ -159,7 +160,10 @@ async function buildRuntimeContextSeed(input: {
   conversation_public_id: string;
   student_user_db_id?: string;
 }): Promise<FormativeConversationRuntimeContextSeed> {
-  const session = await prisma.formativeConversationSession.findFirst({
+  const session = await executeFormativeConversationPersistenceRead({
+    operation_name: "formative_conversation_context_read",
+    logical_operation_id: `context:${input.conversation_public_id}`,
+    execute: () => prisma.formativeConversationSession.findFirst({
     where: {
       conversation_public_id: input.conversation_public_id,
       ...(input.student_user_db_id
@@ -259,6 +263,7 @@ async function buildRuntimeContextSeed(input: {
         }
       }
     }
+    })
   });
   if (!session) {
     throw new Error("formative_conversation_not_found");
