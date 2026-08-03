@@ -1,0 +1,35 @@
+{
+  "artifact_version": "formative-conversation-v9-case4-safe-failure-evidence-v1",
+  "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+  "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+  "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+  "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+  "case_id": "fcv5_04_related_concept_discussion",
+  "source_artifacts": [
+    {
+      "role": "case4_transcript",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_04_related_concept_discussion-transcript.json",
+      "sha256": "facba4f919a7494c1ba1de152b790363c7b9eb930f5659feb9af0737b4e602f5"
+    },
+    {
+      "role": "case4_validation",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_04_related_concept_discussion-validation.json",
+      "sha256": "f6226245e9ab62839b3851f64b50b35d7628d928a6220b2e37afb979c2075c03"
+    }
+  ],
+  "agent_call_public_id": "cmsb7s8gm002xne3eu9k5gffc",
+  "provider_response_id": "resp_030a341623011298016a6eb326397481999cd8d0a76d7810af",
+  "provider_body_completed": true,
+  "input_tokens": 6806,
+  "output_tokens": 367,
+  "latency_ms": 5849,
+  "call_status": "invalid_output",
+  "typed_failure": "formative_conversation_opening_validation",
+  "exact_generated_opening_available": false,
+  "validator_issue_paths_available": false,
+  "student_visible_output_persisted": false,
+  "classification": "indeterminate_candidate_or_validator_failure_due_to_v9_safe_output_evidence_omission",
+  "correction_scope": "preserve_opening_validator_and_add_prospective_safe_invalid_output_evidence",
+  "preserved_immutable": true,
+  "rerunnable": false
+}

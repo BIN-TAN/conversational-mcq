@@ -1,0 +1,81 @@
+{
+  "contract_version": "formative-conversation-v5-live-environment-parity-v1",
+  "launcher": {
+    "version": "formative-conversation-v5-node-import-tsx-launcher-v1",
+    "mechanism": "node --import tsx",
+    "path": "scripts/operational-formative-conversation-v5-v11-launcher.mjs",
+    "child_cli_path": "prisma/operational-formative-conversation-v5-v11-evaluate.ts",
+    "plan_and_live_share_launcher": true,
+    "tsx_cli_ipc_used": false
+  },
+  "environment_sources": [
+    "render_process_local",
+    "render_runtime",
+    "deterministic_test"
+  ],
+  "required_injected_environment": [
+    "NODE_ENV",
+    "APP_ENV",
+    "APP_BASE_URL",
+    "DATABASE_URL",
+    "SESSION_SECRET",
+    "LLM_PROVIDER",
+    "LLM_LIVE_CALLS_ENABLED",
+    "OPENAI_API_KEY",
+    "OPENAI_MODEL_FORMATIVE_CONVERSATION",
+    "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
+    "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
+    "FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED",
+    "OPENAI_REQUEST_TIMEOUT_MS",
+    "OPENAI_MAX_RETRIES",
+    "OPERATIONAL_AGENT_MODE",
+    "OPERATIONAL_APPROVED_CONFIG_HASH",
+    "OPERATIONAL_APPROVAL_BUNDLE_PATH",
+    "OPERATIONAL_APPROVED_MANIFEST_PATH",
+    "OPERATIONAL_APPROVAL_EVIDENCE_PATH",
+    "OPERATIONAL_EFFECTIVE_RESULT_VERSION",
+    "OPERATIONAL_EFFECTIVE_VALIDATOR_VERSION",
+    "STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED",
+    "TOPIC_DIALOGUE_LIVE_CALLS_ENABLED",
+    "TOPIC_DIALOGUE_MAX_STUDENT_TURNS",
+    "TOPIC_DIALOGUE_RECENT_TURN_WINDOW",
+    "TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS",
+    "TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS",
+    "RESEARCH_PSEUDONYMIZATION_KEY",
+    "FORMATIVE_CONVERSATION_V5_V11_LIVE_EVALUATION_ENABLED",
+    "FORMATIVE_CONVERSATION_V5_V11_DATABASE_CONNECTION_SOURCE",
+    "FORMATIVE_CONVERSATION_V5_V11_DATABASE_IDENTITY_MATCHED"
+  ],
+  "secret_environment": [
+    "DATABASE_URL",
+    "SESSION_SECRET",
+    "OPENAI_API_KEY",
+    "OPENAI_API_KEY_FILE",
+    "RESEARCH_PSEUDONYMIZATION_KEY"
+  ],
+  "active_approval_and_candidate_separate": true,
+  "active_approval_paths_must_be_explicit_and_readable": true,
+  "local_path_projection_requires_render_source_paths": true,
+  "database_probe_required": true,
+  "research_export_probe_required": true,
+  "provider_credential_shape_check_only": true,
+  "provider_auth_network_requests": 0,
+  "provider_generation_requests": 0,
+  "checkpoint_created_during_preflight": false,
+  "secrets_recorded": false,
+  "secret_fingerprints_recorded": false,
+  "artifact_control_channel": {
+    "schema_version": "formative-conversation-v11-artifact-control-v1",
+    "ordinary_stdout_used_for_control": false,
+    "owner_only_control_file": true,
+    "duplicate_missing_malformed_conflicting_fail_closed": true
+  },
+  "preventive_artifact_release": {
+    "scanner_version": "formative-conversation-v11-preventive-artifact-scanner-v1",
+    "release_policy_version": "formative-conversation-v11-owner-only-atomic-release-v1",
+    "attestation_version": "formative-conversation-v11-preventive-scan-attestation-v1",
+    "attestation_schema_fingerprint": "f1fe56f12ddbadbb95fe592b5bd6076ad8b4961d059ac42111f39efe13df02da",
+    "exact_secrets_cleared_before_release": true,
+    "atomic_promotion_required": true
+  }
+}

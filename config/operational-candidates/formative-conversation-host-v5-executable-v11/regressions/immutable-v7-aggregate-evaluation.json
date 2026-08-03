@@ -1,0 +1,55 @@
+{
+  "artifact_version": "formative-conversation-v5-aggregate-evaluation-v1",
+  "provider_run_id": "fcv5v7_provider_20260801013024_27f671a7",
+  "derived_evaluation_id": "fcv5v7_derived_20260801013024_4da7a38f",
+  "status": "completed_failed",
+  "case_count": 8,
+  "expected_logical_call_count": 21,
+  "actual_logical_call_count": 16,
+  "call_graph_complete": false,
+  "deterministic_failure_count": 5,
+  "human_review_required": true,
+  "approval_eligible": false,
+  "case_results": [
+    {
+      "case_id": "fcv5_01_assistant_first_opening",
+      "status": "passed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "status": "passed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "status": "failed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "status": "passed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "status": "failed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "status": "failed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "status": "failed",
+      "human_review_status": "pending"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "status": "failed",
+      "human_review_status": "pending"
+    }
+  ]
+}
