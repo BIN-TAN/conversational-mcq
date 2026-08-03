@@ -4,9 +4,9 @@ import {
 } from "./agent-contract";
 
 export const FORMATIVE_CONVERSATION_OPENING_VERSION: string =
-  "formative-conversation-opening-v2";
+  "formative-conversation-opening-v3";
 export const FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID =
-  "assistant-opening:formative-conversation-opening-v1";
+  "assistant-opening:formative-conversation-opening-v3";
 
 export type FormativeConversationOpeningValidation = {
   valid: boolean;
@@ -14,17 +14,29 @@ export type FormativeConversationOpeningValidation = {
   output: FormativeConversationAgentOutput | null;
 };
 
-const forbiddenOpeningPatterns: Array<{
+const scopedForbiddenOpeningPatterns: Array<{
   issue_code: string;
   pattern: RegExp;
 }> = [
   {
     issue_code: "opening_exposes_profile_language",
-    pattern: /\b(?:learning profile|response profile|profile status|profile)\b/i
+    pattern:
+      /\b(?:your|the student's?)\s+(?:(?:current|learning|response|diagnostic)\s+)?profile\b|\b(?:profile|profile status)\s+(?:shows?|indicates?|classifies?|categorizes?)\s+(?:that\s+)?(?:you|your)\b/i
   },
   {
     issue_code: "opening_exposes_diagnosis_language",
-    pattern: /\b(?:diagnosis|diagnostic result|assessment stage)\b/i
+    pattern:
+      /\b(?:your|the student's?)\s+(?:diagnosis|diagnostic (?:classification|result|status))\b|\b(?:you|the student)\s+(?:were|was|are|is|have been|has been)\s+(?:diagnosed|classified|categorized)\b|\bassessment stage\b/i
+  },
+  {
+    issue_code: "opening_exposes_hidden_reasoning",
+    pattern:
+      /\b(?:chain[- ]of[- ]thought|hidden (?:reasoning|prompt|analysis)|internal (?:reasoning|prompt|analysis)|system prompt|developer prompt)\b|\bI (?:was|am) instructed (?:internally|by (?:the )?system)\b/i
+  },
+  {
+    issue_code: "opening_exposes_teacher_only_information",
+    pattern:
+      /\b(?:your|the)\s+(?:teacher|instructor)\s+(?:noted|said|reported|wrote|indicated|told)\b|\b(?:teacher|instructor)[- ]only\s+(?:notes?|information|guidance)\b|\b(?:teacher|instructor)\s+(?:notes?|guidance|comments?)\s+(?:say|show|indicate|suggest)\b/i
   },
   {
     issue_code: "opening_exposes_growth_target_language",
@@ -55,8 +67,11 @@ const studentAssessmentResultPatterns = [
 ] as const;
 
 const assessmentAcknowledgementPatterns = [
-  /\b(?:review(?:ed|ing)?|answers?|questions?|assessment)\b/i,
-  /\b(?:look(?:ed|ing)?|went|go(?:ing)?)\s+(?:back\s+)?(?:through|over)\s+(?:the|your)\s+(?:answers?|results?)\b/i
+  /\b(?:review(?:ed|ing)?|look(?:ed|ing)?|went|go(?:ing)?)\s+(?:back\s+)?(?:through|over|at)?\s*(?:the|your)?\s*(?:answers?|responses?|results?|reasoning|assessment)\b/i,
+  /\b(?:now that|after)\s+(?:you(?:'ve| have)?\s+)?(?:reviewed|completed|worked through|answered)\b.{0,60}\b(?:answers?|responses?|questions?|assessment)\b/i,
+  /\b(?:you(?:'ve| have)?|you)\s+(?:already\s+)?(?:identified|explained|noticed|recognized|distinguished|pointed out|worked through|considered)\b/i,
+  /\b(?:from|in|based on)\s+(?:what\s+)?you(?:'ve| have)?\s+(?:said|explained|written|wrote|reasoned|noticed|identified)\b/i,
+  /\bI\s+(?:noticed|saw)\b.{0,80}\b(?:in|from)\s+your\s+(?:answers?|responses?|reasoning|explanation)\b/i
 ] as const;
 
 function repeatsStudentAssessmentResult(message: string) {
@@ -67,6 +82,21 @@ function repeatsStudentAssessmentResult(message: string) {
         !hypotheticalResultContext.test(clause) &&
         studentAssessmentResultPatterns.some((pattern) => pattern.test(clause))
     );
+}
+
+export function validateFormativeConversationOpeningDisclosureScope(
+  message: string
+) {
+  const issues = new Set<string>();
+  for (const entry of scopedForbiddenOpeningPatterns) {
+    if (entry.pattern.test(message)) {
+      issues.add(entry.issue_code);
+    }
+  }
+  if (repeatsStudentAssessmentResult(message)) {
+    issues.add("opening_repeats_score");
+  }
+  return [...issues].sort();
 }
 
 export function validateFormativeConversationOpeningOutput(
@@ -84,13 +114,10 @@ export function validateFormativeConversationOpeningOutput(
   const issues = new Set<string>();
   const message = parsed.data.student_visible_message;
 
-  for (const entry of forbiddenOpeningPatterns) {
-    if (entry.pattern.test(message)) {
-      issues.add(entry.issue_code);
-    }
-  }
-  if (repeatsStudentAssessmentResult(message)) {
-    issues.add("opening_repeats_score");
+  for (const issue of validateFormativeConversationOpeningDisclosureScope(
+    message
+  )) {
+    issues.add(issue);
   }
   if (
     !assessmentAcknowledgementPatterns.some((pattern) =>

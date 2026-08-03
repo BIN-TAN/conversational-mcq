@@ -1,0 +1,98 @@
+{
+  "artifact_version": "formative-conversation-v5-artifact-hash-manifest-v1",
+  "source_provider_run_id": "fcv5v7_provider_20260801013024_27f671a7",
+  "artifacts": [
+    {
+      "path": "source-provider-run.json",
+      "sha256": "d8addb837aaeea2e9b4be4b126eb20c7c756637b6a8c689ed87d42f83af4e69e"
+    },
+    {
+      "path": "cases/fcv5_01_assistant_first_opening-transcript.json",
+      "sha256": "b1931b10c8df682fd3786f64a3ac744a0bf7217329671c13487ad94f04d78e81"
+    },
+    {
+      "path": "cases/fcv5_01_assistant_first_opening-validation.json",
+      "sha256": "803032b96487c2ec22dc7cbee829550fd2aacf5ba1c1e4575b21496ed38a4a28"
+    },
+    {
+      "path": "cases/fcv5_02_first_principles_adaptation-transcript.json",
+      "sha256": "71f78c0d08673f18b56cac39916b1027c86f6453c3a7e60d804c6598e5af60ad"
+    },
+    {
+      "path": "cases/fcv5_02_first_principles_adaptation-validation.json",
+      "sha256": "4bd2ef560abe96135203b9c332e5b9f472d623d879f49eb871f6e71da3fb6a82"
+    },
+    {
+      "path": "cases/fcv5_03_direct_answer_handling-transcript.json",
+      "sha256": "ec9d6ed18516128c4bb5c115f112ce84c4cfe4ad35ce10842f1206798b0fd8dd"
+    },
+    {
+      "path": "cases/fcv5_03_direct_answer_handling-validation.json",
+      "sha256": "7b13954df3f271ccfc1484d608d1e53b34ef3d5ee53dbd8026925a13f6919920"
+    },
+    {
+      "path": "cases/fcv5_04_related_concept_discussion-transcript.json",
+      "sha256": "8b9975d2d6e56eb5d612eb7fd5acb3a55a8dc185925ef0f60b45f239fe66105e"
+    },
+    {
+      "path": "cases/fcv5_04_related_concept_discussion-validation.json",
+      "sha256": "b9de9197605e351afc668bc4705c1b89d5c29b63d955910321b1039aa0abd72b"
+    },
+    {
+      "path": "cases/fcv5_05_sound_profile_transition-transcript.json",
+      "sha256": "09535e05b2054107b9e0ed73c4c9023487171d5f6bb7ad7d2fb73d4a68af61cd"
+    },
+    {
+      "path": "cases/fcv5_05_sound_profile_transition-validation.json",
+      "sha256": "e68db20d9f2bba0bca32242e83a1e98f9bf2dcf415929edc6165301bb2db03f0"
+    },
+    {
+      "path": "cases/fcv5_06_largely_improved_temporal-transcript.json",
+      "sha256": "ac9be31aa38a49cbeb7ab7c3312b729d1c6ce09f362b7039fd536d02555fa091"
+    },
+    {
+      "path": "cases/fcv5_06_largely_improved_temporal-validation.json",
+      "sha256": "2f7a9675fda6790dff6fee694da7a757a1ebfc8a64b6fa0cf4c06d551090da05"
+    },
+    {
+      "path": "cases/fcv5_07_persistent_barrier_teacher_assistance-transcript.json",
+      "sha256": "a8d2d5abe9312df71f267ecb5f5b713f92f423229edb301adad037ca06ba70dd"
+    },
+    {
+      "path": "cases/fcv5_07_persistent_barrier_teacher_assistance-validation.json",
+      "sha256": "11d57a0391d77d103facf8eab114338c429eeb93e54f1f2762e1bbbb7662677b"
+    },
+    {
+      "path": "cases/fcv5_08_mixed_resolved_evidence-transcript.json",
+      "sha256": "2923a467af248b472f0cd0acac7a3d7d14ee27a8d72d88824fdf59b620e5f93b"
+    },
+    {
+      "path": "cases/fcv5_08_mixed_resolved_evidence-validation.json",
+      "sha256": "c8ed92d6e7b70436616de31f5ce84a848755a6b129c6efafa2b80c8fe4591781"
+    },
+    {
+      "path": "aggregate-evaluation.json",
+      "sha256": "0d23da8b553c5c2d9ab197e65abd3ba35084320aedfb41cd7bd9648a063b63bc"
+    },
+    {
+      "path": "derived-evaluation.json",
+      "sha256": "f7f49edc53e1a25dd34b23d56a1d56a3c23ec74f2a5811607329783f06370f22"
+    },
+    {
+      "path": "provenance-manifest.json",
+      "sha256": "6e3254285dbcfa8d32e43fdbd76ce44354b2b7fa903cc4db9c5829aa19c9606b"
+    },
+    {
+      "path": "human-review-package.json",
+      "sha256": "b43404b37172b9c25d9586236da0032cd4549b7d3ea3f128c7843ed3ba2bc604"
+    },
+    {
+      "path": "research-export.zip",
+      "sha256": "25e9a7435310d128a1f00e45656a6d103b3aeb60ed0b631ca23f15f12acdc706"
+    },
+    {
+      "path": "research-export-marker.json",
+      "sha256": "a84d229d4cd8269afac12dc7c6115ac3a509f2f3ecd43451e1ae47530821d37c"
+    }
+  ]
+}

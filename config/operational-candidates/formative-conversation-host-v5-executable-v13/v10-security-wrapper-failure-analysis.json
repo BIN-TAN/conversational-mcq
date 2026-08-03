@@ -1,0 +1,48 @@
+{
+  "artifact_version": "formative-conversation-v10-security-wrapper-failure-analysis-v1",
+  "preserved_source_commit": "c8e445062ad302d1fec5f316f661a83c90f86e34",
+  "preserved_runtime_candidate_hash": "2e85c274e3c89d98ee5cbe60516f9cb91f33504ce2045eed63f762d329512b6c",
+  "preserved_protocol_hash": "932d7a8ccb21847f30fa8d6f340275733c129e4d2dc3688681998d8859bb1189",
+  "preserved_provider_run_id": "fcv5v10_provider_20260803083252_623e2625",
+  "preserved_derived_evaluation_id": "fcv5v10_derived_20260803083252_8294069b",
+  "v10_status": "completed_pending_human_review",
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "approval_blocker": "preventive_artifact_security_scan_failed",
+  "process_boundary_findings": {
+    "child_stdout_process": "V10 evaluation launcher child stdout captured by the process-local runner",
+    "exact_prefix_bytes_preserved": false,
+    "exact_emitting_library_reconstructable": false,
+    "observed_outer_parser_process": "shell-side jq summary process",
+    "observed_outer_parser_error": "jq: parse error: Invalid numeric literal at line 1, column 7",
+    "evidence_limit": "The temporary buffered child stdout was securely deleted, so attribution below the child-process boundary would be unsupported."
+  },
+  "root_causes": {
+    "whole_buffer_parse": "artifactRoots(stdout) called JSON.parse on an ordinary mixed stdout buffer instead of using a dedicated control channel.",
+    "empty_scan_targets": "The parse exception was swallowed and artifactRoots returned an empty array.",
+    "zero_coverage_pass": "exact-secret-artifact-scanner-v1 based status only on match count and did not reject zero files or zero ZIP entries.",
+    "premature_artifact_visibility": "The evaluation service wrote final artifacts directly under the run root before wrapper scanning completed.",
+    "secret_lifecycle": "The exact in-memory secret array was cleared in the wrapper finally block after the ineffective zero-file scan, before the retrospective supplemental scan.",
+    "implicit_control_channel": "The wrapper treated ordinary stdout as the implicit machine-readable artifact-location channel.",
+    "retrospective_scan_limit": "The later scan used freshly retrieved values after local artifact inspection and therefore cannot satisfy the original preventive pre-release control."
+  },
+  "original_wrapper_scan": {
+    "secrets_checked": 5,
+    "files_checked": 0,
+    "zip_entries_checked": 0,
+    "buffered_outputs_checked": 2,
+    "matches_found": 0,
+    "preventive_attestation_satisfied": false
+  },
+  "retrospective_supplemental_scan": {
+    "secrets_checked": 5,
+    "files_checked": 25,
+    "zip_entries_checked": 16,
+    "exact_value_matches": 0,
+    "generic_pattern_matches": 0,
+    "status": "passed",
+    "preventive_attestation_satisfied": false
+  },
+  "v10_evidence_and_records_immutable": true,
+  "v10_human_review_status_changed": false
+}

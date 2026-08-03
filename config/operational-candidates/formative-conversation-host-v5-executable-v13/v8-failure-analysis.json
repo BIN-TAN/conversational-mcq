@@ -1,0 +1,47 @@
+{
+  "artifact_version": "formative-conversation-v5-v8-failure-analysis-v1",
+  "source_runtime_candidate_hash": "132d69caab27b6e94f8bfa416c89d843da97676f41dcefb11c0e03ec95d3af80",
+  "source_protocol_hash": "6359d96e27ed727e0eb1797f621bb08b4e6877f8065f5d6d7be6492a1d8eac15",
+  "source_provider_run_id": "fcv5v8_provider_20260801134821_4d583c17",
+  "source_derived_evaluation_id": "fcv5v8_derived_20260801134821_7de783d0",
+  "execution_status": "completed_failed",
+  "findings": [
+    {
+      "cases": [
+        "fcv5_05_sound_profile_transition",
+        "fcv5_07_persistent_barrier_teacher_assistance"
+      ],
+      "classification": "database_connection_lifecycle_interrupt_after_valid_provider_output",
+      "evidence": "Provider bodies completed and validated before later database operations failed; subsequent cases recovered.",
+      "correction": "Evaluation-owned connection lifecycle, bounded stale-connection recovery, idempotent write reconciliation, and typed persistence diagnostics."
+    },
+    {
+      "cases": [
+        "fcv5_08_mixed_resolved_evidence"
+      ],
+      "classification": "misconception_field_semantic_contract_defect",
+      "evidence": "The persisted recommendation used current misconception evidence for resolved evidence and a remaining question.",
+      "correction": "Shared field-semantics validation rejects semantically misplaced misconception evidence before persistence."
+    },
+    {
+      "cases": [
+        "all"
+      ],
+      "classification": "exact_value_scan_lifecycle_incomplete",
+      "evidence": "Generic scanning completed, but exact secret values were cleared before an artifact-wide exact-value proof.",
+      "correction": "Exact values remain process-local through regular-file, ZIP-entry, and buffered-output scanning, then are cleared."
+    }
+  ],
+  "candidate_output_defects": [
+    "case_8_misconception_field_semantics"
+  ],
+  "runtime_environment_defects": [
+    "cases_5_and_7_database_connection_lifecycle",
+    "artifact_exact_secret_scan_ordering"
+  ],
+  "teaching_prompt_changed": true,
+  "teaching_prompt_change_scope": "field-disposition and misconception-field semantics only",
+  "provider_calls": 0,
+  "approval_eligible": false,
+  "activation_permitted": false
+}

@@ -41,11 +41,13 @@ export type CreateFormativeConversationSessionInput = {
   current_student_profile_db_id?: string;
 };
 
-function messageRequestHash(messageText: string) {
+export function formativeConversationMessageRequestHash(messageText: string) {
   return createHash("sha256")
     .update(JSON.stringify({ message_text: messageText.trim() }))
     .digest("hex");
 }
+
+const messageRequestHash = formativeConversationMessageRequestHash;
 
 function jsonRecord(value: Prisma.JsonValue | null) {
   return value && typeof value === "object" && !Array.isArray(value)

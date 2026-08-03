@@ -14,22 +14,22 @@ import {
   type FormativeConversationAgentOutput
 } from "./agent-contract";
 
-export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_POLICY_VERSION =
-  "formative-conversation-semantic-regeneration-v1";
-export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_INSTRUCTION_VERSION =
-  "formative-conversation-semantic-regeneration-instruction-v1";
-export const FORMATIVE_CONVERSATION_SAFE_INVALID_OUTPUT_EVIDENCE_VERSION =
-  "formative-conversation-safe-invalid-output-evidence-v1";
-export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_ACCOUNTING_VERSION =
-  "formative-conversation-semantic-regeneration-accounting-v1";
+export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_POLICY_VERSION: string =
+  "formative-conversation-semantic-regeneration-v2";
+export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_INSTRUCTION_VERSION: string =
+  "formative-conversation-semantic-regeneration-instruction-v2";
+export const FORMATIVE_CONVERSATION_SAFE_INVALID_OUTPUT_EVIDENCE_VERSION: string =
+  "formative-conversation-safe-invalid-output-evidence-v2";
+export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_ACCOUNTING_VERSION: string =
+  "formative-conversation-semantic-regeneration-accounting-v2";
 export const FORMATIVE_CONVERSATION_MAXIMUM_SEMANTIC_REGENERATIONS = 1;
 
 export const FORMATIVE_CONVERSATION_SEMANTIC_REGENERATION_INSTRUCTIONS = `
 The preceding model result for this same conversation turn failed local structured-output
 validation. Generate one fresh, complete response from the original formative-conversation
 context. Preserve the pedagogically appropriate response, but satisfy every field, enum,
-coherence, field-disposition, and evidence-reference requirement in the declared output
-contract. Do not discuss this validation event with the student. The prior invalid candidate
+coherence, field-disposition, evidence-reference, safety, opening, and student-visible formatting
+requirement in the declared output contract. Do not discuss this validation event with the student. The prior invalid candidate
 is audit evidence only and is not part of the visible conversation. Do not invent evidence,
 silently normalize the prior object, or generate deterministic fallback text.
 `;
@@ -179,14 +179,25 @@ function responseOutputText(rawOutput: unknown) {
 }
 
 function safeInvalidOutputEvidence(
-  result: StructuredAgentResult<FormativeConversationAgentOutput>
+  result: StructuredAgentResult<FormativeConversationAgentOutput>,
+  validation?: FormativeConversationSemanticCandidateValidation
 ): z.infer<typeof FormativeConversationSafeInvalidOutputEvidenceSchema> {
-  const candidateText = responseOutputText(result.raw_output);
+  const candidateText =
+    responseOutputText(result.raw_output) ??
+    (result.parsed_output === undefined
+      ? null
+      : JSON.stringify(result.parsed_output));
   const validationStatus =
-    result.transport_telemetry?.structured_output_validation_status ?? null;
+    validation?.validation_status ??
+    result.transport_telemetry?.structured_output_validation_status ??
+    null;
   const issuePaths = [
     ...new Set(
-      result.transport_telemetry?.structured_output_validation_issue_paths ?? []
+      [
+        ...(result.transport_telemetry
+          ?.structured_output_validation_issue_paths ?? []),
+        ...(validation?.validation_issue_paths ?? [])
+      ]
     )
   ].sort();
   if (candidateText === null) {
@@ -228,6 +239,37 @@ function safeInvalidOutputEvidence(
   }
 }
 
+export type FormativeConversationSemanticCandidateValidation = {
+  valid: boolean;
+  validation_status: string;
+  validation_issue_paths: string[];
+  failure_category?: string;
+};
+
+type CandidateEvaluation = {
+  accepted: boolean;
+  validation: FormativeConversationSemanticCandidateValidation | null;
+};
+
+function evaluateCandidate(
+  result: StructuredAgentResult<FormativeConversationAgentOutput>,
+  validateCandidate?: (
+    output: FormativeConversationAgentOutput
+  ) => FormativeConversationSemanticCandidateValidation
+): CandidateEvaluation {
+  const parsed = FormativeConversationAgentOutputSchema.safeParse(
+    result.parsed_output
+  );
+  if (result.status !== "completed" || !parsed.success) {
+    return { accepted: false, validation: null };
+  }
+  const validation = validateCandidate?.(parsed.data) ?? null;
+  return {
+    accepted: validation?.valid ?? true,
+    validation
+  };
+}
+
 function acceptedOutput(
   result: StructuredAgentResult<FormativeConversationAgentOutput>
 ): result is StructuredAgentResult<FormativeConversationAgentOutput> & {
@@ -243,8 +285,9 @@ function toAttemptAudit(input: {
   sequence: number;
   kind: "primary" | "semantic_regeneration";
   execution: FormativeConversationLogicalGenerationExecution;
+  evaluation: CandidateEvaluation;
 }): z.infer<typeof FormativeConversationLogicalGenerationAuditSchema> {
-  const classification = acceptedOutput(input.execution.result)
+  const classification = input.evaluation.accepted
     ? null
     : classifyProviderFailure(input.execution.result);
   return {
@@ -253,8 +296,12 @@ function toAttemptAudit(input: {
     logical_call_id: input.execution.logical_call_id,
     canonical_request_hash: input.execution.canonical_request_hash,
     result_status: input.execution.result.status,
-    accepted: acceptedOutput(input.execution.result),
-    failure_category: classification?.category ?? null,
+    accepted: input.evaluation.accepted,
+    failure_category:
+      input.evaluation.validation?.failure_category ??
+      (input.evaluation.validation && !input.evaluation.validation.valid
+        ? "response_local_contract_invalid"
+        : classification?.category ?? null),
     provider_attempt_count: input.execution.provider_attempt_count,
     transport_retry_count: input.execution.transport_retry_count,
     provider_request_id:
@@ -270,9 +317,12 @@ function toAttemptAudit(input: {
     input_tokens: input.execution.result.usage?.input_tokens ?? null,
     output_tokens: input.execution.result.usage?.output_tokens ?? null,
     total_tokens: input.execution.result.usage?.total_tokens ?? null,
-    safe_invalid_output_evidence: acceptedOutput(input.execution.result)
+    safe_invalid_output_evidence: input.evaluation.accepted
       ? null
-      : safeInvalidOutputEvidence(input.execution.result)
+      : safeInvalidOutputEvidence(
+          input.execution.result,
+          input.evaluation.validation ?? undefined
+        )
   };
 }
 
@@ -370,6 +420,9 @@ export async function executeFormativeConversationWithSemanticRegeneration(input
     kind: "primary" | "semantic_regeneration";
     request: StructuredAgentRequest<unknown, FormativeConversationAgentOutput>;
   }) => Promise<FormativeConversationLogicalGenerationExecution>;
+  validate_candidate?: (
+    output: FormativeConversationAgentOutput
+  ) => FormativeConversationSemanticCandidateValidation;
   now?: () => Date;
 }): Promise<FormativeConversationSemanticRegenerationSuccess> {
   const now = input.now ?? (() => new Date());
@@ -383,14 +436,19 @@ export async function executeFormativeConversationWithSemanticRegeneration(input
     kind: "primary",
     request: input.base_request
   });
+  const primaryEvaluation = evaluateCandidate(
+    primary.result,
+    input.validate_candidate
+  );
   const primaryAudit = toAttemptAudit({
     sequence: 1,
     kind: "primary",
-    execution: primary
+    execution: primary,
+    evaluation: primaryEvaluation
   });
   attemptAudits.push(primaryAudit);
 
-  if (acceptedOutput(primary.result)) {
+  if (primaryEvaluation.accepted && acceptedOutput(primary.result)) {
     const completedAt = now();
     const usage = aggregateUsage(attemptAudits);
     return {
@@ -404,9 +462,11 @@ export async function executeFormativeConversationWithSemanticRegeneration(input
 
   const primaryClassification = classifyProviderFailure(primary.result);
   const semanticRegenerationPermitted =
-    primaryClassification.semantic_regeneration_eligible &&
-    (primaryClassification.category === "response_schema_invalid" ||
-      primaryClassification.category === "response_missing_required_fields");
+    (primaryEvaluation.validation !== null &&
+      !primaryEvaluation.validation.valid) ||
+    (primaryClassification.semantic_regeneration_eligible &&
+      (primaryClassification.category === "response_schema_invalid" ||
+        primaryClassification.category === "response_missing_required_fields"));
   if (!semanticRegenerationPermitted) {
     const completedAt = now();
     const usage = aggregateUsage(attemptAudits);
@@ -436,15 +496,23 @@ export async function executeFormativeConversationWithSemanticRegeneration(input
     kind: "semantic_regeneration",
     request: regenerationRequest
   });
+  const regenerationEvaluation = evaluateCandidate(
+    regeneration.result,
+    input.validate_candidate
+  );
   attemptAudits.push(
     toAttemptAudit({
       sequence: 2,
       kind: "semantic_regeneration",
-      execution: regeneration
+      execution: regeneration,
+      evaluation: regenerationEvaluation
     })
   );
 
-  if (!acceptedOutput(regeneration.result)) {
+  if (
+    !regenerationEvaluation.accepted ||
+    !acceptedOutput(regeneration.result)
+  ) {
     const completedAt = now();
     const usage = aggregateUsage(attemptAudits);
     throw new FormativeConversationSemanticRegenerationError(

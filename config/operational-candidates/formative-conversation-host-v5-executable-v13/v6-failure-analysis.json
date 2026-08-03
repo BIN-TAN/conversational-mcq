@@ -1,0 +1,107 @@
+{
+  "artifact_version": "formative-conversation-v5-v6-failure-analysis-v1",
+  "immutable_source": {
+    "frozen_commit": "c33cb7123b0411e8dbfca6ffd95355a70f3292d0",
+    "runtime_candidate_hash": "494ed38226f655c19429e0f54dc78c78239a6492f39895cd5231fc5d22a87f59",
+    "protocol_hash": "8dfc63e32166f9117b4cebef550d22bdc81e1b9f3377f5843d50c2dee679b625",
+    "provider_run_id": "fcv5v6_provider_20260731032817_863a9cdd",
+    "derived_evaluation_id": "fcv5v6_derived_20260731032817_0bd6f382",
+    "dispatch_checkpoint_sha256": "8eef8a8af1e336abaed0a307487ff5f51a6535fd7c0a0b44dde12a0586d6d5f1",
+    "source_provider_run_sha256": "5df093a9bd4d7639636e6e0facc8cb3c19649bcabbc44479bc532eaa9e15eb34",
+    "derived_evaluation_sha256": "b09f885149478e8a0160ce2337f25f1623f56427715ddb29cae575f95f86cc80",
+    "human_review_package_sha256": "3420c91ddf69d027e0d9815283193d40fc17cd056865c9d5d27b641d0efc3a6f",
+    "artifact_hash_manifest_sha256": "081e40a21786b63e1113f07a50bd1f611ce803b66d1fba72450887d6789c93a3",
+    "execution_status": "completed_failed",
+    "approval_eligible": false,
+    "activation_permitted": false,
+    "rerunnable": false
+  },
+  "results": {
+    "passed": 5,
+    "failed": 3,
+    "invalid": 0,
+    "not_exercised": 0,
+    "logical_calls": 21,
+    "provider_attempts": 21,
+    "transport_retries": 0,
+    "input_tokens": 135845,
+    "output_tokens": 13336,
+    "wall_time_ms": 1214797
+  },
+  "findings": [
+    {
+      "finding_id": "cases_5_6_complete_body_sdk_parse_blind_spot",
+      "cases": [
+        "fcv5_05_sound_profile_transition",
+        "fcv5_06_largely_improved_temporal"
+      ],
+      "classification": "provider_adapter_output_boundary_defect",
+      "observed": {
+        "http_status": 200,
+        "response_headers_received": true,
+        "response_body_started": true,
+        "response_body_completed": true,
+        "response_body_received": false,
+        "response_body_bytes_received": [
+          54764,
+          62483
+        ],
+        "provider_response_id_preserved": false,
+        "safe_schema_issues_preserved": false,
+        "retry_attempted": false
+      },
+      "root_cause": "The adapter used responses.parse().withResponse(), coupling raw response receipt to SDK Zod parsing. A locally invalid structured output threw only after the complete 200 response body had been consumed, so the catch path lost the SDK response and misclassified the event as an unknown provider transport failure.",
+      "correction": "Receive the raw SDK response through responses.create().withResponse(), mark the body received, then run local JSON and Zod validation. Preserve safe validation status and field paths, classify invalid output as a model-result schema failure, and never authorize a transport retry after a complete body."
+    },
+    {
+      "finding_id": "case_7_unchanged_fields_marked_updated",
+      "cases": [
+        "fcv5_07_persistent_barrier_teacher_assistance"
+      ],
+      "classification": "candidate_output_contract_noncompliance",
+      "observed": {
+        "provider_attempt_completed": true,
+        "structural_output_received": true,
+        "contextual_validation_status": "invalid_output",
+        "issue_codes": [
+          "profile_transition_updated_field_unchanged",
+          "profile_transition_updated_field_unchanged",
+          "profile_transition_updated_field_unchanged"
+        ],
+        "issue_field_paths": [
+          "profile_transition_recommendation.updated_profile.ability_profile",
+          "profile_transition_recommendation.updated_profile.integrated_diagnostic_profile",
+          "profile_transition_recommendation.updated_profile.evidence_sufficiency"
+        ],
+        "tutor_turn_persisted": false,
+        "profile_transition_persisted": false
+      },
+      "root_cause": "The model treated conceptually relevant but canonically unchanged profile fields as updated_from_conversation_evidence. The shared validator correctly rejected the recommendation because updated must mean that the canonical value changed.",
+      "correction": "Keep the validator strict. Clarify the prompt contract that exact canonical equality requires retained_evidence_remains_valid even when a field was discussed, and reserve updated_from_conversation_evidence for an actual value change with cited student evidence."
+    },
+    {
+      "finding_id": "prisma_connection_closed_noise",
+      "classification": "database_lifecycle_observation",
+      "observed": {
+        "stderr_messages": 11,
+        "process_exit_code": 0,
+        "artifact_hash_mismatches": 0,
+        "research_export_status": "passed",
+        "database_write_loss_found": false
+      },
+      "root_cause": "The remote PostgreSQL connections emitted closed-connection diagnostics while the evaluation process finalized its singleton Prisma client. The explicit lifecycle boundary completed and no artifact or persisted record loss was detected.",
+      "correction": "Retain the explicit single disconnect boundary and continue treating any disconnect exception as a run failure. Keep the diagnostic as a live-environment concern for the next human review rather than suppressing Prisma errors."
+    }
+  ],
+  "invariants": {
+    "v6_evidence_preserved_immutable": true,
+    "v6_must_not_be_rerun": true,
+    "transition_validator_weakened": false,
+    "transport_retry_after_complete_body_permitted": false,
+    "active_bundle_changed": false,
+    "rollback_bundle_changed": false
+  },
+  "provider_calls_during_analysis": 0,
+  "provider_network_requests_during_analysis": 0,
+  "database_audit_queries_during_analysis": 1
+}

@@ -18,6 +18,7 @@ import {
   FormativeConversationUnavailableError,
   formativeConversationUnavailableFromConfiguration
 } from "./availability";
+import { validateFormativeConversationCandidateAcceptance } from "./candidate-validation";
 import type {
   FormativeConversationAgentExecution,
   FormativeConversationAgentRunner
@@ -166,6 +167,21 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
         const semanticExecution =
           await executeFormativeConversationWithSemanticRegeneration({
             base_request: baseRequest,
+            validate_candidate(output) {
+              const validation =
+                validateFormativeConversationCandidateAcceptance({
+                  candidate: output,
+                  context
+                });
+              return {
+                valid: validation.valid,
+                validation_status: validation.validation_status,
+                validation_issue_paths: validation.validation_issue_paths,
+                failure_category: validation.valid
+                  ? undefined
+                  : "response_local_contract_invalid"
+              };
+            },
             async execute_logical_generation({
               sequence,
               kind,

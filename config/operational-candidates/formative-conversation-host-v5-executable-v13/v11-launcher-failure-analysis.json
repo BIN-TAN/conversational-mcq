@@ -1,0 +1,22 @@
+{
+  "artifact_version": "formative-conversation-v11-launcher-failure-analysis-v1",
+  "source_commit_sha": "c14990b659b13076af053563284de3e4172dd43b",
+  "runtime_candidate_hash": "2e85c274e3c89d98ee5cbe60516f9cb91f33504ce2045eed63f762d329512b6c",
+  "evaluation_protocol_hash": "b4053264bcc2caf72a7e77ff34ae1f90be17fdebb0a0857f09c98a15c293e6b5",
+  "status": "blocked_before_dispatch",
+  "frozen_command": "node scripts/operational-formative-conversation-v5-v11-process-local-runner.mjs",
+  "observed_error_code": "ERR_MODULE_NOT_FOUND",
+  "root_cause": "The outer process-local runner imported TypeScript modules containing @/ aliases without loading the tsx import hook.",
+  "verification_gap": "Module probe, environment preflight, and plan used the loader-aware launcher, while the frozen live command invoked the process-local runner with bare node.",
+  "correction_scope": "Require and validate node --import tsx at the outer process-local boundary and every launcher path.",
+  "dispatch_checkpoint_created": false,
+  "provider_run_id": null,
+  "derived_evaluation_id": null,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "synthetic_records_created": 0,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "rerunnable_as_v11": false,
+  "preserved_immutable": true
+}
