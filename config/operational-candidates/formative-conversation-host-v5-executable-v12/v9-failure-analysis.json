@@ -1,0 +1,178 @@
+{
+  "artifact_version": "formative-conversation-v9-failure-analysis-v1",
+  "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+  "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+  "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+  "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+  "derived_evaluation_id": "fcv5v9_derived_20260802030051_1118d823",
+  "execution_status": "completed_failed",
+  "result_counts": {
+    "passed": 6,
+    "failed": 2,
+    "invalid": 0,
+    "not_exercised": 0
+  },
+  "usage": {
+    "logical_calls": 20,
+    "provider_attempts": 20,
+    "transport_retries": 0,
+    "input_tokens": 148899,
+    "output_tokens": 18636,
+    "wall_clock_ms": 298901
+  },
+  "case4": {
+    "artifact_version": "formative-conversation-v9-case4-safe-failure-evidence-v1",
+    "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+    "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+    "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+    "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+    "case_id": "fcv5_04_related_concept_discussion",
+    "source_artifacts": [
+      {
+        "role": "case4_transcript",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_04_related_concept_discussion-transcript.json",
+        "sha256": "facba4f919a7494c1ba1de152b790363c7b9eb930f5659feb9af0737b4e602f5"
+      },
+      {
+        "role": "case4_validation",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_04_related_concept_discussion-validation.json",
+        "sha256": "f6226245e9ab62839b3851f64b50b35d7628d928a6220b2e37afb979c2075c03"
+      }
+    ],
+    "agent_call_public_id": "cmsb7s8gm002xne3eu9k5gffc",
+    "provider_response_id": "resp_030a341623011298016a6eb326397481999cd8d0a76d7810af",
+    "provider_body_completed": true,
+    "input_tokens": 6806,
+    "output_tokens": 367,
+    "latency_ms": 5849,
+    "call_status": "invalid_output",
+    "typed_failure": "formative_conversation_opening_validation",
+    "exact_generated_opening_available": false,
+    "validator_issue_paths_available": false,
+    "student_visible_output_persisted": false,
+    "classification": "indeterminate_candidate_or_validator_failure_due_to_v9_safe_output_evidence_omission",
+    "correction_scope": "preserve_opening_validator_and_add_prospective_safe_invalid_output_evidence",
+    "preserved_immutable": true,
+    "rerunnable": false
+  },
+  "case6": {
+    "artifact_version": "formative-conversation-v9-case6-safe-failure-evidence-v1",
+    "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+    "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+    "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+    "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+    "case_id": "fcv5_06_largely_improved_temporal",
+    "source_artifacts": [
+      {
+        "role": "case6_transcript",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_06_largely_improved_temporal-transcript.json",
+        "sha256": "815a3b97e8e9b146ca7ad17bc23ddb8d413ea59914c979d8f499ddadeb4ac142"
+      },
+      {
+        "role": "case6_validation",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_06_largely_improved_temporal-validation.json",
+        "sha256": "1b16f59637024bb7b17bec552b5c5608d9f13df7d908fec2cb8d88448340e731"
+      }
+    ],
+    "agent_call_public_id": "cmsb7tzcv005fne3eibpcocgl",
+    "provider_response_id": "resp_032296815bf4b64c016a6eb377b994819ab0508bb9fc189326",
+    "provider_body_completed": true,
+    "input_tokens": 7840,
+    "output_tokens": 2394,
+    "latency_ms": 33061,
+    "call_status": "failed",
+    "typed_failure": "formative_conversation_agent_execution",
+    "provider_failure_classification": "response_schema_invalid",
+    "semantic_regeneration_eligible": true,
+    "semantic_regeneration_attempted": false,
+    "exact_invalid_candidate_available": false,
+    "exact_schema_issue_paths_available": false,
+    "transition_persisted": false,
+    "classification": "semantic_regeneration_policy_and_runner_evidence_preservation_defect",
+    "preserved_immutable": true,
+    "rerunnable": false
+  },
+  "case7": {
+    "artifact_version": "formative-conversation-v9-case7-successive-transition-audit-v1",
+    "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+    "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+    "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+    "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+    "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+    "source_artifacts": [
+      {
+        "role": "research_export",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/research-export.zip",
+        "sha256": "c9fced21507ddbd70148e772a7d86ef6152936d87e7a7645cedb322d44d04e06"
+      },
+      {
+        "role": "case7_transcript",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_07_persistent_barrier_teacher_assistance-transcript.json",
+        "sha256": "7621645e8f9bc03386ed585b3f392732c9e58e8ae272300a89918c3361118761"
+      },
+      {
+        "role": "case7_validation",
+        "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_07_persistent_barrier_teacher_assistance-validation.json",
+        "sha256": "6c8541961bb4c9042d6992f5eba04f7542035d552e198734831b1d4e097fea8a"
+      }
+    ],
+    "transitions": [
+      {
+        "transition_public_id": "cmsb7vx67006une3ew60gknti",
+        "outcome": "teacher_assistance_recommended",
+        "source_agent_call_public_id": "cmsb7v74f006kne3exjlcmhks",
+        "source_turn_sequence_index": 707,
+        "supporting_student_turns": [
+          704,
+          706
+        ],
+        "updated_evidence": "persistent misconception after two contrasting explanations"
+      },
+      {
+        "transition_public_id": "cmsb7wjsh007cne3edsb873bt",
+        "outcome": "teacher_assistance_recommended",
+        "source_agent_call_public_id": "cmsb7vxan0072ne3efyp4h8lg",
+        "source_turn_sequence_index": 709,
+        "supporting_student_turns": [
+          704,
+          706,
+          708
+        ],
+        "updated_evidence": "new practical application evidence that the student would advise a teacher using the misconception"
+      }
+    ],
+    "canonical_fields_retained_with_evidence": [
+      "ability_profile",
+      "integrated_diagnostic_profile",
+      "evidence_sufficiency",
+      "confidence_alignment",
+      "misconception_indicators"
+    ],
+    "canonical_fields_updated_by_second_transition": [
+      "integrated_profile_rationale",
+      "item_level_evidence",
+      "reasoning_quality_summary",
+      "engagement_summary",
+      "recommended_next_evidence"
+    ],
+    "classification": "two_substantively_different_evidence_supported_versions",
+    "no_op_suppression_required": false,
+    "preserved_immutable": true,
+    "rerunnable": false
+  },
+  "defect_classification": {
+    "candidate_output_defect": "not_proven_for_case4_or_case6",
+    "opening_validator_defect": "not_proven_because_exact_case4_output_is_absent",
+    "output_schema_contract_defect": "not_proven",
+    "structured_output_generation_defect": "case6_generated_a_schema_invalid_result_but_exact_invalid_object_is_absent",
+    "semantic_regeneration_policy_defect": "case6_was_eligible_but_no_bounded_regeneration_was_executed",
+    "profile_transition_defect": "not_identified",
+    "evaluation_protocol_defect": "budgets_and_call_graph_did_not_account_for_semantic_regeneration",
+    "runner_accounting_defect": "safe_invalid_output_and_validation_paths_were_not_preserved",
+    "human_review_issue": "case4_related_concept_and_case6_final_output_were_not_exercised_or_visible"
+  },
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "rerunnable": false,
+  "preserved_immutable": true
+}

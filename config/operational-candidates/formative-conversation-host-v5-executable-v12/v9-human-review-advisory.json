@@ -1,0 +1,25 @@
+{
+  "artifact_version": "formative-conversation-v9-diagnostic-human-review-advisory-v1",
+  "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+  "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+  "review_scope": "all_student_visible_v9_tutor_outputs",
+  "official_human_review_status": "not_started",
+  "findings": {
+    "conceptual_accuracy": "passed_for_visible_outputs",
+    "contextual_continuity": "passed_for_completed_exchanges",
+    "adaptive_explanation_quality": "acceptable",
+    "direct_answer_compliance": "acceptable_and_allowed",
+    "related_concept_handling": "not_exercised_due_to_case4_opening_failure",
+    "unsupported_mastery_claims": "not_identified",
+    "excessive_praise": "not_identified",
+    "directive_or_coercive_tone": "not_identified",
+    "report_style_language": "minor_formality_only",
+    "activity_like_language": "not_identified",
+    "internal_terminology": "not_identified",
+    "markdown_compatibility": "within_supported_student_renderer",
+    "privacy_and_answer_visibility": "passed"
+  },
+  "approval_evidence_created": false,
+  "approval_eligible": false,
+  "activation_permitted": false
+}

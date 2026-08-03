@@ -1,0 +1,114 @@
+{
+  "artifact_version": "formative-conversation-v5-v8-immutable-evaluation-evidence-v1",
+  "source_commit_sha": "afd7422b9e88c324b0150475ccd2954ebad86f8e",
+  "runtime_candidate_hash": "132d69caab27b6e94f8bfa416c89d843da97676f41dcefb11c0e03ec95d3af80",
+  "protocol_hash": "6359d96e27ed727e0eb1797f621bb08b4e6877f8065f5d6d7be6492a1d8eac15",
+  "provider_run_id": "fcv5v8_provider_20260801134821_4d583c17",
+  "derived_evaluation_id": "fcv5v8_derived_20260801134821_7de783d0",
+  "status": "completed_failed",
+  "passed": 6,
+  "failed": 2,
+  "invalid": 0,
+  "not_exercised": 0,
+  "actual_logical_calls": 18,
+  "expected_logical_calls": 21,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "rerunnable": false,
+  "artifact_hash_manifest_sha256": "b877d33f5ea610b60f33599fa77922982690a552068e70a537b3e282d93e4435",
+  "artifacts": [
+    {
+      "path": "source-provider-run.json",
+      "sha256": "2da8369405d670a8d63ad10233fce3dde9342aa919192b66531224c3b0cb0dd5"
+    },
+    {
+      "path": "cases/fcv5_01_assistant_first_opening-transcript.json",
+      "sha256": "6330315d7f85c5b335be4e27017bada6a70dab1c14b15775c7ec4ebe29107f5c"
+    },
+    {
+      "path": "cases/fcv5_01_assistant_first_opening-validation.json",
+      "sha256": "803032b96487c2ec22dc7cbee829550fd2aacf5ba1c1e4575b21496ed38a4a28"
+    },
+    {
+      "path": "cases/fcv5_02_first_principles_adaptation-transcript.json",
+      "sha256": "20db223381bd37dbd65f38cd32e816cea9f781b722640210677b8d2389bcfd0c"
+    },
+    {
+      "path": "cases/fcv5_02_first_principles_adaptation-validation.json",
+      "sha256": "4bd2ef560abe96135203b9c332e5b9f472d623d879f49eb871f6e71da3fb6a82"
+    },
+    {
+      "path": "cases/fcv5_03_direct_answer_handling-transcript.json",
+      "sha256": "49d6740edf92218320aa642cf3f3c2043dbc05beb1bfd29e4bc309331ba49295"
+    },
+    {
+      "path": "cases/fcv5_03_direct_answer_handling-validation.json",
+      "sha256": "4430ff47f9f9d62880ec079c19cfc56870bf869377c8ba197e2715917c63dbcb"
+    },
+    {
+      "path": "cases/fcv5_04_related_concept_discussion-transcript.json",
+      "sha256": "49a1909b7f1ab1685dcb4442de5a1289d90f3f2a5b14510f4b2272763fda331b"
+    },
+    {
+      "path": "cases/fcv5_04_related_concept_discussion-validation.json",
+      "sha256": "b9de9197605e351afc668bc4705c1b89d5c29b63d955910321b1039aa0abd72b"
+    },
+    {
+      "path": "cases/fcv5_05_sound_profile_transition-transcript.json",
+      "sha256": "37b31797fbdb17a35c84da3725bd8057008b287f2be8a39a58c4a44b46b090b0"
+    },
+    {
+      "path": "cases/fcv5_05_sound_profile_transition-validation.json",
+      "sha256": "830bfa4bae328160ecd30bc93e1e93ec4c3953291d8a77868de4adb8da9cf441"
+    },
+    {
+      "path": "cases/fcv5_06_largely_improved_temporal-transcript.json",
+      "sha256": "ca3f8c677933d515bfd971c803f5463dbfae018ef0dd48abb09aba2c3a859503"
+    },
+    {
+      "path": "cases/fcv5_06_largely_improved_temporal-validation.json",
+      "sha256": "1a07dca6bfc50eb72fedb43f486266707e7c7ffcb5148001193956313be6cc4a"
+    },
+    {
+      "path": "cases/fcv5_07_persistent_barrier_teacher_assistance-transcript.json",
+      "sha256": "e264a1b99588cc10cd616ec6fc34d575263be3f608626c4bb495655231b36772"
+    },
+    {
+      "path": "cases/fcv5_07_persistent_barrier_teacher_assistance-validation.json",
+      "sha256": "2b5366a751dd94ea646d93eea4ba657e8077deed4d387a1fd8aad01856a5fd29"
+    },
+    {
+      "path": "cases/fcv5_08_mixed_resolved_evidence-transcript.json",
+      "sha256": "b55e58fdcae3b5591065fd5ee662af00aa30a4d9fd90c11506c34ab9cccf7183"
+    },
+    {
+      "path": "cases/fcv5_08_mixed_resolved_evidence-validation.json",
+      "sha256": "76975cf27c4db354fd9debc4186bfe87b81585b25c177e1ffbcf4bcb48b46e62"
+    },
+    {
+      "path": "aggregate-evaluation.json",
+      "sha256": "1f47050f0b7e69b134787b8500ec4b7dcb7919f29e0f21722806c624edf52cd7"
+    },
+    {
+      "path": "derived-evaluation.json",
+      "sha256": "d6c8f02325bb4233c99bf0d808da54ac46dd01fc1f40cf8da8a829c45877035a"
+    },
+    {
+      "path": "provenance-manifest.json",
+      "sha256": "cd5fc3216829f8d192e1a43fe699b7ce38817fd5fc18bcd5a047a34be35586f0"
+    },
+    {
+      "path": "human-review-package.json",
+      "sha256": "ed74c2f88384646cfa194a84d5aa90dcf0641d47117dd775ebf40381289a744c"
+    },
+    {
+      "path": "research-export.zip",
+      "sha256": "b771aa1d4d4f409bc4c3ae2b43a0fb8dc3ce7af05702ec4b359205960313d6c9"
+    },
+    {
+      "path": "research-export-marker.json",
+      "sha256": "7825868e8cc806e3264236b7513d72d2c76870dcd4baf192c19137f10ab62ac7"
+    }
+  ],
+  "preserved_immutable": true
+}

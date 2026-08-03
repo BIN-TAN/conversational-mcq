@@ -1,0 +1,37 @@
+{
+  "artifact_version": "formative-conversation-v9-case6-safe-failure-evidence-v1",
+  "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+  "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+  "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+  "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+  "case_id": "fcv5_06_largely_improved_temporal",
+  "source_artifacts": [
+    {
+      "role": "case6_transcript",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_06_largely_improved_temporal-transcript.json",
+      "sha256": "815a3b97e8e9b146ca7ad17bc23ddb8d413ea59914c979d8f499ddadeb4ac142"
+    },
+    {
+      "role": "case6_validation",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_06_largely_improved_temporal-validation.json",
+      "sha256": "1b16f59637024bb7b17bec552b5c5608d9f13df7d908fec2cb8d88448340e731"
+    }
+  ],
+  "agent_call_public_id": "cmsb7tzcv005fne3eibpcocgl",
+  "provider_response_id": "resp_032296815bf4b64c016a6eb377b994819ab0508bb9fc189326",
+  "provider_body_completed": true,
+  "input_tokens": 7840,
+  "output_tokens": 2394,
+  "latency_ms": 33061,
+  "call_status": "failed",
+  "typed_failure": "formative_conversation_agent_execution",
+  "provider_failure_classification": "response_schema_invalid",
+  "semantic_regeneration_eligible": true,
+  "semantic_regeneration_attempted": false,
+  "exact_invalid_candidate_available": false,
+  "exact_schema_issue_paths_available": false,
+  "transition_persisted": false,
+  "classification": "semantic_regeneration_policy_and_runner_evidence_preservation_defect",
+  "preserved_immutable": true,
+  "rerunnable": false
+}

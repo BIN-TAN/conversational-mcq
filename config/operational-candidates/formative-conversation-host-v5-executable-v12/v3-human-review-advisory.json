@@ -1,0 +1,55 @@
+{
+  "artifact_version": "formative-conversation-v5-v3-human-review-advisory-v1",
+  "review_scope": "all_available_student_visible_tutor_outputs",
+  "source_human_review_package": {
+    "path": ".data/operational-formative-conversation-v5-evaluation-v3/runs/fcv5v3_provider_20260730082804_8bf128c4/human-review-package.json",
+    "sha256": "589c77ea3dd4d03f0950d73a8bcda8723073929a77d632f1aecd6be7e5a70917"
+  },
+  "output_count": 15,
+  "official_approval_evidence": false,
+  "explicit_human_decision": null,
+  "review_dimensions": [
+    "conceptual_accuracy",
+    "relevance",
+    "conversational_continuity",
+    "adaptation",
+    "direct_answer_compliance",
+    "unjustified_mastery_claims",
+    "excessive_praise",
+    "assessment_report_language",
+    "internal_terminology",
+    "privacy_and_answer_visibility",
+    "activity_or_deterministic_language"
+  ],
+  "reviewed_outputs": [
+    {"case_id":"fcv5_01_assistant_first_opening","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_02_first_principles_adaptation","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_02_first_principles_adaptation","output_index":2,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_02_first_principles_adaptation","output_index":3,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_03_direct_answer_handling","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_03_direct_answer_handling","output_index":2,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_04_related_concept_discussion","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_04_related_concept_discussion","output_index":2,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_05_sound_profile_transition","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_05_sound_profile_transition","output_index":2,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_06_largely_improved_temporal","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_06_largely_improved_temporal","output_index":2,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_06_largely_improved_temporal","output_index":3,"blocking_findings":[],"advisory_findings":["Long, formal structure is pedagogically plausible but should receive human-review attention for conversational concision."]},
+    {"case_id":"fcv5_08_mixed_resolved_evidence","output_index":1,"blocking_findings":[],"advisory_findings":[]},
+    {"case_id":"fcv5_08_mixed_resolved_evidence","output_index":2,"blocking_findings":[],"advisory_findings":[]}
+  ],
+  "aggregate_findings": {
+    "conceptually_accurate": 15,
+    "relevant_and_context_aware": 15,
+    "direct_answer_case_compliant": true,
+    "unjustified_mastery_claims": 0,
+    "excessive_praise": 0,
+    "assessment_report_language": 0,
+    "internal_terminology": 0,
+    "privacy_or_unadministered_answer_key_issues": 0,
+    "activity_or_deterministic_language": 0,
+    "blocking_candidate_quality_defects": 0,
+    "advisory_style_findings": 1
+  },
+  "approval_state_changed": false
+}
