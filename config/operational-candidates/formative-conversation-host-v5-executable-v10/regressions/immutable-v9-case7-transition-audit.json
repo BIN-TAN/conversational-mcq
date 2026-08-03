@@ -1,0 +1,68 @@
+{
+  "artifact_version": "formative-conversation-v9-case7-successive-transition-audit-v1",
+  "source_commit_sha": "9d9cf2e404bdae7a9a68c652ea776b81f385a5c5",
+  "runtime_candidate_hash": "5c0347287fa10cb67b9e9677dff0fc679f99af78ea3b08fe086cf693af146198",
+  "protocol_hash": "fcc7f5c3b7ffcbd10731fd27b626e431f1a012083702ea40ffbe388a1474aa13",
+  "provider_run_id": "fcv5v9_provider_20260802030051_18dd2d4b",
+  "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+  "source_artifacts": [
+    {
+      "role": "research_export",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/research-export.zip",
+      "sha256": "c9fced21507ddbd70148e772a7d86ef6152936d87e7a7645cedb322d44d04e06"
+    },
+    {
+      "role": "case7_transcript",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_07_persistent_barrier_teacher_assistance-transcript.json",
+      "sha256": "7621645e8f9bc03386ed585b3f392732c9e58e8ae272300a89918c3361118761"
+    },
+    {
+      "role": "case7_validation",
+      "path": ".data/operational-formative-conversation-v5-evaluation-v9/runs/fcv5v9_provider_20260802030051_18dd2d4b/cases/fcv5_07_persistent_barrier_teacher_assistance-validation.json",
+      "sha256": "6c8541961bb4c9042d6992f5eba04f7542035d552e198734831b1d4e097fea8a"
+    }
+  ],
+  "transitions": [
+    {
+      "transition_public_id": "cmsb7vx67006une3ew60gknti",
+      "outcome": "teacher_assistance_recommended",
+      "source_agent_call_public_id": "cmsb7v74f006kne3exjlcmhks",
+      "source_turn_sequence_index": 707,
+      "supporting_student_turns": [
+        704,
+        706
+      ],
+      "updated_evidence": "persistent misconception after two contrasting explanations"
+    },
+    {
+      "transition_public_id": "cmsb7wjsh007cne3edsb873bt",
+      "outcome": "teacher_assistance_recommended",
+      "source_agent_call_public_id": "cmsb7vxan0072ne3efyp4h8lg",
+      "source_turn_sequence_index": 709,
+      "supporting_student_turns": [
+        704,
+        706,
+        708
+      ],
+      "updated_evidence": "new practical application evidence that the student would advise a teacher using the misconception"
+    }
+  ],
+  "canonical_fields_retained_with_evidence": [
+    "ability_profile",
+    "integrated_diagnostic_profile",
+    "evidence_sufficiency",
+    "confidence_alignment",
+    "misconception_indicators"
+  ],
+  "canonical_fields_updated_by_second_transition": [
+    "integrated_profile_rationale",
+    "item_level_evidence",
+    "reasoning_quality_summary",
+    "engagement_summary",
+    "recommended_next_evidence"
+  ],
+  "classification": "two_substantively_different_evidence_supported_versions",
+  "no_op_suppression_required": false,
+  "preserved_immutable": true,
+  "rerunnable": false
+}

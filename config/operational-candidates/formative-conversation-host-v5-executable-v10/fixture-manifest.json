@@ -1,0 +1,81 @@
+{
+  "manifest_version": "formative-conversation-v5-fixture-manifest-v10",
+  "fixture_hash_semantics": "stable_hash_of_fixture_with_fixture_hash_omitted",
+  "fixture_count": 8,
+  "fixed_case_order": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence"
+  ],
+  "fixtures": [
+    {
+      "case_id": "fcv5_01_assistant_first_opening",
+      "order": 1,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_01_assistant_first_opening.json",
+      "fixture_hash": "8b21b1d81a29f59a9f5cc850b485cf6208dab0db5543e33dde2978b29f78d607",
+      "file_sha256": "51a118ebead9b6f3582acb2d2e18de8df11a53a0278c75d2940a38955b0b3594"
+    },
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "order": 2,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_02_first_principles_adaptation.json",
+      "fixture_hash": "aebc159350436869fba71230406670465bafa4cdcd9f873c3c51186a2d6d92fd",
+      "file_sha256": "1c29caccdf7fcfbcf0df58241a6c260666c1215308500d481e253bdd6e86d3c7"
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "order": 3,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_03_direct_answer_handling.json",
+      "fixture_hash": "9687ffd1e65d2ea10dfb45cb40957c6797f14071d73e07a4108ca246b557d14a",
+      "file_sha256": "0b072f35e55e8684ec3d5028b947d447536507919fc443f6843d14a12301adb5"
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "order": 4,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_04_related_concept_discussion.json",
+      "fixture_hash": "f3f515f09c7bd6c5e9d21368c0cd79a4dccadf2b959808c49db1a1b64c6c83eb",
+      "file_sha256": "ddc66df89073ce716cd25011affe8a9b855c80b7d05ea87d4b4a8b476cb0c407"
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "order": 5,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_05_sound_profile_transition.json",
+      "fixture_hash": "6698130c4136bde9462bc8f5ca11afc9c63750ef385e6d452aa94e64c284fdda",
+      "file_sha256": "6b0dd189b494d919476244601a9c2c17474ef147fb96df7b075385650287f110"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "order": 6,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_06_largely_improved_temporal.json",
+      "fixture_hash": "e398d039ecc795b168464c4ed6f1c43be9e3d16c770bd1638e88d5a5f2ac2fd9",
+      "file_sha256": "d983c768575ae02b392e5f472baa045cf96d66f1e150c6027f9bae1585c8d1c8"
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "order": 7,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_07_persistent_barrier_teacher_assistance.json",
+      "fixture_hash": "ac88c9f6549d136894f9557ea5cfd932ead93e463fcadc68f7380dc27a27c84b",
+      "file_sha256": "2949a2100a58decaa0fd3f1e3f5d7b1692a79ad1ae00a3b39ca0c418e1082e6d"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "order": 8,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v10/fixtures/fcv5_08_mixed_resolved_evidence.json",
+      "fixture_hash": "cea80b1990944ab81e202cf1c8b630c4b29ea690c71cebef8cf929c1e24dca22",
+      "file_sha256": "36b56e16ce7fc0dc31e3b2cdd3c295a1c2b5d78084bba5baacf0da273a9c2c46"
+    }
+  ],
+  "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "execution_engine": "formative-conversation-v5-protocol-runner-v10",
+  "frozen_case_schema": "formative-conversation-v5-protocol-case-schema-v1",
+  "forbidden_runner_substitutions": [
+    "operational_model_upgrade_legacy_21_case_runner",
+    "synthetic_student_persona_cli",
+    "synthetic_student_persona_schema"
+  ]
+}

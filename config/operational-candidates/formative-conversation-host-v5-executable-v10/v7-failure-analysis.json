@@ -1,0 +1,112 @@
+{
+  "artifact_version": "formative-conversation-v7-failure-analysis-v1",
+  "source_commit": "c0c05b60755ab1b9b293c8e12a2ac5645a952c17",
+  "source_runtime_candidate_hash": "81a60273d33976409e7450bffa6156e89a62e17e36edb7059e30c44979892356",
+  "source_protocol_hash": "620ee46412f8ae4389014905249d8ce8fc1004ff55025ec5255bbd005ab6c68d",
+  "provider_run_id": "fcv5v7_provider_20260801013024_27f671a7",
+  "derived_evaluation_id": "fcv5v7_derived_20260801013024_4da7a38f",
+  "source_status": "completed_failed",
+  "source_result": {
+    "passed": 3,
+    "failed": 5,
+    "invalid": 0,
+    "not_exercised": 0,
+    "logical_calls": 16,
+    "provider_attempts": 16,
+    "retries": 0,
+    "input_tokens": 116737,
+    "output_tokens": 15475
+  },
+  "transaction_trace": {
+    "provider_wait_inside_interactive_transaction": false,
+    "context_compilation_inside_interactive_transaction": false,
+    "response_validation_inside_interactive_transaction": false,
+    "transition_preparation_inside_interactive_transaction": true,
+    "export_inside_interactive_transaction": false,
+    "default_interactive_transaction_timeout_ms": 5000,
+    "prisma_client_owner": "evaluation_entrypoint",
+    "nested_service_disconnect_detected": false,
+    "unawaited_persistence_detected": false,
+    "disconnect_before_finalization_detected": false,
+    "finding": "Provider calls completed outside interactive transactions. Chatty persistence transactions exceeded Prisma's five-second interactive transaction lifetime against the evaluation database."
+  },
+  "case_findings": [
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "classification": [
+        "database_transaction-boundary_defect",
+        "persistence_orchestration_defect",
+        "error_classification_defect"
+      ],
+      "provider_calls": 0,
+      "conversation_created": false,
+      "root_cause": "Initial-profile persistence combined profile writes, concept-unit updates, redundant ownership reads, conversation creation, lifecycle-event reads, and telemetry-counter writes in one default-timeout interactive transaction. The transaction expired before conversation creation committed.",
+      "atomicity_result": "The transaction rolled back; no partial conversation or agent call was persisted."
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "classification": [
+        "database_transaction-boundary_defect",
+        "persistence_orchestration_defect",
+        "error_classification_defect",
+        "frozen-case_assertion_defect",
+        "fixture/protocol_defect"
+      ],
+      "provider_calls": 3,
+      "conversation_created": true,
+      "validated_recommendation": "largely_improved_understanding",
+      "root_cause": "The valid recommendation and tutor turn persisted, but transition persistence combined reads, canonical validation, profile creation, transition writes, evidence references, session updates, review signals, and final projection in a default-timeout interactive transaction that expired.",
+      "oracle_adjudication": "The student independently corrected and transferred the reliability-validity distinction but did not demonstrate standard-error-of-measurement understanding. Largely improved was better supported than sound; the V7 exact-sound assertion was overconstrained.",
+      "atomicity_result": "The transition transaction rolled back; the tutor turn and AgentCall remained valid and no partial transition was exposed."
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "classification": [
+        "database_transaction-boundary_defect",
+        "persistence_orchestration_defect",
+        "error_classification_defect"
+      ],
+      "provider_calls": 0,
+      "conversation_created": false,
+      "root_cause": "The same initial-profile and conversation-creation transaction used by Case 3 expired before commit.",
+      "atomicity_result": "The transaction rolled back; no partial conversation or agent call was persisted."
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "classification": [
+        "database_transaction-boundary_defect",
+        "persistence_orchestration_defect",
+        "error_classification_defect"
+      ],
+      "provider_calls": 4,
+      "conversation_created": true,
+      "validated_recommendation": "teacher_assistance_recommended",
+      "root_cause": "The valid recommendation and tutor turn persisted, but the oversized transition transaction expired before the transition and provenance graph committed.",
+      "oracle_adjudication": "The teacher-assistance recommendation was supported and the V7 assertion was not defective.",
+      "atomicity_result": "The transition transaction rolled back without a partial transition."
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "classification": [
+        "database_transaction-boundary_defect",
+        "persistence_orchestration_defect",
+        "error_classification_defect"
+      ],
+      "provider_calls": 3,
+      "conversation_created": true,
+      "validated_recommendation": "largely_improved_understanding",
+      "root_cause": "The valid recommendation and tutor turn persisted, but the oversized transition transaction expired before the transition and provenance graph committed.",
+      "oracle_adjudication": "The largely-improved recommendation was supported and the V7 assertion was not defective.",
+      "atomicity_result": "The transition transaction rolled back without a partial transition."
+    }
+  ],
+  "candidate_output_defects": [],
+  "teaching_prompt_change_required": false,
+  "runtime_correction_required": true,
+  "typed_failure_gap": "The evaluation reduced infrastructure failures to synthetic_formative_conversation_execution_failed instead of preserving the failed persistence invariant.",
+  "v7_approval_eligible": false,
+  "v7_activation_permitted": false,
+  "v7_rerunnable": false,
+  "provider_calls_during_analysis": 0,
+  "model_auth_requests_during_analysis": 0
+}

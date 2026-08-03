@@ -37,6 +37,10 @@ import {
   recordFormativeConversationProfileTransitionRejection
 } from "./profile-update";
 import {
+  FormativeConversationProviderExecutionAuditSchema,
+  FormativeConversationSemanticRegenerationError
+} from "./semantic-regeneration";
+import {
   persistFormativeConversationAssistantMessage,
   prepareFormativeConversationAssistantResponseAttempt,
   recordFormativeConversationAssistantResponseFailure,
@@ -80,6 +84,8 @@ const FormativeConversationAgentExecutionSchema = z
     output_tokens: z.number().int().nonnegative().nullable().optional(),
     total_tokens: z.number().int().nonnegative().nullable().optional(),
     estimated_cost: z.number().nonnegative().nullable().optional(),
+    provider_execution_audit:
+      FormativeConversationProviderExecutionAuditSchema.optional(),
     started_at: z.coerce.date(),
     completed_at: z.coerce.date()
   })
@@ -514,6 +520,83 @@ async function executeOrResumeAgentCall(input: {
       })
     );
   } catch (error) {
+    if (error instanceof FormativeConversationSemanticRegenerationError) {
+      const lastResult = error.last_result;
+      const providerRequestId =
+        lastResult.provider_request_id ??
+        lastResult.transport_telemetry?.provider_request_id ??
+        null;
+      const providerResponseId =
+        lastResult.provider_response_id ??
+        lastResult.transport_telemetry?.provider_response_id ??
+        null;
+      await prisma.agentCall.update({
+        where: { id: started.agent_call.id },
+        data: {
+          provider_request_id: providerRequestId,
+          provider_response_id: providerResponseId,
+          client_request_id: lastResult.client_request_id,
+          raw_output: prismaJson({
+            provider_execution_audit: error.audit
+          }),
+          output_validated: false,
+          validation_error: JSON.stringify({
+            category: error.failure_category,
+            policy_version: error.audit.policy_version,
+            semantic_regeneration_count:
+              error.audit.semantic_regeneration_count,
+            attempts: error.audit.attempts.map((attempt) => ({
+              sequence: attempt.sequence,
+              kind: attempt.kind,
+              logical_call_id: attempt.logical_call_id,
+              canonical_request_hash: attempt.canonical_request_hash,
+              failure_category: attempt.failure_category,
+              validation_status:
+                attempt.safe_invalid_output_evidence?.validation_status ?? null,
+              validation_issue_paths:
+                attempt.safe_invalid_output_evidence
+                  ?.validation_issue_paths ?? []
+            }))
+          }),
+          error_category: error.failure_category,
+          usage_guard_snapshot: prismaJson({
+            generation_source: "live_llm",
+            provider_execution_audit: {
+              policy_version: error.audit.policy_version,
+              logical_generation_call_count:
+                error.audit.logical_generation_call_count,
+              provider_attempt_count: error.audit.provider_attempt_count,
+              transport_retry_count: error.audit.transport_retry_count,
+              semantic_regeneration_count:
+                error.audit.semantic_regeneration_count
+            }
+          }),
+          call_status:
+            error.failure_category === "provider_execution_failed"
+              ? "failed"
+              : "invalid_output",
+          latency_ms: error.latency_ms,
+          retry_count: error.audit.transport_retry_count,
+          input_tokens: error.input_tokens,
+          output_tokens: error.output_tokens,
+          total_tokens: error.total_tokens,
+          token_usage: prismaJson({
+            input_tokens: error.input_tokens,
+            output_tokens: error.output_tokens,
+            total_tokens: error.total_tokens
+          }),
+          started_at: error.started_at,
+          completed_at: error.completed_at
+        }
+      });
+      throw new FormativeConversationRuntimeError(
+        error.failure_category === "provider_execution_failed"
+          ? "agent_call_failed"
+          : "agent_output_invalid",
+        "The formative conversation provider result failed closed.",
+        error.failure_category
+      );
+    }
     await prisma.agentCall.update({
       where: { id: started.agent_call.id },
       data: {
@@ -615,7 +698,25 @@ async function executeOrResumeAgentCall(input: {
       output_validated: true,
       validation_error: null,
       usage_guard_snapshot: prismaJson({
-        generation_source: execution.generation_source
+        generation_source: execution.generation_source,
+        ...(execution.provider_execution_audit
+          ? {
+              provider_execution_audit: {
+                policy_version:
+                  execution.provider_execution_audit.policy_version,
+                logical_generation_call_count:
+                  execution.provider_execution_audit
+                    .logical_generation_call_count,
+                provider_attempt_count:
+                  execution.provider_execution_audit.provider_attempt_count,
+                transport_retry_count:
+                  execution.provider_execution_audit.transport_retry_count,
+                semantic_regeneration_count:
+                  execution.provider_execution_audit
+                    .semantic_regeneration_count
+              }
+            }
+          : {})
       }),
       retry_count: execution.retry_count,
       call_status: "succeeded",

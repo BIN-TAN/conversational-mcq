@@ -154,7 +154,7 @@ export type StructuredAgentRequest<TInput, TOutput> = {
   model_config: AgentModelConfig;
   instructions: string;
   input: TInput;
-  output_schema: z.ZodType<TOutput>;
+  output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   schema_name: string;
   client_request_id: string;
   timeout_ms: number;

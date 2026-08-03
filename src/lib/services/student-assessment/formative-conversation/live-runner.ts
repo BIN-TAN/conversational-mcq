@@ -5,10 +5,14 @@ import {
   resolveOperationalRoleLiveCallsEnabled
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
+import { canonicalStructuredAgentRequestHash } from "@/lib/llm/provider-transport-retry";
+import type { StructuredAgentRequest } from "@/lib/llm/providers/types";
 import {
   FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_AGENT_NAME,
-  FormativeConversationAgentOutputSchema
+  FormativeConversationAgentOutputSchema,
+  type FormativeConversationAgentInput,
+  type FormativeConversationAgentOutput
 } from "./agent-contract";
 import {
   FormativeConversationUnavailableError,
@@ -18,6 +22,10 @@ import type {
   FormativeConversationAgentExecution,
   FormativeConversationAgentRunner
 } from "./runtime";
+import {
+  createSingleAttemptLogicalGenerationExecution,
+  executeFormativeConversationWithSemanticRegeneration
+} from "./semantic-regeneration";
 
 export const FORMATIVE_CONVERSATION_PROMPT_VERSION:
   | "formative-conversation-host-v5"
@@ -137,9 +145,11 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
         live_call_allowed: true
       },
       async execute({ invocation_key, context }) {
-        const startedAt = new Date();
         const clientRequestId = `${FORMATIVE_CONVERSATION_AGENT_NAME}:${randomUUID()}`;
-        const result = await provider.executeStructured({
+        const baseRequest: StructuredAgentRequest<
+          FormativeConversationAgentInput,
+          FormativeConversationAgentOutput
+        > = {
           agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
           model_config: modelConfig,
           instructions: FORMATIVE_CONVERSATION_INSTRUCTIONS,
@@ -152,17 +162,50 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
             invocation_key,
             approved_execution_role: FORMATIVE_CONVERSATION_AGENT_NAME
           }
-        });
-        if (result.status !== "completed" || !result.parsed_output) {
-          throw new Error(
-            `formative_conversation_provider_failed:${result.error?.category ?? result.status}`
-          );
-        }
-        const completedAt = new Date();
-        const usage = result.usage;
+        };
+        const semanticExecution =
+          await executeFormativeConversationWithSemanticRegeneration({
+            base_request: baseRequest,
+            async execute_logical_generation({
+              sequence,
+              kind,
+              request
+            }) {
+              const logicalCallId = `${invocation_key}:generation:${sequence}:${kind}`;
+              const canonicalRequestHash =
+                canonicalStructuredAgentRequestHash(request);
+              const attemptClientRequestId =
+                sequence === 1
+                  ? clientRequestId
+                  : `${FORMATIVE_CONVERSATION_AGENT_NAME}:${randomUUID()}`;
+              const tracedRequest = {
+                ...request,
+                client_request_id: attemptClientRequestId,
+                transport_attempt: {
+                  logical_call_id: logicalCallId,
+                  adapter_attempt_id: `${logicalCallId}:adapter:1:${randomUUID()}`,
+                  adapter_attempt_index: 1,
+                  canonical_request_hash: canonicalRequestHash,
+                  x_client_request_id: attemptClientRequestId,
+                  logical_idempotency_key: logicalCallId
+                }
+              };
+              const result = await provider.executeStructured(tracedRequest);
+              return createSingleAttemptLogicalGenerationExecution({
+                logical_call_id: logicalCallId,
+                request,
+                result
+              });
+            }
+          });
+        const result = semanticExecution.result;
         const execution: FormativeConversationAgentExecution = {
           output: result.parsed_output,
-          raw_output: result.raw_output,
+          raw_output: {
+            accepted_output: result.raw_output,
+            provider_execution_audit: semanticExecution.audit
+          },
+          provider_execution_audit: semanticExecution.audit,
           generation_source: "live_llm",
           provider_request_id:
             result.provider_request_id ??
@@ -173,17 +216,14 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
             result.transport_telemetry?.provider_response_id ??
             null,
           client_request_id: result.client_request_id,
-          retry_count: Math.max(
-            (result.transport_telemetry?.adapter_attempt_index ?? 1) - 1,
-            0
-          ),
-          latency_ms: result.latency_ms,
-          input_tokens: usage?.input_tokens ?? null,
-          output_tokens: usage?.output_tokens ?? null,
-          total_tokens: usage?.total_tokens ?? null,
+          retry_count: semanticExecution.audit.transport_retry_count,
+          latency_ms: semanticExecution.latency_ms,
+          input_tokens: semanticExecution.input_tokens,
+          output_tokens: semanticExecution.output_tokens,
+          total_tokens: semanticExecution.total_tokens,
           estimated_cost: null,
-          started_at: startedAt,
-          completed_at: completedAt
+          started_at: semanticExecution.started_at,
+          completed_at: semanticExecution.completed_at
         };
         return execution;
       }
