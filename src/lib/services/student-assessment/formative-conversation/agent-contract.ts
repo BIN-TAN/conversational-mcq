@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validateFormativeConversationTransitionEvidenceClosure } from "./transition-evidence-closure";
 
 export const FORMATIVE_CONVERSATION_AGENT_NAME = "formative_conversation_agent";
 export const FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION =
@@ -227,16 +228,6 @@ const FormativeConversationProfileTransitionRecommendationSchema = z
           message:
             "updated fields require cited conversation evidence"
         });
-      }
-      for (const sequenceIndex of evidence.source_turn_sequence_indexes) {
-        if (!value.source_turn_sequence_indexes.includes(sequenceIndex)) {
-          context.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["field_evidence"],
-            message:
-              "field evidence turns must be included in the transition evidence set"
-          });
-        }
       }
     }
     for (const field of FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS) {
@@ -497,6 +488,22 @@ export const FormativeConversationAgentOutputSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    const evidenceClosure =
+      validateFormativeConversationTransitionEvidenceClosure({
+        recommendation: value.profile_transition_recommendation,
+        evidence_observations: value.evidence_observations
+      });
+    for (const closureIssue of evidenceClosure.issues) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [
+          ...closureIssue.field_path.split("."),
+          closureIssue.code
+        ],
+        message: `${closureIssue.code}: ${closureIssue.message}`
+      });
+    }
+
     const teacherAssistanceIsAuthoritativeOutcome =
       value.profile_transition_recommendation?.proposed_outcome ===
       "teacher_assistance_recommended";

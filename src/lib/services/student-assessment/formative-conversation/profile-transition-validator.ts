@@ -6,11 +6,16 @@ import {
   type FormativeConversationCanonicalProfile
 } from "./agent-contract";
 import { validateFormativeConversationMisconceptionEvidence } from "./profile-field-semantics";
+import {
+  FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_ISSUE_CODE,
+  validateFormativeConversationTransitionEvidenceClosure
+} from "./transition-evidence-closure";
 
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION:
   | "formative-conversation-profile-transition-validator-v4"
-  | "formative-conversation-profile-transition-validator-v5" =
-  "formative-conversation-profile-transition-validator-v5";
+  | "formative-conversation-profile-transition-validator-v5"
+  | "formative-conversation-profile-transition-validator-v6" =
+  "formative-conversation-profile-transition-validator-v6";
 
 type TransitionRecommendation = NonNullable<
   FormativeConversationAgentOutput["profile_transition_recommendation"]
@@ -25,6 +30,7 @@ export type FormativeConversationProfileTransitionValidationIssueCode =
   | "profile_transition_prior_profile_missing"
   | "profile_transition_updated_profile_missing"
   | "profile_transition_evidence_missing"
+  | typeof FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_ISSUE_CODE
   | "profile_transition_evidence_turn_mismatch"
   | "profile_transition_student_evidence_missing"
   | "profile_transition_field_evidence_missing"
@@ -104,6 +110,20 @@ export function validateFormativeConversationProfileTransition(input: {
 
   const issues: FormativeConversationProfileTransitionValidationIssue[] = [];
   const updatedProfile = recommendation.updated_profile;
+  const evidenceClosure =
+    validateFormativeConversationTransitionEvidenceClosure({
+      recommendation,
+      evidence_observations: input.evidence_observations
+    });
+  for (const closureIssue of evidenceClosure.issues) {
+    issues.push(
+      issue(
+        closureIssue.code,
+        closureIssue.field_path,
+        closureIssue.message
+      )
+    );
+  }
   const allCitedIndexes = uniqueSorted([
     ...recommendation.source_turn_sequence_indexes,
     ...recommendation.field_evidence.flatMap(
