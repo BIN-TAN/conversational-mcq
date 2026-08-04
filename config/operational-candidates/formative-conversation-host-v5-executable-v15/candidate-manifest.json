@@ -8,17 +8,45 @@
   "prompt_changed": false,
   "database_schema_changed": false,
   "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
-  "protocol_hash": "7485968f69a4d95f3b76a73571f56148c2fdad7f8586361127b110325704ef02",
-  "runner_implementation_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
-  "runner_reused_from_v14": true,
-  "materializer_implementation_hash": "116fa8648a6267249298ff2ba80eb77287ebe77082a0d1c13a6cc89b3d810082",
-  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
-  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759",
-  "compiled_plan_hash": "95b28fee031b960fd856de587b514cd4d0ccb81d44167922d7431ff7c2ee93f8",
-  "environment_contract_hash": "7b231876b00059bf9e6ed582edc328019ff8c054bd6d41e78f98caf21aabc2eb",
-  "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
-  "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "protocol_hash": "7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43",
+  "runner_implementation_hash": "6209b1ee2549c311f9ce11df5e2aa4c1156aaa75492b80a8efbeb5d25c8a3cec",
+  "inherited_generation_runner_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
+  "materializer_implementation_hash": "ecb367e950f005fdb2b380bf9c9846996aa94d5dc95319e51e06afe946d6c52c",
+  "inherited_v14_reference_hash": "350e9ad1238b87e2bd77b6e7e85a943b15bb82ced541b9b3cad0f7e207e23176",
+  "fixture_manifest_hash": "f2416230803068f08015e8eb445aae0a84e3ba407cec10e82079633f057457ba",
+  "compiled_plan_hash": "8c58d048d31ddc67e95426b8d8b01b9494e063f16a0c299a6d976cd07da4508a",
+  "environment_contract_hash": "859fa603c1f73a9a2ed830ca78654cb872ad80197ecf74cc1cdb80259eb3d09e",
+  "dispatch_checkpoint_contract_hash": "3fb62c2217ce80263b4471b17fd8ce8a43520f7df508e7f648fb05f69aa02616",
+  "security_wrapper_hash": "058b2c73dc78cb07706e368ab153ffaf05a2a26c622e39ad9ec6d599f649edbf",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
   "v14_immutable_snapshot_hash": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+  "historical_replay_gate_policy": "hash_reference_only_not_required_for_v15_live_readiness",
+  "historical_replay_dependencies": [
+    {
+      "dependency_id": "v10_profile_semantics_v8_case8_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v8",
+      "artifact_sha256": "b55e58fdcae3b5591065fd5ee662af00aa30a4d9fd90c11506c34ab9cccf7183",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "opening_v3_v12_case2_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v12",
+      "artifact_sha256": "3fb9752dcf041ac55cf627874ddc4f786467b4c7da76843f171e5650f457963d",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "v14_provenance_candidate_snapshot",
+      "source_revision": "formative-conversation-host-v5-executable-v14",
+      "artifact_sha256": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    }
+  ],
+  "committed_source_dependency_closure_ready": true,
+  "live_execution_prepared": true,
   "future_live_evaluation_requires_committed_source_freeze": true,
-  "candidate_manifest_hash": "3d7191a569e28c15ceefb43e8451303afce45412e40a2b4f16e44fe40d768bd4"
+  "candidate_manifest_hash": "6ff5f8cfd96c50d7d78cdfb1d835f0bb8b2581cb222d636cf126b5232324f7ad"
 }

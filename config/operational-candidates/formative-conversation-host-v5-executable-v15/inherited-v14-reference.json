@@ -27,6 +27,30 @@
     "maximum_semantic_regenerations_per_agent_call": 1,
     "maximum_semantic_regeneration_count": 8
   },
+  "historical_replay_gate_policy": "hash_reference_only_not_required_for_v15_live_readiness",
+  "historical_replay_dependencies": [
+    {
+      "dependency_id": "v10_profile_semantics_v8_case8_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v8",
+      "artifact_sha256": "b55e58fdcae3b5591065fd5ee662af00aa30a4d9fd90c11506c34ab9cccf7183",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "opening_v3_v12_case2_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v12",
+      "artifact_sha256": "3fb9752dcf041ac55cf627874ddc4f786467b4c7da76843f171e5650f457963d",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "v14_provenance_candidate_snapshot",
+      "source_revision": "formative-conversation-host-v5-executable-v14",
+      "artifact_sha256": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    }
+  ],
   "historical_evidence_copied": false,
   "working_tree_dependency_permitted": false
 }

@@ -1,13 +1,30 @@
 {
-  "protocol_version": "formative-conversation-host-v5-pilot-data-governance-v15",
-  "status": "no_provider_candidate_only",
+  "protocol_version": "formative-conversation-host-v5-executable-v15",
+  "status": "frozen_executable_not_run",
   "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "prompt_version": "formative-conversation-host-v5.3",
   "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
-  "runner_implementation_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
-  "materializer_implementation_hash": "116fa8648a6267249298ff2ba80eb77287ebe77082a0d1c13a6cc89b3d810082",
-  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
-  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759",
-  "inherited_live_budget": {
+  "target_identity": {
+    "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 3500,
+    "prompt_version": "formative-conversation-host-v5.3",
+    "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+    "schema_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "safety_version": "formative-conversation-safety-boundary-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "opening_validator_version": "formative-conversation-opening-v3"
+  },
+  "runner_implementation_hash": "6209b1ee2549c311f9ce11df5e2aa4c1156aaa75492b80a8efbeb5d25c8a3cec",
+  "materializer_implementation_hash": "ecb367e950f005fdb2b380bf9c9846996aa94d5dc95319e51e06afe946d6c52c",
+  "inherited_v14_reference_hash": "350e9ad1238b87e2bd77b6e7e85a943b15bb82ced541b9b3cad0f7e207e23176",
+  "fixture_manifest_hash": "f2416230803068f08015e8eb445aae0a84e3ba407cec10e82079633f057457ba",
+  "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "live_environment_contract_hash": "859fa603c1f73a9a2ed830ca78654cb872ad80197ecf74cc1cdb80259eb3d09e",
+  "dispatch_checkpoint_contract_hash": "3fb62c2217ce80263b4471b17fd8ce8a43520f7df508e7f648fb05f69aa02616",
+  "budget": {
     "expected_logical_call_count": 21,
     "maximum_logical_call_count": 29,
     "expected_provider_attempt_count": 21,
@@ -24,24 +41,70 @@
     "maximum_semantic_regenerations_per_agent_call": 1,
     "maximum_semantic_regeneration_count": 8
   },
-  "no_provider_gates": [
-    "provider_input_boundary",
-    "student_identifier_minimization",
-    "semantic_regeneration_input_boundary",
-    "teacher_guidance_exposure",
-    "export_filename_privacy",
-    "profile_transition_regressions",
-    "export_integrity",
-    "teacher_export_parity",
-    "provenance",
-    "security",
-    "typecheck",
-    "lint",
-    "production_build"
+  "fixture_count": 8,
+  "fixed_case_order": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence"
   ],
-  "live_execution_prepared": false,
-  "dispatch_checkpoint_permitted": false,
+  "intended_artifacts": [
+    "source-provider-run.json",
+    "derived-evaluation.json",
+    "aggregate-evaluation.json",
+    "human-review-package.json",
+    "teacher-export-consistency.json",
+    "research-export-integrity.json",
+    "provider-retry-milestone-evidence.json",
+    "persistence-observability.json",
+    "provenance-manifest.json",
+    "artifact-hash-manifest.json",
+    "finalized-artifact-manifest.json",
+    "artifact-scan-attestation.json"
+  ],
+  "isolation": {
+    "synthetic_only": true,
+    "case_namespaces_isolated": true,
+    "classroom_collision_forbidden": true,
+    "approval_activation_forbidden": true
+  },
+  "semantic_regeneration_policy_unchanged": true,
+  "security_attestation_policy_unchanged": true,
+  "historical_replay_gate_policy": "hash_reference_only_not_required_for_v15_live_readiness",
+  "historical_replay_dependencies": [
+    {
+      "dependency_id": "v10_profile_semantics_v8_case8_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v8",
+      "artifact_sha256": "b55e58fdcae3b5591065fd5ee662af00aa30a4d9fd90c11506c34ab9cccf7183",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "opening_v3_v12_case2_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v12",
+      "artifact_sha256": "3fb9752dcf041ac55cf627874ddc4f786467b4c7da76843f171e5650f457963d",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "v14_provenance_candidate_snapshot",
+      "source_revision": "formative-conversation-host-v5-executable-v14",
+      "artifact_sha256": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    }
+  ],
+  "committed_source_dependency_closure_ready": true,
+  "live_execution_prepared": true,
+  "live_execution_preparation_blockers": [],
+  "dispatch_checkpoint_permitted": true,
+  "exact_live_authorization_required": true,
+  "live_authorization_template": "I authorize one live execution of formative-conversation-host-v5-executable-v15 for runtime candidate hash <runtime_candidate_hash> and evaluation protocol hash <evaluation_protocol_hash>, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.",
   "approval_eligible": false,
   "activation_permitted": false,
-  "protocol_hash": "7485968f69a4d95f3b76a73571f56148c2fdad7f8586361127b110325704ef02"
+  "protocol_hash": "7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43"
 }

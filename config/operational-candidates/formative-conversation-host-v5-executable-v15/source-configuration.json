@@ -1,5 +1,5 @@
 {
-  "configuration_version": "formative-conversation-v15-source-configuration-v1",
+  "configuration_version": "formative-conversation-v15-source-configuration-v2",
   "target_role": "formative_conversation_agent",
   "prompt_version": "formative-conversation-host-v5.3",
   "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
@@ -7,8 +7,32 @@
   "base_runtime_candidate_hash": "b831e1bc85eeee7fc4afc4e0700bacda5f4c17c77fe379795bdbbf5c72bc7075",
   "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
   "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "operational_configuration": {
+    "roles": {
+      "formative_conversation_agent": {
+        "model_name": "gpt-5.6-sol",
+        "reasoning_effort": "medium",
+        "max_output_tokens": 3500
+      }
+    },
+    "runtime_policy": {
+      "provider_timeout_ms": 90000,
+      "provider_max_retries": 2,
+      "role_live_toggles": {
+        "student_communication_agent": true,
+        "topic_dialogue_agent": true,
+        "formative_conversation_agent": true
+      },
+      "topic_dialogue_policy": {
+        "maximum_student_turns": 10,
+        "recent_raw_turn_window": 12,
+        "maximum_student_message_characters": 5000,
+        "assessment_system_questions_allowed": true
+      }
+    }
+  },
   "live_configuration_changed": false,
   "render_accessed": false,
-  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
-  "source_configuration_hash": "113d70aeaa31d26eab469c18f917256fe7ab6395c95fdc7277439af4d868af8d"
+  "inherited_v14_reference_hash": "350e9ad1238b87e2bd77b6e7e85a943b15bb82ced541b9b3cad0f7e207e23176",
+  "source_configuration_hash": "b76287e7aff3e429bd3182b63feab4d760aed83f2644fac3a157d260e57f2349"
 }

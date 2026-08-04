@@ -1,38 +1,155 @@
 {
-  "manifest_version": "formative-conversation-v15-governance-fixture-manifest-v1",
-  "inherited_v14_fixture_manifest_hash": "c874db90c80c046dc79547adc70279f1fafe4d07c44da3b58899764f6fbc7b74",
+  "manifest_version": "formative-conversation-v15-fixture-manifest-v1",
+  "fixture_hash_semantics": "stable_hash_of_fixture_with_fixture_hash_omitted",
+  "fixture_count": 8,
+  "fixed_case_order": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence"
+  ],
+  "fixtures": [
+    {
+      "case_id": "fcv5_01_assistant_first_opening",
+      "order": 1,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_01_assistant_first_opening.json",
+      "fixture_hash": "8b21b1d81a29f59a9f5cc850b485cf6208dab0db5543e33dde2978b29f78d607",
+      "file_sha256": "51a118ebead9b6f3582acb2d2e18de8df11a53a0278c75d2940a38955b0b3594"
+    },
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "order": 2,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_02_first_principles_adaptation.json",
+      "fixture_hash": "aebc159350436869fba71230406670465bafa4cdcd9f873c3c51186a2d6d92fd",
+      "file_sha256": "1c29caccdf7fcfbcf0df58241a6c260666c1215308500d481e253bdd6e86d3c7"
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "order": 3,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_03_direct_answer_handling.json",
+      "fixture_hash": "9687ffd1e65d2ea10dfb45cb40957c6797f14071d73e07a4108ca246b557d14a",
+      "file_sha256": "0b072f35e55e8684ec3d5028b947d447536507919fc443f6843d14a12301adb5"
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "order": 4,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_04_related_concept_discussion.json",
+      "fixture_hash": "f3f515f09c7bd6c5e9d21368c0cd79a4dccadf2b959808c49db1a1b64c6c83eb",
+      "file_sha256": "ddc66df89073ce716cd25011affe8a9b855c80b7d05ea87d4b4a8b476cb0c407"
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "order": 5,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_05_sound_profile_transition.json",
+      "fixture_hash": "6698130c4136bde9462bc8f5ca11afc9c63750ef385e6d452aa94e64c284fdda",
+      "file_sha256": "6b0dd189b494d919476244601a9c2c17474ef147fb96df7b075385650287f110"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "order": 6,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_06_largely_improved_temporal.json",
+      "fixture_hash": "e398d039ecc795b168464c4ed6f1c43be9e3d16c770bd1638e88d5a5f2ac2fd9",
+      "file_sha256": "d983c768575ae02b392e5f472baa045cf96d66f1e150c6027f9bae1585c8d1c8"
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "order": 7,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_07_persistent_barrier_teacher_assistance.json",
+      "fixture_hash": "ac88c9f6549d136894f9557ea5cfd932ead93e463fcadc68f7380dc27a27c84b",
+      "file_sha256": "2949a2100a58decaa0fd3f1e3f5d7b1692a79ad1ae00a3b39ca0c418e1082e6d"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "order": 8,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v15/fixtures/fcv5_08_mixed_resolved_evidence.json",
+      "fixture_hash": "cea80b1990944ab81e202cf1c8b630c4b29ea690c71cebef8cf929c1e24dca22",
+      "file_sha256": "36b56e16ce7fc0dc31e3b2cdd3c295a1c2b5d78084bba5baacf0da273a9c2c46"
+    }
+  ],
+  "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
   "inherited_v14_aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "historical_replay_dependencies": [
+    {
+      "dependency_id": "v10_profile_semantics_v8_case8_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v8",
+      "artifact_sha256": "b55e58fdcae3b5591065fd5ee662af00aa30a4d9fd90c11506c34ab9cccf7183",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "opening_v3_v12_case2_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v12",
+      "artifact_sha256": "3fb9752dcf041ac55cf627874ddc4f786467b4c7da76843f171e5650f457963d",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    },
+    {
+      "dependency_id": "v14_provenance_candidate_snapshot",
+      "source_revision": "formative-conversation-host-v5-executable-v14",
+      "artifact_sha256": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v15_live_readiness": false
+    }
+  ],
   "governance_regression_sources": [
     {
-      "path": "prisma/agent-profiling-smoke-test.ts",
-      "sha256": "8e993e7f6472ed356d1cc348c51c1a6f859b87c83b32e4b6a604c8169a392b05"
+      "path": "package.json",
+      "sha256": "8cf08728a2ea88aad95e2beecb8d61a03f0ab3c5bd8841da883558c17bd7baad"
     },
     {
       "path": "prisma/operational-formative-conversation-v5-v15-smoke-test.ts",
-      "sha256": "ea32939ff2bf166651b32a59e9c15b55645dbc450e91f1d55e081d9dfb662923"
+      "sha256": "c1ef3406cade1479794668f65bad362208cd7c450ec91d46fed1c95a090847fe"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-compilation-smoke-test.ts",
+      "sha256": "e050820b25912d77ee4657f5c3974dbe3ad71e41b2b348cc5670a75249e74349"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-launcher-smoke-test.ts",
+      "sha256": "0a375b9ad81ff606ab0c070d3d15cffe3b24b0e57a15f829e52b57684873dbb1"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-environment-parity-smoke-test.ts",
+      "sha256": "0f5d0e82e4843d2e7147d1692bf0f2bccf8dcb400396a0df8f5240312c09301f"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-dispatch-checkpoint-smoke-test.ts",
+      "sha256": "ee0e5eb8e2fcf1e81d0ddb2d186982ea0c42190028b94c94d18367bbf00dacf6"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-security-smoke-test.ts",
+      "sha256": "707f1fd63eb078697528496a3ea3eaf2d062d25f89aa49f497383429ce5b5fbb"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-provenance-smoke-test.ts",
+      "sha256": "5b34ed5c1cf750c662fbd594c2c6d0ae4dd2456a86b981bf1edc22d05cd9b009"
+    },
+    {
+      "path": "prisma/formative-conversation-v15-transition-evidence-closure-smoke-test.ts",
+      "sha256": "770f710eacbc31ad919dbed47851c4188020fb45cad2057e6c3706070fc315d4"
     },
     {
       "path": "prisma/pilot-data-governance-v15-smoke-test.ts",
       "sha256": "b755a549787a7135a86a360d7dac678c167a4cbb4a2a949435d2141554534eda"
     },
     {
-      "path": "prisma/student-analysis-ready-export-smoke-test.ts",
-      "sha256": "92c4b6d9175c564352a680268cbb2569bf9626cacb758b2367b2e14848a44938"
-    },
-    {
-      "path": "prisma/student-teacher-detailed-csv-export-smoke-test.ts",
-      "sha256": "2ac98cb4ce9686b58f6204cbf01d5f5984d714e16f5bc689bc1e265240622f5a"
-    },
-    {
-      "path": "prisma/student-teacher-simple-csv-export-smoke-test.ts",
-      "sha256": "b8e599d2ffd7d01b09eeca5d5c9e561ca885f7a2c7b8c8ca6c6c34db40198388"
-    },
-    {
       "path": "docs/V15_PILOT_DATA_GOVERNANCE_HARDENING.md",
-      "sha256": "76950a816b0e2678a3b75f4dbf5f61fedc7f9b239a49bc1e73b4cc56228d014b"
+      "sha256": "55f5aff33df37936d08b446e234503b5026155f198bbda94941aa8893666e89e"
+    },
+    {
+      "path": "docs/V15_LIVE_EXECUTION_FREEZE.md",
+      "sha256": "dbc943c6307393aca4f3178fea638c7aedb6c76915c4fa7f7698cf61edd36114"
     }
   ],
-  "provider_calls": 0,
-  "model_auth_requests": 0,
-  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759"
+  "forbidden_runner_substitutions": [
+    "bare_node_without_tsx",
+    "selective_case_runner",
+    "persona_cli",
+    "uncommitted_fixture_override"
+  ],
+  "fixture_manifest_hash": "f2416230803068f08015e8eb445aae0a84e3ba407cec10e82079633f057457ba"
 }

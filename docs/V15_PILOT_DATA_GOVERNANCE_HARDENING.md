@@ -59,3 +59,39 @@ budget identities required to derive V15. Historical V14 evidence is referenced
 by hash and is not copied. V15 does not read the V14 candidate directory,
 launcher files, Prisma tests, or unstaged runtime changes, so a clean checkout
 can reproduce the V15 package without staging V14 working-tree artifacts.
+
+## Verification Ownership
+
+The transition evidence-closure regression is a current acceptance-boundary
+check, so V15 owns its deterministic smoke test. The package script resolves to
+that committed V15 test and does not rely on an omitted V14 test file.
+
+The following checks are historical evidence dependencies rather than V15
+readiness gates:
+
+- the V10 profile-semantics replay of the immutable V8 case-8 transcript;
+- the opening-contract replay of the immutable V12 case-2 transcript;
+- the V14 candidate-package provenance replay.
+
+V15 records only their immutable SHA-256 identities. It does not require their
+original `.data` paths, the V14 candidate directory, or another working-tree
+artifact. Current V15 readiness uses V15-owned dependency-closure, privacy,
+transition, export, provenance, and security checks.
+
+## Executable Freeze Boundary
+
+V15 now owns a dispatch-capable launcher, process-local security wrapper,
+environment-parity contract, compiled eight-case fixture plan, and exactly-once
+dispatch checkpoint contract. Plan and live modes use the same `node --import
+tsx` chain, and bare `node` invocation fails before the evaluation CLI loads.
+
+The package is structurally `live_execution_prepared=true`, but this is not an
+authorization or approval. Before future execution, the prepared files must be
+committed, the canonical deployment must match that commit, and a fresh
+committed-source verification must reproduce every frozen identity. The exact
+future authorization text and command are recorded in the V15-owned
+`live-execution-authorization.json` and generated `LIVE_EXECUTION.md` files.
+
+No provider call, model-auth request, or real V15 dispatch checkpoint is made
+while preparing or verifying this package. Approval remains ineligible and
+activation remains forbidden.
