@@ -22,6 +22,7 @@ import {
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
   buildExportSourceIdentity,
+  privacySafeStudentArtifactSegment,
   sourceIdentityRow,
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
@@ -763,7 +764,9 @@ function sourceFor(input: {
     export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
     export_scope: input.scope,
     selected_assessment_public_id: input.assessment_public_id,
-    selected_student_id: input.student_user_id,
+    selected_student_id: input.student_user_id
+      ? researchStudentId(input.student_user_id)
+      : undefined,
     selected_session_public_id: input.session_public_id
   });
 }
@@ -2534,8 +2537,11 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   const suffix =
     input.scope === "selected_assessment" && input.assessment_public_id
       ? `assessment_${input.assessment_public_id}`
-      : input.scope === "selected_student" && input.student_user_id
-        ? `student_${input.student_user_id}`
+      : input.scope === "selected_student" && source.selected_student_id
+        ? `student_${privacySafeStudentArtifactSegment({
+            source,
+            stable_pseudonymous_student_id: source.selected_student_id
+          })}`
         : input.scope === "selected_session" && input.session_public_id
           ? `session_${input.session_public_id}`
           : "all_authorized";

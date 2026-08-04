@@ -1,0 +1,17 @@
+{
+  "compiled_plan_version": "formative-conversation-v15-no-provider-compiled-plan-v1",
+  "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "protocol_hash": "7485968f69a4d95f3b76a73571f56148c2fdad7f8586361127b110325704ef02",
+  "runner_implementation_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
+  "materializer_implementation_hash": "116fa8648a6267249298ff2ba80eb77287ebe77082a0d1c13a6cc89b3d810082",
+  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
+  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759",
+  "environment_contract_hash": "7b231876b00059bf9e6ed582edc328019ff8c054bd6d41e78f98caf21aabc2eb",
+  "execution": "no_provider_verification_only",
+  "dispatch_checkpoint_count": 0,
+  "provider_call_count": 0,
+  "model_auth_request_count": 0,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "compiled_plan_hash": "95b28fee031b960fd856de587b514cd4d0ccb81d44167922d7431ff7c2ee93f8"
+}

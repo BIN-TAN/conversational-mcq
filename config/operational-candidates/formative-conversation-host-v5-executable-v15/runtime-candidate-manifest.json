@@ -1,0 +1,58 @@
+{
+  "manifest_version": "formative-conversation-v15-runtime-candidate-v1",
+  "base_runtime_candidate_hash": "b831e1bc85eeee7fc4afc4e0700bacda5f4c17c77fe379795bdbbf5c72bc7075",
+  "target_role": "formative_conversation_agent",
+  "prompt_version": "formative-conversation-host-v5.3",
+  "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+  "identity_minimization_version": "provider-input-identity-minimization-v1",
+  "teacher_guidance_boundary_version": "formative-conversation-teacher-guidance-boundary-v1",
+  "export_artifact_privacy_version": "pilot-export-artifact-identifier-privacy-v1",
+  "runtime_delta_sources": [
+    {
+      "path": "src/lib/agents/student-profiling/input-builder.ts",
+      "sha256": "f5a8ff7e81b32030859005d18cccf361513fc799aff8ffc418b62ed58ad8aeb4"
+    },
+    {
+      "path": "src/lib/llm/provider-input-privacy.ts",
+      "sha256": "49e8496c4b8e2df1b6b4c1b25f1baa9d7f3205243dd84e9b1235fc21a17469db"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/live-runner.ts",
+      "sha256": "d5f2f38ce0713f81db691e636436412ebdef4d626587866ec34d55ca22b0003f"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/runtime-context.ts",
+      "sha256": "d7d8cbd1ae6e31bfec94ca2eb0dc318741ae40cf335aab7676bdff2106ebbcde"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/teacher-guidance-boundary.ts",
+      "sha256": "27ea0baa6897cb9e6f7341947b1beccdf4254aae9fb352cb394db4944944e2d6"
+    },
+    {
+      "path": "src/lib/services/teacher-detailed-csv-export/service.ts",
+      "sha256": "579cbdfcd069883ad338267152833b75130527d23a00d3ee10c4f17edb2b2299"
+    },
+    {
+      "path": "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+      "sha256": "4935274f75701e98209ce64510073699956face55fbdf17be2ad01bc987f604b"
+    },
+    {
+      "path": "src/lib/services/teacher-research-export/source-identity.ts",
+      "sha256": "5b7bbdd65b4ac799410be03d2d35ebebc5fd8339d3d71bb882cb82d87d8a383d"
+    },
+    {
+      "path": "src/lib/services/teacher-simple-csv-export/service.ts",
+      "sha256": "c3062ddb88e3a30f40b9282590ad4a19fae34ea32510f71dbfd6ba8da39d9a0b"
+    }
+  ],
+  "explicitly_unchanged": [
+    "answer_key_boundary",
+    "assessment_truth_handling",
+    "formative_pedagogy",
+    "profile_transition_logic",
+    "profile_meanings",
+    "semantic_regeneration_philosophy",
+    "database_schema"
+  ],
+  "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60"
+}

@@ -23,6 +23,7 @@ import {
   ensureTeacherReviewDemoFixture,
   teacherReviewAssessmentPublicId
 } from "./demo-teacher-review-fixture";
+import { researchStudentId } from "../src/lib/services/teacher-research-data/pseudonymization";
 
 const prisma = new PrismaClient();
 
@@ -93,6 +94,24 @@ async function main() {
       scope: "selected_assessment",
       assessment_public_id: teacherReviewAssessmentPublicId
     });
+    const selectedStudent = await buildAnalysisReadyResearchDataBundle({
+      teacher_user_db_id: teacher.id,
+      scope: "selected_student",
+      student_user_id: "student_demo"
+    });
+    const selectedStudentPseudonym = researchStudentId("student_demo");
+    assert(
+      selectedStudent.filename.includes(selectedStudentPseudonym),
+      "Selected-student research filename should use the stable research pseudonym."
+    );
+    assert(
+      !selectedStudent.filename.includes("student_demo"),
+      "Selected-student research filename must not expose the raw account identifier."
+    );
+    assert(
+      selectedStudent.source.selected_student_id === selectedStudentPseudonym,
+      "Research export source identity should use the pseudonymous student identifier."
+    );
 
     const expectedFiles = [
       "sessions.csv",

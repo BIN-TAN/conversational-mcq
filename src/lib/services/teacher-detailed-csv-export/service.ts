@@ -10,6 +10,7 @@ import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
   buildExportSourceIdentity,
   EXPORT_SOURCE_COLUMNS,
+  privacySafeStudentArtifactSegment,
   sourceIdentityRow,
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
@@ -1015,7 +1016,7 @@ export async function buildTeacherDetailedCsvBundle(input: {
     input.scope === "selected_assessment" && input.assessment_public_id
       ? `assessment_${input.assessment_public_id}_detailed_csv.zip`
       : input.scope === "selected_student" && input.student_user_id
-        ? `student_${input.student_user_id}_detailed_csv.zip`
+        ? `student_${privacySafeStudentArtifactSegment({ source })}_detailed_csv.zip`
         : input.scope === "selected_session" && input.session_public_id
           ? `session_${input.session_public_id}_detailed_csv.zip`
           : "all_authorized_research_csv.zip";

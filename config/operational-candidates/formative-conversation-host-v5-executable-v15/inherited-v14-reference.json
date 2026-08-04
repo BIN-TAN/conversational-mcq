@@ -1,0 +1,32 @@
+{
+  "reference_version": "formative-conversation-v15-inherited-v14-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v14",
+  "v14_immutable_snapshot_hash": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+  "base_runtime_candidate_hash": "b831e1bc85eeee7fc4afc4e0700bacda5f4c17c77fe379795bdbbf5c72bc7075",
+  "runner_implementation_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
+  "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+  "v14_protocol_hash": "666e7d1c9e11825366e6d483c5e5578fd99a1b480d40cc250888974ac64563ac",
+  "v14_fixture_manifest_hash": "c874db90c80c046dc79547adc70279f1fafe4d07c44da3b58899764f6fbc7b74",
+  "v14_aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "inherited_live_budget": {
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 29,
+    "expected_provider_attempt_count": 21,
+    "maximum_provider_attempt_count": 87,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 900000,
+    "maximum_output_token_count": 101500,
+    "maximum_total_token_count": 1001500,
+    "maximum_wall_clock_duration_ms": 7200000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 30,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available",
+    "maximum_semantic_regenerations_per_agent_call": 1,
+    "maximum_semantic_regeneration_count": 8
+  },
+  "historical_evidence_copied": false,
+  "working_tree_dependency_permitted": false
+}

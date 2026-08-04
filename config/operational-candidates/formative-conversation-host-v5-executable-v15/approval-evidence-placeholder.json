@@ -1,0 +1,9 @@
+{
+  "placeholder_version": "formative-conversation-v15-approval-placeholder-v1",
+  "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "protocol_hash": "7485968f69a4d95f3b76a73571f56148c2fdad7f8586361127b110325704ef02",
+  "approval_evidence_created": false,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "reason": "Uncommitted no-provider pilot-governance candidate; committed-source live evaluation has not been frozen or authorized."
+}

@@ -99,3 +99,17 @@ export function buildExportSourceIdentity(input: {
 export function sourceIdentityRow(identity: ExportSourceIdentity) {
   return Object.fromEntries(EXPORT_SOURCE_COLUMNS.map((column) => [column, identity[column]])) as ExportSourceIdentity;
 }
+
+export function privacySafeStudentArtifactSegment(input: {
+  source: ExportSourceIdentity;
+  stable_pseudonymous_student_id?: string | null;
+}) {
+  const segment =
+    input.stable_pseudonymous_student_id?.trim() ||
+    `export_${input.source.export_run_public_id}`;
+
+  if (!/^[A-Za-z0-9_-]+$/u.test(segment)) {
+    throw new Error("unsafe_student_export_artifact_segment");
+  }
+  return segment;
+}

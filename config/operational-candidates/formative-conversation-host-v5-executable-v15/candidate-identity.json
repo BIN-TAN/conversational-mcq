@@ -1,0 +1,31 @@
+{
+  "identity_version": "formative-conversation-v15-candidate-identity-v1",
+  "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+  "protocol_hash": "7485968f69a4d95f3b76a73571f56148c2fdad7f8586361127b110325704ef02",
+  "runner_implementation_hash": "a3d55a19e11114787b6fac05d96e97ea92794511a6733efe31ff2a8824086146",
+  "materializer_implementation_hash": "116fa8648a6267249298ff2ba80eb77287ebe77082a0d1c13a6cc89b3d810082",
+  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
+  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759",
+  "compiled_plan_hash": "95b28fee031b960fd856de587b514cd4d0ccb81d44167922d7431ff7c2ee93f8",
+  "environment_contract_hash": "7b231876b00059bf9e6ed582edc328019ff8c054bd6d41e78f98caf21aabc2eb",
+  "candidate_manifest_hash": "3d7191a569e28c15ceefb43e8451303afce45412e40a2b4f16e44fe40d768bd4",
+  "source_configuration_hash": "113d70aeaa31d26eab469c18f917256fe7ab6395c95fdc7277439af4d868af8d",
+  "file_sha256": {
+    "runtime_candidate_manifest": "404b394dbc9bebf400afef761189af648967ecc56ff02d8443ca089748789b9e",
+    "candidate_manifest": "184d522af850657dc30fb213f16581f2330b4237fa595a04292a0867b27aa16b",
+    "executable_evaluation_protocol": "78280600045c679ddda2e91825cbb847b35af574085af6740d4e09f065838dc4",
+    "fixture_manifest": "9ccf80c75bba5252df3434f505f157f8f1ae7cc190cb5f6828f475997b2cf747",
+    "compiled_execution_plan": "89862516dcf2866f8d98bcccaaa65d62c46c505b66ded1b055465ce29d2b6ddd",
+    "environment_contract": "143c1c197f9b81449b1a376f63bcf053633fdd17afb82c2356df533f405560a9",
+    "source_configuration": "f04bd3501a2b32e88961a4b0c4a51e39ef1b7d9510ce0c209b0e0a9c2a3ace67",
+    "inherited_v14_reference": "232bd816430c6a166e92dc2f2129bfdda4e8b8a56caf98007cb3fb5a53d8e16f",
+    "approval_evidence_placeholder": "a9695443e27acfe98caa3f20cef474d89771adf0b980dae672aa85e00939ce9e"
+  },
+  "v14_immutable_snapshot_hash": "8a030371aae38410eee6e8a54d8588b70b3aad564ec5f94c57afc3853d9a546a",
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0
+}

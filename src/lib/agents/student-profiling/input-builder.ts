@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { AgentInputByName } from "@/lib/agents/contracts";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
+import { assertNoRawStudentIdentifiersInProviderPayload } from "@/lib/llm/provider-input-privacy";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 
 export type StudentProfilingInput = AgentInputByName["student_profiling_agent"];
@@ -106,11 +107,6 @@ export async function buildInitialStudentProfilingInput(
           started_at: true,
           last_activity_at: true,
           completed_at: true,
-          user: {
-            select: {
-              user_id: true
-            }
-          },
           assessment: {
             select: {
               assessment_public_id: true,
@@ -263,9 +259,6 @@ export async function buildInitialStudentProfilingInput(
         last_activity_at: isoDate(conceptUnitSession.assessment_session.last_activity_at),
         completed_at: isoDate(conceptUnitSession.assessment_session.completed_at)
       },
-      student: {
-        user_id: conceptUnitSession.assessment_session.user.user_id
-      },
       concept_unit: {
         concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
         title: conceptUnitSession.concept_unit.title,
@@ -331,6 +324,7 @@ export async function buildInitialStudentProfilingInput(
   };
 
   assertNoProhibitedInputFields(input);
+  assertNoRawStudentIdentifiersInProviderPayload(input);
 
   return {
     input,
@@ -427,6 +421,7 @@ export async function buildUpdatedStudentProfilingInput(input: {
   };
 
   assertNoProhibitedInputFields(updatedInput);
+  assertNoRawStudentIdentifiersInProviderPayload(updatedInput);
 
   return {
     input: updatedInput,

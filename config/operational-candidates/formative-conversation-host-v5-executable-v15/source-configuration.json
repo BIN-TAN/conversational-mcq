@@ -1,0 +1,14 @@
+{
+  "configuration_version": "formative-conversation-v15-source-configuration-v1",
+  "target_role": "formative_conversation_agent",
+  "prompt_version": "formative-conversation-host-v5.3",
+  "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+  "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "base_runtime_candidate_hash": "b831e1bc85eeee7fc4afc4e0700bacda5f4c17c77fe379795bdbbf5c72bc7075",
+  "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "live_configuration_changed": false,
+  "render_accessed": false,
+  "inherited_v14_reference_hash": "2a0ec8a5591dedc46a82e92c0dbc2840d9129dab3705ff2dfd503c5ed9b5b06b",
+  "source_configuration_hash": "113d70aeaa31d26eab469c18f917256fe7ab6395c95fdc7277439af4d868af8d"
+}

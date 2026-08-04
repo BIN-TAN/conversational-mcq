@@ -194,7 +194,16 @@ async function main() {
     });
 
     assert(assessmentCsv.file_name === "assessment_assessment_demo_teacher_review_students.csv", "Assessment CSV filename should be stable.");
-    assert(studentCsv.file_name === "student_student_demo_sessions.csv", "Student CSV filename should be stable.");
+    assert(
+      /^student_export_rex_[A-Za-z0-9_]+_sessions\.csv$/u.test(
+        studentCsv.file_name
+      ),
+      "Student CSV filename should use a generated export identifier."
+    );
+    assert(
+      !studentCsv.file_name.includes("student_demo"),
+      "Student CSV filename must not expose the raw account identifier."
+    );
     assert(matrixCsv.file_name === "student_assessment_matrix.csv", "Matrix CSV filename should be stable.");
 
     assertHeaders(assessmentCsv.content, SESSION_CSV_COLUMNS);

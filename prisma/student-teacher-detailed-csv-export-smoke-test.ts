@@ -444,6 +444,16 @@ async function main() {
       scope: "selected_student",
       student_user_id: legacyManagedStudentUserId
     });
+    assert(
+      !legacyStudentBundle.filename.includes(legacyManagedStudentUserId),
+      "Detailed selected-student filename must not expose the raw account identifier."
+    );
+    assert(
+      /^student_export_rex_[A-Za-z0-9_]+_detailed_csv\.zip$/u.test(
+        legacyStudentBundle.filename
+      ),
+      "Detailed selected-student filename should use a generated export identifier."
+    );
     const legacyAnalysisRows = parseCsv<Record<string, string>>(
       fileData(legacyStudentBundle.files, "analysis_rows.csv")
     );

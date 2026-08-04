@@ -5,6 +5,7 @@ import {
   resolveOperationalRoleLiveCallsEnabled
 } from "@/lib/llm/config";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
+import { assertNoRawStudentIdentifiersInProviderPayload } from "@/lib/llm/provider-input-privacy";
 import { canonicalStructuredAgentRequestHash } from "@/lib/llm/provider-transport-retry";
 import type { StructuredAgentRequest } from "@/lib/llm/providers/types";
 import {
@@ -187,6 +188,10 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
               kind,
               request
             }) {
+              assertNoRawStudentIdentifiersInProviderPayload({
+                input: request.input,
+                metadata: request.metadata ?? null
+              });
               const logicalCallId = `${invocation_key}:generation:${sequence}:${kind}`;
               const canonicalRequestHash =
                 canonicalStructuredAgentRequestHash(request);

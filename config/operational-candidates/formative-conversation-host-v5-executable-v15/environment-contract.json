@@ -1,0 +1,9 @@
+{
+  "contract_version": "formative-conversation-v15-no-provider-environment-contract-v1",
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0,
+  "render_access_permitted": false,
+  "secrets_required": [],
+  "environment_contract_hash": "7b231876b00059bf9e6ed582edc328019ff8c054bd6d41e78f98caf21aabc2eb"
+}

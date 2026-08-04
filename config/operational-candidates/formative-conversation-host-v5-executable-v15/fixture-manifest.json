@@ -1,0 +1,38 @@
+{
+  "manifest_version": "formative-conversation-v15-governance-fixture-manifest-v1",
+  "inherited_v14_fixture_manifest_hash": "c874db90c80c046dc79547adc70279f1fafe4d07c44da3b58899764f6fbc7b74",
+  "inherited_v14_aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "governance_regression_sources": [
+    {
+      "path": "prisma/agent-profiling-smoke-test.ts",
+      "sha256": "8e993e7f6472ed356d1cc348c51c1a6f859b87c83b32e4b6a604c8169a392b05"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v15-smoke-test.ts",
+      "sha256": "ea32939ff2bf166651b32a59e9c15b55645dbc450e91f1d55e081d9dfb662923"
+    },
+    {
+      "path": "prisma/pilot-data-governance-v15-smoke-test.ts",
+      "sha256": "b755a549787a7135a86a360d7dac678c167a4cbb4a2a949435d2141554534eda"
+    },
+    {
+      "path": "prisma/student-analysis-ready-export-smoke-test.ts",
+      "sha256": "92c4b6d9175c564352a680268cbb2569bf9626cacb758b2367b2e14848a44938"
+    },
+    {
+      "path": "prisma/student-teacher-detailed-csv-export-smoke-test.ts",
+      "sha256": "2ac98cb4ce9686b58f6204cbf01d5f5984d714e16f5bc689bc1e265240622f5a"
+    },
+    {
+      "path": "prisma/student-teacher-simple-csv-export-smoke-test.ts",
+      "sha256": "b8e599d2ffd7d01b09eeca5d5c9e561ca885f7a2c7b8c8ca6c6c34db40198388"
+    },
+    {
+      "path": "docs/V15_PILOT_DATA_GOVERNANCE_HARDENING.md",
+      "sha256": "76950a816b0e2678a3b75f4dbf5f61fedc7f9b239a49bc1e73b4cc56228d014b"
+    }
+  ],
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "fixture_manifest_hash": "c798d239184689f653de33fc5b9edc5c2e6529451e8bf9ad57fa691ccbc04759"
+}

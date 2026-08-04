@@ -9,6 +9,7 @@ import { ContentServiceError } from "@/lib/services/content/errors";
 import {
   buildExportSourceIdentity,
   EXPORT_SOURCE_COLUMNS,
+  privacySafeStudentArtifactSegment,
   sourceIdentityRow,
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
@@ -1056,7 +1057,7 @@ export async function downloadStudentCsv(input: {
   const rows = (await Promise.all(sessions.map((session) => buildSessionRow(session, source)))).sort(rowSort);
 
   return fileResult(
-    `student_${input.student_user_id}_sessions.csv`,
+    `student_${privacySafeStudentArtifactSegment({ source })}_sessions.csv`,
     csv(SESSION_CSV_COLUMNS, rows)
   );
 }

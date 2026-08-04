@@ -691,6 +691,14 @@ async function main() {
       JSON.stringify(built.input).includes("distractor_rationales"),
       "Profiling input should include teacher-side distractor rationales."
     );
+    assert(
+      !JSON.stringify(built.input).includes(fixture.student.user_id),
+      "Profiling provider input must not include the raw student account identifier."
+    );
+    assert(
+      JSON.stringify(built.input).includes("reasoning_text"),
+      "Profiling identity minimization must preserve assessment reasoning evidence."
+    );
     assertNoForbiddenSerializedFields(built.input, "StudentProfilingInput");
 
     const result = await runInitialStudentProfiling({

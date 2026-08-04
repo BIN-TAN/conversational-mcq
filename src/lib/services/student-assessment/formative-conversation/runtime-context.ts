@@ -17,6 +17,7 @@ import {
   canonicalFormativeConversationProfileFromStudentProfile,
   parseFormativeConversationProfileSnapshot
 } from "./profile-update";
+import { normalizeInstructionalTeacherGuidance } from "./teacher-guidance-boundary";
 import type { FormativeConversationRuntimeContextSeed } from "./runtime";
 
 type JsonRecord = Record<string, unknown>;
@@ -374,11 +375,13 @@ async function buildRuntimeContextSeed(input: {
           session.concept_unit_session.concept_unit
             .related_concept_description
         ),
-      administered_item_guidance: (
-        assessmentInterpretationContext?.teacher_diagnostic_guidance
-          .item_guidance ?? []
-      ).filter((guidance) =>
-        administeredItemPublicIds.has(guidance.item_public_id)
+      administered_item_guidance: normalizeInstructionalTeacherGuidance(
+        (
+          assessmentInterpretationContext?.teacher_diagnostic_guidance
+            .item_guidance ?? []
+        ).filter((guidance) =>
+          administeredItemPublicIds.has(guidance.item_public_id)
+        )
       ),
       boundaries: {
         administered_items_only: true,
