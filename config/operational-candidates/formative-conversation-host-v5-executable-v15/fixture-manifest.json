@@ -126,7 +126,7 @@
     },
     {
       "path": "prisma/operational-formative-conversation-v5-v15-provenance-smoke-test.ts",
-      "sha256": "5b34ed5c1cf750c662fbd594c2c6d0ae4dd2456a86b981bf1edc22d05cd9b009"
+      "sha256": "482dfe5d6b3c6714c009f278108a628da77f8c5199b3468e86bf3ec69204c8f5"
     },
     {
       "path": "prisma/formative-conversation-v15-transition-evidence-closure-smoke-test.ts",
@@ -151,5 +151,5 @@
     "persona_cli",
     "uncommitted_fixture_override"
   ],
-  "fixture_manifest_hash": "f2416230803068f08015e8eb445aae0a84e3ba407cec10e82079633f057457ba"
+  "fixture_manifest_hash": "ba45e280c0bdbacb17f97682bb9d36155aa8375b208aa9fada8a82b9510556cf"
 }

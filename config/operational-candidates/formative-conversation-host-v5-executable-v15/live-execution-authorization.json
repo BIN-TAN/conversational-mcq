@@ -1,11 +1,11 @@
 {
   "authorization_package_version": "formative-conversation-v15-future-live-authorization-v1",
   "runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
-  "protocol_hash": "7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43",
+  "protocol_hash": "8937e12a3f0b0f96efdafe1faba07edcde614fb880cc58c557f3725abd9bcc4f",
   "runner_implementation_hash": "6209b1ee2549c311f9ce11df5e2aa4c1156aaa75492b80a8efbeb5d25c8a3cec",
-  "fixture_manifest_hash": "f2416230803068f08015e8eb445aae0a84e3ba407cec10e82079633f057457ba",
+  "fixture_manifest_hash": "ba45e280c0bdbacb17f97682bb9d36155aa8375b208aa9fada8a82b9510556cf",
   "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
-  "compiled_plan_hash": "8c58d048d31ddc67e95426b8d8b01b9494e063f16a0c299a6d976cd07da4508a",
+  "compiled_plan_hash": "97533aa64904ec8fff21b7f19ff09d2764bd9685af1574b4cf7954ee4d6078da",
   "budget": {
     "expected_logical_call_count": 21,
     "maximum_logical_call_count": 29,
@@ -24,8 +24,8 @@
     "maximum_semantic_regeneration_count": 8
   },
   "fixture_count": 8,
-  "exact_future_authorization_text": "I authorize one live execution of formative-conversation-host-v5-executable-v15 for runtime candidate hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 and evaluation protocol hash 7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.",
-  "exact_future_live_command": "node --import tsx scripts/operational-formative-conversation-v5-v15-process-local-runner.mjs --env-fifo \"$FORMATIVE_CONVERSATION_V15_ENV_FIFO\" -- --mode=live --runtime-candidate-hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 --evaluation-protocol-hash 7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43 --confirm-live-provider-calls --authorization \"I authorize one live execution of formative-conversation-host-v5-executable-v15 for runtime candidate hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 and evaluation protocol hash 7cbe58f48571ccde0b85d4529784520b9c0ca2028aaaf2e24eef5d5e28a43f43, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.\"",
+  "exact_future_authorization_text": "I authorize one live execution of formative-conversation-host-v5-executable-v15 for runtime candidate hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 and evaluation protocol hash 8937e12a3f0b0f96efdafe1faba07edcde614fb880cc58c557f3725abd9bcc4f, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.",
+  "exact_future_live_command": "node --import tsx scripts/operational-formative-conversation-v5-v15-process-local-runner.mjs --env-fifo \"$FORMATIVE_CONVERSATION_V15_ENV_FIFO\" -- --mode=live --runtime-candidate-hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 --evaluation-protocol-hash 8937e12a3f0b0f96efdafe1faba07edcde614fb880cc58c557f3725abd9bcc4f --confirm-live-provider-calls --authorization \"I authorize one live execution of formative-conversation-host-v5-executable-v15 for runtime candidate hash e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60 and evaluation protocol hash 8937e12a3f0b0f96efdafe1faba07edcde614fb880cc58c557f3725abd9bcc4f, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.\"",
   "secure_environment_channel": "owner_only_one_use_fifo_injected_into_single_child_process",
   "live_execution_authorized": false,
   "approval_eligible": false,
