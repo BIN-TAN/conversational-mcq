@@ -1,5 +1,7 @@
-export const FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION =
-  "formative-conversation-profile-field-semantics-v1" as const;
+export const FORMATIVE_CONVERSATION_PROFILE_FIELD_SEMANTICS_VERSION:
+  | "formative-conversation-profile-field-semantics-v1"
+  | "formative-conversation-profile-field-semantics-v2" =
+  "formative-conversation-profile-field-semantics-v2";
 
 export type FormativeConversationMisconceptionEvidenceRole =
   | "current_misconception_evidence"
@@ -19,6 +21,8 @@ const REMAINING_LIMITATION_OR_QUESTION_PATTERNS = [
   /\b(?:is|remains) unsure (?:about|whether|how|why|when)\b/i,
   /\buncertain (?:about|whether|how|why|when)\b/i,
   /\b(?:has|have) not yet (?:shown|demonstrated|applied|explained)\b/i,
+  /\b(?:is|remains) (?:untested|unverified)\b/i,
+  /\b(?:has|have) not (?:been )?(?:tested|verified|demonstrated|shown)\b/i,
   /\bneeds? (?:more|further|additional) evidence\b/i
 ] as const;
 

@@ -1,0 +1,17 @@
+{
+  "reference_version": "formative-conversation-v16-v15-replay-reference-v1",
+  "provider_run_id": "fcv5v15_provider_20260804202844_8d9e3943",
+  "source_artifacts": [
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "transcript_sha256": "5f1970241ba4c82d69b84dc5167ffc13e3ee970475b3a334bfccac196140a553",
+      "supporting_student_turn_sequence_index": 823
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "transcript_sha256": "4a70c2b2f24a1da6c22903944e72c26085504b8af1b956521729e4d92738c619",
+      "supporting_student_turn_sequence_index": 828
+    }
+  ],
+  "local_artifact_policy": "hash_reference_only_not_required_for_v16_reproducibility"
+}

@@ -1,5 +1,7 @@
-export const FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_VERSION =
-  "formative-conversation-transition-evidence-closure-v1";
+export const FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_VERSION:
+  | "formative-conversation-transition-evidence-closure-v1"
+  | "formative-conversation-transition-evidence-closure-v2" =
+  "formative-conversation-transition-evidence-closure-v2";
 
 export const FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_ISSUE_CODE =
   "profile_transition_evidence_closure_violation" as const;
@@ -16,6 +18,9 @@ type TransitionEvidenceClosureRecommendation = {
     | "continue_conversation";
   source_turn_sequence_indexes: readonly number[];
   field_evidence: readonly EvidenceReferenceSource[];
+  misconception_claim_closure?: readonly {
+    atomic_claims: readonly EvidenceReferenceSource[];
+  }[];
 };
 
 export type FormativeConversationTransitionEvidenceClosureIssue = {
@@ -59,7 +64,15 @@ export function validateFormativeConversationTransitionEvidenceClosure(input: {
     ...input.evidence_observations.map((entry, index) => ({
       field_path: `evidence_observations.${index}.source_turn_sequence_indexes`,
       source_turn_sequence_indexes: entry.source_turn_sequence_indexes
-    }))
+    })),
+    ...(recommendation.misconception_claim_closure ?? []).flatMap(
+      (closure, closureIndex) =>
+        closure.atomic_claims.map((claim, claimIndex) => ({
+          field_path:
+            `profile_transition_recommendation.misconception_claim_closure.${closureIndex}.atomic_claims.${claimIndex}.source_turn_sequence_indexes`,
+          source_turn_sequence_indexes: claim.source_turn_sequence_indexes
+        }))
+    )
   ];
   const issues = referenceGroups.flatMap((group) => {
     const missing = uniqueSorted(

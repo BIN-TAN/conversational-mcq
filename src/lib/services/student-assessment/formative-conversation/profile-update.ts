@@ -385,6 +385,12 @@ export async function recordFormativeConversationProfileTransitionRecommendation
       ...input.recommendation.field_evidence.flatMap(
         (evidence) => evidence.source_turn_sequence_indexes
       ),
+      ...(input.recommendation.misconception_claim_closure ?? []).flatMap(
+        (closure) =>
+          closure.atomic_claims.flatMap(
+            (claim) => claim.source_turn_sequence_indexes
+          )
+      ),
       ...input.agent_evidence_observations.flatMap(
         (observation) => observation.source_turn_sequence_indexes
       )
@@ -690,7 +696,9 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         evidence_limitations:
           updatedCanonicalProfile.process_interpretation_cautions,
         canonical_profile: updatedCanonicalProfile,
-        field_evidence: input.recommendation.field_evidence
+        field_evidence: input.recommendation.field_evidence,
+        misconception_claim_closure:
+          input.recommendation.misconception_claim_closure ?? []
       };
       const transition =
         await tx.formativeConversationProfileTransition.create({
@@ -781,7 +789,9 @@ export async function recordFormativeConversationProfileTransitionRecommendation
               input.recommendation.recommendation_version,
             evidence_interpretation: input.recommendation.rationale,
             source_turn_sequence_indexes: citedSequenceIndexes,
-            field_evidence: input.recommendation.field_evidence
+            field_evidence: input.recommendation.field_evidence,
+            misconception_claim_closure:
+              input.recommendation.misconception_claim_closure ?? []
           })
         }
       });

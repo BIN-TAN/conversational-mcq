@@ -5,6 +5,10 @@ import {
   type FormativeConversationAgentOutput,
   type FormativeConversationCanonicalProfile
 } from "./agent-contract";
+import {
+  validateFormativeConversationMisconceptionEvidenceClosure,
+  type FormativeConversationMisconceptionEvidenceClosureIssueCode
+} from "./misconception-evidence-closure";
 import { validateFormativeConversationMisconceptionEvidence } from "./profile-field-semantics";
 import {
   FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_ISSUE_CODE,
@@ -14,8 +18,9 @@ import {
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION:
   | "formative-conversation-profile-transition-validator-v4"
   | "formative-conversation-profile-transition-validator-v5"
-  | "formative-conversation-profile-transition-validator-v6" =
-  "formative-conversation-profile-transition-validator-v6";
+  | "formative-conversation-profile-transition-validator-v6"
+  | "formative-conversation-profile-transition-validator-v7" =
+  "formative-conversation-profile-transition-validator-v7";
 
 type TransitionRecommendation = NonNullable<
   FormativeConversationAgentOutput["profile_transition_recommendation"]
@@ -38,6 +43,7 @@ export type FormativeConversationProfileTransitionValidationIssueCode =
   | "profile_transition_retained_field_changed"
   | "profile_transition_updated_field_unchanged"
   | "profile_transition_updated_field_evidence_missing"
+  | FormativeConversationMisconceptionEvidenceClosureIssueCode
   | "profile_transition_misconception_field_semantics_invalid"
   | "profile_transition_snapshot_invalid"
   | "profile_transition_snapshot_outcome_mismatch"
@@ -128,6 +134,12 @@ export function validateFormativeConversationProfileTransition(input: {
     ...recommendation.source_turn_sequence_indexes,
     ...recommendation.field_evidence.flatMap(
       (entry) => entry.source_turn_sequence_indexes
+    ),
+    ...(recommendation.misconception_claim_closure ?? []).flatMap(
+      (closure) =>
+        closure.atomic_claims.flatMap(
+          (claim) => claim.source_turn_sequence_indexes
+        )
     ),
     ...input.evidence_observations.flatMap(
       (entry) => entry.source_turn_sequence_indexes
@@ -281,6 +293,26 @@ export function validateFormativeConversationProfileTransition(input: {
   }
 
   if (updatedProfile) {
+    if (input.prior_profile) {
+      const misconceptionClosure =
+        validateFormativeConversationMisconceptionEvidenceClosure({
+          prior_misconception_indicators:
+            input.prior_profile.misconception_indicators,
+          updated_misconception_indicators:
+            updatedProfile.misconception_indicators,
+          claim_closure: recommendation.misconception_claim_closure,
+          available_turns: input.available_turns
+        });
+      for (const closureIssue of misconceptionClosure.issues) {
+        issues.push(
+          issue(
+            closureIssue.code,
+            closureIssue.field_path,
+            closureIssue.message
+          )
+        );
+      }
+    }
     for (const semanticIssue of
       validateFormativeConversationMisconceptionEvidence(
         updatedProfile.misconception_indicators
@@ -447,7 +479,9 @@ export function validatePersistedFormativeConversationProfileTransition(input: {
     rationale: input.evidence_interpretation,
     source_turn_sequence_indexes: sourceTurnIndexes,
     updated_profile: snapshot.data.canonical_profile,
-    field_evidence: snapshot.data.field_evidence
+    field_evidence: snapshot.data.field_evidence,
+    misconception_claim_closure:
+      snapshot.data.misconception_claim_closure ?? []
   };
   return validateFormativeConversationProfileTransition({
     recommendation,

@@ -1,0 +1,49 @@
+{
+  "reference_version": "formative-conversation-v16-inherited-v15-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v15",
+  "v15_immutable_snapshot_hash": "9b07720015de9c446e9b0cb7f2c7c96e78c359f31b7f2442f29782e8a995b0ce",
+  "base_runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "runner_implementation_hash": "6209b1ee2549c311f9ce11df5e2aa4c1156aaa75492b80a8efbeb5d25c8a3cec",
+  "prompt_hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+  "v15_protocol_hash": "8937e12a3f0b0f96efdafe1faba07edcde614fb880cc58c557f3725abd9bcc4f",
+  "v15_fixture_manifest_hash": "ba45e280c0bdbacb17f97682bb9d36155aa8375b208aa9fada8a82b9510556cf",
+  "v15_aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "inherited_live_budget": {
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 29,
+    "expected_provider_attempt_count": 21,
+    "maximum_provider_attempt_count": 87,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 900000,
+    "maximum_output_token_count": 101500,
+    "maximum_total_token_count": 1001500,
+    "maximum_wall_clock_duration_ms": 7200000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 30,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available",
+    "maximum_semantic_regenerations_per_agent_call": 1,
+    "maximum_semantic_regeneration_count": 8
+  },
+  "historical_replay_gate_policy": "hash_reference_only_not_required_for_v16_live_readiness",
+  "historical_replay_dependencies": [
+    {
+      "dependency_id": "v15_case_5_transition_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v15",
+      "artifact_sha256": "5f1970241ba4c82d69b84dc5167ffc13e3ee970475b3a334bfccac196140a553",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v16_live_readiness": false
+    },
+    {
+      "dependency_id": "v15_case_6_transition_transcript",
+      "source_revision": "formative-conversation-host-v5-executable-v15",
+      "artifact_sha256": "4a70c2b2f24a1da6c22903944e72c26085504b8af1b956521729e4d92738c619",
+      "classification": "historical_evidence_hash_reference_only",
+      "required_for_v16_live_readiness": false
+    }
+  ],
+  "historical_evidence_copied": false,
+  "working_tree_dependency_permitted": false
+}

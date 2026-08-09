@@ -1,0 +1,3309 @@
+{
+  "compiled_plan_version": "formative-conversation-v5-compiled-execution-plan-v1",
+  "compilation_status": "ready_for_dispatch",
+  "runtime_candidate_hash": "d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034",
+  "evaluation_protocol_hash": "d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26",
+  "runner_implementation_hash": "69d8829fab324e24e8b328b5aeb1310bcd23b847b57c57f8b09626b42baa1f76",
+  "live_environment_contract_hash": "07cfce030d5cb0f71ead0b8a52e7194b589b37d52e6799f627423ac454fa0d3d",
+  "fixture_manifest_hash": "5899077dbe89f5f7c7e53747ea35ef52154caa1e3a02d1a2de098a7a7dd31822",
+  "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "fixed_case_order": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence"
+  ],
+  "cases": [
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_01_assistant_first_opening",
+      "case_order": 1,
+      "title": "Assistant-first opening",
+      "fixture_hash": "8b21b1d81a29f59a9f5cc850b485cf6208dab0db5543e33dde2978b29f78d607",
+      "fixture_file_sha256": "51a118ebead9b6f3582acb2d2e18de8df11a53a0278c75d2940a38955b0b3594",
+      "execution_case_type": "opening_only",
+      "execution_subject_id": "correct_shallow",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_01_assistant_first_opening",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_01_assistant_first_opening:session",
+        "student_identity_template": "<provider_run_id>:correct_shallow",
+        "collision_check_key": "33b766d8bc020d6a3a9a5801061474d0a9001f77ea8e41ce00ef0582ed5d56d6"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": "B",
+            "tempting_option_reason": "The coefficient sounded like broad evidence that the test works.",
+            "reasoning_text": "A high coefficient supports consistency, but validity is a different question.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": "B",
+            "tempting_option_reason": "An exact true score sounded simpler than an uncertainty statement.",
+            "reasoning_text": "SEM tells us there is error around an observed score.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": "C",
+            "tempting_option_reason": "I used to think validity belonged to the test itself.",
+            "reasoning_text": "Validity evidence should fit the intended use.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "fragile_correct_understanding",
+          "ability_pattern_flags": [
+            "correct_answer_weak_reasoning"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "correct_but_fragile_understanding",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "All selections are correct, while the explanations state the distinctions only briefly.",
+          "evidence_sufficiency": "adequate",
+          "confidence_alignment": "well_calibrated",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "misconception_indicators": [],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The reasoning is directionally correct but shallow across all three administered items.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "All selections are correct, while the explanations state the distinctions only briefly.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "A fuller explanation could clarify whether the distinctions are independently understood.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 0,
+        "actual_student_message_count": 0,
+        "student_message_call_count": 0,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 1,
+        "expected_logical_call_count": 1,
+        "maximum_logical_call_count": 2,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "opening_persisted_or_typed_failure",
+        "terminal_condition": "Opening is persisted or the opening call reaches a typed terminal failure."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "opening_acknowledges_review",
+            "description": "The opening naturally acknowledges that the assessment review occurred.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "opening_avoids_result_repetition",
+            "description": "The opening does not repeat personal scores, correctness counts, or a performance summary.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "conceptual_score_terms_allowed",
+            "description": "Conceptual or hypothetical uses of score, percentage, SEM, or numerical examples remain allowed.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "opening_persisted_with_provenance",
+            "description": "The opening is persisted exactly once and linked to a validated public AgentCall.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "case_order": 2,
+      "title": "First-principles explanation and adaptation",
+      "fixture_hash": "aebc159350436869fba71230406670465bafa4cdcd9f873c3c51186a2d6d92fd",
+      "fixture_file_sha256": "1c29caccdf7fcfbcf0df58241a6c260666c1215308500d481e253bdd6e86d3c7",
+      "execution_case_type": "multi_message_adaptive",
+      "execution_subject_id": "help_seeking_confused",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_02_first_principles_adaptation",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_02_first_principles_adaptation:session",
+        "student_identity_template": "<provider_run_id>:help_seeking_confused",
+        "collision_check_key": "7c97389e57f6fd1830e801b55605f756148f97533c838e224eaa7aacc97ef0c5"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": "A",
+            "tempting_option_reason": "I could not see why consistency was not enough.",
+            "reasoning_text": "A reliable test should be valid because it gives consistent results.",
+            "confidence_rating": "low",
+            "response_time_ms": 78000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": [
+              {
+                "event_type": "page_hidden",
+                "offset_ms": 31000,
+                "observed_interval_duration_ms": 9000
+              },
+              {
+                "event_type": "page_visible",
+                "offset_ms": 40000,
+                "observed_interval_duration_ms": null
+              }
+            ]
+          },
+          {
+            "item_number": 2,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "I am not sure what standard error changes about a score.",
+            "confidence_rating": "low",
+            "response_time_ms": 82000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "C",
+            "prior_option_selections": [],
+            "tempting_option": "A",
+            "tempting_option_reason": "The phrase intended use seemed important, but I did not understand it.",
+            "reasoning_text": "I thought validity was a property of the test.",
+            "confidence_rating": "low",
+            "response_time_ms": 75000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "misconception_based_understanding",
+          "ability_pattern_flags": [
+            "misconception_indicator_present",
+            "distractor_aligned_reasoning",
+            "conceptual_error_possible"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "The responses repeatedly conflate consistency with validity and treat scores as exact.",
+          "evidence_sufficiency": "adequate",
+          "confidence_alignment": "underconfident",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "misconception_indicators": [
+            {
+              "indicator": "Reliability or a measurement statistic is treated as sufficient proof of validity or exactness.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "The responses repeatedly conflate consistency with validity and treat scores as exact."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The explanations show a coherent but incorrect boundary among reliability, score uncertainty, and validity.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "The responses repeatedly conflate consistency with validity and treat scores as exact.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "A first-principles explanation followed by student application could clarify the distinctions.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_02_first_principles_adaptation:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "Can you explain the difference from the beginning? I am mixing up reliability, error, and validity.",
+          "intent_fixture_metadata": "explanation_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 2,
+          "client_message_id_template": "<provider_run_id>:fcv5_02_first_principles_adaptation:message:2",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I still do not understand. Could you explain it in a different way instead of repeating the same definitions?",
+          "intent_fixture_metadata": "clarification_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 0,
+            "backspace_count": 2,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 2,
+        "actual_student_message_count": 2,
+        "student_message_call_count": 2,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 3,
+        "expected_logical_call_count": 3,
+        "maximum_logical_call_count": 4,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 3,
+            "call_type": "student_message_response",
+            "student_message_sequence": 2,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "ordered_student_messages_exhausted",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "first_principles_explanation",
+            "description": "The tutor rebuilds the distinction from first principles.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "adaptive_strategy_change",
+            "description": "The second response changes explanatory strategy after continued confusion.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "contextual_continuity",
+            "description": "The second tutor response uses the prior conversation coherently.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "no_activity_routing_language",
+            "description": "No activity family, recommended activity, or platform-selected sequence appears.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "largely_improved_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_03_direct_answer_handling",
+      "case_order": 3,
+      "title": "Direct-answer handling",
+      "fixture_hash": "9687ffd1e65d2ea10dfb45cb40957c6797f14071d73e07a4108ca246b557d14a",
+      "fixture_file_sha256": "0b072f35e55e8684ec3d5028b947d447536507919fc443f6843d14a12301adb5",
+      "execution_case_type": "single_message_conversation",
+      "execution_subject_id": "strategic_answerer",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_03_direct_answer_handling",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_03_direct_answer_handling:session",
+        "student_identity_template": "<provider_run_id>:strategic_answerer",
+        "collision_check_key": "8f89df833d9a53955cc05e24f83fc6ef7f78d11ce01f3f7edd20c28a39be88a9"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": "A",
+            "tempting_option_reason": "A was more cautious, but I thought the coefficient proved more.",
+            "reasoning_text": "I selected the strongest sounding claim because I was unsure.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "SEM describes uncertainty around an observed score.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Validity evidence depends on the interpretation and use.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "partial_understanding",
+          "ability_pattern_flags": [
+            "distractor_aligned_reasoning",
+            "correctness_reasoning_mismatch"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "developing_understanding_with_productive_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "The student distinguishes SEM and validity but overstates what reliability establishes.",
+          "evidence_sufficiency": "adequate",
+          "confidence_alignment": "mixed",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "misconception_indicators": [
+            {
+              "indicator": "A reliability coefficient is treated as proof of validity.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "The student distinguishes SEM and validity but overstates what reliability establishes."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "Two explanations are supported, while the reliability-validity boundary remains unresolved.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "The student distinguishes SEM and validity but overstates what reliability establishes.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "A direct explanation of the administered answer can support a more precise comparison.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_03_direct_answer_handling:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "Please give me the answer to the reliability item directly and explain why it is right.",
+          "intent_fixture_metadata": "direct_answer_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 1,
+        "actual_student_message_count": 1,
+        "student_message_call_count": 1,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 2,
+        "expected_logical_call_count": 2,
+        "maximum_logical_call_count": 3,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "ordered_student_messages_exhausted",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "direct_answer_permitted",
+            "description": "The tutor answers the request directly rather than forcing rediscovery.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "administered_content_only",
+            "description": "Any answer reveal is limited to the three administered items.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "educational_explanation_present",
+            "description": "The direct answer includes a conceptually useful explanation.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "no_evasive_scaffolding",
+            "description": "The tutor does not evade the direct request through a fixed scaffold.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "largely_improved_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_04_related_concept_discussion",
+      "case_order": 4,
+      "title": "Related-concept discussion",
+      "fixture_hash": "f3f515f09c7bd6c5e9d21368c0cd79a4dccadf2b959808c49db1a1b64c6c83eb",
+      "fixture_file_sha256": "ddc66df89073ce716cd25011affe8a9b855c80b7d05ea87d4b4a8b476cb0c407",
+      "execution_case_type": "single_message_conversation",
+      "execution_subject_id": "high_performing_extension",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_04_related_concept_discussion",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_04_related_concept_discussion:session",
+        "student_identity_template": "<provider_run_id>:high_performing_extension",
+        "collision_check_key": "d008e208566b36481c70dda95179dfbe3161e2f60e5dd64065f10089491406af"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Internal consistency is reliability evidence, while validity requires evidence for the intended interpretation.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "SEM represents uncertainty around an observed score rather than an exact correction.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Validity is an argument about score interpretation and use in context.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "mostly_correct_understanding",
+          "ability_pattern_flags": [
+            "transfer_ready"
+          ],
+          "engagement_profile": "productive_engagement",
+          "engagement_pattern_flags": [
+            "sustained_engagement"
+          ],
+          "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer",
+          "integrated_profile_confidence": "high",
+          "integrated_profile_rationale": "All three explanations independently distinguish the relevant measurement claims.",
+          "evidence_sufficiency": "strong",
+          "confidence_alignment": "well_calibrated",
+          "independence_interpretability": "independent_understanding_likely",
+          "misconception_indicators": [],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The student provides concise, accurate conceptual boundaries across the item set.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "high",
+          "rationale": "All three explanations independently distinguish the relevant measurement claims.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "A related application can test whether the distinction transfers beyond the administered wording.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_04_related_concept_discussion:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "Can we discuss how reliability and validity relate to fairness in testing, even though fairness was not one of the original items?",
+          "intent_fixture_metadata": "extension_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 1,
+        "actual_student_message_count": 1,
+        "student_message_call_count": 1,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 2,
+        "expected_logical_call_count": 2,
+        "maximum_logical_call_count": 3,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "ordered_student_messages_exhausted",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "related_concept_allowed",
+            "description": "The tutor may leave the original item to discuss a relevant related concept.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "related_context_coherent",
+            "description": "The discussion remains connected to the administered measurement concepts.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "no_platform_sequence",
+            "description": "No platform-selected pedagogical sequence or activity route appears.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "sound_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_05_sound_profile_transition",
+      "case_order": 5,
+      "title": "Meaningful transition with unresolved SEM evidence",
+      "fixture_hash": "6698130c4136bde9462bc8f5ca11afc9c63750ef385e6d452aa94e64c284fdda",
+      "fixture_file_sha256": "6b0dd189b494d919476244601a9c2c17474ef147fb96df7b075385650287f110",
+      "execution_case_type": "profile_transition",
+      "execution_subject_id": "sudden_improvement",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_05_sound_profile_transition",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_05_sound_profile_transition:session",
+        "student_identity_template": "<provider_run_id>:sudden_improvement",
+        "collision_check_key": "2d63b77cf8f8a839c54451864db10d0243082e87bd1c52df93c9157c18f105b9"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": "A",
+            "tempting_option_reason": "A separated consistency and validity, but I did not see why.",
+            "reasoning_text": "A consistent test should automatically be valid.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "I thought SEM identifies the exact true score.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "C",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Validity seems like a permanent test property.",
+            "confidence_rating": "medium",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "misconception_based_understanding",
+          "ability_pattern_flags": [
+            "misconception_indicator_present",
+            "distractor_aligned_reasoning"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "The initial assessment consistently overstates what reliability, SEM, and a test alone establish.",
+          "evidence_sufficiency": "adequate",
+          "confidence_alignment": "mixed",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "misconception_indicators": [
+            {
+              "indicator": "Measurement statistics are treated as definitive proof without interpretation-specific evidence.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "The initial assessment consistently overstates what reliability, SEM, and a test alone establish."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The initial explanations are coherent but conceptually incorrect.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "The initial assessment consistently overstates what reliability, SEM, and a test alone establish.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "Independent explanation and application could show whether the conceptual boundary changes.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_05_sound_profile_transition:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "Could you show me why consistency alone does not establish validity?",
+          "intent_fixture_metadata": "explanation_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 2,
+          "client_message_id_template": "<provider_run_id>:fcv5_05_sound_profile_transition:message:2",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I can apply the distinction now: if a hiring test gives consistent scores, that supports score stability, but it does not show the scores predict job performance. We would still need evidence linking the scores to that intended hiring use.",
+          "intent_fixture_metadata": "reflection",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 0,
+            "backspace_count": 2,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 2,
+        "actual_student_message_count": 2,
+        "student_message_call_count": 2,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 3,
+        "expected_logical_call_count": 3,
+        "maximum_logical_call_count": 4,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 3,
+            "call_type": "student_message_response",
+            "student_message_sequence": 2,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "profile_transition_evaluated_after_messages",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "sound_requires_observable_evidence",
+            "description": "A sound recommendation relies on the student's independent explanation and application, not self-report alone.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "largely_improved_when_sem_unresolved",
+            "description": "The student may be largely improved, but sound understanding is not supported while the standard-error distinction remains untested.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "transition_provenance_complete",
+            "description": "Any persisted transition links prior and updated profiles, supporting turns, evidence references, and the public AgentCall.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "teacher_export_transition_parity",
+            "description": "Teacher and export projections use the same persisted transition.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "largely_improved_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "case_order": 6,
+      "title": "Largely improved temporal transition",
+      "fixture_hash": "e398d039ecc795b168464c4ed6f1c43be9e3d16c770bd1638e88d5a5f2ac2fd9",
+      "fixture_file_sha256": "d983c768575ae02b392e5f472baa045cf96d66f1e150c6027f9bae1585c8d1c8",
+      "execution_case_type": "profile_transition",
+      "execution_subject_id": "confident_misconception",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_06_largely_improved_temporal",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_06_largely_improved_temporal:session",
+        "student_identity_template": "<provider_run_id>:confident_misconception",
+        "collision_check_key": "d7d1514d5c25625885b66f971aa96c45e78ee3b13870ccc19ef49c42522b10c5"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": "A",
+            "tempting_option_reason": "A seemed too cautious.",
+            "reasoning_text": "High reliability proves validity because consistent scores must be accurate.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "SEM should tell the exact score once error is removed.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "C",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "A good test stays valid in every context.",
+            "confidence_rating": "high",
+            "response_time_ms": 42000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "misconception_based_understanding",
+          "ability_pattern_flags": [
+            "misconception_indicator_present",
+            "distractor_aligned_reasoning",
+            "confidence_reasoning_mismatch"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "High-confidence explanations consistently collapse reliability, score uncertainty, and validity into certainty.",
+          "evidence_sufficiency": "strong",
+          "confidence_alignment": "overconfident",
+          "independence_interpretability": "independent_understanding_likely",
+          "misconception_indicators": [
+            {
+              "indicator": "Reliability is treated as proof of validity and score exactness.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "High-confidence explanations consistently collapse reliability, score uncertainty, and validity into certainty."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The reasoning clearly expresses a stable initial misconception.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "High-confidence explanations consistently collapse reliability, score uncertainty, and validity into certainty.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "A later explanation should be compared temporally with the initial misconception rather than treated as simultaneous conflict.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_06_largely_improved_temporal:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I thought high reliability meant validity. Can you show me exactly where that reasoning crosses the boundary?",
+          "intent_fixture_metadata": "explanation_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 2,
+          "client_message_id_template": "<provider_run_id>:fcv5_06_largely_improved_temporal:message:2",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I see the change: reliability supports consistency, while validity needs evidence for the intended interpretation and use. I would not claim high reliability proves validity now. I still struggle to decide which kind of validity evidence fits a new use.",
+          "intent_fixture_metadata": "reflection",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 0,
+            "backspace_count": 2,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 2,
+        "actual_student_message_count": 2,
+        "student_message_call_count": 2,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 3,
+        "expected_logical_call_count": 3,
+        "maximum_logical_call_count": 4,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 3,
+            "call_type": "student_message_response",
+            "student_message_sequence": 2,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "profile_transition_evaluated_after_messages",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "temporal_change_not_conflict",
+            "description": "Stronger later evidence is represented as temporal learning change rather than simultaneous unresolved conflict.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "largely_improved_supported",
+            "description": "Largely improved may be persisted when meaningful improvement and a supported limitation coexist.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "prior_updated_profiles_linked",
+            "description": "Any transition preserves append-only links between prior and updated profiles.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "stale_misconception_not_blindly_copied",
+            "description": "Stale misconception fields are removed or retained only with explicit evidence.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "largely_improved_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "case_order": 7,
+      "title": "Persistent barrier and teacher assistance",
+      "fixture_hash": "ac88c9f6549d136894f9557ea5cfd932ead93e463fcadc68f7380dc27a27c84b",
+      "fixture_file_sha256": "2949a2100a58decaa0fd3f1e3f5d7b1692a79ad1ae00a3b39ca0c418e1082e6d",
+      "execution_case_type": "profile_transition",
+      "execution_subject_id": "persistent_non_improvement",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance:session",
+        "student_identity_template": "<provider_run_id>:persistent_non_improvement",
+        "collision_check_key": "fd7d7d3f2d8c6f1581ce9d9721f5174b0b3f4a20312346691607be8b795d3541"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Consistency proves the interpretation is accurate.",
+            "confidence_rating": "high",
+            "response_time_ms": 28000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "The observed score should become exact when SEM is known.",
+            "confidence_rating": "high",
+            "response_time_ms": 30000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "C",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Validity belongs to the test and does not change by use.",
+            "confidence_rating": "high",
+            "response_time_ms": 27000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "coherent",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "misconception_based_understanding",
+          "ability_pattern_flags": [
+            "misconception_indicator_present",
+            "distractor_aligned_reasoning",
+            "confidence_reasoning_mismatch"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "The same broad certainty claim appears across reliability, SEM, and validity evidence.",
+          "evidence_sufficiency": "strong",
+          "confidence_alignment": "overconfident",
+          "independence_interpretability": "independent_understanding_likely",
+          "misconception_indicators": [
+            {
+              "indicator": "Consistency or a statistic is treated as conclusive proof of score interpretation.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "The same broad certainty claim appears across reliability, SEM, and validity evidence."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The student provides clear evidence of a persistent conceptual barrier at assessment.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "The same broad certainty claim appears across reliability, SEM, and validity evidence.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "Materially different explanations can test whether the barrier changes while preserving agent discretion.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I still think a high reliability coefficient proves the test is valid because a consistent test must be accurate.",
+          "intent_fixture_metadata": "clarification_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 2,
+          "client_message_id_template": "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance:message:2",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "The example did not change my view. If a test repeats the same score, that seems enough to prove the interpretation is valid.",
+          "intent_fixture_metadata": "clarification_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 0,
+            "backspace_count": 2,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 3,
+          "client_message_id_template": "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance:message:3",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "I understand that you are separating consistency from validity evidence, but I cannot use that distinction. I would still tell a teacher that high reliability proves the score interpretation is valid.",
+          "intent_fixture_metadata": "reflection",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 0,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 3,
+        "actual_student_message_count": 3,
+        "student_message_call_count": 3,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 4,
+        "expected_logical_call_count": 4,
+        "maximum_logical_call_count": 5,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 3,
+            "call_type": "student_message_response",
+            "student_message_sequence": 2,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 4,
+            "call_type": "student_message_response",
+            "student_message_sequence": 3,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "profile_transition_evaluated_after_messages",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "teacher_assistance_agent_discretion",
+            "description": "Teacher assistance may be recommended from the persistent evidence without a fixed turn threshold.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "assistance_outcome_coherent",
+            "description": "The authoritative transition outcome and assistance compatibility field are coherent.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "assistance_does_not_end_conversation",
+            "description": "A teacher-assistance recommendation does not automatically terminate the conversation.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "teacher_export_assistance_parity",
+            "description": "Teacher and export projections agree on any persisted assistance outcome.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "teacher_assistance_recommended"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    },
+    {
+      "compiled_case_version": "formative-conversation-v5-compiled-case-v1",
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "case_order": 8,
+      "title": "Mixed resolved evidence",
+      "fixture_hash": "cea80b1990944ab81e202cf1c8b630c4b29ea690c71cebef8cf929c1e24dca22",
+      "fixture_file_sha256": "36b56e16ce7fc0dc31e3b2cdd3c295a1c2b5d78084bba5baacf0da273a9c2c46",
+      "execution_case_type": "profile_transition",
+      "execution_subject_id": "fragmented_inconsistent",
+      "source_contract": {
+        "synthetic_only": true,
+        "real_student_information_present": false,
+        "expected_outcome_in_runtime_input": false,
+        "raw_observations_only": true,
+        "inferred_behavior_fields_absent": true
+      },
+      "namespace": {
+        "run_namespace_template": "<provider_run_id>",
+        "case_namespace_template": "<provider_run_id>:fcv5_08_mixed_resolved_evidence",
+        "assessment_identity_template": "<provider_run_id>:assessment",
+        "session_identity_template": "<provider_run_id>:fcv5_08_mixed_resolved_evidence:session",
+        "student_identity_template": "<provider_run_id>:fragmented_inconsistent",
+        "collision_check_key": "d1399cd897363adc4d5b27480627c84a2682ea82e3542e88b56c6ed1442f7548"
+      },
+      "assessment_fixture_input": {
+        "assessment": {
+          "title": "Synthetic measurement evidence assessment",
+          "concept_title": "Measurement evidence and score interpretation",
+          "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+          "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+          "administered_items": [
+            {
+              "item_alias": "measurement_reliability",
+              "item_order": 1,
+              "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "The scores are internally consistent, but validity still needs separate evidence."
+                },
+                {
+                  "label": "B",
+                  "text": "The high coefficient proves the scores are valid for every intended use."
+                },
+                {
+                  "label": "C",
+                  "text": "The coefficient proves every observed score is free from measurement error."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+              "distractor_rationales": {
+                "B": "Conflates reliability evidence with validity evidence.",
+                "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+              },
+              "expected_reasoning_patterns": [
+                "Distinguishes score consistency from evidence for an intended interpretation."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "standard_error_measurement",
+              "item_order": 2,
+              "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "It describes expected measurement error around an observed score."
+                },
+                {
+                  "label": "B",
+                  "text": "It proves the observed score is the person's exact true score."
+                },
+                {
+                  "label": "C",
+                  "text": "It reports the percentage of items answered incorrectly."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+              "distractor_rationales": {
+                "B": "Removes uncertainty rather than representing it.",
+                "C": "Confuses measurement error with an item-level error percentage."
+              },
+              "expected_reasoning_patterns": [
+                "Connects the standard error of measurement with uncertainty around observed scores."
+              ],
+              "item_version": 1
+            },
+            {
+              "item_alias": "validity_argument",
+              "item_order": 3,
+              "item_stem": "Which statement best reflects a contemporary validity argument?",
+              "options": [
+                {
+                  "label": "A",
+                  "text": "Evidence is evaluated for the intended interpretation and use of scores."
+                },
+                {
+                  "label": "B",
+                  "text": "Validity is automatically established whenever reliability is high."
+                },
+                {
+                  "label": "C",
+                  "text": "Validity is a permanent property of the test independent of context."
+                }
+              ],
+              "correct_option": "A",
+              "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+              "distractor_rationales": {
+                "B": "Treats reliability as sufficient validity evidence.",
+                "C": "Treats validity as detached from interpretation, use, and context."
+              },
+              "expected_reasoning_patterns": [
+                "Relates validity evidence to an intended interpretation and use."
+              ],
+              "item_version": 1
+            }
+          ]
+        },
+        "responses": [
+          {
+            "item_number": 1,
+            "selected_option": "A",
+            "prior_option_selections": [
+              "B"
+            ],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Reliability is consistency and does not establish every intended interpretation.",
+            "confidence_rating": "medium",
+            "response_time_ms": 61000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 1,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 2,
+            "selected_option": "B",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "I know SEM is about error, but I still treated it as finding the exact true score.",
+            "confidence_rating": "low",
+            "response_time_ms": 73000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          },
+          {
+            "item_number": 3,
+            "selected_option": "A",
+            "prior_option_selections": [],
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "reasoning_text": "Validity evidence should match the interpretation and use.",
+            "confidence_rating": "medium",
+            "response_time_ms": 59000,
+            "time_to_first_action_ms": 7000,
+            "reasoning_revision_count": 0,
+            "navigation_observations": []
+          }
+        ],
+        "telemetry_policy": {
+          "raw_observations_only": true,
+          "inferred_behavior_fields_absent": true,
+          "source": "frozen_synthetic_fixture"
+        }
+      },
+      "initial_profile_persistence_input": {
+        "production_schema_version": "student-profile-output-v2",
+        "generated_by_provider": false,
+        "evidence_consistency": {
+          "version": "student-profile-evidence-consistency-v1",
+          "classification": "mixed_resolved",
+          "supporting_references": [
+            "administered_item_1",
+            "administered_item_2",
+            "administered_item_3"
+          ]
+        },
+        "profile": {
+          "agent_name": "student_profiling_agent",
+          "agent_version": "synthetic-frozen-profile-v1",
+          "prompt_version": "synthetic-frozen-profile-v1",
+          "schema_version": "student-profile-output-v2",
+          "output_status": "ok",
+          "warnings": [
+            "Synthetic operational-evaluation context only."
+          ],
+          "profile_type": "initial",
+          "ability_profile": "fragmented_or_limited_understanding",
+          "ability_pattern_flags": [
+            "incorrect_answer_strong_partial_reasoning",
+            "correctness_reasoning_mismatch",
+            "incomplete_reasoning"
+          ],
+          "engagement_profile": "adequate_engagement",
+          "engagement_pattern_flags": [
+            "no_clear_pattern"
+          ],
+          "integrated_diagnostic_profile": "developing_understanding_with_productive_engagement",
+          "integrated_profile_confidence": "medium",
+          "integrated_profile_rationale": "Evidence differs by item, but the dominant pattern distinguishes reliability and validity while leaving score uncertainty unresolved.",
+          "evidence_sufficiency": "adequate",
+          "confidence_alignment": "mixed",
+          "independence_interpretability": "independent_understanding_uncertain",
+          "misconception_indicators": [
+            {
+              "indicator": "SEM is still partly treated as identifying an exact true score.",
+              "evidence_reference": "administered_assessment_evidence",
+              "confidence": "medium",
+              "rationale": "Evidence differs by item, but the dominant pattern distinguishes reliability and validity while leaving score uncertainty unresolved."
+            }
+          ],
+          "item_level_evidence": [
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 1.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 2.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            },
+            {
+              "item_public_id": null,
+              "evidence_summary": "Frozen synthetic evidence for administered item 3.",
+              "correctness": null,
+              "reasoning_quality": "case_specific_reasoning_in_assessment_response",
+              "confidence_rating": null
+            }
+          ],
+          "reasoning_quality_summary": "The evidence is fragmented but supports a dominant interpretation rather than a global unresolved conflict.",
+          "engagement_summary": "The synthetic student completed all assessment evidence fields; process observations are not interpreted as traits.",
+          "process_interpretation_cautions": [
+            "Timing, navigation, and revision observations do not establish motivation, strategy, or learning."
+          ],
+          "profile_confidence": "medium",
+          "rationale": "Evidence differs by item, but the dominant pattern distinguishes reliability and validity while leaving score uncertainty unresolved.",
+          "recommended_next_evidence": [
+            {
+              "evidence_type": "conversation_evidence",
+              "reason": "Conversation can clarify the remaining SEM boundary without discarding supported reliability and validity evidence.",
+              "item_public_id": null
+            }
+          ]
+        }
+      },
+      "opening_input_template": {
+        "service": "processFormativeConversationOpening",
+        "execute": true,
+        "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+        "context_seed_service": "buildFormativeConversationRuntimeContextSeed",
+        "student_user_db_id_binding": "persisted_synthetic_student_user_db_id"
+      },
+      "student_message_input_templates": [
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 1,
+          "client_message_id_template": "<provider_run_id>:fcv5_08_mixed_resolved_evidence:message:1",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "Some of my answers pulled in different directions. Can you help me separate reliability, error, and validity?",
+          "intent_fixture_metadata": "explanation_request",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 1,
+            "backspace_count": 1,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        },
+        {
+          "service": "processFormativeConversationStudentMessage",
+          "sequence": 2,
+          "client_message_id_template": "<provider_run_id>:fcv5_08_mixed_resolved_evidence:message:2",
+          "conversation_public_id_binding": "persisted_formative_conversation_public_id",
+          "student_user_db_id_binding": "persisted_synthetic_student_user_db_id",
+          "message_text": "The dominant distinction seems to be that reliability concerns consistency, SEM concerns uncertainty around an observed score, and validity concerns evidence for an intended interpretation. I am still unsure how much evidence is enough, so I want to keep discussing it.",
+          "intent_fixture_metadata": "reflection",
+          "observable_input_telemetry": {
+            "response_time_ms": 16000,
+            "typing_duration_ms": 12000,
+            "edit_count": 0,
+            "backspace_count": 2,
+            "paste_event_count": 0,
+            "paste_character_count": 0,
+            "timestamp_binding": "derive_turn_and_typing_timestamps_at_submission"
+          }
+        }
+      ],
+      "call_graph": {
+        "opening_executed": true,
+        "opening_call_count": 1,
+        "declared_student_message_count": 2,
+        "actual_student_message_count": 2,
+        "student_message_call_count": 2,
+        "profiling_call_count": 0,
+        "declared_expected_logical_call_count": 3,
+        "expected_logical_call_count": 3,
+        "maximum_logical_call_count": 4,
+        "logical_calls": [
+          {
+            "sequence": 1,
+            "call_type": "assistant_first_opening",
+            "student_message_sequence": null,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 2,
+            "call_type": "student_message_response",
+            "student_message_sequence": 1,
+            "logical_call_issued_once": true
+          },
+          {
+            "sequence": 3,
+            "call_type": "student_message_response",
+            "student_message_sequence": 2,
+            "logical_call_issued_once": true
+          }
+        ],
+        "terminal_execution_point": "profile_transition_evaluated_after_messages",
+        "terminal_condition": "Execute every frozen student message in order, then evaluate persisted evidence and any transition."
+      },
+      "evaluation_contract": {
+        "case_assertions": [
+          {
+            "assertion_id": "mixed_resolved_initial_profile_valid",
+            "description": "The frozen initial profile represents mixed_resolved evidence with a supported dominant interpretation.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "opening_not_false_conflict",
+            "description": "The opening is not rejected because isolated or negated prose contains conflict language.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          },
+          {
+            "assertion_id": "conversation_proceeds",
+            "description": "The conversation proceeds from mixed resolved evidence.",
+            "severity": "human_review",
+            "evaluation_method": "human_review"
+          },
+          {
+            "assertion_id": "continue_without_forced_transition",
+            "description": "Continue conversation remains valid when terminal evidence is absent.",
+            "severity": "blocking",
+            "evaluation_method": "deterministic_artifact_check"
+          }
+        ],
+        "permitted_terminal_outcomes": [
+          "continue_conversation",
+          "largely_improved_understanding"
+        ],
+        "required_provenance": [
+          "conversation_public_id",
+          "public AgentCall ID",
+          "runtime candidate hash",
+          "evaluation protocol hash",
+          "fixture hash",
+          "prompt and validator fingerprints",
+          "supporting turn references for any transition"
+        ],
+        "persistence_requirements": [
+          "conversation session",
+          "message receipts",
+          "public AgentCalls",
+          "student and tutor turns",
+          "turn and input telemetry",
+          "profile evidence references",
+          "profile transition when recommended and validated"
+        ],
+        "evaluation_steps": [
+          "validate candidate and protocol identity",
+          "validate every generated output and safety boundary",
+          "validate persistence and public AgentCall joins",
+          "evaluate case assertions",
+          "queue all student-visible tutor text for human review"
+        ]
+      },
+      "consumed_fixture_fields": [
+        "assessment",
+        "assessment_responses",
+        "call_graph",
+        "case_assertions",
+        "case_id",
+        "case_order",
+        "execution_case_type",
+        "execution_subject_id",
+        "expected_logical_call_count",
+        "expected_outcome_in_runtime_input",
+        "expected_student_message_count",
+        "fixture_hash",
+        "fixture_version",
+        "initial_profile_source",
+        "observable_process_telemetry_policy",
+        "opening_executed",
+        "permitted_terminal_outcomes",
+        "real_student_information_present",
+        "required_provenance",
+        "student_messages",
+        "synthetic_identity",
+        "synthetic_only",
+        "terminal_execution_point",
+        "title"
+      ],
+      "compilation_status": "compiled"
+    }
+  ],
+  "aggregate_call_graph": {
+    "opening_call_count": 8,
+    "student_message_call_count": 13,
+    "profiling_call_count": 0,
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 29,
+    "maximum_provider_attempt_count": 87
+  },
+  "budget": {
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 29,
+    "expected_provider_attempt_count": 21,
+    "maximum_provider_attempt_count": 87,
+    "maximum_semantic_regenerations_per_agent_call": 1,
+    "maximum_semantic_regeneration_count": 8,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 900000,
+    "maximum_output_token_count": 101500,
+    "maximum_total_token_count": 1001500,
+    "maximum_wall_clock_duration_ms": 7200000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 30,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available"
+  },
+  "isolated_namespaces": [
+    "<provider_run_id>:fcv5_01_assistant_first_opening",
+    "<provider_run_id>:fcv5_02_first_principles_adaptation",
+    "<provider_run_id>:fcv5_03_direct_answer_handling",
+    "<provider_run_id>:fcv5_04_related_concept_discussion",
+    "<provider_run_id>:fcv5_05_sound_profile_transition",
+    "<provider_run_id>:fcv5_06_largely_improved_temporal",
+    "<provider_run_id>:fcv5_07_persistent_barrier_teacher_assistance",
+    "<provider_run_id>:fcv5_08_mixed_resolved_evidence"
+  ],
+  "intended_output_artifact_locations": [
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/source-provider-run.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/derived-evaluation.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/aggregate-evaluation.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/human-review-package.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/teacher-export-consistency.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/research-export-integrity.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/provider-retry-milestone-evidence.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/persistence-observability.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/provenance-manifest.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/artifact-hash-manifest.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/finalized-artifact-manifest.json",
+    ".data/operational-formative-conversation-v5-evaluation-v16/runs/<provider_run_id>/artifact-scan-attestation.json"
+  ],
+  "approval_inactive": true,
+  "activation_permitted": false,
+  "provider_calls_during_compilation": 0,
+  "network_requests_to_provider_during_compilation": 0,
+  "compiled_plan_hash": "fc58a9355445e48c9bbc9b010e2d82fc6cc4307aeba10af3e067020ad42bd665"
+}

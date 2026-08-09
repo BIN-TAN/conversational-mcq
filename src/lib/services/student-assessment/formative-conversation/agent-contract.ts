@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION } from "./misconception-evidence-closure";
 import { validateFormativeConversationTransitionEvidenceClosure } from "./transition-evidence-closure";
 
 export const FORMATIVE_CONVERSATION_AGENT_NAME = "formative_conversation_agent";
@@ -145,6 +146,53 @@ export const FormativeConversationProfileFieldEvidenceSchema = z
   })
   .strict();
 
+const FormativeConversationMisconceptionAtomicClaimSchema = z
+  .object({
+    claim_text: z.string().trim().min(1).max(1_200),
+    disposition: z.enum([
+      "resolved_by_conversation_evidence",
+      "retained_current_misconception"
+    ]),
+    evidence_basis: z.enum([
+      "prior_profile_evidence",
+      "conversation_evidence",
+      "combined"
+    ]),
+    evidence_summary: z.string().trim().min(1).max(1_200),
+    source_turn_sequence_indexes: z
+      .array(z.number().int().positive())
+      .max(40)
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.disposition === "resolved_by_conversation_evidence" &&
+      (value.evidence_basis === "prior_profile_evidence" ||
+        value.source_turn_sequence_indexes.length === 0)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["source_turn_sequence_indexes"],
+        message:
+          "A resolved misconception claim requires cited conversation evidence."
+      });
+    }
+  });
+
+export const FormativeConversationMisconceptionIndicatorClosureSchema = z
+  .object({
+    closure_version: z.literal(
+      FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION
+    ),
+    prior_indicator: z.string().trim().min(1).max(1_200),
+    coverage: z.literal("all_atomic_claims_represented"),
+    atomic_claims: z
+      .array(FormativeConversationMisconceptionAtomicClaimSchema)
+      .min(1)
+      .max(20)
+  })
+  .strict();
+
 const FormativeConversationProfileTransitionRecommendationSchema = z
   .object({
     recommendation_version: z.literal(
@@ -165,7 +213,11 @@ const FormativeConversationProfileTransitionRecommendationSchema = z
       FormativeConversationCanonicalProfileSchema.nullable(),
     field_evidence: z
       .array(FormativeConversationProfileFieldEvidenceSchema)
+      .max(20),
+    misconception_claim_closure: z
+      .array(FormativeConversationMisconceptionIndicatorClosureSchema)
       .max(20)
+      .default([])
   })
   .strict()
   .superRefine((value, context) => {
@@ -198,7 +250,9 @@ const FormativeConversationProfileTransitionRecommendationSchema = z
     }
     if (
       !terminalRecommendation &&
-      (value.updated_profile !== null || value.field_evidence.length > 0)
+      (value.updated_profile !== null ||
+        value.field_evidence.length > 0 ||
+        (value.misconception_claim_closure?.length ?? 0) > 0)
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -359,7 +413,11 @@ export const FormativeConversationProfileEvidenceSchema = z
     field_evidence: z
       .array(FormativeConversationProfileFieldEvidenceSchema)
       .max(20)
-      .default([])
+      .default([]),
+    misconception_claim_closure: z
+      .array(FormativeConversationMisconceptionIndicatorClosureSchema)
+      .max(20)
+      .optional()
   })
   .strict();
 

@@ -1,0 +1,54 @@
+{
+  "manifest_version": "formative-conversation-v16-runtime-candidate-manifest-v1",
+  "base_v15_runtime_candidate_hash": "e8b13b130a78f966cc2fec7bb433859df81ecbd791b7d7ed6ffd58ec502bbc60",
+  "change_scope": "profile_transition_misconception_evidence_closure_only",
+  "prompt": {
+    "version": "formative-conversation-host-v5.3",
+    "hash": "30b616483a48c1f01e1a33d911d9dc1c27ed906dae421a99c9b0e2d7eeac945d",
+    "changed": false
+  },
+  "contracts": {
+    "agent_contract_version": "formative-conversation-agent-contract-v1",
+    "context_version": "formative-conversation-context-v1",
+    "transition_validator_version": "formative-conversation-profile-transition-validator-v7",
+    "transition_evidence_closure_version": "formative-conversation-transition-evidence-closure-v2",
+    "misconception_evidence_closure_version": "formative-conversation-misconception-evidence-closure-v1",
+    "misconception_field_semantics_version": "formative-conversation-profile-field-semantics-v2"
+  },
+  "runtime_source_files": [
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+      "sha256": "3d473f511be38d9d68aa0d5206d5209d45380dfe5adb421366deb39f6f15bdcc"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/misconception-evidence-closure.ts",
+      "sha256": "1864676a0f287fbb725e459dbdd948aeccb6fa34e3e754c02c11a8d5241a5692"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-field-semantics.ts",
+      "sha256": "27e981055ede0b3b297daeeb8ae8a7bfdde3cafdf3ecc28afa60a1caa4644301"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-transition-validator.ts",
+      "sha256": "157cf54268d5b19f091655389d5f6f893e71869fa5b14cbaece9884035913adc"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/transition-evidence-closure.ts",
+      "sha256": "b3d1d8d5ccbba59d13dfabaccf217cf6a24c8fe919594df81119b547579be780"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-update.ts",
+      "sha256": "6b4e5b82f88e7594f38789e6d894293d6796bd3809c8bebb4bb11f64dbf970ed"
+    }
+  ],
+  "unchanged_boundaries": [
+    "teaching_prompt",
+    "formative_pedagogy",
+    "profile_meanings",
+    "database_schema",
+    "export_architecture",
+    "privacy_controls",
+    "execution_boundary"
+  ],
+  "runtime_candidate_hash": "d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034"
+}

@@ -1,0 +1,33 @@
+{
+  "authorization_package_version": "formative-conversation-v16-future-live-authorization-v1",
+  "runtime_candidate_hash": "d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034",
+  "protocol_hash": "d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26",
+  "runner_implementation_hash": "69d8829fab324e24e8b328b5aeb1310bcd23b847b57c57f8b09626b42baa1f76",
+  "fixture_manifest_hash": "5899077dbe89f5f7c7e53747ea35ef52154caa1e3a02d1a2de098a7a7dd31822",
+  "aggregate_fixture_hash": "9b2db2c1d3631e26cd3a3143a2c74277a0c02aa58448408c58541bd8a4a933fd",
+  "compiled_plan_hash": "fc58a9355445e48c9bbc9b010e2d82fc6cc4307aeba10af3e067020ad42bd665",
+  "budget": {
+    "expected_logical_call_count": 21,
+    "maximum_logical_call_count": 29,
+    "expected_provider_attempt_count": 21,
+    "maximum_provider_attempt_count": 87,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 900000,
+    "maximum_output_token_count": 101500,
+    "maximum_total_token_count": 1001500,
+    "maximum_wall_clock_duration_ms": 7200000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 30,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available",
+    "maximum_semantic_regenerations_per_agent_call": 1,
+    "maximum_semantic_regeneration_count": 8
+  },
+  "fixture_count": 8,
+  "exact_future_authorization_text": "I authorize one live execution of formative-conversation-host-v5-executable-v16 for runtime candidate hash d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034 and evaluation protocol hash d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.",
+  "exact_future_live_command": "node --import tsx scripts/operational-formative-conversation-v5-v16-process-local-runner.mjs --env-fifo \"$FORMATIVE_CONVERSATION_V16_ENV_FIFO\" -- --mode=live --runtime-candidate-hash d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034 --evaluation-protocol-hash d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26 --confirm-live-provider-calls --authorization \"I authorize one live execution of formative-conversation-host-v5-executable-v16 for runtime candidate hash d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034 and evaluation protocol hash d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26, using exactly 8 isolated synthetic cases with at most 29 logical calls, 87 provider attempts, 900000 input tokens, 101500 output tokens, 1001500 total tokens, 7200000 milliseconds wall-clock time, concurrency 1, and a USD 30 ceiling.\"",
+  "secure_environment_channel": "owner_only_one_use_fifo_injected_into_single_child_process",
+  "live_execution_authorized": false,
+  "approval_eligible": false,
+  "activation_permitted": false
+}
