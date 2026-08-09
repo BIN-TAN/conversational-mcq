@@ -22,6 +22,10 @@ import {
   type FormativeConversationCanonicalProfileSource
 } from "../src/lib/services/student-assessment/formative-conversation/profile-update";
 import { validateFormativeConversationProfileTransition } from "../src/lib/services/student-assessment/formative-conversation/profile-transition-validator";
+import {
+  FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+  currentMisconceptionClaims
+} from "../src/lib/services/student-assessment/formative-conversation/misconception-evidence-closure";
 
 const ReplayArtifactSchema = z
   .object({
@@ -250,7 +254,29 @@ function validTerminalOutput(input: {
             "Retained fields preserve the canonical prior value.",
           source_turn_sequence_indexes: []
         }
-      ]
+      ],
+      misconception_claim_closure: changed.includes(
+        "misconception_indicators"
+      )
+        ? currentMisconceptionClaims(input.prior.misconception_indicators).map(
+            (priorIndicator) => ({
+              closure_version:
+                FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+              prior_indicator: priorIndicator,
+              coverage: "all_atomic_claims_represented",
+              atomic_claims: [
+                {
+                  claim_text: priorIndicator,
+                  disposition: "resolved_by_conversation_evidence",
+                  evidence_basis: "conversation_evidence",
+                  evidence_summary:
+                    "The cited deterministic student fixture resolves this current claim.",
+                  source_turn_sequence_indexes: [1]
+                }
+              ]
+            })
+          )
+        : []
     },
     teacher_assistance_recommendation: {
       recommended: input.outcome === "teacher_assistance_recommended",

@@ -89,6 +89,7 @@ function recommendation(input: {
       "The cited student turn continues to endorse the misconception after support.",
     source_turn_sequence_indexes: [5],
     updated_profile: updated,
+    misconception_claim_closure: [],
     field_evidence: [
       {
         profile_fields: changedFields,

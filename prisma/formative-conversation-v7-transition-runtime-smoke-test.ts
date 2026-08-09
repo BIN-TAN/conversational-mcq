@@ -30,6 +30,10 @@ import {
 } from "../src/lib/services/student-assessment/formative-conversation/runtime";
 import { buildFormativeConversationRuntimeContextSeed } from "../src/lib/services/student-assessment/formative-conversation/runtime-context";
 import { canonicalFormativeConversationProfileFromStudentProfile } from "../src/lib/services/student-assessment/formative-conversation/profile-update";
+import {
+  FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+  currentMisconceptionClaims
+} from "../src/lib/services/student-assessment/formative-conversation/misconception-evidence-closure";
 
 const caseIds = [
   "fcv5_05_sound_profile_transition",
@@ -183,7 +187,29 @@ function terminalOutput(input: {
             "Retained fields exactly preserve their canonical prior values.",
           source_turn_sequence_indexes: []
         }
-      ]
+      ],
+      misconception_claim_closure: changed.includes(
+        "misconception_indicators"
+      )
+        ? currentMisconceptionClaims(prior.misconception_indicators).map(
+            (priorIndicator) => ({
+              closure_version:
+                FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+              prior_indicator: priorIndicator,
+              coverage: "all_atomic_claims_represented",
+              atomic_claims: [
+                {
+                  claim_text: priorIndicator,
+                  disposition: "resolved_by_conversation_evidence",
+                  evidence_basis: "conversation_evidence",
+                  evidence_summary:
+                    "The cited deterministic student turn resolves this current claim.",
+                  source_turn_sequence_indexes: [studentTurn.sequence_index]
+                }
+              ]
+            })
+          )
+        : []
     },
     teacher_assistance_recommendation: {
       recommended: input.outcome === "teacher_assistance_recommended",
@@ -469,7 +495,20 @@ async function main() {
     });
 
     assert.equal(result.report.export_validation.status, "passed");
-    assert.deepEqual(result.report.architecture_review.issue_codes, []);
+    assert.deepEqual(
+      result.report.architecture_review.issue_codes,
+      [],
+      JSON.stringify(
+        result.report.students.map((student) => ({
+          persona_id: student.persona_id,
+          transition_occurred: student.profile_transition_occurred,
+          transition_outcome:
+            student.final_profile_transition?.learning_outcome ?? null,
+          teacher_outcome: student.teacher_trajectory.learning_outcome,
+          unresolved_issue_codes: student.unresolved_issue_codes
+        }))
+      )
+    );
     assert.equal(
       result.report.technical_reliability_report.failed_sessions,
       0

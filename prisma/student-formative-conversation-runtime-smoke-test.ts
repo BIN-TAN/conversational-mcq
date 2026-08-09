@@ -8,6 +8,10 @@ import { agentOutputSchemas } from "../src/lib/agents/contracts";
 import { mockOutputForAgent } from "../src/lib/agents/mock-fixtures";
 import type { FormativeConversationAgentRunner } from "../src/lib/services/student-assessment/formative-conversation/runtime";
 import {
+  FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+  currentMisconceptionClaims
+} from "../src/lib/services/student-assessment/formative-conversation/misconception-evidence-closure";
+import {
   cleanupResponseCollectionFixture,
   createResponseCollectionFixture
 } from "./response-collection-smoke-fixture";
@@ -530,7 +534,28 @@ async function main() {
                 largelyImprovedProfile,
                 latestStudentTurn.sequence_index,
                 ["process_interpretation_cautions"]
-              )
+              ),
+              misconception_claim_closure: currentMisconceptionClaims(
+                initialCanonicalProfile.misconception_indicators
+              ).map((priorIndicator) => ({
+                closure_version:
+                  FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION,
+                prior_indicator: priorIndicator,
+                coverage: "all_atomic_claims_represented",
+                atomic_claims: [
+                  {
+                    claim_text: priorIndicator,
+                    disposition:
+                      "resolved_by_conversation_evidence" as const,
+                    evidence_basis: "conversation_evidence" as const,
+                    evidence_summary:
+                      "The cited deterministic student response resolves this current claim.",
+                    source_turn_sequence_indexes: [
+                      latestStudentTurn.sequence_index
+                    ]
+                  }
+                ]
+              }))
             },
             lifecycle_recommendation: "continue"
           },
