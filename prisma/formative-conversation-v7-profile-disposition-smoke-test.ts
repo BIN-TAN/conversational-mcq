@@ -149,7 +149,7 @@ function validate(
 function main() {
   assert.equal(
     FORMATIVE_CONVERSATION_PROMPT_VERSION,
-    "formative-conversation-host-v5.2"
+    "formative-conversation-host-v5.3"
   );
   assert.match(
     FORMATIVE_CONVERSATION_INSTRUCTIONS,
