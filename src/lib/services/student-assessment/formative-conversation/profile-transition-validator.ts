@@ -1,4 +1,8 @@
 import {
+  canonicalMisconceptionClaimTexts,
+  type CanonicalMisconceptionClaimCatalog
+} from "@/lib/domain/misconception-claim-identity";
+import {
   FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS,
   FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
   FormativeConversationProfileEvidenceSchema,
@@ -9,6 +13,10 @@ import {
   validateFormativeConversationMisconceptionEvidenceClosure,
   type FormativeConversationMisconceptionEvidenceClosureIssueCode
 } from "./misconception-evidence-closure";
+import {
+  validateFormativeConversationMisconceptionClaimClosure,
+  type FormativeConversationMisconceptionClaimClosureIssueCode
+} from "./misconception-claim-closure-v2";
 import { validateFormativeConversationMisconceptionEvidence } from "./profile-field-semantics";
 import {
   FORMATIVE_CONVERSATION_TRANSITION_EVIDENCE_CLOSURE_ISSUE_CODE,
@@ -19,8 +27,9 @@ export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VALIDATOR_VERSION:
   | "formative-conversation-profile-transition-validator-v4"
   | "formative-conversation-profile-transition-validator-v5"
   | "formative-conversation-profile-transition-validator-v6"
-  | "formative-conversation-profile-transition-validator-v7" =
-  "formative-conversation-profile-transition-validator-v7";
+  | "formative-conversation-profile-transition-validator-v7"
+  | "formative-conversation-profile-transition-validator-v8" =
+  "formative-conversation-profile-transition-validator-v8";
 
 type TransitionRecommendation = NonNullable<
   FormativeConversationAgentOutput["profile_transition_recommendation"]
@@ -43,6 +52,11 @@ export type FormativeConversationProfileTransitionValidationIssueCode =
   | "profile_transition_retained_field_changed"
   | "profile_transition_updated_field_unchanged"
   | "profile_transition_updated_field_evidence_missing"
+  | "profile_transition_recommendation_version_invalid"
+  | "profile_transition_legacy_misconception_closure_forbidden"
+  | "profile_transition_misconception_claim_dispositions_missing"
+  | "profile_transition_new_misconception_claim_identity_missing"
+  | FormativeConversationMisconceptionClaimClosureIssueCode
   | FormativeConversationMisconceptionEvidenceClosureIssueCode
   | "profile_transition_misconception_field_semantics_invalid"
   | "profile_transition_snapshot_invalid"
@@ -61,6 +75,7 @@ export type FormativeConversationProfileTransitionValidationResult =
       terminal: false;
       issues: [];
       updated_profile: null;
+      updated_misconception_claim_catalog: null;
       cited_turn_sequence_indexes: number[];
     }
   | {
@@ -68,6 +83,7 @@ export type FormativeConversationProfileTransitionValidationResult =
       terminal: true;
       issues: [];
       updated_profile: FormativeConversationCanonicalProfile;
+      updated_misconception_claim_catalog: CanonicalMisconceptionClaimCatalog | null;
       cited_turn_sequence_indexes: number[];
     }
   | {
@@ -75,6 +91,7 @@ export type FormativeConversationProfileTransitionValidationResult =
       terminal: boolean;
       issues: FormativeConversationProfileTransitionValidationIssue[];
       updated_profile: FormativeConversationCanonicalProfile | null;
+      updated_misconception_claim_catalog: CanonicalMisconceptionClaimCatalog | null;
       cited_turn_sequence_indexes: number[];
     };
 
@@ -97,6 +114,7 @@ function issue(
 export function validateFormativeConversationProfileTransition(input: {
   recommendation: TransitionRecommendation | null;
   prior_profile: FormativeConversationCanonicalProfile | null;
+  prior_misconception_claim_catalog?: CanonicalMisconceptionClaimCatalog | null;
   evidence_observations: FormativeConversationAgentOutput["evidence_observations"];
   available_turns: readonly FormativeConversationTransitionEvidenceTurn[];
 }): FormativeConversationProfileTransitionValidationResult {
@@ -110,12 +128,17 @@ export function validateFormativeConversationProfileTransition(input: {
       terminal: false,
       issues: [],
       updated_profile: null,
+      updated_misconception_claim_catalog: null,
       cited_turn_sequence_indexes: []
     };
   }
 
   const issues: FormativeConversationProfileTransitionValidationIssue[] = [];
-  const updatedProfile = recommendation.updated_profile;
+  const rawUpdatedProfile = recommendation.updated_profile;
+  let updatedProfile = rawUpdatedProfile;
+  let updatedMisconceptionClaimCatalog:
+    | CanonicalMisconceptionClaimCatalog
+    | null = null;
   const evidenceClosure =
     validateFormativeConversationTransitionEvidenceClosure({
       recommendation,
@@ -140,6 +163,9 @@ export function validateFormativeConversationProfileTransition(input: {
         closure.atomic_claims.flatMap(
           (claim) => claim.source_turn_sequence_indexes
         )
+    ),
+    ...(recommendation.misconception_claim_dispositions ?? []).flatMap(
+      (disposition) => disposition.source_turn_sequence_indexes
     ),
     ...input.evidence_observations.flatMap(
       (entry) => entry.source_turn_sequence_indexes
@@ -202,6 +228,76 @@ export function validateFormativeConversationProfileTransition(input: {
         "A terminal profile transition requires at least one supporting student turn."
       )
     );
+  }
+
+  if (input.prior_misconception_claim_catalog) {
+    if (
+      recommendation.recommendation_version !==
+      FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION
+    ) {
+      issues.push(
+        issue(
+          "profile_transition_recommendation_version_invalid",
+          "profile_transition_recommendation.recommendation_version",
+          "A V17 claim catalog requires the ID-based profile recommendation contract."
+        )
+      );
+    }
+    if ((recommendation.misconception_claim_closure ?? []).length > 0) {
+      issues.push(
+        issue(
+          "profile_transition_legacy_misconception_closure_forbidden",
+          "profile_transition_recommendation.misconception_claim_closure",
+          "V17 transitions must use canonical claim IDs instead of free-text misconception closure."
+        )
+      );
+    }
+    if (recommendation.misconception_claim_dispositions == null) {
+      issues.push(
+        issue(
+          "profile_transition_misconception_claim_dispositions_missing",
+          "profile_transition_recommendation.misconception_claim_dispositions",
+          "A V17 terminal transition requires the complete ID-based claim disposition set."
+        )
+      );
+    }
+    const claimClosure =
+      validateFormativeConversationMisconceptionClaimClosure({
+        prior_catalog: input.prior_misconception_claim_catalog,
+        claim_dispositions:
+          recommendation.misconception_claim_dispositions ?? [],
+        available_turns: input.available_turns
+      });
+    for (const closureIssue of claimClosure.issues) {
+      issues.push(
+        issue(
+          closureIssue.code,
+          closureIssue.field_path,
+          closureIssue.message
+        )
+      );
+    }
+    updatedMisconceptionClaimCatalog = claimClosure.updated_catalog;
+    if (rawUpdatedProfile) {
+      if (
+        input.prior_misconception_claim_catalog.indicators.length === 0 &&
+        rawUpdatedProfile.misconception_indicators.length > 0
+      ) {
+        issues.push(
+          issue(
+            "profile_transition_new_misconception_claim_identity_missing",
+            "profile_transition_recommendation.updated_profile.misconception_indicators",
+            "A transition cannot add a misconception that has no platform-assigned claim identity in the allowed catalog."
+          )
+        );
+      }
+      updatedProfile = {
+        ...rawUpdatedProfile,
+        misconception_indicators: canonicalMisconceptionClaimTexts(
+          claimClosure.updated_catalog
+        )
+      };
+    }
   }
 
   const fieldEvidence = new Map<
@@ -293,7 +389,7 @@ export function validateFormativeConversationProfileTransition(input: {
   }
 
   if (updatedProfile) {
-    if (input.prior_profile) {
+    if (input.prior_profile && !input.prior_misconception_claim_catalog) {
       const misconceptionClosure =
         validateFormativeConversationMisconceptionEvidenceClosure({
           prior_misconception_indicators:
@@ -315,7 +411,8 @@ export function validateFormativeConversationProfileTransition(input: {
     }
     for (const semanticIssue of
       validateFormativeConversationMisconceptionEvidence(
-        updatedProfile.misconception_indicators
+        rawUpdatedProfile?.misconception_indicators ??
+          updatedProfile.misconception_indicators
       )) {
       issues.push(
         issue(
@@ -335,6 +432,8 @@ export function validateFormativeConversationProfileTransition(input: {
         terminal: true,
         issues,
         updated_profile: updatedProfile,
+        updated_misconception_claim_catalog:
+          updatedMisconceptionClaimCatalog,
         cited_turn_sequence_indexes: allCitedIndexes
       }
     : {
@@ -342,6 +441,8 @@ export function validateFormativeConversationProfileTransition(input: {
         terminal: true,
         issues: [],
         updated_profile: updatedProfile as FormativeConversationCanonicalProfile,
+        updated_misconception_claim_catalog:
+          updatedMisconceptionClaimCatalog,
         cited_turn_sequence_indexes: allCitedIndexes
       };
 }
@@ -360,7 +461,9 @@ function persistedOutcomeToRecommendationOutcome(
 
 export function validatePersistedFormativeConversationProfileTransition(input: {
   prior_profile: FormativeConversationCanonicalProfile;
+  prior_misconception_claim_catalog?: CanonicalMisconceptionClaimCatalog | null;
   updated_profile: FormativeConversationCanonicalProfile;
+  updated_misconception_claim_catalog?: CanonicalMisconceptionClaimCatalog | null;
   profile_snapshot: unknown;
   learning_outcome:
     | "sound"
@@ -441,6 +544,28 @@ export function validatePersistedFormativeConversationProfileTransition(input: {
       cited_turn_sequence_indexes: []
     };
   }
+  if (
+    snapshot.data.misconception_claim_catalog &&
+    (!input.updated_misconception_claim_catalog ||
+      !profileValuesEqual(
+        snapshot.data.misconception_claim_catalog,
+        input.updated_misconception_claim_catalog
+      ))
+  ) {
+    return {
+      valid: false as const,
+      terminal: true as const,
+      issues: [
+        issue(
+          "profile_transition_snapshot_profile_mismatch",
+          "profile_snapshot.misconception_claim_catalog",
+          "The persisted misconception claim catalog does not match the updated profile row."
+        )
+      ],
+      updated_profile: snapshot.data.canonical_profile,
+      cited_turn_sequence_indexes: []
+    };
+  }
 
   const observations = Array.isArray(input.learning_observations)
     ? input.learning_observations.flatMap((value) => {
@@ -481,11 +606,15 @@ export function validatePersistedFormativeConversationProfileTransition(input: {
     updated_profile: snapshot.data.canonical_profile,
     field_evidence: snapshot.data.field_evidence,
     misconception_claim_closure:
-      snapshot.data.misconception_claim_closure ?? []
+      snapshot.data.misconception_claim_closure ?? [],
+    misconception_claim_dispositions:
+      snapshot.data.misconception_claim_dispositions
   };
   return validateFormativeConversationProfileTransition({
     recommendation,
     prior_profile: input.prior_profile,
+    prior_misconception_claim_catalog:
+      input.prior_misconception_claim_catalog,
     evidence_observations: observations,
     available_turns: input.supporting_turns
   });

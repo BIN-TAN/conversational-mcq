@@ -101,6 +101,8 @@ export function validateFormativeConversationAgentOutputForContext(input: {
   const transition = validateFormativeConversationProfileTransition({
     recommendation: input.output.profile_transition_recommendation,
     prior_profile: input.context.current_profile.canonical_profile,
+    prior_misconception_claim_catalog:
+      input.context.allowed_misconception_claim_catalog,
     evidence_observations: input.output.evidence_observations,
     available_turns: input.context.visible_transcript.map((turn) => ({
       sequence_index: turn.sequence_index,

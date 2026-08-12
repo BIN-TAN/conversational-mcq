@@ -4,8 +4,8 @@ import type { AgentPromptDefinition } from "../types";
 export const studentProfilingPromptV1: AgentPromptDefinition = {
   agent_name: "student_profiling_agent",
   agent_version: "6a-draft",
-  prompt_version: "student-profiling-v3",
-  schema_version: "student-profile-output-v2",
+  prompt_version: "student-profiling-v4",
+  schema_version: "student-profile-output-v3",
   status: "draft",
   description:
     "Draft contract prompt for the future three-layer Student Profiling Agent. Not active in classroom workflows.",
@@ -29,6 +29,9 @@ ${constraintsBlock([
   "Do not infer motivation as a stable trait.",
   "Clearly separate observed evidence, diagnostic inference, uncertainty, and recommended next evidence.",
   "Return misconception_indicators, item_level_evidence, and recommended_next_evidence as arrays of strict structured objects with null for unavailable references.",
+  "For every misconception indicator, return one or more semantic atomic_claims before formative conversation begins. Each atomic claim must state one misconception proposition and cite its source evidence references.",
+  "A broad indicator may contain multiple atomic claims, but confidence, rationale, evidence metadata, limitations, uncertainty, and untested knowledge are not misconception claims.",
+  "Do not assign indicator or claim IDs. The platform assigns stable identities only after this output passes validation.",
   "Use the exact locked enum labels.",
   "Return structured output only."
 ])}`

@@ -1,0 +1,33 @@
+{
+  "reference_version": "formative-conversation-v17-immutable-v16-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v16",
+  "runtime_candidate_hash": "d96ec30d26637887127fe92dd5f3d074de788ee02dd9aea523df2f79ca718034",
+  "protocol_hash": "d545c4e8e8204b613e7daf0e26359d774930d4c8a2c90412941b9428c6687c26",
+  "source_provider_run_id": "fcv5v16_provider_20260809170902_7934761a",
+  "candidate_identity_file_sha256": "57cfbded76f74091a6fc6a40d418443c6d9d62bf1be56489e7eef7be1f083c43",
+  "preserved_case_replays": [
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_08_mixed_resolved_evidence"
+  ],
+  "offline_replay_fixtures": [
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v17/offline-replay-fixtures/fcv5_05_sound_profile_transition.json",
+      "file_sha256": "cde1a337d6a5c049886e99fbf81ecfdd4748d1338b9ee10dfe40e86065f5cf7e"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v17/offline-replay-fixtures/fcv5_06_largely_improved_temporal.json",
+      "file_sha256": "c4e3c7f3f81f327976081b642f8d1405f94b9a8193a9161091e078f7133af316"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v17/offline-replay-fixtures/fcv5_08_mixed_resolved_evidence.json",
+      "file_sha256": "125e89924201cc1bbb2840ce67d19d76c3158a50bf7cf07a5598a6b55f6534c8"
+    }
+  ],
+  "local_artifact_policy": "hash_reference_only_not_required_for_v17_live_readiness",
+  "required_for_v17_live_readiness": false,
+  "historical_records_mutated": false
+}

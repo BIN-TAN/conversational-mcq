@@ -21,6 +21,7 @@ type TransitionEvidenceClosureRecommendation = {
   misconception_claim_closure?: readonly {
     atomic_claims: readonly EvidenceReferenceSource[];
   }[];
+  misconception_claim_dispositions?: readonly EvidenceReferenceSource[] | null;
 };
 
 export type FormativeConversationTransitionEvidenceClosureIssue = {
@@ -72,6 +73,14 @@ export function validateFormativeConversationTransitionEvidenceClosure(input: {
             `profile_transition_recommendation.misconception_claim_closure.${closureIndex}.atomic_claims.${claimIndex}.source_turn_sequence_indexes`,
           source_turn_sequence_indexes: claim.source_turn_sequence_indexes
         }))
+    ),
+    ...(recommendation.misconception_claim_dispositions ?? []).map(
+      (disposition, dispositionIndex) => ({
+        field_path:
+          `profile_transition_recommendation.misconception_claim_dispositions.${dispositionIndex}.source_turn_sequence_indexes`,
+        source_turn_sequence_indexes:
+          disposition.source_turn_sequence_indexes
+      })
     )
   ];
   const issues = referenceGroups.flatMap((group) => {

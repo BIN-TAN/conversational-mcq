@@ -3,6 +3,7 @@ import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { parseCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import {
@@ -19,6 +20,7 @@ import {
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
+import { parseFormativeConversationProfileSnapshot } from "@/lib/services/student-assessment/formative-conversation/profile-update";
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
   buildExportSourceIdentity,
@@ -533,12 +535,15 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "prior_evidence_sufficiency",
   "prior_confidence_alignment",
   "prior_misconception_indicators",
+  "prior_misconception_claim_catalog",
   "prior_profile_created_at",
   "updated_understanding_category",
   "updated_learning_profile",
   "updated_evidence_sufficiency",
   "updated_confidence_alignment",
   "updated_misconception_indicators",
+  "updated_misconception_claim_catalog",
+  "misconception_claim_dispositions",
   "updated_profile_created_at",
   "canonical_profile_snapshot",
   "learning_observations",
@@ -1941,7 +1946,11 @@ function formativeConversationProfileTransitionRows(
     session.formative_conversation_sessions.flatMap((conversation) =>
       canonicalPersistedFormativeConversationProfileTransitions(
         conversation.profile_transitions
-      ).map((transition) => ({
+      ).map((transition) => {
+        const profileSnapshot = parseFormativeConversationProfileSnapshot(
+          transition.profile_snapshot
+        );
+        return {
         transition_public_id: transition.transition_public_id,
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -1959,6 +1968,11 @@ function formativeConversationProfileTransitionRows(
         prior_misconception_indicators: JSON.stringify(
           transition.prior_student_profile.misconception_indicators
         ),
+        prior_misconception_claim_catalog: JSON.stringify(
+          parseCanonicalMisconceptionClaimCatalog(
+            transition.prior_student_profile.misconception_indicators
+          )
+        ),
         prior_profile_created_at: iso(
           transition.prior_student_profile.created_at
         ),
@@ -1972,6 +1986,12 @@ function formativeConversationProfileTransitionRows(
           transition.updated_student_profile.confidence_alignment,
         updated_misconception_indicators: JSON.stringify(
           transition.updated_student_profile.misconception_indicators
+        ),
+        updated_misconception_claim_catalog: JSON.stringify(
+          profileSnapshot?.misconception_claim_catalog ?? null
+        ),
+        misconception_claim_dispositions: JSON.stringify(
+          profileSnapshot?.misconception_claim_dispositions ?? []
         ),
         updated_profile_created_at: iso(
           transition.updated_student_profile.created_at
@@ -2031,7 +2051,8 @@ function formativeConversationProfileTransitionRows(
         source_agent_call_public_id:
           transition.source_agent_call?.agent_call_public_id ?? null,
         transitioned_at: iso(transition.transitioned_at)
-      }))
+        };
+      })
     )
   );
 }
@@ -2160,6 +2181,12 @@ function formativeConversationDataDictionaryRows() {
     }
     if (variable.includes("misconception_indicators")) {
       return "JSON representation of the misconception evidence included in the named append-only profile version.";
+    }
+    if (variable.includes("misconception_claim_catalog")) {
+      return "Versioned canonical misconception indicator and atomic claim identities with human-readable text and source evidence references for the named profile version.";
+    }
+    if (variable === "misconception_claim_dispositions") {
+      return "ID-based resolved or retained disposition for every prior canonical misconception claim, including cited student-turn evidence and explanatory text.";
     }
     if (variable === "canonical_profile_snapshot") {
       return "Complete canonical profile and field-level evidence provenance persisted with the authoritative transition.";

@@ -3,6 +3,7 @@ import type {
   StructuredAgentRequest,
   StructuredAgentResult
 } from "../src/lib/llm/providers/types";
+import { emptyCanonicalMisconceptionClaimCatalog } from "../src/lib/domain/misconception-claim-identity";
 import {
   FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_AGENT_NAME,
@@ -46,6 +47,10 @@ const context = FormativeConversationAgentInputSchema.parse({
     canonical_profile: null,
     field_evidence: []
   },
+  allowed_misconception_claim_catalog:
+    emptyCanonicalMisconceptionClaimCatalog(
+      "semantic-regeneration-v2-smoke"
+    ),
   intervention_history: [],
   memory: null,
   safety_boundary: {

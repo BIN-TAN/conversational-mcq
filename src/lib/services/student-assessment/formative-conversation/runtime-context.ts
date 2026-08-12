@@ -14,7 +14,7 @@ import {
   FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION
 } from "./agent-contract";
 import {
-  canonicalFormativeConversationProfileFromStudentProfile,
+  canonicalFormativeConversationProfileStateFromStudentProfile,
   parseFormativeConversationProfileSnapshot
 } from "./profile-update";
 import { normalizeInstructionalTeacherGuidance } from "./teacher-guidance-boundary";
@@ -116,14 +116,20 @@ function profileEvidence(
   const snapshot = parseFormativeConversationProfileSnapshot(
     persistedSnapshot
   );
+  const profileState = profile
+    ? canonicalFormativeConversationProfileStateFromStudentProfile(profile)
+    : null;
   if (snapshot) {
     return {
       ...snapshot,
       canonical_profile:
         snapshot.canonical_profile ??
-        (profile
-          ? canonicalFormativeConversationProfileFromStudentProfile(profile)
-          : null)
+        profileState?.canonical_profile ??
+        null,
+      misconception_claim_catalog:
+        snapshot.misconception_claim_catalog ??
+        profileState?.misconception_claim_catalog ??
+        null
     };
   }
   if (!profile) {
@@ -134,7 +140,9 @@ function profileEvidence(
       unresolved_evidence: [],
       evidence_limitations: ["No validated learning profile is available."],
       canonical_profile: null,
-      field_evidence: []
+      field_evidence: [],
+      misconception_claim_catalog: null,
+      misconception_claim_dispositions: []
     };
   }
   const sound =
@@ -151,9 +159,11 @@ function profileEvidence(
       profile.evidence_sufficiency === "strong"
         ? []
         : [`Evidence sufficiency is ${profile.evidence_sufficiency}.`],
-    canonical_profile:
-      canonicalFormativeConversationProfileFromStudentProfile(profile),
-    field_evidence: []
+    canonical_profile: profileState?.canonical_profile ?? null,
+    field_evidence: [],
+    misconception_claim_catalog:
+      profileState?.misconception_claim_catalog ?? null,
+    misconception_claim_dispositions: []
   };
 }
 

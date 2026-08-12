@@ -882,7 +882,16 @@ export class MockLlmProvider implements LlmProvider {
               evidence_reference: firstIncorrect.item_public_id,
               confidence: "low",
               rationale:
-                "Mock misconception indicator is grounded to a supplied incorrect response."
+                "Mock misconception indicator is grounded to a supplied incorrect response.",
+              atomic_claims: [
+                {
+                  claim_text:
+                    "The supplied incorrect response is treated as supporting the selected interpretation.",
+                  source_evidence_references: [
+                    firstIncorrect.item_public_id
+                  ]
+                }
+              ]
             }
           ]
         : [];

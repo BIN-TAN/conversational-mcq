@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert";
+import { emptyCanonicalMisconceptionClaimCatalog } from "../src/lib/domain/misconception-claim-identity";
 import {
   PROVIDER_INPUT_IDENTITY_MINIMIZATION_VERSION,
   ProviderInputPrivacyError,
@@ -124,6 +125,10 @@ function formativeContext() {
       canonical_profile: null,
       field_evidence: []
     },
+    allowed_misconception_claim_catalog:
+      emptyCanonicalMisconceptionClaimCatalog(
+        "pilot-data-governance-v15-smoke"
+      ),
     intervention_history: [],
     memory: null,
     safety_boundary: {

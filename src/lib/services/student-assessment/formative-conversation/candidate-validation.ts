@@ -1,4 +1,6 @@
 import {
+  FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
+  FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION,
   FormativeConversationAgentOutputSchema,
   type FormativeConversationAgentInput,
   type FormativeConversationAgentOutput
@@ -47,6 +49,42 @@ export function validateFormativeConversationCandidateAcceptance(input: {
       output: null
     };
   }
+  if (
+    input.context.contract_version ===
+      FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION &&
+    parsed.data.contract_version !==
+      FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION
+  ) {
+    return {
+      valid: false,
+      validation_status: "schema_invalid",
+      validation_issue_paths: ["contract_version"],
+      output: null
+    };
+  }
+  if (
+    input.context.contract_version ===
+      FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION &&
+    parsed.data.profile_transition_recommendation &&
+    (parsed.data.profile_transition_recommendation.recommendation_version !==
+      FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION ||
+      (parsed.data.profile_transition_recommendation.proposed_outcome !==
+        "continue_conversation" &&
+        parsed.data.profile_transition_recommendation
+          .misconception_claim_dispositions == null))
+  ) {
+    return {
+      valid: false,
+      validation_status: "schema_invalid",
+      validation_issue_paths: [
+        parsed.data.profile_transition_recommendation.recommendation_version !==
+        FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION
+          ? "profile_transition_recommendation.recommendation_version"
+          : "profile_transition_recommendation.misconception_claim_dispositions"
+      ],
+      output: parsed.data
+    };
+  }
 
   const safety = validateFormativeConversationSafetyBoundary(input.context);
   if (!safety.valid) {
@@ -93,6 +131,17 @@ export function validateFormativeConversationCandidateAcceptance(input: {
     valid: true,
     validation_status: "valid",
     validation_issue_paths: [],
-    output: parsed.data
+    output:
+      outputContract.transition.terminal &&
+      parsed.data.profile_transition_recommendation
+        ? {
+            ...parsed.data,
+            profile_transition_recommendation: {
+              ...parsed.data.profile_transition_recommendation,
+              updated_profile:
+                outputContract.transition.updated_profile
+            }
+          }
+        : parsed.data
   };
 }

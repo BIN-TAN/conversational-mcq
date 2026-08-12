@@ -1,6 +1,12 @@
 import { createHash } from "node:crypto";
 import { Prisma, type StudentProfile } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import {
+  canonicalMisconceptionClaimTexts,
+  parseCanonicalMisconceptionClaimCatalog,
+  requireCanonicalMisconceptionClaimCatalog,
+  type CanonicalMisconceptionClaimCatalog
+} from "@/lib/domain/misconception-claim-identity";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS,
@@ -26,8 +32,9 @@ import {
 
 export const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION:
   | "formative-conversation-profile-transition-v3"
-  | "formative-conversation-profile-transition-v4" =
-  "formative-conversation-profile-transition-v4";
+  | "formative-conversation-profile-transition-v4"
+  | "formative-conversation-profile-transition-v5" =
+  "formative-conversation-profile-transition-v5";
 
 export type FormativeConversationProfileEvidenceHookInput = {
   conversation_public_id: string;
@@ -191,7 +198,7 @@ export type FormativeConversationCanonicalProfileSource = Pick<
   | "profile_confidence"
   | "rationale"
   | "recommended_next_evidence"
->;
+> & { id?: string };
 
 function jsonInput(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? []) as Prisma.InputJsonValue;
@@ -244,6 +251,13 @@ function normalizedProfileTextList(
   return [...new Set(entries)].slice(0, limit);
 }
 
+function misconceptionProfileTextList(value: Prisma.JsonValue) {
+  const catalog = parseCanonicalMisconceptionClaimCatalog(value);
+  return catalog
+    ? canonicalMisconceptionClaimTexts(catalog)
+    : normalizedProfileTextList(value, 20);
+}
+
 export function canonicalFormativeConversationProfileFromStudentProfile(
   profile: FormativeConversationCanonicalProfileSource
 ): FormativeConversationCanonicalProfile {
@@ -271,9 +285,8 @@ export function canonicalFormativeConversationProfileFromStudentProfile(
     confidence_alignment: profile.confidence_alignment,
     independence_interpretability:
       profile.independence_interpretability,
-    misconception_indicators: normalizedProfileTextList(
-      profile.misconception_indicators,
-      20
+    misconception_indicators: misconceptionProfileTextList(
+      profile.misconception_indicators
     ),
     item_level_evidence: normalizedProfileTextList(
       profile.item_level_evidence,
@@ -300,6 +313,27 @@ export function canonicalFormativeConversationProfileFromStudentProfile(
       profile.recommended_next_evidence,
       20
     )
+  };
+}
+
+export function canonicalFormativeConversationProfileStateFromStudentProfile(
+  profile: FormativeConversationCanonicalProfileSource
+): {
+  canonical_profile: FormativeConversationCanonicalProfile;
+  misconception_claim_catalog: CanonicalMisconceptionClaimCatalog;
+} {
+  const misconceptionClaimCatalog =
+    requireCanonicalMisconceptionClaimCatalog({
+      value: profile.misconception_indicators,
+      legacy_profile_scope: profile.id ?? "profile-source-without-id"
+    });
+  return {
+    canonical_profile: {
+      ...canonicalFormativeConversationProfileFromStudentProfile(profile),
+      misconception_indicators:
+        canonicalMisconceptionClaimTexts(misconceptionClaimCatalog)
+    },
+    misconception_claim_catalog: misconceptionClaimCatalog
   };
 }
 
@@ -353,8 +387,11 @@ export async function recordFormativeConversationProfileTransitionRecommendation
   if (!input.recommendation.recommended || !learningOutcome) {
     return null;
   }
-  const updatedCanonicalProfile =
+  let updatedCanonicalProfile =
     input.recommendation.updated_profile;
+  let updatedMisconceptionClaimCatalog:
+    | CanonicalMisconceptionClaimCatalog
+    | null = null;
   if (!updatedCanonicalProfile) {
     throw new FormativeConversationProfileTransitionError(
       "profile_transition_updated_profile_missing",
@@ -390,6 +427,9 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           closure.atomic_claims.flatMap(
             (claim) => claim.source_turn_sequence_indexes
           )
+      ),
+      ...(input.recommendation.misconception_claim_dispositions ?? []).flatMap(
+        (disposition) => disposition.source_turn_sequence_indexes
       ),
       ...input.agent_evidence_observations.flatMap(
         (observation) => observation.source_turn_sequence_indexes
@@ -531,6 +571,10 @@ export async function recordFormativeConversationProfileTransitionRecommendation
       );
     }
 
+    const priorProfileState =
+      canonicalFormativeConversationProfileStateFromStudentProfile(
+        priorProfile
+      );
     const canonicalValidation =
       await measureFormativeConversationPersistencePhase({
         operation_name: "formative_conversation_profile_transition",
@@ -540,10 +584,9 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         execute: async () =>
           validateFormativeConversationProfileTransition({
             recommendation: input.recommendation,
-            prior_profile:
-              canonicalFormativeConversationProfileFromStudentProfile(
-                priorProfile
-              ),
+            prior_profile: priorProfileState.canonical_profile,
+            prior_misconception_claim_catalog:
+              priorProfileState.misconception_claim_catalog,
             evidence_observations:
               input.agent_evidence_observations,
             available_turns: citedTurns.map((turn) => ({
@@ -563,6 +606,18 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           "The profile transition failed canonical validation."
       );
     }
+    if (
+      !canonicalValidation.updated_profile ||
+      !canonicalValidation.updated_misconception_claim_catalog
+    ) {
+      throw new FormativeConversationProfileTransitionError(
+        "profile_transition_updated_profile_missing",
+        "The canonical V17 transition did not produce a complete profile and misconception claim catalog."
+      );
+    }
+    updatedCanonicalProfile = canonicalValidation.updated_profile;
+    updatedMisconceptionClaimCatalog =
+      canonicalValidation.updated_misconception_claim_catalog;
     prepared = {
       session,
       priorProfile,
@@ -598,6 +653,12 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         observation.source_turn_sequence_indexes
     })
   );
+  if (!updatedMisconceptionClaimCatalog) {
+    throw new FormativeConversationProfileTransitionError(
+      "profile_transition_updated_profile_missing",
+      "The canonical V17 misconception claim catalog is unavailable before persistence."
+    );
+  }
 
   const persistTransition = async () => {
     const updatedProfile =
@@ -656,9 +717,7 @@ export async function recordFormativeConversationProfileTransitionRecommendation
           independence_interpretability:
             updatedCanonicalProfile.independence_interpretability,
           misconception_indicators: jsonInput(
-            usePriorStoredField("misconception_indicators")
-              ? prepared.priorProfile.misconception_indicators
-              : updatedCanonicalProfile.misconception_indicators
+            updatedMisconceptionClaimCatalog
           ),
           item_level_evidence: jsonInput(
             usePriorStoredField("item_level_evidence")
@@ -698,7 +757,11 @@ export async function recordFormativeConversationProfileTransitionRecommendation
         canonical_profile: updatedCanonicalProfile,
         field_evidence: input.recommendation.field_evidence,
         misconception_claim_closure:
-          input.recommendation.misconception_claim_closure ?? []
+          input.recommendation.misconception_claim_closure ?? [],
+        misconception_claim_catalog:
+          updatedMisconceptionClaimCatalog,
+        misconception_claim_dispositions:
+          input.recommendation.misconception_claim_dispositions ?? []
       };
       const transition =
         await tx.formativeConversationProfileTransition.create({
@@ -791,7 +854,11 @@ export async function recordFormativeConversationProfileTransitionRecommendation
             source_turn_sequence_indexes: citedSequenceIndexes,
             field_evidence: input.recommendation.field_evidence,
             misconception_claim_closure:
-              input.recommendation.misconception_claim_closure ?? []
+              input.recommendation.misconception_claim_closure ?? [],
+            misconception_claim_catalog:
+              updatedMisconceptionClaimCatalog,
+            misconception_claim_dispositions:
+              input.recommendation.misconception_claim_dispositions ?? []
           })
         }
       });

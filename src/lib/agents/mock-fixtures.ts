@@ -89,7 +89,14 @@ export function mockOutputForAgent(agentName: AgentName) {
             indicator: "mock_distractor_aligned_reasoning",
             evidence_reference: "mock-item-2",
             confidence: "low",
-            rationale: "Mock misconception indicator for infrastructure testing."
+            rationale: "Mock misconception indicator for infrastructure testing.",
+            atomic_claims: [
+              {
+                claim_text:
+                  "The distractor-aligned interpretation is treated as conceptually sufficient.",
+                source_evidence_references: ["mock-item-2"]
+              }
+            ]
           }
         ],
         item_level_evidence: [

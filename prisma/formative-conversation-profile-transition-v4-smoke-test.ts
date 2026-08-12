@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
+import { emptyCanonicalMisconceptionClaimCatalog } from "../src/lib/domain/misconception-claim-identity";
 import {
   formativeConversationV5FixtureSources
 } from "../src/lib/operational/formative-conversation-v5-evaluation-v5/fixture-source";
@@ -129,8 +130,15 @@ function contextForReplay(
     evidence_limitations: [
       ...priorProfile.process_interpretation_cautions
     ],
-    canonical_profile: priorProfile,
-    field_evidence: []
+    canonical_profile: {
+      ...priorProfile,
+      misconception_indicators: []
+    },
+    field_evidence: [],
+    misconception_claim_catalog:
+      emptyCanonicalMisconceptionClaimCatalog(
+        `historical-replay:${artifact.immutable_source.case_id}`
+      )
   };
   const latestStudentMessage =
     [...artifact.visible_turns]

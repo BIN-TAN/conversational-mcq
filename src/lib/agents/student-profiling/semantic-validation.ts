@@ -147,7 +147,8 @@ function textEvidence(output: StudentProfileOutput) {
     ]),
     ...output.misconception_indicators.flatMap((indicator) => [
       indicator.indicator,
-      indicator.rationale ?? ""
+      indicator.rationale ?? "",
+      ...(indicator.atomic_claims ?? []).map((claim) => claim.claim_text)
     ]),
     ...output.recommended_next_evidence.flatMap((evidence) => [
       evidence.evidence_type,
@@ -369,6 +370,60 @@ function validateGroundedItemEvidence(input: {
   return issues;
 }
 
+function validateAtomicMisconceptionClaims(input: {
+  providerInput?: StudentProfilingInput;
+  output: StudentProfileOutput;
+}) {
+  const issues: string[] = [];
+  const groundedReferences = new Set([
+    ...packageItemEvidence(input.providerInput?.initial_response_package),
+    ...packageItemEvidence(input.providerInput?.followup_evidence_package)
+  ].map((item) => item.item_public_id));
+  const seenIndicators = new Set<string>();
+
+  input.output.misconception_indicators.forEach((indicator, indicatorIndex) => {
+    const indicatorKey = indicator.indicator.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en-US");
+    if (seenIndicators.has(indicatorKey)) {
+      issues.push(`misconception_indicators[${indicatorIndex}] duplicates a prior indicator.`);
+    }
+    seenIndicators.add(indicatorKey);
+
+    if (!indicator.atomic_claims || indicator.atomic_claims.length === 0) {
+      issues.push(
+        `misconception_indicators[${indicatorIndex}] requires validated atomic_claims before persistence.`
+      );
+      return;
+    }
+    const seenClaims = new Set<string>();
+    indicator.atomic_claims.forEach((claim, claimIndex) => {
+      const claimKey = claim.claim_text.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en-US");
+      if (seenClaims.has(claimKey)) {
+        issues.push(
+          `misconception_indicators[${indicatorIndex}].atomic_claims[${claimIndex}] duplicates a prior atomic claim.`
+        );
+      }
+      seenClaims.add(claimKey);
+      if (/^(?:confidence|rationale|evidence reference)\s*:/iu.test(claim.claim_text)) {
+        issues.push(
+          `misconception_indicators[${indicatorIndex}].atomic_claims[${claimIndex}] contains profile metadata instead of a misconception claim.`
+        );
+      }
+      if (
+        input.providerInput &&
+        claim.source_evidence_references.some(
+          (reference) => !groundedReferences.has(reference)
+        )
+      ) {
+        issues.push(
+          `misconception_indicators[${indicatorIndex}].atomic_claims[${claimIndex}] references evidence outside the supplied response package.`
+        );
+      }
+    });
+  });
+
+  return issues;
+}
+
 export function validateStudentProfileOutputSemantics(input: {
   providerInput?: StudentProfilingInput;
   output: StudentProfileOutput;
@@ -388,6 +443,7 @@ export function validateStudentProfileOutputSemantics(input: {
   }
 
   issues.push(...validateGroundedItemEvidence(input));
+  issues.push(...validateAtomicMisconceptionClaims(input));
 
   if (evidenceConsistency.narrative_conflict_language_present) {
     warnings.push(

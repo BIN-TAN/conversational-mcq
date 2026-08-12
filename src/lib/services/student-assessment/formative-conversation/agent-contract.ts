@@ -1,10 +1,23 @@
 import { z } from "zod";
+import {
+  CanonicalMisconceptionClaimCatalogSchema,
+  type CanonicalMisconceptionClaimCatalog
+} from "@/lib/domain/misconception-claim-identity";
 import { FORMATIVE_CONVERSATION_MISCONCEPTION_EVIDENCE_CLOSURE_VERSION } from "./misconception-evidence-closure";
+import { FormativeConversationMisconceptionClaimDispositionSchema } from "./misconception-claim-closure-v2";
 import { validateFormativeConversationTransitionEvidenceClosure } from "./transition-evidence-closure";
 
 export const FORMATIVE_CONVERSATION_AGENT_NAME = "formative_conversation_agent";
-export const FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION =
-  "formative-conversation-agent-contract-v1";
+export const FORMATIVE_CONVERSATION_LEGACY_AGENT_CONTRACT_VERSION =
+  "formative-conversation-agent-contract-v1" as const;
+export const FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION:
+  | "formative-conversation-agent-contract-v1"
+  | "formative-conversation-agent-contract-v2" =
+  "formative-conversation-agent-contract-v2";
+const FormativeConversationAgentContractVersionSchema = z.enum([
+  FORMATIVE_CONVERSATION_LEGACY_AGENT_CONTRACT_VERSION,
+  FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION
+]);
 export const FORMATIVE_CONVERSATION_CONTEXT_VERSION =
   "formative-conversation-context-v1";
 export const FORMATIVE_CONVERSATION_MEMORY_VERSION =
@@ -16,7 +29,13 @@ export const FORMATIVE_CONVERSATION_ASSESSMENT_SPECIFICATION_VERSION =
 export const FORMATIVE_CONVERSATION_CANONICAL_PROFILE_VERSION =
   "formative-conversation-learning-profile-v1";
 export const FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION =
-  "formative-conversation-profile-recommendation-v2";
+  "formative-conversation-profile-recommendation-v3" as const;
+export const FORMATIVE_CONVERSATION_LEGACY_PROFILE_RECOMMENDATION_VERSION =
+  "formative-conversation-profile-recommendation-v2" as const;
+const FormativeConversationProfileRecommendationVersionSchema = z.enum([
+  FORMATIVE_CONVERSATION_LEGACY_PROFILE_RECOMMENDATION_VERSION,
+  FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION
+]);
 export const FORMATIVE_CONVERSATION_DECISION_COHERENCE_VERSION =
   "formative-conversation-decision-coherence-v1";
 
@@ -195,9 +214,8 @@ export const FormativeConversationMisconceptionIndicatorClosureSchema = z
 
 const FormativeConversationProfileTransitionRecommendationSchema = z
   .object({
-    recommendation_version: z.literal(
-      FORMATIVE_CONVERSATION_PROFILE_RECOMMENDATION_VERSION
-    ),
+    recommendation_version:
+      FormativeConversationProfileRecommendationVersionSchema,
     recommended: z.boolean(),
     proposed_outcome: z.enum([
       "sound_understanding",
@@ -217,7 +235,12 @@ const FormativeConversationProfileTransitionRecommendationSchema = z
     misconception_claim_closure: z
       .array(FormativeConversationMisconceptionIndicatorClosureSchema)
       .max(20)
-      .default([])
+      .default([]),
+    misconception_claim_dispositions: z
+      .array(FormativeConversationMisconceptionClaimDispositionSchema)
+      .max(400)
+      .nullable()
+      .optional()
   })
   .strict()
   .superRefine((value, context) => {
@@ -252,7 +275,8 @@ const FormativeConversationProfileTransitionRecommendationSchema = z
       !terminalRecommendation &&
       (value.updated_profile !== null ||
         value.field_evidence.length > 0 ||
-        (value.misconception_claim_closure?.length ?? 0) > 0)
+        (value.misconception_claim_closure?.length ?? 0) > 0 ||
+        (value.misconception_claim_dispositions?.length ?? 0) > 0)
     ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
@@ -417,6 +441,12 @@ export const FormativeConversationProfileEvidenceSchema = z
     misconception_claim_closure: z
       .array(FormativeConversationMisconceptionIndicatorClosureSchema)
       .max(20)
+      .optional(),
+    misconception_claim_catalog:
+      CanonicalMisconceptionClaimCatalogSchema.nullable().optional(),
+    misconception_claim_dispositions: z
+      .array(FormativeConversationMisconceptionClaimDispositionSchema)
+      .max(400)
       .optional()
   })
   .strict();
@@ -454,7 +484,7 @@ export const FormativeConversationSafetyBoundarySchema = z
 
 export const FormativeConversationAgentInputSchema = z
   .object({
-    contract_version: z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
+    contract_version: FormativeConversationAgentContractVersionSchema,
     context_version: z.literal(FORMATIVE_CONVERSATION_CONTEXT_VERSION),
     conversation_public_id: z.string().min(1),
     assessment_public_id: z.string().min(1),
@@ -475,6 +505,8 @@ export const FormativeConversationAgentInputSchema = z
       .default([]),
     initial_profile: FormativeConversationProfileEvidenceSchema,
     current_profile: FormativeConversationProfileEvidenceSchema,
+    allowed_misconception_claim_catalog:
+      CanonicalMisconceptionClaimCatalogSchema,
     profile_history: z
       .array(
         z
@@ -514,7 +546,7 @@ export const FormativeConversationAgentInputSchema = z
 
 export const FormativeConversationAgentOutputSchema = z
   .object({
-    contract_version: z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
+    contract_version: FormativeConversationAgentContractVersionSchema,
     student_visible_message: z.string().min(1).max(12_000),
     teaching_artifact: z
       .object({
@@ -612,6 +644,8 @@ export type FormativeConversationProfileEvidence = z.infer<
 export type FormativeConversationCanonicalProfile = z.infer<
   typeof FormativeConversationCanonicalProfileSchema
 >;
+export type FormativeConversationMisconceptionClaimCatalog =
+  CanonicalMisconceptionClaimCatalog;
 export type FormativeConversationProfileFieldEvidence = z.infer<
   typeof FormativeConversationProfileFieldEvidenceSchema
 >;

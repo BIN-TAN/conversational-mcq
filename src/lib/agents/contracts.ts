@@ -16,6 +16,7 @@ import {
   ProfileTypeSchema
 } from "@/lib/domain/enums";
 import { AgentName } from "./names";
+import { StudentProfileAtomicMisconceptionClaimSchema } from "@/lib/domain/misconception-claim-identity";
 
 export const AgentOutputBase = z.object({
   agent_name: AgentName,
@@ -294,29 +295,46 @@ export const StudentProfileOutput = AgentOutputBase.extend({
   evidence_sufficiency: EvidenceSufficiencySchema,
   confidence_alignment: ConfidenceAlignmentSchema,
   independence_interpretability: IndependenceInterpretabilitySchema,
-  misconception_indicators: z.array(z.object({
-    indicator: z.string(),
-    evidence_reference: z.string().nullable(),
-    confidence: ConfidenceLevelSchema,
-    rationale: z.string().nullable()
-  }).strict()),
-  item_level_evidence: z.array(z.object({
-    item_public_id: z.string().nullable(),
-    evidence_summary: z.string(),
-    correctness: z.string().nullable(),
-    reasoning_quality: z.string().nullable(),
-    confidence_rating: ConfidenceLevelSchema.nullable()
-  }).strict()),
+  misconception_indicators: z.array(
+    z
+      .object({
+        indicator: z.string(),
+        evidence_reference: z.string().nullable(),
+        confidence: ConfidenceLevelSchema,
+        rationale: z.string().nullable(),
+        atomic_claims: z
+          .array(StudentProfileAtomicMisconceptionClaimSchema)
+          .min(1)
+          .max(20)
+          .optional()
+      })
+      .strict()
+  ),
+  item_level_evidence: z.array(
+    z
+      .object({
+        item_public_id: z.string().nullable(),
+        evidence_summary: z.string(),
+        correctness: z.string().nullable(),
+        reasoning_quality: z.string().nullable(),
+        confidence_rating: ConfidenceLevelSchema.nullable()
+      })
+      .strict()
+  ),
   reasoning_quality_summary: z.string(),
   engagement_summary: z.string(),
   process_interpretation_cautions: z.array(z.string()),
   profile_confidence: ConfidenceLevelSchema,
   rationale: z.string(),
-  recommended_next_evidence: z.array(z.object({
-    evidence_type: z.string(),
-    reason: z.string(),
-    item_public_id: z.string().nullable()
-  }).strict())
+  recommended_next_evidence: z.array(
+    z
+      .object({
+        evidence_type: z.string(),
+        reason: z.string(),
+        item_public_id: z.string().nullable()
+      })
+      .strict()
+  )
 }).strict();
 
 export const FormativePlanningInput = z.object({

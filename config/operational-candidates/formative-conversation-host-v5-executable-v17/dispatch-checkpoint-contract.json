@@ -1,0 +1,27 @@
+{
+  "contract_version": "formative-conversation-v17-dispatch-contract-v1",
+  "checkpoint_version": "formative-conversation-v17-dispatch-checkpoint-v1",
+  "writer_source": "src/lib/operational/formative-conversation-v5-evaluation-v17/dispatch-checkpoint.ts",
+  "writer_source_sha256": "7e0ab204db981abc644c89b2b0b918fa8c8aaf1b25e37eab7b5818584263ff90",
+  "exact_checkpoint_count": 1,
+  "boundary": "immediately_before_first_generation_request",
+  "plan_mode_checkpoint_count": 0,
+  "exclusive_create_required": true,
+  "rerun_after_checkpoint_forbidden": true,
+  "immutable_identity_fields": [
+    "provider_run_id",
+    "derived_evaluation_id",
+    "runtime_candidate_hash",
+    "evaluation_protocol_hash",
+    "runner_implementation_hash",
+    "fixture_manifest_hash",
+    "aggregate_fixture_hash",
+    "compiled_plan_hash",
+    "live_environment_contract_hash",
+    "dispatch_checkpoint_contract_hash"
+  ],
+  "shared_dispatch_boundary_for_both_roles": true,
+  "checkpoint_precedes_provider_request": true,
+  "provider_request_started_at_checkpoint": false,
+  "dispatch_checkpoint_contract_hash": "5ba0b3aee4ecf137c70f8180481b9c131492ff52b13646ff494d24edcbd298bb"
+}

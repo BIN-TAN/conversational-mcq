@@ -1,4 +1,8 @@
 import type { StudentProfile } from "@prisma/client";
+import {
+  canonicalMisconceptionClaimTexts,
+  parseCanonicalMisconceptionClaimCatalog
+} from "@/lib/domain/misconception-claim-identity";
 import { prisma } from "@/lib/db";
 import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
@@ -57,6 +61,13 @@ function teacherProfileEvidence(value: unknown): string[] {
   ].flatMap((key) => teacherProfileEvidence(record[key]));
 }
 
+function teacherMisconceptionEvidence(value: unknown) {
+  const catalog = parseCanonicalMisconceptionClaimCatalog(value);
+  return catalog
+    ? canonicalMisconceptionClaimTexts(catalog)
+    : teacherProfileEvidence(value);
+}
+
 function serializeFormativeLearningProfile(
   profile: Pick<
     StudentProfile,
@@ -83,7 +94,7 @@ function serializeFormativeLearningProfile(
     confidence_alignment: profile.confidence_alignment,
     independence_interpretability:
       profile.independence_interpretability,
-    misconception_evidence: teacherProfileEvidence(
+    misconception_evidence: teacherMisconceptionEvidence(
       profile.misconception_indicators
     ),
     profile_confidence: profile.profile_confidence,

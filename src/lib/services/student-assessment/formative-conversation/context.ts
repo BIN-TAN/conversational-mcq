@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@/lib/db";
+import { emptyCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import {
   FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_CONTEXT_VERSION,
@@ -47,6 +48,7 @@ export function compileFormativeConversationContext(
     | "profile_history"
     | "telemetry_summary"
     | "teacher_guidance"
+    | "allowed_misconception_claim_catalog"
   > &
     Partial<
       Pick<
@@ -61,10 +63,27 @@ export function compileFormativeConversationContext(
     authorized_administered_item_public_ids: authorizedAdministeredItemPublicIds,
     ...agentInput
   } = input;
+  if (
+    agentInput.current_profile.canonical_profile &&
+    agentInput.current_profile.canonical_profile.misconception_indicators
+      .length > 0 &&
+    !agentInput.current_profile.misconception_claim_catalog
+  ) {
+    throw new Error(
+      "formative_conversation_legacy_misconception_claim_catalog_unavailable"
+    );
+  }
+  const allowedMisconceptionClaimCatalog =
+    agentInput.current_profile.misconception_claim_catalog ??
+    emptyCanonicalMisconceptionClaimCatalog(
+      `conversation:${agentInput.conversation_public_id}:empty`
+    );
   const parsed = FormativeConversationAgentInputSchema.parse({
     ...agentInput,
     contract_version: FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
     context_version: FORMATIVE_CONVERSATION_CONTEXT_VERSION,
+    allowed_misconception_claim_catalog:
+      allowedMisconceptionClaimCatalog,
     visible_transcript: [...agentInput.visible_transcript].sort(
       (left, right) => left.sequence_index - right.sequence_index
     ),

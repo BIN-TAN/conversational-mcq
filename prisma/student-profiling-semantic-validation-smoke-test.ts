@@ -117,7 +117,17 @@ function profileOutput(input: {
         indicator: "The same unsupported interpretation appears across responses.",
         evidence_reference: input.itemFixtures[0]?.item_public_id ?? null,
         confidence: "medium",
-        rationale: "The response reasoning applies the same interpretation."
+        rationale: "The response reasoning applies the same interpretation.",
+        atomic_claims: [
+          {
+            claim_text:
+              "The unsupported interpretation is treated as sufficient across the cited responses.",
+            source_evidence_references: [
+              input.itemFixtures[0]?.item_public_id ??
+                "semantic_profile_item_unavailable"
+            ]
+          }
+        ]
       }
     ],
     item_level_evidence: input.itemFixtures.map((item) => ({
@@ -423,8 +433,71 @@ function main() {
     issueFragment: "transfer_ready requires explicit transfer evidence"
   });
 
+  const missingAtomicClaims = profileOutput({ itemFixtures: persistentItems });
+  missingAtomicClaims.misconception_indicators[0] = {
+    ...missingAtomicClaims.misconception_indicators[0],
+    atomic_claims: undefined
+  };
+  expectInvalid({
+    caseId: "missing_atomic_misconception_claims",
+    providerInput: profileInput({ initial: persistentItems }),
+    output: missingAtomicClaims,
+    issueFragment: "requires validated atomic_claims before persistence"
+  });
+
+  const metadataPseudoClaim = profileOutput({ itemFixtures: persistentItems });
+  metadataPseudoClaim.misconception_indicators[0] = {
+    ...metadataPseudoClaim.misconception_indicators[0],
+    atomic_claims: [
+      {
+        claim_text: "Confidence: medium",
+        source_evidence_references: [persistentItems[0].item_public_id]
+      }
+    ]
+  };
+  expectInvalid({
+    caseId: "metadata_is_not_atomic_misconception_claim",
+    providerInput: profileInput({ initial: persistentItems }),
+    output: metadataPseudoClaim,
+    issueFragment: "contains profile metadata instead of a misconception claim"
+  });
+
+  const ungroundedAtomicClaim = profileOutput({ itemFixtures: persistentItems });
+  ungroundedAtomicClaim.misconception_indicators[0] = {
+    ...ungroundedAtomicClaim.misconception_indicators[0],
+    atomic_claims: [
+      {
+        claim_text: "The unsupported interpretation is sufficient.",
+        source_evidence_references: ["invented_atomic_claim_evidence"]
+      }
+    ]
+  };
+  expectInvalid({
+    caseId: "ungrounded_atomic_claim_evidence",
+    providerInput: profileInput({ initial: persistentItems }),
+    output: ungroundedAtomicClaim,
+    issueFragment: "references evidence outside the supplied response package"
+  });
+
+  const duplicateAtomicClaim = profileOutput({ itemFixtures: persistentItems });
+  const originalAtomicClaim =
+    duplicateAtomicClaim.misconception_indicators[0].atomic_claims?.[0];
+  if (!originalAtomicClaim) {
+    throw new Error("atomic_claim_fixture_missing");
+  }
+  duplicateAtomicClaim.misconception_indicators[0] = {
+    ...duplicateAtomicClaim.misconception_indicators[0],
+    atomic_claims: [originalAtomicClaim, structuredClone(originalAtomicClaim)]
+  };
+  expectInvalid({
+    caseId: "duplicate_atomic_misconception_claim",
+    providerInput: profileInput({ initial: persistentItems }),
+    output: duplicateAtomicClaim,
+    issueFragment: "duplicates a prior atomic claim"
+  });
+
   console.log(
-    "Student profiling semantic validation smoke passed: 3 failed synthetic boundaries replayed offline; no OpenAI call was made."
+    "Student profiling semantic validation smoke passed: evidence consistency and V17 atomic misconception claims validated offline; no OpenAI call was made."
   );
 }
 

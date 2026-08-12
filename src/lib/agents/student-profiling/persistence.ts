@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
+import { createCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { toPrismaJson } from "@/lib/services/json";
 import { createOrGetTrustedFormativeConversationSessionInTransaction } from "@/lib/services/student-assessment/formative-conversation/service";
 import {
@@ -19,6 +20,18 @@ export function studentProfileCreateData(input: {
   based_on_agent_call_db_id: string | null;
   output: StudentProfileOutput;
 }) {
+  const misconceptionClaimCatalog =
+    createCanonicalMisconceptionClaimCatalog({
+      identity_scope: [
+        input.concept_unit_session_db_id,
+        input.based_on_agent_call_db_id ?? "deterministic-fallback",
+        input.output.profile_type
+      ].join(":"),
+      indicators: input.output.misconception_indicators.map((indicator) => ({
+        ...indicator,
+        atomic_claims: indicator.atomic_claims ?? []
+      }))
+    });
   return {
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     profile_type: input.output.profile_type,
@@ -32,7 +45,7 @@ export function studentProfileCreateData(input: {
     evidence_sufficiency: input.output.evidence_sufficiency,
     confidence_alignment: input.output.confidence_alignment,
     independence_interpretability: input.output.independence_interpretability,
-    misconception_indicators: json(input.output.misconception_indicators),
+    misconception_indicators: json(misconceptionClaimCatalog),
     item_level_evidence: json(input.output.item_level_evidence),
     reasoning_quality_summary: input.output.reasoning_quality_summary,
     engagement_summary: input.output.engagement_summary,

@@ -33,8 +33,9 @@ export const FORMATIVE_CONVERSATION_PROMPT_VERSION:
   | "formative-conversation-host-v5"
   | "formative-conversation-host-v5.1"
   | "formative-conversation-host-v5.2"
-  | "formative-conversation-host-v5.3" =
-  "formative-conversation-host-v5.3";
+  | "formative-conversation-host-v5.3"
+  | "formative-conversation-host-v5.4" =
+  "formative-conversation-host-v5.4";
 
 export const FORMATIVE_CONVERSATION_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -58,7 +59,7 @@ labels, unadministered items, or unadministered answer keys. You may reveal and 
 for administered items. Do not claim that an inferred learning state is certain. Do not invent
 assessment evidence.
 
-Return the formative-conversation-agent-contract-v1 JSON object. The student_visible_message must be
+Return the formative-conversation-agent-contract-v2 JSON object. The student_visible_message must be
 natural instructional dialogue. Evidence observations and transition recommendations are audit
 recommendations only; the application separately validates and records profile transitions.
 Use only paragraphs, bold or italic emphasis, ordered or unordered lists, blockquotes, and short
@@ -78,7 +79,7 @@ conversation may continue whenever the available student evidence is insufficien
 teaching approach remains useful.
 
 When recommending sound_understanding, largely_improved_understanding, or
-teacher_assistance_recommended, provide the complete formative-conversation-profile-recommendation-v2
+teacher_assistance_recommended, provide the complete formative-conversation-profile-recommendation-v3
 updated profile. For every profile field, state whether conversation evidence updated it or whether
 the prior evidence remains valid. Do not copy a prior field merely because no replacement was
 considered. Use continue_conversation when the evidence does not support a validated profile change;
@@ -97,6 +98,16 @@ and do not use it for a remaining limitation, uncertainty, question, or suggeste
 resolved evidence in item_level_evidence or the profile rationale, and put limitations or useful
 next evidence in reasoning_quality_summary, process_interpretation_cautions, or
 recommended_next_evidence as semantically appropriate.
+
+The allowed_misconception_claim_catalog is the authoritative identity catalog for the current
+misconception state. Indicator IDs and claim IDs are platform-assigned. Never invent, rewrite,
+paraphrase, or infer an identity. For every terminal transition, return exactly one
+misconception_claim_dispositions entry for every allowed claim_id, using its catalog indicator_id.
+Mark a claim resolved only when cited student conversation evidence addresses that claim; otherwise
+mark it retained. The platform derives the resulting human-readable misconception field from retained
+canonical IDs and text. Confidence, rationale, evidence metadata, limitations, uncertainty, and
+untested knowledge are not misconception claims. If the catalog cannot represent the needed state,
+continue the conversation instead of creating an ID or reconstructing identity from text.
 
 The profile_transition_recommendation.proposed_outcome is the single authoritative profile decision.
 The teacher_assistance_recommendation compatibility field must mirror that decision: set recommended
@@ -220,8 +231,17 @@ export function createLiveFormativeConversationAgentRunner(): FormativeConversat
             }
           });
         const result = semanticExecution.result;
+        const accepted = validateFormativeConversationCandidateAcceptance({
+          candidate: result.parsed_output,
+          context
+        });
+        if (!accepted.valid || !accepted.output) {
+          throw new Error(
+            "formative_conversation_accepted_candidate_projection_invalid"
+          );
+        }
         const execution: FormativeConversationAgentExecution = {
-          output: result.parsed_output,
+          output: accepted.output,
           raw_output: {
             accepted_output: result.raw_output,
             provider_execution_audit: semanticExecution.audit

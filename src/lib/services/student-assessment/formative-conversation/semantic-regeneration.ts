@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
+  canonicalMisconceptionClaimIds,
+  canonicalMisconceptionIndicatorIds
+} from "@/lib/domain/misconception-claim-identity";
+import {
   canonicalStructuredAgentRequestHash,
   classifyProviderFailure
 } from "@/lib/llm/provider-transport-retry";
@@ -396,7 +400,15 @@ export function buildFormativeConversationSemanticRegenerationRequest(input: {
           evidence?.validation_issue_paths ?? [],
         prior_invalid_candidate_hash: evidence?.candidate_hash ?? null,
         prior_invalid_candidate:
-          evidence?.candidate_json ?? evidence?.candidate_text ?? null
+          evidence?.candidate_json ?? evidence?.candidate_text ?? null,
+        canonical_misconception_claim_catalog:
+          input.base_request.input.allowed_misconception_claim_catalog,
+        allowed_indicator_ids: canonicalMisconceptionIndicatorIds(
+          input.base_request.input.allowed_misconception_claim_catalog
+        ),
+        allowed_claim_ids: canonicalMisconceptionClaimIds(
+          input.base_request.input.allowed_misconception_claim_catalog
+        )
       }
     },
     client_request_id: input.client_request_id,

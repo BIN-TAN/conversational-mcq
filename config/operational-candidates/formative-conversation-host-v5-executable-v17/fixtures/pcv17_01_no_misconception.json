@@ -1,0 +1,98 @@
+{
+  "fixture_version": "formative-conversation-v17-profiling-canary-v1",
+  "case_type": "profiling_contract_canary",
+  "case_id": "pcv17_01_no_misconception",
+  "case_order": 1,
+  "title": "Validated empty misconception catalog",
+  "synthetic_only": true,
+  "real_student_information_present": false,
+  "provider_input": {
+    "concept_unit_metadata": {
+      "concept_unit_public_id": "pcv17_01_no_misconception:measurement-evidence",
+      "title": "Measurement evidence and score interpretation",
+      "learning_objective": "Distinguish reliability, measurement error, and validity evidence."
+    },
+    "initial_response_package": {
+      "package_type": "initial_concept_unit_response_package",
+      "payload": {
+        "item_responses": [
+          {
+            "item_public_id": "measurement_reliability",
+            "correctness": "correct",
+            "reasoning_text": "Reliability supports consistency, not validity by itself.",
+            "confidence_rating": "medium"
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "correctness": "correct",
+            "reasoning_text": "SEM describes uncertainty around an observed score.",
+            "confidence_rating": "medium"
+          },
+          {
+            "item_public_id": "validity_argument",
+            "correctness": "correct",
+            "reasoning_text": "Validity evidence depends on the intended interpretation and use.",
+            "confidence_rating": "medium"
+          }
+        ],
+        "process_counts": {
+          "answer_revision_count": 1,
+          "page_hidden_count": 0
+        }
+      },
+      "process_events": [
+        {
+          "event_type": "package_submitted",
+          "event_category": "initial_administration",
+          "event_source": "student",
+          "occurred_at": "2026-08-12T00:00:00.000Z"
+        }
+      ]
+    },
+    "previous_profile": null,
+    "followup_evidence_package": null,
+    "profile_type": "initial",
+    "profiling_constraints": {
+      "conservative_inference_required": true,
+      "semantic_atomic_claims_required": true,
+      "platform_assigns_machine_ids_after_validation": true,
+      "synthetic_operational_evaluation_only": true
+    }
+  },
+  "catalog_identity_scope_template": "<provider_run_id>:pcv17_01_no_misconception:initial-profile",
+  "expected_catalog": {
+    "indicator_count": 0,
+    "claim_count": 0,
+    "minimum_claim_count": 0,
+    "empty_catalog_required": true,
+    "distinct_claim_ids_required": true,
+    "partial_resolution_projection_required": false,
+    "metadata_pseudo_claims_forbidden": true,
+    "lexical_splitting_forbidden": true
+  },
+  "case_assertions": [
+    {
+      "assertion_id": "profiling_contract_valid",
+      "description": "The real student-profiling-v4 response passes schema and evidence-grounded semantic validation.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    },
+    {
+      "assertion_id": "platform_identity_assignment_valid",
+      "description": "The platform assigns canonical machine identities only after the profiling output is accepted.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    }
+  ],
+  "call_graph": {
+    "agent_name": "student_profiling_agent",
+    "prompt_version": "student-profiling-v4",
+    "schema_version": "student-profile-output-v3",
+    "base_logical_calls": 1,
+    "maximum_semantic_regenerations": 1,
+    "maximum_logical_calls": 2,
+    "maximum_provider_attempts_per_logical_call": 3,
+    "maximum_transport_retries_per_logical_call": 2
+  },
+  "fixture_hash": "c26ee9ba55cfb91b40f5abc7035a5e7b667fc1f9707f93ed005f13e3377aa98a"
+}
