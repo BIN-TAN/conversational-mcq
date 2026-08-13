@@ -1,5 +1,10 @@
 import type { MockProviderMode } from "@/lib/llm/providers/mock-provider";
-import { executeOperationalAgent } from "@/lib/agents/operational/executor";
+import {
+  executeOperationalAgent,
+  type ExecuteOperationalAgentInput,
+  type OperationalAgentExecutionResult
+} from "@/lib/agents/operational/executor";
+import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
 import { createResponsePackage } from "@/lib/services/response-packages";
@@ -36,12 +41,21 @@ export class StudentProfilingServiceError extends Error {
   }
 }
 
+export type StudentProfilingNoProviderExecutor = (
+  input: ExecuteOperationalAgentInput<"student_profiling_agent">
+) => Promise<
+  OperationalAgentExecutionResult<
+    AgentOutputByName["student_profiling_agent"]
+  >
+>;
+
 type RunInitialStudentProfilingInput = {
   concept_unit_session_db_id: string;
   requested_by_user_db_id?: string;
   invocation_reason: string;
   force_new_invocation?: boolean;
   mock_provider_mode?: MockProviderMode;
+  no_provider_test_executor?: StudentProfilingNoProviderExecutor;
 };
 
 type StudentProfilingCandidateInput = {
@@ -350,6 +364,21 @@ export async function executeStudentProfilingCandidate(
 }
 
 export async function runInitialStudentProfiling(input: RunInitialStudentProfilingInput) {
+  if (input.no_provider_test_executor) {
+    const noProviderBoundaryValid =
+      process.env.NODE_ENV === "test" &&
+      process.env.LLM_PROVIDER === "mock" &&
+      process.env.LLM_LIVE_CALLS_ENABLED === "false" &&
+      !process.env.OPENAI_API_KEY &&
+      !process.env.OPENAI_API_KEY_FILE;
+    if (!noProviderBoundaryValid) {
+      throw new StudentProfilingServiceError(
+        "invalid_no_provider_test_executor_boundary",
+        "The profiling executor override is restricted to an explicit no-provider test environment.",
+        500
+      );
+    }
+  }
   const conceptUnitSession = await prisma.conceptUnitSession.findUnique({
     where: { id: input.concept_unit_session_db_id },
     select: {
@@ -439,7 +468,9 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     }
   });
 
-  const result = await executeOperationalAgent({
+  const result = await (
+    input.no_provider_test_executor ?? executeOperationalAgent
+  )({
     agentName: "student_profiling_agent",
     allowlistedInput: built.input,
     invocationKey: built.agent_invocation_key,

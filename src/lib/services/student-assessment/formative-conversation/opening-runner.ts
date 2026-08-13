@@ -12,9 +12,12 @@ import {
   FormativeConversationUnavailableError,
   formativeConversationUnavailableFromConfiguration
 } from "./availability";
-import { createLiveFormativeConversationAgentRunner } from "./live-runner";
+import { createLiveFormativeConversationV18AgentRunner } from "./live-runner-v18";
 import { FORMATIVE_CONVERSATION_OPENING_VERSION } from "./opening-contract";
-import type { FormativeConversationAgentRunner } from "./runtime";
+import type {
+  AnyFormativeConversationAgentRunner,
+  FormativeConversationAgentRunner
+} from "./runtime";
 
 const NO_LIVE_OPENING_FIXTURE =
   "You've reviewed your answers. We can now discuss whichever part would be most useful to you.";
@@ -71,14 +74,14 @@ function noLiveOpeningTestRunner(): FormativeConversationAgentRunner {
 
 export function createFormativeConversationOpeningRunner(
   executionMode: FormativeExecutionMode
-): FormativeConversationAgentRunner {
+): AnyFormativeConversationAgentRunner {
   try {
     const executionPlan = resolveTopicDialogueExecutionPlan(executionMode);
 
     if (executionPlan.adapter === "configured_live_runtime") {
       const runtime = getLlmRuntimeConfig();
       if (runtime.provider === "openai" && runtime.live_calls_enabled) {
-        return createLiveFormativeConversationAgentRunner();
+        return createLiveFormativeConversationV18AgentRunner();
       }
       if (runtime.provider === "mock" && process.env.NODE_ENV !== "production") {
         return noLiveOpeningTestRunner();

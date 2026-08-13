@@ -1,0 +1,13 @@
+{
+  "artifact_version": "formative-conversation-v18-candidate-identity-v1",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "profiling_prompt_hash": "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626",
+  "formative_prompt_hash": "cec7ea8dcb2ef86b588346b540ef0439f78e6265b12de7a317a3f7514f776a9a",
+  "protocol_hash": "4ade4a44ee74bfc59be2ce1fef274e490c1e4bcb3dd330d36229efa530841d47",
+  "candidate_manifest_sha256": "8c8f064368559105b13a534a125f647033b7928fe78811507e70d9c3f0ade1a0",
+  "verification_manifest_sha256": "d131206aa54538f58f13acfa5167d7f2beb38b16d0fa0b2b3ee1528f057ec649",
+  "immutable_v17_reference_sha256": "209c7fbffb8dc251752a255ba1e198b194f33d1647b8f27297ec7ddaa0e6bc7f",
+  "live_execution_prepared": false,
+  "approval_eligible": false,
+  "activation_permitted": false
+}

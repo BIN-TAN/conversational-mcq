@@ -1,0 +1,194 @@
+{
+  "protocol_version": "formative-conversation-v18-no-provider-convergence-protocol-v1",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "immutable_v17_reference": {
+    "reference_version": "formative-conversation-v18-immutable-v17-reference-v1",
+    "git_commit": "35dcd9b9de30060a85de3b2f5860e0696303f20c",
+    "provider_run_id": "fcv5v17_provider_20260812104724_6e45e95e",
+    "derived_evaluation_id": "fcv5v17_derived_20260812104724_47ac9964",
+    "runtime_candidate_hash": "b077ba062c37340eac2918a2578f118c36fa852006196d31ef4735598ed21e6e",
+    "evaluation_protocol_hash": "e8d76572f9fb11bf88069c3474c6f1a39469a68e2fe1fa1d2a827f42c2283d90",
+    "candidate_tree_sha256": "ee212a40935b46317727c7b0525f0e7d2982dc6c3a7461dd99c84c94f64caecc",
+    "run_tree_sha256": "7ded22b1edf77d0572168a545d759b1f89eed832f4b0f7a03ccc29b7223d9054",
+    "candidate_artifacts_mutated": false,
+    "run_artifacts_mutated": false,
+    "required_as_local_live_dependency": false,
+    "reference_policy": "immutable_hash_reference_only"
+  },
+  "forensic_failure_classes": {
+    "profiling_canaries": {
+      "primary_failure_class": "pre_dispatch_request_schema_rejection",
+      "failing_schema_path": "#/definitions/student-profile-output-v3/properties/misconception_indicators/items/properties/atomic_claims",
+      "exact_rejection": "uses .optional() without .nullable() which is not supported by the API",
+      "adapter_entered": true,
+      "request_serialization_completed": false,
+      "fetch_invoked": false,
+      "offline_gap": "V17 tests parsed fixtures with Zod but did not invoke the production Responses strict-schema compiler."
+    },
+    "case_5": {
+      "primary_failure_class": "max_output_token_truncation",
+      "classification_code": "A",
+      "provider_result_status": "incomplete",
+      "provider_incomplete_reason": "max_output_tokens",
+      "configured_max_output_tokens": 3500,
+      "observed_output_tokens": 3500,
+      "raw_candidate_preserved": true,
+      "raw_candidate_is_truncated_json": true,
+      "complete_provider_response_failed_parsing": false,
+      "semantic_regeneration_permitted": false,
+      "reason": "The provider result was incomplete and syntactically truncated, so it was not a parsed semantic-contract failure."
+    },
+    "case_6": {
+      "primary_provider_result_status": "completed",
+      "legacy_field": "misconception_claim_closure",
+      "legacy_field_permitted_by_v17_json_schema": true,
+      "compatibility_parse_admitted_primary": true,
+      "primary_rejection": "profile_transition_legacy_misconception_closure_forbidden",
+      "semantic_regeneration_ran": true,
+      "semantic_regeneration_final_rejection": "profile_transition_evidence_closure_violation",
+      "canonical_sequence_indexes": [
+        890,
+        892
+      ],
+      "leaking_field_sequence_indexes": [
+        891,
+        892
+      ],
+      "reason": "The regenerated independence_interpretability field cited tutor turn 891 outside the canonical top-level evidence set."
+    },
+    "controls": {
+      "case_7": "passed_teacher_assistance_control",
+      "case_8": "passed_changed_claim_control"
+    }
+  },
+  "verification_manifest": {
+    "manifest_version": "formative-conversation-v18-verification-manifest-v1",
+    "verification_sources": [
+      {
+        "path": ".env.example",
+        "sha256": "82acd67d385d2e48175dc68e7d34fe900aa3e5ca73f425df058326dc1936511a"
+      },
+      {
+        "path": "package.json",
+        "sha256": "0678eeb89090a6e1fed13ce34bf38755201b9943935c14c6d13938442be3f363"
+      },
+      {
+        "path": "prisma/formative-conversation-v7-profile-disposition-smoke-test.ts",
+        "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+      },
+      {
+        "path": "prisma/formative-conversation-v8-profile-disposition-smoke-test.ts",
+        "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-test-fixtures.ts",
+        "sha256": "f68a68e50eb51c6706daae8adf980e0a1a49544ee63a0b0cfd7d248bf4b1cfc6"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-v17-forensic-replay-smoke-test.ts",
+        "sha256": "f87f46dfc68cb9bb6d77b578fd30f2f561f46a62299ba5165e17dfddbe18987a"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-provider-request-smoke-test.ts",
+        "sha256": "92ed990bd0f82eb098ed0c318941611b8425231b0a4a16e7594021fc9bd1c143"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-contract-smoke-test.ts",
+        "sha256": "762628775d8a7b812ac0038c0c0ee04b53fda28d455ccee989b20571f8ad818d"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-pipeline-runtime-smoke-test.ts",
+        "sha256": "b687de981108e11934c105584987db4e09f8338224a7265c6e64c65b77442ac5"
+      },
+      {
+        "path": "prisma/formative-conversation-v18-runtime-database-smoke-test.ts",
+        "sha256": "08b4ee243ddbcca49c4142962c5dc3dad328a83a66929f35323e983415f9b499"
+      },
+      {
+        "path": "prisma/operational-formative-conversation-v18-materialize.ts",
+        "sha256": "66dea618bc783d2efdd529fcff64c656d97b9da248dbd66bcee195da0414b853"
+      },
+      {
+        "path": "prisma/operational-formative-conversation-v18-smoke-test.ts",
+        "sha256": "490f5fc46983ab8d0ca696dfc3e9e7cf779bc646bb6e1b1b3ae93963bb82d587"
+      },
+      {
+        "path": "prisma/student-profiling-semantic-validation-smoke-test.ts",
+        "sha256": "cfa387d7dfc498decce71a8438e035054ca2a4c3eecf086e9636bf93ce263a60"
+      },
+      {
+        "path": "src/lib/evaluation/synthetic-student-validation/framework.ts",
+        "sha256": "cf88561adae52e9f3957e3a28c3dbdadb07dfdaf836fea639f10a6f99e9493e8"
+      },
+      {
+        "path": "src/lib/llm/providers/mock-provider.ts",
+        "sha256": "81e29354516f64d54b3959ea58aeb9d0e6e611b6ff9d258e7320f8f40edd2637"
+      },
+      {
+        "path": "src/lib/operational/formative-conversation-v18/candidate.ts",
+        "sha256": "32ff107649beb4c3e20a5b660ebe25a281fa74c4eb12ac387cb6e048e01b30cd"
+      },
+      {
+        "path": "src/lib/operational/formative-conversation-v18/forensics.ts",
+        "sha256": "158b1216b08482782b9ea34a76b320335f960f5aa4c5b7e0576e88efcccd802b"
+      },
+      {
+        "path": "docs/operations/FORMATIVE_CONVERSATION_V18_CONTRACT_CONVERGENCE.md",
+        "sha256": "4326bfd47454d2ff6eaea83ba3b62918c33cf931915763643d1e8a7c8ce65e10"
+      }
+    ],
+    "required_no_provider_tests": [
+      "operational:formative-conversation-v18-v17-forensic-replay-smoke",
+      "operational:formative-conversation-v18-provider-request-smoke",
+      "operational:formative-conversation-v18-contract-smoke",
+      "student:profiling-semantic-validation-smoke",
+      "operational:formative-conversation-v17-identity-smoke",
+      "operational:formative-conversation-v17-profiling-canary-smoke",
+      "operational:formative-conversation-v17-v16-replay-smoke",
+      "operational:formative-conversation-v16-misconception-evidence-closure-smoke",
+      "operational:formative-conversation-transition-evidence-closure-v1-smoke",
+      "operational:formative-conversation-semantic-regeneration-v2-smoke",
+      "operational:formative-conversation-profile-transition-v4-smoke",
+      "operational:provider-transport-retry-v3-smoke",
+      "operational:formative-conversation-output-format-v1-smoke",
+      "student:formative-privacy-smoke",
+      "operational:formative-conversation-v5-v17-security-smoke",
+      "operational:formative-conversation-v5-v15-security-smoke",
+      "operational:formative-conversation-v7-profile-disposition-smoke",
+      "operational:formative-conversation-v8-profile-disposition-smoke",
+      "operational:formative-conversation-v18-runtime-database-smoke",
+      "npx prisma validate",
+      "typecheck",
+      "lint",
+      "build_with_8gb_heap"
+    ],
+    "isolated_database_policy": {
+      "temporary_local_postgresql_only": true,
+      "classroom_or_render_database_forbidden": true,
+      "database_drop_required": true,
+      "local_postgresql_stop_required": true
+    },
+    "production_build_node_heap_mb": 8192
+  },
+  "required_counts": {
+    "provider_calls": 0,
+    "model_auth_requests": 0,
+    "generation_network_requests": 0,
+    "real_dispatch_checkpoints": 0
+  },
+  "execution_scope": {
+    "live_execution_prepared": false,
+    "live_execution_permitted": false,
+    "launcher_present": false,
+    "environment_contract_present": false,
+    "dispatch_checkpoint_contract_present": false,
+    "authorization_present": false
+  },
+  "governance": {
+    "approval_eligible": false,
+    "activation_permitted": false,
+    "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+    "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2"
+  },
+  "protocol_hash": "4ade4a44ee74bfc59be2ce1fef274e490c1e4bcb3dd330d36229efa530841d47"
+}

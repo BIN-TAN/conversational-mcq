@@ -1,0 +1,32 @@
+{
+  "manifest_version": "formative-conversation-v18-security-wrapper-manifest-v1",
+  "source_files": [
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs",
+      "sha256": "4a5923170ab7d3af9754ebad87c0dc43aa92cd36d66d9b3efbb3881df7834989"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+      "sha256": "2bd1953bcc2f5007a3d325a461e243911abf87dadd9f7e33b3c1f9787fc5781c"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+      "sha256": "85c716969e8719293bdbc8a1aa8520186a4f01ab7dba0eeb44d184de8f59ee2a"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/security-release.ts",
+      "sha256": "ced9a1490d3a1578a7644c0c500e8f7e4be0f53aa9fd128df5faa293bc7fe554"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/service.ts",
+      "sha256": "83d38631144d0e47f302fdef4c3c0378b7b2358ea76609ed19f30f9ecf494d28"
+    }
+  ],
+  "exact_secret_scan_before_clear_required": true,
+  "zip_entries_scanned": true,
+  "buffered_output_scanned": true,
+  "owner_only_atomic_release": true,
+  "secrets_persisted": false,
+  "security_wrapper_hash": "ba3610a742f3f913bd611f1ceba5da348ddaca0023cfbb76491c2bc402be15bc",
+  "security_wrapper_manifest_hash": "4d25fe9f4424856b2b9b4112a17d28de89ca459763f9bf20bf740a2d0190f451"
+}

@@ -47,6 +47,7 @@ export type MockProviderMode =
   | "response_collection_reasoning"
   | "response_collection_help_request"
   | "response_collection_prompt_injection"
+  | "student_profiling_compound_misconception"
   | "timeout";
 
 const attemptsByRequest = new Map<string, number>();
@@ -83,6 +84,7 @@ function profilingResponseItems(value: unknown) {
       item_public_id: string;
       correctness: string | null;
       confidence_rating: "low" | "medium" | "high" | null;
+      reasoning_text: string | null;
     }
   >();
 
@@ -109,11 +111,42 @@ function profilingResponseItems(value: unknown) {
         typeof entry.response.correctness === "string"
           ? entry.response.correctness
           : null,
-      confidence_rating: confidence
+      confidence_rating: confidence,
+      reasoning_text:
+        typeof entry.response.reasoning_text === "string"
+          ? entry.response.reasoning_text
+          : typeof entry.response.reasoning_text_final === "string"
+            ? entry.response.reasoning_text_final
+            : null
     });
   }
 
   return [...merged.values()];
+}
+
+function profilingStudentEvidenceId(
+  value: unknown,
+  itemPublicId: string | null
+) {
+  const input = jsonRecord(value);
+  const catalog = jsonRecord(input?.allowed_evidence_catalog);
+  const evidence = jsonRecords(catalog?.evidence);
+  const itemMatch = evidence.find(
+    (entry) =>
+      entry.item_public_id === itemPublicId &&
+      entry.source_role === "student" &&
+      entry.eligibility === "student_understanding" &&
+      typeof entry.evidence_id === "string"
+  );
+  const fallback = evidence.find(
+    (entry) =>
+      entry.source_role === "student" &&
+      entry.eligibility === "student_understanding" &&
+      typeof entry.evidence_id === "string"
+  );
+  return typeof (itemMatch ?? fallback)?.evidence_id === "string"
+    ? ((itemMatch ?? fallback)?.evidence_id as string)
+    : itemPublicId;
 }
 
 function failedResult<TOutput>(
@@ -832,6 +865,10 @@ export class MockLlmProvider implements LlmProvider {
       const noGroundedItems = responseItems.length === 0;
       const firstIncorrect =
         responseItems.find((item) => item.correctness === "incorrect") ?? null;
+      const firstIncorrectEvidenceId = profilingStudentEvidenceId(
+        input,
+        firstIncorrect?.item_public_id ?? null
+      );
 
       output.item_level_evidence = responseItems.map((item) => ({
         item_public_id: item.item_public_id,
@@ -879,7 +916,7 @@ export class MockLlmProvider implements LlmProvider {
         ? [
             {
               indicator: "mock_grounded_incorrect_response_pattern",
-              evidence_reference: firstIncorrect.item_public_id,
+              evidence_reference: firstIncorrectEvidenceId,
               confidence: "low",
               rationale:
                 "Mock misconception indicator is grounded to a supplied incorrect response.",
@@ -888,13 +925,53 @@ export class MockLlmProvider implements LlmProvider {
                   claim_text:
                     "The supplied incorrect response is treated as supporting the selected interpretation.",
                   source_evidence_references: [
-                    firstIncorrect.item_public_id
+                    firstIncorrectEvidenceId
                   ]
                 }
               ]
             }
           ]
         : [];
+      if (
+        mode === "student_profiling_compound_misconception" &&
+        incorrectCount > 0
+      ) {
+        const incorrectResponses = responseItems.filter(
+          (item) => item.correctness === "incorrect"
+        );
+        const claimText = (reasoningText: string | null) => {
+          const reasoning = reasoningText ?? "";
+          if (/standard error|\bsem\b|exact true score/iu.test(reasoning)) {
+            return "Standard error of measurement identifies an exact true score.";
+          }
+          if (/validity.*(?:every|context|stays)|permanent property/iu.test(reasoning)) {
+            return "Validity is permanent and independent of interpretation or use.";
+          }
+          if (/reliab|consisten/iu.test(reasoning)) {
+            return "High reliability automatically proves validity for the intended use.";
+          }
+          return "The submitted interpretation treats one measurement statistic as definitive proof.";
+        };
+        output.misconception_indicators = [
+          {
+            indicator:
+              "Measurement statistics are treated as definitive proof across distinct interpretations.",
+            evidence_reference: profilingStudentEvidenceId(
+              input,
+              incorrectResponses[0]?.item_public_id ?? null
+            ),
+            confidence: "medium",
+            rationale:
+              "The grounded incorrect responses support distinct atomic misconception claims.",
+            atomic_claims: incorrectResponses.map((item) => ({
+              claim_text: claimText(item.reasoning_text),
+              source_evidence_references: [
+                profilingStudentEvidenceId(input, item.item_public_id)
+              ]
+            }))
+          }
+        ];
+      }
       output.reasoning_quality_summary =
         "Mock output treats supplied reasoning as observable evidence and makes no validated research inference.";
       output.engagement_summary =

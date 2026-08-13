@@ -2,9 +2,13 @@ import { createHash, randomUUID } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import { Prisma } from "@prisma/client";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
-import { runInitialStudentProfiling } from "@/lib/agents/student-profiling/service";
+import {
+  runInitialStudentProfiling,
+  type StudentProfilingNoProviderExecutor
+} from "@/lib/agents/student-profiling/service";
 import { persistInitialStudentProfile } from "@/lib/agents/student-profiling/persistence";
 import { prisma } from "@/lib/db";
+import type { MockProviderMode } from "@/lib/llm/providers/mock-provider";
 import { hashSecret } from "@/lib/password";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { generatePublicId } from "@/lib/services/ids";
@@ -16,7 +20,7 @@ import {
 import {
   processFormativeConversationOpening,
   processFormativeConversationStudentMessage,
-  type FormativeConversationAgentRunner
+  type AnyFormativeConversationAgentRunner
 } from "@/lib/services/student-assessment/formative-conversation/runtime";
 import { FormativeConversationPersistenceError } from "@/lib/services/student-assessment/formative-conversation/persistence-errors";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
@@ -210,7 +214,7 @@ export type FormativeConversationProtocolValidationRunOptions = {
   mode: Exclude<SyntheticValidationMode, "plan_only">;
   subjects: readonly FormativeConversationValidationSubject[];
   assessment_definition: FormativeConversationValidationAssessmentDefinition;
-  runner_factory: () => FormativeConversationAgentRunner;
+  runner_factory: () => AnyFormativeConversationAgentRunner;
   run_public_id: string;
   include_production_profiling: boolean;
   frozen_initial_profiles: Readonly<
@@ -221,6 +225,24 @@ export type FormativeConversationProtocolValidationRunOptions = {
       >
     >
   >;
+  profiling_mock_provider_mode?: MockProviderMode;
+  profiling_no_provider_test_executor?: StudentProfilingNoProviderExecutor;
+  prepare_frozen_initial_profile?: (input: {
+    subject_id: FormativeConversationValidationSubject["subject_id"];
+    concept_unit_session_db_id: string;
+    assessment_session_db_id: string;
+    frozen_profile: AgentOutputByName["student_profiling_agent"];
+  }) => Promise<AgentOutputByName["student_profiling_agent"]>;
+  prepare_live_initial_profile?: (input: {
+    subject_id: FormativeConversationValidationSubject["subject_id"];
+    concept_unit_session_db_id: string;
+    assessment_session_db_id: string;
+    invocation_reason: string;
+  }) => Promise<{
+    output: AgentOutputByName["student_profiling_agent"];
+    based_on_agent_call_db_id: string;
+  }>;
+  production_profiling_subject_ids?: readonly FormativeConversationValidationSubject["subject_id"][];
   before_context_read?: (input: {
     subject_id: FormativeConversationValidationSubject["subject_id"];
     context_read_kind: "opening" | "student_message";
@@ -231,7 +253,7 @@ export type FormativeConversationProtocolValidationRunOptions = {
 export type SyntheticResearchValidationRunOptions = {
   mode: Exclude<SyntheticValidationMode, "plan_only">;
   personas: readonly SyntheticStudentPersona[];
-  runner_factory: () => FormativeConversationAgentRunner;
+  runner_factory: () => AnyFormativeConversationAgentRunner;
   run_public_id?: string;
   frozen_initial_profiles?: Readonly<
     Partial<
@@ -372,12 +394,19 @@ function estimatedLogicalCalls(
 
 function estimatedSubjectLogicalCalls(
   subjects: readonly FormativeConversationValidationSubject[],
-  includeProductionProfiling: boolean
+  includeProductionProfiling: boolean,
+  productionProfilingSubjectIds?: readonly FormativeConversationValidationSubject["subject_id"][]
 ) {
+  const productionSubjects = productionProfilingSubjectIds
+    ? new Set(productionProfilingSubjectIds)
+    : null;
   return subjects.reduce(
     (total, subject) =>
       total +
-      (includeProductionProfiling ? 1 : 0) +
+      (includeProductionProfiling &&
+      (!productionSubjects || productionSubjects.has(subject.subject_id))
+        ? 1
+        : 0) +
       1 +
       subject.conversation_behavior.length,
     0
@@ -832,6 +861,7 @@ async function persistSyntheticAssessmentEvidence(input: {
   return {
     student_user_db_id: student.id,
     session_public_id: session.session_public_id,
+    assessment_session_db_id: session.id,
     concept_unit_session_db_id: conceptUnitSession.id
   };
 }
@@ -841,10 +871,14 @@ async function runSyntheticStudent(input: {
   subject: FormativeConversationValidationSubject;
   persona_index: number;
   mode: Exclude<SyntheticValidationMode, "plan_only">;
-  runner_factory: () => FormativeConversationAgentRunner;
+  runner_factory: () => AnyFormativeConversationAgentRunner;
   frozen_initial_profile?:
     | AgentOutputByName["student_profiling_agent"]
     | null;
+  profiling_mock_provider_mode?: MockProviderMode;
+  profiling_no_provider_test_executor?: StudentProfilingNoProviderExecutor;
+  prepare_frozen_initial_profile?: FormativeConversationProtocolValidationRunOptions["prepare_frozen_initial_profile"];
+  prepare_live_initial_profile?: FormativeConversationProtocolValidationRunOptions["prepare_live_initial_profile"];
   before_context_read?: FormativeConversationProtocolValidationRunOptions["before_context_read"];
 }) {
   const assessment = await persistSyntheticAssessmentEvidence(input);
@@ -855,11 +889,21 @@ async function runSyntheticStudent(input: {
   let studentMessageSubmissionAttemptCount = 0;
   try {
     if (input.frozen_initial_profile) {
+      const frozenProfile = input.prepare_frozen_initial_profile
+        ? await input.prepare_frozen_initial_profile({
+            subject_id: input.subject.subject_id,
+            concept_unit_session_db_id:
+              assessment.concept_unit_session_db_id,
+            assessment_session_db_id:
+              assessment.assessment_session_db_id,
+            frozen_profile: input.frozen_initial_profile
+          })
+        : input.frozen_initial_profile;
       await persistInitialStudentProfile({
         concept_unit_session_db_id:
           assessment.concept_unit_session_db_id,
         based_on_agent_call_db_id: null,
-        output: input.frozen_initial_profile
+        output: frozenProfile
       });
       await updateAssessmentSessionPhase({
         assessment_session_db_id:
@@ -880,11 +924,43 @@ async function runSyntheticStudent(input: {
           synthetic_only: true
         }
       });
+    } else if (input.prepare_live_initial_profile) {
+      const prepared = await input.prepare_live_initial_profile({
+        subject_id: input.subject.subject_id,
+        concept_unit_session_db_id:
+          assessment.concept_unit_session_db_id,
+        assessment_session_db_id:
+          assessment.assessment_session_db_id,
+        invocation_reason: `${input.fixture.run_public_id}:${input.subject.subject_id}:initial_profile`
+      });
+      await persistInitialStudentProfile({
+        concept_unit_session_db_id:
+          assessment.concept_unit_session_db_id,
+        based_on_agent_call_db_id:
+          prepared.based_on_agent_call_db_id,
+        output: prepared.output
+      });
+      await updateAssessmentSessionPhase({
+        assessment_session_db_id:
+          assessment.assessment_session_db_id,
+        to_phase: "profiling_completed",
+        reason: "evaluation_owned_production_profile_persisted",
+        payload: {
+          validation_version:
+            SYNTHETIC_STUDENT_VALIDATION_VERSION,
+          persona_id: input.subject.subject_id,
+          synthetic_only: true,
+          production_request_boundary: true
+        }
+      });
     } else {
       const profileResult = await runInitialStudentProfiling({
         concept_unit_session_db_id:
           assessment.concept_unit_session_db_id,
-        invocation_reason: `${input.fixture.run_public_id}:${input.subject.subject_id}:initial_profile`
+        invocation_reason: `${input.fixture.run_public_id}:${input.subject.subject_id}:initial_profile`,
+        mock_provider_mode: input.profiling_mock_provider_mode,
+        no_provider_test_executor:
+          input.profiling_no_provider_test_executor
       });
       if (
         profileResult.status !== "profile_created" &&
@@ -1696,6 +1772,14 @@ async function runFormativeConversationValidationSubjects(
         frozen_initial_profile:
           options.frozen_initial_profiles[subject.subject_id] ??
           null,
+        profiling_mock_provider_mode:
+          options.profiling_mock_provider_mode,
+        profiling_no_provider_test_executor:
+          options.profiling_no_provider_test_executor,
+        prepare_frozen_initial_profile:
+          options.prepare_frozen_initial_profile,
+        prepare_live_initial_profile:
+          options.prepare_live_initial_profile,
         before_context_read: options.before_context_read
       })
     );
@@ -1866,7 +1950,8 @@ async function runFormativeConversationValidationSubjects(
     estimated_logical_generation_calls:
       estimatedSubjectLogicalCalls(
         options.subjects,
-        options.include_production_profiling
+        options.include_production_profiling,
+        options.production_profiling_subject_ids
       ),
     students,
     technical_reliability_report: {

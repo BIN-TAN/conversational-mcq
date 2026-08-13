@@ -1,0 +1,24 @@
+{
+  "manifest_version": "formative-conversation-v18-candidate-manifest-v1",
+  "candidate_version": "formative-conversation-v18-dissertation-contract-convergence-v1",
+  "state": "inactive_no_provider_candidate",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "protocol_hash": "4ade4a44ee74bfc59be2ce1fef274e490c1e4bcb3dd330d36229efa530841d47",
+  "artifact_hashes": {
+    "runtime_candidate_manifest": "1cb4450c370d13638bf52340aeafaf4571a10cc4f7b82ff956c11beab2fcb8a7",
+    "immutable_v17_reference": "209c7fbffb8dc251752a255ba1e198b194f33d1647b8f27297ec7ddaa0e6bc7f",
+    "verification_manifest": "d131206aa54538f58f13acfa5167d7f2beb38b16d0fa0b2b3ee1528f057ec649",
+    "no_provider_protocol": "a1085a010901f9a64d5e16c6a63639702335919c5317d4ed64a1833cb607cf8a",
+    "source_configuration": "9751f5d9a7f833a3a8a1598fddaa6cafd1a8667d4c7ae17b880ea24408449f96",
+    "approval_placeholder": "78aef6568e6a5355e9eb17d0feb9492c9e02dee76c75f1174a8915bad059a494"
+  },
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "live_execution_prepared": false,
+  "approval": {
+    "eligible": false
+  },
+  "activation": {
+    "permitted": false
+  }
+}

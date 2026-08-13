@@ -12,6 +12,7 @@ import { getServerEnv } from "@/lib/env";
 import { serializeProgressionForTeacher } from "@/lib/services/concept-progression/progression";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import {
+  canonicalFormativeConversationV18TransitionProvenance,
   canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
@@ -662,6 +663,10 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               ),
             evidence_reference_count:
               transition._count.profile_evidence_references,
+            canonical_evidence_provenance:
+              canonicalFormativeConversationV18TransitionProvenance(
+                transition
+              ),
             transitioned_at: serializeDate(transition.transitioned_at)
           })
         ),

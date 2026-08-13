@@ -237,6 +237,36 @@ function initialMilestones(): OpenAITransportMilestone {
   };
 }
 
+export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
+  request: StructuredAgentRequest<TInput, TOutput>
+) {
+  const text = {
+    format: zodTextFormat(request.output_schema, request.schema_name),
+    ...(request.model_config.verbosity
+      ? { verbosity: request.model_config.verbosity }
+      : {})
+  };
+  const reasoning =
+    request.model_config.reasoning_effort !== undefined
+      ? { effort: request.model_config.reasoning_effort }
+      : undefined;
+  return {
+    model: request.model_config.model_name,
+    instructions: request.instructions,
+    input: JSON.stringify(request.input),
+    text,
+    store: false,
+    metadata: request.metadata,
+    ...(request.model_config.temperature !== undefined
+      ? { temperature: request.model_config.temperature }
+      : {}),
+    ...(request.model_config.max_output_tokens !== undefined
+      ? { max_output_tokens: request.model_config.max_output_tokens }
+      : {}),
+    ...(reasoning ? { reasoning } : {})
+  } satisfies Record<string, unknown>;
+}
+
 export class OpenAIResponsesProvider implements LlmProvider {
   constructor(private readonly options: OpenAIResponsesProviderOptions = {}) {}
 
@@ -349,29 +379,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
     try {
       milestones.transport_adapter_entered = true;
       await emit("transport_adapter_entered");
-      const text = {
-        format: zodTextFormat(request.output_schema, request.schema_name),
-        ...(request.model_config.verbosity ? { verbosity: request.model_config.verbosity } : {})
-      };
-      const reasoning =
-        request.model_config.reasoning_effort !== undefined
-          ? { effort: request.model_config.reasoning_effort }
-          : undefined;
-      const body: Record<string, unknown> = {
-        model: request.model_config.model_name,
-        instructions: request.instructions,
-        input: JSON.stringify(request.input),
-        text,
-        store: false,
-        metadata: request.metadata,
-        ...(request.model_config.temperature !== undefined
-          ? { temperature: request.model_config.temperature }
-          : {}),
-        ...(request.model_config.max_output_tokens !== undefined
-          ? { max_output_tokens: request.model_config.max_output_tokens }
-          : {}),
-        ...(reasoning ? { reasoning } : {})
-      };
+      const body = compileOpenAIResponsesRequestBody(request);
       milestones.request_serialization_completed = true;
       await emit("request_serialization_completed");
       if (process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY === "true") {

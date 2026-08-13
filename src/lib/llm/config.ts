@@ -312,7 +312,7 @@ const roleEnvSources = {
     model: "OPENAI_MODEL_FORMATIVE_CONVERSATION",
     reasoning: "OPENAI_REASONING_EFFORT_FORMATIVE_CONVERSATION",
     maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION",
-    defaultMaxTokens: 3500
+    defaultMaxTokens: 7000
   }],
   mcq_diagnostic_authoring_assistant_agent: [{
     model: "OPENAI_MODEL_MCQ_DIAGNOSTIC_AUTHORING",

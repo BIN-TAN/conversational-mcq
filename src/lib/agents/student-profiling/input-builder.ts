@@ -5,6 +5,7 @@ import type { AgentInputByName } from "@/lib/agents/contracts";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { assertNoRawStudentIdentifiersInProviderPayload } from "@/lib/llm/provider-input-privacy";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { buildCanonicalEvidenceCatalog } from "@/lib/domain/canonical-evidence-identity";
 
 export type StudentProfilingInput = AgentInputByName["student_profiling_agent"];
 
@@ -60,6 +61,74 @@ function hasRevisionPayload(payload: Prisma.JsonValue | null) {
   const record = asRecord(payload);
 
   return record.revision === true || Number(record.revision_count ?? 0) > 0;
+}
+
+function stringOrNull(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function profilingEvidenceCatalog(input: {
+  evidence_namespace_public_id: string;
+  assessment_public_id: string;
+  concept_unit_public_id: string;
+  response_package_payload: unknown;
+  item_evidence: Array<{
+    item_public_id: string;
+    response: {
+      selected_option: string | null;
+      correctness: string;
+      reasoning_text: string | null;
+      confidence_rating: string | null;
+    } | null;
+  }>;
+  process_events: Array<{
+    id: string;
+    event_type: string;
+    event_category: string;
+    event_source: string;
+    occurred_at: Date;
+    item?: { item_public_id: string } | null;
+  }>;
+}) {
+  const payload = asRecord(input.response_package_payload);
+  const packagedResponses = Array.isArray(payload.item_responses)
+    ? payload.item_responses.map(asRecord)
+    : [];
+  const packagedByItem = new Map(
+    packagedResponses.flatMap((response) => {
+      const itemPublicId = stringOrNull(response.item_public_id);
+      return itemPublicId ? [[itemPublicId, response] as const] : [];
+    })
+  );
+
+  return buildCanonicalEvidenceCatalog({
+    evidence_namespace_public_id: input.evidence_namespace_public_id,
+    assessment_public_id: input.assessment_public_id,
+    concept_unit_public_id: input.concept_unit_public_id,
+    assessment_responses: input.item_evidence.flatMap((item) => {
+      if (!item.response) {
+        return [];
+      }
+      const packaged = packagedByItem.get(item.item_public_id);
+      return [{
+        item_public_id: item.item_public_id,
+        selected_option: item.response.selected_option,
+        correctness: item.response.correctness,
+        written_reasoning: item.response.reasoning_text,
+        confidence: item.response.confidence_rating,
+        tempting_option: stringOrNull(packaged?.tempting_option),
+        tempting_option_reason: stringOrNull(packaged?.tempting_option_reason)
+      }];
+    }),
+    assessment_process: input.process_events.map((event) => ({
+      source_public_id: event.id,
+      event_type: event.event_type,
+      event_category: event.event_category,
+      event_source: event.event_source,
+      item_public_id: event.item?.item_public_id ?? null,
+      occurred_at: event.occurred_at.toISOString()
+    }))
+  });
 }
 
 function stableInvocationKey(prefix: string, parts: Array<string | null | undefined>) {
@@ -241,6 +310,17 @@ export async function buildInitialStudentProfilingInput(
     };
   });
   const prompt = getPromptForAgent("student_profiling_agent");
+  const allowedEvidenceCatalog = profilingEvidenceCatalog({
+    evidence_namespace_public_id:
+      conceptUnitSession.assessment_session.session_public_id,
+    assessment_public_id:
+      conceptUnitSession.assessment_session.assessment.assessment_public_id,
+    concept_unit_public_id:
+      conceptUnitSession.concept_unit.concept_unit_public_id,
+    response_package_payload: responsePackage.payload,
+    item_evidence: itemEvidence,
+    process_events: conceptUnitSession.process_events
+  });
   const input: StudentProfilingInput = {
     concept_unit_metadata: {
       assessment: {
@@ -300,6 +380,7 @@ export async function buildInitialStudentProfilingInput(
         item_order: event.item?.item_order ?? null
       }))
     },
+    allowed_evidence_catalog: allowedEvidenceCatalog,
     previous_profile: null,
     followup_evidence_package: null,
     profile_type: "initial",

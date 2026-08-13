@@ -21,6 +21,11 @@ import {
   validateFormativeConversationProfileTransition,
   type FormativeConversationProfileTransitionValidationIssueCode
 } from "./profile-transition-validator";
+import { canonicalEvidenceSequenceIndexes } from "@/lib/domain/canonical-evidence-identity";
+import {
+  FormativeConversationV18PersistedProfileSnapshotSchema
+} from "./agent-contract-v18";
+import type { FormativeConversationEvidenceIdIssueCode } from "./evidence-identity-validator-v18";
 import {
   FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
   formativeConversationPersistenceError
@@ -66,6 +71,7 @@ export class FormativeConversationProfileTransitionError extends Error {
       | "profile_transition_updated_profile_missing"
       | "profile_transition_field_evidence_invalid"
       | "profile_transition_stale"
+      | FormativeConversationEvidenceIdIssueCode
       | FormativeConversationProfileTransitionValidationIssueCode,
     message: string
   ) {
@@ -81,6 +87,7 @@ export async function recordFormativeConversationProfileTransitionRejection(
     source_tutor_turn_db_id: string;
     proposed_outcome: string;
     error: FormativeConversationProfileTransitionError;
+    transition_version?: string;
   }
 ) {
   const [session, agentCall] = await Promise.all([
@@ -125,6 +132,7 @@ export async function recordFormativeConversationProfileTransitionRejection(
       evidence_summary: jsonInput({
         terminal_result: "rejected",
         transition_version:
+          input.transition_version ??
           FORMATIVE_CONVERSATION_PROFILE_TRANSITION_VERSION,
         proposed_outcome: input.proposed_outcome,
         source_agent_call_public_id:
@@ -175,7 +183,47 @@ export function parseFormativeConversationProfileSnapshot(
   value: unknown
 ): FormativeConversationProfileEvidence | null {
   const parsed = FormativeConversationProfileEvidenceSchema.safeParse(value);
-  return parsed.success ? parsed.data : null;
+  if (parsed.success) {
+    return parsed.data;
+  }
+  const v18 = FormativeConversationV18PersistedProfileSnapshotSchema.safeParse(
+    value
+  );
+  if (!v18.success) {
+    return null;
+  }
+  const sequenceIndexes = (evidenceIds: readonly string[]) =>
+    canonicalEvidenceSequenceIndexes(
+      v18.data.canonical_evidence_catalog,
+      evidenceIds
+    );
+  return FormativeConversationProfileEvidenceSchema.parse({
+    profile_version: v18.data.profile.profile_version,
+    outcome: v18.data.profile.outcome,
+    evidence_summary: v18.data.profile.evidence_summary,
+    unresolved_evidence: v18.data.profile.unresolved_evidence,
+    evidence_limitations: v18.data.profile.evidence_limitations,
+    canonical_profile: v18.data.profile.canonical_profile,
+    field_evidence: v18.data.field_evidence.map((entry) => ({
+      profile_fields: entry.profile_fields,
+      disposition: entry.disposition,
+      evidence_basis: entry.evidence_basis,
+      rationale: entry.rationale,
+      source_turn_sequence_indexes: sequenceIndexes(entry.evidence_ids)
+    })),
+    misconception_claim_catalog:
+      v18.data.profile.misconception_claim_catalog,
+    misconception_claim_dispositions:
+      v18.data.misconception_claim_dispositions.map((entry) => ({
+        identity_version: entry.identity_version,
+        indicator_id: entry.indicator_id,
+        claim_id: entry.claim_id,
+        disposition: entry.disposition,
+        evidence_basis: entry.evidence_basis,
+        evidence_summary: entry.evidence_summary,
+        source_turn_sequence_indexes: sequenceIndexes(entry.evidence_ids)
+      }))
+  });
 }
 
 export type FormativeConversationCanonicalProfileSource = Pick<

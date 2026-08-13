@@ -1,0 +1,14 @@
+{
+  "reference_version": "formative-conversation-v18-immutable-v17-reference-v1",
+  "git_commit": "35dcd9b9de30060a85de3b2f5860e0696303f20c",
+  "provider_run_id": "fcv5v17_provider_20260812104724_6e45e95e",
+  "derived_evaluation_id": "fcv5v17_derived_20260812104724_47ac9964",
+  "runtime_candidate_hash": "b077ba062c37340eac2918a2578f118c36fa852006196d31ef4735598ed21e6e",
+  "evaluation_protocol_hash": "e8d76572f9fb11bf88069c3474c6f1a39469a68e2fe1fa1d2a827f42c2283d90",
+  "candidate_tree_sha256": "ee212a40935b46317727c7b0525f0e7d2982dc6c3a7461dd99c84c94f64caecc",
+  "run_tree_sha256": "7ded22b1edf77d0572168a545d759b1f89eed832f4b0f7a03ccc29b7223d9054",
+  "candidate_artifacts_mutated": false,
+  "run_artifacts_mutated": false,
+  "required_as_local_live_dependency": false,
+  "reference_policy": "immutable_hash_reference_only"
+}

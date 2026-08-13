@@ -1,0 +1,37 @@
+{
+  "manifest_version": "formative-conversation-host-v5-executable-candidate-revision-v18",
+  "candidate_state": "inactive",
+  "approval": {
+    "eligible": false,
+    "evidence_created": false
+  },
+  "activation": {
+    "permitted": false
+  },
+  "runtime_behavior_changed": true,
+  "instructional_behavior_changed": false,
+  "database_schema_changed": false,
+  "runtime_change_scope": "dissertation_aligned_llm_platform_contract_convergence",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "pre_freeze_candidate_identity": "e797f6c077783abc345ef04936ff322906528ed3bda69cf85d95fba6c3433398",
+  "protocol_hash": "0709d61e2f681e5a73a8b488165bfeffb7a030b5e12bf5dd171eb15a06f4d5ef",
+  "runner_implementation_hash": "1bea425600731adc5a3fdde242e94f2bd295ae4bda77c44bd2a51e41a8e44e90",
+  "materializer_implementation_hash": "bee08171974f83654e2c14fb563de80c2ebec9494ac20c95ed85e171a99feba4",
+  "fixture_manifest_hash": "35f7fb6c0c6d8c9261f284461029c1ed74077e6281076d512dae5f1b3100dfd8",
+  "compiled_plan_hash": "fd118227d2fc2f053af1901be089b6df0a013b907c79cfa35d79b108ba7e1806",
+  "environment_contract_hash": "78845c2c04fc1a715c71ba90939f5d66f03e091460ff34799d3112fccc33d118",
+  "dispatch_checkpoint_contract_hash": "bc19827c29efb86afe67d7df0237a27f577338b45bfd2b4d0f04d642307bc2af",
+  "security_wrapper_hash": "ba3610a742f3f913bd611f1ceba5da348ddaca0023cfbb76491c2bc402be15bc",
+  "provenance_contract_hash": "f10cf1a77008ec9bd3dec5433135d1f20ec7f8a3091bb016e9db03dc53c88b2e",
+  "source_configuration_hash": "36740cf7c4e1cd115e6c8c082f234f14f56293e9bb942f10636c053c1121c7f5",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "immutable_v17_reference_hash": "3b95753422a205de839f86e263dc805d50e7c7c5595aab727269788009c1cf0d",
+  "committed_source_dependency_closure_ready": true,
+  "live_execution_prepared": true,
+  "future_live_evaluation_requires_committed_source_freeze": true,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0,
+  "candidate_manifest_hash": "4113e810820055ca25ea058adbbc90005ed11996ad2d2ecd26a3d9b52d2430c8"
+}

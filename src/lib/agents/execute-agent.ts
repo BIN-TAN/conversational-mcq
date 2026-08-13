@@ -34,6 +34,7 @@ import {
   type LlmUsageGuardResult
 } from "@/lib/llm/usage/usage-guard";
 import { toPrismaJson } from "@/lib/services/json";
+import { buildProductionAgentRequest } from "@/lib/agents/provider-request";
 
 export type AgentExecutionResult<TOutput> =
   | {
@@ -326,22 +327,17 @@ export async function executeAgent<TAgentName extends AgentNameType>(
 
   try {
     while (true) {
-      const providerResult = await provider.executeStructured({
-        agent_name: agentName,
+      const providerRequest = buildProductionAgentRequest<TAgentName>({
+        agent_name: input.agent_name,
         model_config: modelConfig,
-        instructions: prompt.instructions,
         input: parsedInput,
-        output_schema: outputSchema,
-        schema_name: prompt.schema_version.replace(/[^a-zA-Z0-9_-]/g, "_"),
         client_request_id: clientRequestId,
         timeout_ms: runtime.request_timeout_ms,
         metadata: {
-          agent_name: agentName,
-          prompt_version: prompt.prompt_version,
-          schema_version: prompt.schema_version,
           ...(input.metadata ?? {})
         }
       });
+      const providerResult = await provider.executeStructured(providerRequest);
       lastProviderResult = providerResult;
       await db.agentCall.update({
         where: { id: agentCall.id },

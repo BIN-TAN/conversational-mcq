@@ -1,0 +1,517 @@
+{
+  "contract_version": "formative-conversation-v18-provenance-contract-v1",
+  "future_committed_source_required": true,
+  "current_source_commit": null,
+  "clean_checkout_rematerialization_required": true,
+  "working_tree_only_dependencies_forbidden": true,
+  "v17_artifact_mutation_forbidden": true,
+  "immutable_v17_reference_hash": "3b95753422a205de839f86e263dc805d50e7c7c5595aab727269788009c1cf0d",
+  "committed_source_paths": [
+    "config/operational-candidates/formative-conversation-host-v5-executable-v18",
+    "config/operational-candidates/formative-conversation-contract-convergence-v18",
+    "src/lib/operational/formative-conversation-v18",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18",
+    "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/route.ts",
+    "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/retry/route.ts",
+    "src/lib/agents/contracts.ts",
+    "src/lib/agents/execute-agent.ts",
+    "src/lib/agents/provider-request.ts",
+    "src/lib/agents/prompts/registry.ts",
+    "src/lib/agents/prompts/student-profiling/v1.ts",
+    "src/lib/agents/student-profiling/input-builder.ts",
+    "src/lib/agents/student-profiling/persistence.ts",
+    "src/lib/agents/student-profiling/semantic-validation.ts",
+    "src/lib/agents/student-profiling/service.ts",
+    "src/lib/domain/canonical-evidence-identity.ts",
+    "src/lib/domain/misconception-claim-identity.ts",
+    "src/lib/llm/config.ts",
+    "src/lib/llm/provider-input-privacy.ts",
+    "src/lib/llm/provider-transport-retry.ts",
+    "src/lib/llm/providers/openai-responses-provider.ts",
+    "src/lib/llm/providers/types.ts",
+    "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+    "src/lib/services/student-assessment/formative-conversation/agent-contract-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/context.ts",
+    "src/lib/services/student-assessment/formative-conversation/context-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/evidence-references-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/execution-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/index.ts",
+    "src/lib/services/student-assessment/formative-conversation/live-runner-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/misconception-claim-closure-v2.ts",
+    "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+    "src/lib/services/student-assessment/formative-conversation/opening-runner.ts",
+    "src/lib/services/student-assessment/formative-conversation/output-format.ts",
+    "src/lib/services/student-assessment/formative-conversation/profile-projection.ts",
+    "src/lib/services/student-assessment/formative-conversation/profile-update.ts",
+    "src/lib/services/student-assessment/formative-conversation/profile-update-v18.ts",
+    "src/lib/services/student-assessment/formative-conversation/profile-transition-validator.ts",
+    "src/lib/services/student-assessment/formative-conversation/runtime-context.ts",
+    "src/lib/services/student-assessment/formative-conversation/runtime.ts",
+    "src/lib/services/student-assessment/formative-conversation/safety-boundary.ts",
+    "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+    "src/lib/services/teacher-review/session-detail.ts",
+    ".env.example",
+    "package.json",
+    "prisma/formative-conversation-v18-fixture-materialize.ts",
+    "prisma/formative-conversation-v7-profile-disposition-smoke-test.ts",
+    "prisma/formative-conversation-v8-profile-disposition-smoke-test.ts",
+    "prisma/formative-conversation-v18-test-fixtures.ts",
+    "prisma/formative-conversation-v18-v17-forensic-replay-smoke-test.ts",
+    "prisma/formative-conversation-v18-provider-request-smoke-test.ts",
+    "prisma/formative-conversation-v18-contract-smoke-test.ts",
+    "prisma/formative-conversation-v18-pipeline-runtime-smoke-test.ts",
+    "prisma/formative-conversation-v18-runtime-database-smoke-test.ts",
+    "prisma/operational-formative-conversation-v18-materialize.ts",
+    "prisma/operational-formative-conversation-v18-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-compilation-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-launcher-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-environment-parity-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-dispatch-checkpoint-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-security-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-provenance-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+    "prisma/helpers/formative-conversation-v5-v18-test-environment.ts",
+    "prisma/student-profiling-semantic-validation-smoke-test.ts",
+    "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+    "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs",
+    "src/lib/evaluation/synthetic-student-validation/framework.ts",
+    "src/lib/llm/providers/mock-provider.ts",
+    "src/lib/operational/formative-conversation-v18/candidate.ts",
+    "src/lib/operational/formative-conversation-v18/forensics.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/candidate-runner.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/compiler.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/contracts.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/dispatch-checkpoint.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/evaluation-accounting.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/live-environment.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/package.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/provenance.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/security-release.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v18/service.ts",
+    "docs/operations/FORMATIVE_CONVERSATION_V18_CONTRACT_CONVERGENCE.md",
+    "src/lib/operational/formative-conversation-v5-evaluation-v16/compiler.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v16/contracts.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v14/compiler.ts",
+    "src/lib/operational/formative-conversation-v5-evaluation-v14/contracts.ts",
+    "config/operational-candidates/formative-conversation-host-v5-executable-v16/fixtures",
+    "prisma/formative-conversation-v18-fixture-materialize.ts",
+    "prisma/formative-conversation-v18-test-fixtures.ts",
+    "prisma/formative-conversation-v18-v17-forensic-replay-smoke-test.ts",
+    "prisma/formative-conversation-v18-provider-request-smoke-test.ts",
+    "prisma/formative-conversation-v18-contract-smoke-test.ts",
+    "prisma/formative-conversation-v18-pipeline-runtime-smoke-test.ts",
+    "prisma/formative-conversation-v18-runtime-database-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+    "prisma/operational-formative-conversation-v18-materialize.ts",
+    "prisma/operational-formative-conversation-v18-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-compilation-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-launcher-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-environment-parity-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-dispatch-checkpoint-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-security-smoke-test.ts",
+    "prisma/operational-formative-conversation-v5-v18-provenance-smoke-test.ts",
+    "prisma/helpers/formative-conversation-v5-v18-test-environment.ts",
+    "package.json",
+    ".env.example",
+    "docs/operations/FORMATIVE_CONVERSATION_V18_CONTRACT_CONVERGENCE.md",
+    "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+    "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs"
+  ],
+  "runtime_source_files": [
+    {
+      "path": "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/route.ts",
+      "sha256": "ffbf9712f5f5b1b96c04c44bd964bb3c233f22f3692a9bd7f55a652cdae09753"
+    },
+    {
+      "path": "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/retry/route.ts",
+      "sha256": "b706e52029c496b835b08e84cdf9f78b9e72bef03e2d8289bbf8362662a17d2e"
+    },
+    {
+      "path": "src/lib/agents/contracts.ts",
+      "sha256": "b9a1ba25ec283ae5c29b6bf2e6f7e379e1c37c3ee0093d481fa8642c76aeed1d"
+    },
+    {
+      "path": "src/lib/agents/execute-agent.ts",
+      "sha256": "89b037cb0e093b892f94b9ca43929c73a79cf86f842904116b16cc7319910a19"
+    },
+    {
+      "path": "src/lib/agents/provider-request.ts",
+      "sha256": "c21f2ee91d269b9c01eb55a9e596d7d38848012f6a0a2eb84ec076eee092700b"
+    },
+    {
+      "path": "src/lib/agents/prompts/registry.ts",
+      "sha256": "c4ee72dd5c958c62757ad1ebcc12c03992570f01b0c64da67ce0117be4a9312a"
+    },
+    {
+      "path": "src/lib/agents/prompts/student-profiling/v1.ts",
+      "sha256": "749daf94755cb34e876601c2fceb63c7791ac72bb3faf9e87e7f5b54879e8d55"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/input-builder.ts",
+      "sha256": "6dfb483c0034d7402a69050da842f163531b66a424fb751acc32e01a271b26f8"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/persistence.ts",
+      "sha256": "ad425875aeb0c46462711c52abca3fdea28277a16d491ac8ee68e63c221652d4"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/semantic-validation.ts",
+      "sha256": "bed0bb37751f4cbde0f04ef7245c68bc35d118c317ee4d35acdd3f8513b96ef9"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/service.ts",
+      "sha256": "c7c63e33397ecbdb17df9440bdc3ebb3be559ef6ad30f49650529db2f36a5038"
+    },
+    {
+      "path": "src/lib/domain/canonical-evidence-identity.ts",
+      "sha256": "95cf158d80108ca878aa226b1165c8fea05677dd1758b90273d7e21349d8d90c"
+    },
+    {
+      "path": "src/lib/domain/misconception-claim-identity.ts",
+      "sha256": "ab83feadc7b92b969777da403d75e96c48d2f165a28f7a9af413eea619a5cc0d"
+    },
+    {
+      "path": "src/lib/llm/config.ts",
+      "sha256": "e9b19951b1ef1d67c05ff34c44038f5ada19fa64fa0cfab878a918b203cc8a69"
+    },
+    {
+      "path": "src/lib/llm/provider-input-privacy.ts",
+      "sha256": "49e8496c4b8e2df1b6b4c1b25f1baa9d7f3205243dd84e9b1235fc21a17469db"
+    },
+    {
+      "path": "src/lib/llm/provider-transport-retry.ts",
+      "sha256": "6d8e80d4f0f7977a259c1fe54010b3afbf0a784224a3bd1f10fe2b87a7bdc4a7"
+    },
+    {
+      "path": "src/lib/llm/providers/openai-responses-provider.ts",
+      "sha256": "b2b15fbc55698665e580e1c36746d949882bd0219ea05fcfc72dcbc7788e6f58"
+    },
+    {
+      "path": "src/lib/llm/providers/types.ts",
+      "sha256": "d6fc11683060f7a65a65a3b438708ae2456e44856da2e92ffae1b4cf6b2adc3c"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+      "sha256": "47912a811905314afebc36d76a30d65c75661dac53238b97a8939c76af52f354"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/agent-contract-v18.ts",
+      "sha256": "9a58fb1761b3be8bbd989fa5c958f5403d09439cc78d95e8bf439d3fdec2409a"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18.ts",
+      "sha256": "5d5736ea94db6b3ac6e46edf7567576af1eb7e52205d87641c9cf5026642af25"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/context.ts",
+      "sha256": "e5dcc3b20d1ede34d8439d306b59c1b586f6945ba96a3ec9c19223857f634d75"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/context-v18.ts",
+      "sha256": "0176ae24b558de1e736946d1c4381bdd16720e5e96feb05a9e1aa09e0fb4652f"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
+      "sha256": "27b1561c4dc98b7d4150be6995974ddc91e17f745e4db5570e8545205dffc0ef"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/evidence-references-v18.ts",
+      "sha256": "ecc3aa8634f3710b9daf7ab5aa40149b14ce4d68b4e5eb4c1ffd882d0b9dc2e4"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/execution-v18.ts",
+      "sha256": "94863510ff9303012ec81ad5d79d6eed33ccafacacab7f4930f6b3f5988e5c02"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/index.ts",
+      "sha256": "72629fcc49a33f77fd0a8d450420a839be1a3b6465dbaf23402c146671ec842c"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/live-runner-v18.ts",
+      "sha256": "d38e5c9b8690db4cde9357c11c9356f7fed5078511402edfc0b7e74de1a3650a"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/misconception-claim-closure-v2.ts",
+      "sha256": "022b6d3036320354191b17bacf0fd55f02344988d6da01aea5a950082d47d3d0"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+      "sha256": "64fa253b6ead010d84dc5f2cc44c32f58d037c1554fda78bceb8368ffdd5d3d2"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/opening-runner.ts",
+      "sha256": "1465bb0dbb6f560228375a7263409cbd9f5a7b2fe605f1d0685218fa6f9d7fef"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/output-format.ts",
+      "sha256": "70a22861851ddef8d57423abee0b4e5fe10402bf43b0a8c651059207e7d09d51"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-projection.ts",
+      "sha256": "3a23dd44fd81c672535daedea7867fd37f4043f677de26aab151194a8ee69a9d"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-update.ts",
+      "sha256": "1a2951bc4810ab6d6fd529724524f39b5686030b03bd5a8caf3898c3fb4b1377"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-update-v18.ts",
+      "sha256": "fff53dad382fe68500e0c1670641c85f3db094940e03421bec81982ee84683e0"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-transition-validator.ts",
+      "sha256": "ffd7196822274279f065a5862ea5500809f930870bfd6a5ce8e8add5510e320f"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/runtime-context.ts",
+      "sha256": "b002ee8c22f2e3e05db9acdbe076702920a53304224ce20444ffebd9d4cb9894"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/runtime.ts",
+      "sha256": "abbafe3f76c2a4fdceab91bf9d285b3051b0ecd1cda7f5bb0e93aaad60c89fdc"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/safety-boundary.ts",
+      "sha256": "51a27c8da8b400ba5539ca5e1cc59433d5f841968215c2cac3daf6b6f3be92f2"
+    },
+    {
+      "path": "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+      "sha256": "b4ee9def711366ad1e57f129ed768c5f8a3a209e2f82b977fef5d25d29d23100"
+    },
+    {
+      "path": "src/lib/services/teacher-review/session-detail.ts",
+      "sha256": "e39151bb7c274eab2a2bf65e0d017a8ba6b02c2edc5b8f7b86560a890c7e9a56"
+    }
+  ],
+  "runner_source_files": [
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs",
+      "sha256": "4a5923170ab7d3af9754ebad87c0dc43aa92cd36d66d9b3efbb3881df7834989"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+      "sha256": "2bd1953bcc2f5007a3d325a461e243911abf87dadd9f7e33b3c1f9787fc5781c"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+      "sha256": "85c716969e8719293bdbc8a1aa8520186a4f01ab7dba0eeb44d184de8f59ee2a"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/contracts.ts",
+      "sha256": "12c614f9ceaeb00d3361b35672e2a0e70e08579dfe621019d47da09c849d8dd6"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/compiler.ts",
+      "sha256": "ae65c89736af7c05f6be546888ee0c83e4f3436de2b5f3f687106a91ca9e460c"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/package.ts",
+      "sha256": "b090afdb1fc478cff72460c2a9f50e86a59429147a75896a1b87d2875e5cdc69"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/candidate-runner.ts",
+      "sha256": "bc34c327b3a3f5acf7a4ad0c8d5681239c9a290a0cb4bb5d201e30506d99dd07"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/evaluation-accounting.ts",
+      "sha256": "771de00e8378393a456dd693db39bc66749a06296deb8be11ad28adbe01dd1fd"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/live-environment.ts",
+      "sha256": "1bb8dee45a1aab6ca34080a1b8050b389c2057694f3aac53656a610381cf87d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/dispatch-checkpoint.ts",
+      "sha256": "ced628bb5984ab6468204bfa53deb22f17b932eac14467c97505dbbcca021d0b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/provenance.ts",
+      "sha256": "df739bda45313b014350ed55e6f4541806183c1d4c1d06b3ca383af82cac17d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/security-release.ts",
+      "sha256": "ced9a1490d3a1578a7644c0c500e8f7e4be0f53aa9fd128df5faa293bc7fe554"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/service.ts",
+      "sha256": "83d38631144d0e47f302fdef4c3c0378b7b2358ea76609ed19f30f9ecf494d28"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v16/compiler.ts",
+      "sha256": "4c7635294561a87dd894628c5ddaae58262ace21951d4b8887621fd832d32a46"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v14/compiler.ts",
+      "sha256": "64c1e8f54dc43afdecb2e8b05ece2cd35f4cfadfab74905a38ee469f87f6811b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v14/contracts.ts",
+      "sha256": "b2c5bc6056ba800f3725778deb82ee3d6edaf94d6950a971576a72c66c2cf94b"
+    }
+  ],
+  "verification_source_files": [
+    {
+      "path": ".env.example",
+      "sha256": "82acd67d385d2e48175dc68e7d34fe900aa3e5ca73f425df058326dc1936511a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "89916c735a7197bd564838a9886a69c06c64eac529c5d111cd4f408a2da9c810"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-fixture-materialize.ts",
+      "sha256": "7fd63ee5dd65f36a248ce733d876d26d8d311481245daa9e1a4ec9682042744b"
+    },
+    {
+      "path": "prisma/formative-conversation-v7-profile-disposition-smoke-test.ts",
+      "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+    },
+    {
+      "path": "prisma/formative-conversation-v8-profile-disposition-smoke-test.ts",
+      "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-test-fixtures.ts",
+      "sha256": "f68a68e50eb51c6706daae8adf980e0a1a49544ee63a0b0cfd7d248bf4b1cfc6"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-v17-forensic-replay-smoke-test.ts",
+      "sha256": "f87f46dfc68cb9bb6d77b578fd30f2f561f46a62299ba5165e17dfddbe18987a"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-provider-request-smoke-test.ts",
+      "sha256": "e7d3257ba8368ad10e737eecc3ceaf65e19432ea316edffbf7cded3e7c600f9c"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-contract-smoke-test.ts",
+      "sha256": "762628775d8a7b812ac0038c0c0ee04b53fda28d455ccee989b20571f8ad818d"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-pipeline-runtime-smoke-test.ts",
+      "sha256": "b687de981108e11934c105584987db4e09f8338224a7265c6e64c65b77442ac5"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-runtime-database-smoke-test.ts",
+      "sha256": "08b4ee243ddbcca49c4142962c5dc3dad328a83a66929f35323e983415f9b499"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18-materialize.ts",
+      "sha256": "bee08171974f83654e2c14fb563de80c2ebec9494ac20c95ed85e171a99feba4"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18-smoke-test.ts",
+      "sha256": "3dcb35f71e957cd97a7c747c772fb3ec1e9def0a83ef647555bb15745ad4133b"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-compilation-smoke-test.ts",
+      "sha256": "7d468ed2645c435f45c3598f46cf2426cec15f848a216791db5d4c933851cbf1"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-launcher-smoke-test.ts",
+      "sha256": "8d85a8e857f6d097f771ae848a8f4bda1ff2ccf44d5df5ad4db38ad515119ed7"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-environment-parity-smoke-test.ts",
+      "sha256": "ced125b51c9bc4a74ef2acae4c877b37b3f3559ac27dd4fe6dc2c02ec6f48624"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-dispatch-checkpoint-smoke-test.ts",
+      "sha256": "e93365605d1ffa2e24a82ca0861cdc5ec9bd6a043fae478bb2825a00ab242a3c"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-security-smoke-test.ts",
+      "sha256": "0e0fbeb217b4ed2749053fc443b000e3f57652ef636cbfeb9cc5220f03fe008e"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-provenance-smoke-test.ts",
+      "sha256": "7ff5edc17148d1f688e0ca878a032aebd45af037d4c725c151d1f85611ec7ff4"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+      "sha256": "85c716969e8719293bdbc8a1aa8520186a4f01ab7dba0eeb44d184de8f59ee2a"
+    },
+    {
+      "path": "prisma/helpers/formative-conversation-v5-v18-test-environment.ts",
+      "sha256": "950366a23dd83f74237f0091b9fa361f073159413891bb8cea58e7f0abe51e19"
+    },
+    {
+      "path": "prisma/student-profiling-semantic-validation-smoke-test.ts",
+      "sha256": "cfa387d7dfc498decce71a8438e035054ca2a4c3eecf086e9636bf93ce263a60"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+      "sha256": "2bd1953bcc2f5007a3d325a461e243911abf87dadd9f7e33b3c1f9787fc5781c"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs",
+      "sha256": "4a5923170ab7d3af9754ebad87c0dc43aa92cd36d66d9b3efbb3881df7834989"
+    },
+    {
+      "path": "src/lib/evaluation/synthetic-student-validation/framework.ts",
+      "sha256": "8ac0dd1ac9e103fb2c90728e7e959e503aaf961ebf144e93d26ca8944f0f5a0e"
+    },
+    {
+      "path": "src/lib/llm/providers/mock-provider.ts",
+      "sha256": "81e29354516f64d54b3959ea58aeb9d0e6e611b6ff9d258e7320f8f40edd2637"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v18/candidate.ts",
+      "sha256": "c3ab8ee94ac65d51f6960951ffd7da0b35d3b0ef30568e55440bf9a5b3a642c0"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v18/forensics.ts",
+      "sha256": "158b1216b08482782b9ea34a76b320335f960f5aa4c5b7e0576e88efcccd802b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/candidate-runner.ts",
+      "sha256": "bc34c327b3a3f5acf7a4ad0c8d5681239c9a290a0cb4bb5d201e30506d99dd07"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/compiler.ts",
+      "sha256": "ae65c89736af7c05f6be546888ee0c83e4f3436de2b5f3f687106a91ca9e460c"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/contracts.ts",
+      "sha256": "12c614f9ceaeb00d3361b35672e2a0e70e08579dfe621019d47da09c849d8dd6"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/dispatch-checkpoint.ts",
+      "sha256": "ced628bb5984ab6468204bfa53deb22f17b932eac14467c97505dbbcca021d0b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/evaluation-accounting.ts",
+      "sha256": "771de00e8378393a456dd693db39bc66749a06296deb8be11ad28adbe01dd1fd"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/live-environment.ts",
+      "sha256": "1bb8dee45a1aab6ca34080a1b8050b389c2057694f3aac53656a610381cf87d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/package.ts",
+      "sha256": "b090afdb1fc478cff72460c2a9f50e86a59429147a75896a1b87d2875e5cdc69"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/provenance.ts",
+      "sha256": "df739bda45313b014350ed55e6f4541806183c1d4c1d06b3ca383af82cac17d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/security-release.ts",
+      "sha256": "ced9a1490d3a1578a7644c0c500e8f7e4be0f53aa9fd128df5faa293bc7fe554"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/service.ts",
+      "sha256": "83d38631144d0e47f302fdef4c3c0378b7b2358ea76609ed19f30f9ecf494d28"
+    },
+    {
+      "path": "docs/operations/FORMATIVE_CONVERSATION_V18_CONTRACT_CONVERGENCE.md",
+      "sha256": "49dbedd187e98ff23909730e5e0d3b67b0988f1a0d8ec587eb5fa845e374b7b2"
+    }
+  ],
+  "materializer_source": {
+    "path": "prisma/operational-formative-conversation-v18-materialize.ts",
+    "sha256": "bee08171974f83654e2c14fb563de80c2ebec9494ac20c95ed85e171a99feba4"
+  },
+  "provenance_contract_hash": "f10cf1a77008ec9bd3dec5433135d1f20ec7f8a3091bb016e9db03dc53c88b2e"
+}

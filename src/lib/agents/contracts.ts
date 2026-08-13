@@ -17,6 +17,7 @@ import {
 } from "@/lib/domain/enums";
 import { AgentName } from "./names";
 import { StudentProfileAtomicMisconceptionClaimSchema } from "@/lib/domain/misconception-claim-identity";
+import { CanonicalEligibleEvidenceCatalogSchema } from "@/lib/domain/canonical-evidence-identity";
 
 export const AgentOutputBase = z.object({
   agent_name: AgentName,
@@ -276,12 +277,47 @@ export const ResponseCollectionOutput = AgentOutputBase.extend({
 export const StudentProfilingInput = z.object({
   concept_unit_metadata: JsonRecord,
   initial_response_package: JsonRecord,
+  allowed_evidence_catalog: CanonicalEligibleEvidenceCatalogSchema.nullable().optional(),
   previous_profile: JsonRecord.nullable().optional(),
   followup_evidence_package: JsonRecord.nullable().optional(),
   profile_type: ProfileTypeSchema,
   profiling_constraints: JsonRecord
 }).strict();
 
+// Historical fixtures omit the V18 evidence catalog. Active profiling requests
+// must carry the platform-built catalog before provider dispatch.
+export const ProductionStudentProfilingInput = StudentProfilingInput.extend({
+  allowed_evidence_catalog: CanonicalEligibleEvidenceCatalogSchema
+}).strict();
+
+const HistoricalStudentProfileMisconceptionIndicatorSchema = z
+  .object({
+    indicator: z.string(),
+    evidence_reference: z.string().nullable(),
+    confidence: ConfidenceLevelSchema,
+    rationale: z.string().nullable(),
+    atomic_claims: z
+      .array(StudentProfileAtomicMisconceptionClaimSchema)
+      .min(1)
+      .max(20)
+      .optional()
+  })
+  .strict();
+
+const ProductionStudentProfileMisconceptionIndicatorSchema = z
+  .object({
+    indicator: z.string(),
+    evidence_reference: z.string().nullable(),
+    confidence: ConfidenceLevelSchema,
+    rationale: z.string().nullable(),
+    atomic_claims: z
+      .array(StudentProfileAtomicMisconceptionClaimSchema)
+      .min(1)
+      .max(20)
+  })
+  .strict();
+
+// Retained for historical V3-V17 fixture and replay parsing only.
 export const StudentProfileOutput = AgentOutputBase.extend({
   agent_name: z.literal("student_profiling_agent"),
   profile_type: ProfileTypeSchema,
@@ -296,19 +332,7 @@ export const StudentProfileOutput = AgentOutputBase.extend({
   confidence_alignment: ConfidenceAlignmentSchema,
   independence_interpretability: IndependenceInterpretabilitySchema,
   misconception_indicators: z.array(
-    z
-      .object({
-        indicator: z.string(),
-        evidence_reference: z.string().nullable(),
-        confidence: ConfidenceLevelSchema,
-        rationale: z.string().nullable(),
-        atomic_claims: z
-          .array(StudentProfileAtomicMisconceptionClaimSchema)
-          .min(1)
-          .max(20)
-          .optional()
-      })
-      .strict()
+    HistoricalStudentProfileMisconceptionIndicatorSchema
   ),
   item_level_evidence: z.array(
     z
@@ -334,6 +358,12 @@ export const StudentProfileOutput = AgentOutputBase.extend({
         item_public_id: z.string().nullable()
       })
       .strict()
+  )
+}).strict();
+
+export const ProductionStudentProfileOutput = StudentProfileOutput.extend({
+  misconception_indicators: z.array(
+    ProductionStudentProfileMisconceptionIndicatorSchema
   )
 }).strict();
 
@@ -394,7 +424,7 @@ export const FollowupOutput = AgentOutputBase.extend({
 export const agentInputSchemas = {
   item_verification_agent: ItemVerificationInput,
   response_collection_agent: ResponseCollectionInput,
-  student_profiling_agent: StudentProfilingInput,
+  student_profiling_agent: ProductionStudentProfilingInput,
   formative_value_and_planning_agent: FormativePlanningInput,
   followup_agent: FollowupInput
 } as const;
@@ -402,17 +432,44 @@ export const agentInputSchemas = {
 export const agentOutputSchemas = {
   item_verification_agent: ItemVerificationOutput,
   response_collection_agent: ResponseCollectionOutput,
-  student_profiling_agent: StudentProfileOutput,
+  student_profiling_agent: ProductionStudentProfileOutput,
   formative_value_and_planning_agent: FormativePlanningOutput,
   followup_agent: FollowupOutput
 } as const;
 
+type HistoricalStudentProfilingInput = z.infer<typeof StudentProfilingInput>;
+type CompatibleStudentProfilingInput = Omit<
+  HistoricalStudentProfilingInput,
+  "allowed_evidence_catalog"
+> & {
+  allowed_evidence_catalog?:
+    HistoricalStudentProfilingInput["allowed_evidence_catalog"];
+};
+
+type ParsedStudentProfileOutput = z.infer<typeof StudentProfileOutput>;
+type ParsedMisconceptionIndicator =
+  ParsedStudentProfileOutput["misconception_indicators"][number];
+type CompatibleStudentProfileOutput = Omit<
+  ParsedStudentProfileOutput,
+  "misconception_indicators"
+> & {
+  misconception_indicators: Array<
+    Omit<ParsedMisconceptionIndicator, "atomic_claims"> & {
+      atomic_claims?: ParsedMisconceptionIndicator["atomic_claims"];
+    }
+  >;
+};
+
 export type AgentInputByName = {
-  [K in keyof typeof agentInputSchemas]: z.infer<(typeof agentInputSchemas)[K]>;
+  [K in keyof typeof agentInputSchemas]: K extends "student_profiling_agent"
+    ? CompatibleStudentProfilingInput
+    : z.infer<(typeof agentInputSchemas)[K]>;
 };
 
 export type AgentOutputByName = {
-  [K in keyof typeof agentOutputSchemas]: z.infer<(typeof agentOutputSchemas)[K]>;
+  [K in keyof typeof agentOutputSchemas]: K extends "student_profiling_agent"
+    ? CompatibleStudentProfileOutput
+    : z.infer<(typeof agentOutputSchemas)[K]>;
 };
 
 export type AnyAgentOutput = AgentOutputByName[keyof AgentOutputByName];

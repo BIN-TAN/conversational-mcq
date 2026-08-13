@@ -188,6 +188,7 @@ async function buildRuntimeContextSeed(input: {
     include: {
       assessment_session: {
         select: {
+          session_public_id: true,
           assessment: {
             select: {
               assessment_public_id: true,
@@ -249,6 +250,7 @@ async function buildRuntimeContextSeed(input: {
             },
             take: 500,
             select: {
+              id: true,
               event_type: true,
               event_category: true,
               event_source: true,
@@ -270,7 +272,10 @@ async function buildRuntimeContextSeed(input: {
         orderBy: { transitioned_at: "desc" },
         take: 1,
         include: {
-          updated_student_profile: true
+          updated_student_profile: true,
+          source_turn: {
+            select: { sequence_index: true }
+          }
         }
       }
     }
@@ -414,6 +419,12 @@ async function buildRuntimeContextSeed(input: {
     }));
 
   return {
+    evidence_namespace_public_id:
+      session.assessment_session.session_public_id,
+    assessment_process_evidence_source_public_ids:
+      session.concept_unit_session.process_events.map((event) => event.id),
+    current_profile_evidence_cutoff_sequence_index:
+      session.profile_transitions[0]?.source_turn?.sequence_index ?? 0,
     assessment_public_id:
       session.assessment_session.assessment.assessment_public_id,
     concept_unit_public_id:

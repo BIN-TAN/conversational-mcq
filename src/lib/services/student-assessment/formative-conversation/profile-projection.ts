@@ -4,6 +4,8 @@ import {
   canonicalFormativeConversationProfileStateFromStudentProfile,
   parseFormativeConversationProfileSnapshot
 } from "./profile-update";
+import { FormativeConversationV18PersistedProfileSnapshotSchema } from "./agent-contract-v18";
+import { validatePersistedFormativeConversationV18Transition } from "./evidence-identity-validator-v18";
 import { validatePersistedFormativeConversationProfileTransition } from "./profile-transition-validator";
 
 export type PersistedFormativeConversationOutcome =
@@ -32,11 +34,88 @@ export type CanonicallyValidatablePersistedProfileTransition =
     }>;
   };
 
+export function canonicalFormativeConversationV18TransitionProvenance(
+  transition: CanonicallyValidatablePersistedProfileTransition
+) {
+  const parsed = FormativeConversationV18PersistedProfileSnapshotSchema.safeParse(
+    transition.profile_snapshot
+  );
+  if (!parsed.success) {
+    return null;
+  }
+  return {
+    prior_profile_evidence_cutoff_sequence_index:
+      parsed.data.prior_profile_evidence_cutoff_sequence_index,
+    updated_profile_evidence_cutoff_sequence_index:
+      parsed.data.profile.evidence_cutoff_sequence_index,
+    canonical_evidence_ids: [...parsed.data.canonical_evidence_ids],
+    canonical_evidence: parsed.data.canonical_evidence_catalog.evidence
+      .filter((entry) =>
+        parsed.data.canonical_evidence_ids.includes(entry.evidence_id)
+      )
+      .map((entry) => ({
+        evidence_id: entry.evidence_id,
+        evidence_scope_id: entry.evidence_scope_id,
+        evidence_kind: entry.evidence_kind,
+        evidence_stage: entry.evidence_stage,
+        source_role: entry.source_role,
+        source_sequence_index: entry.source_sequence_index
+      })),
+    misconception_claim_provenance:
+      parsed.data.profile.misconception_claim_catalog?.indicators.flatMap(
+        (indicator) =>
+          indicator.claims.map((claim) => ({
+            indicator_id: indicator.indicator_id,
+            claim_id: claim.claim_id,
+            source_evidence_refs: [...claim.source_evidence_refs]
+          }))
+      ) ?? []
+  };
+}
+
 export function isCanonicalPersistedFormativeConversationProfileTransition(
   transition: CanonicallyValidatablePersistedProfileTransition
 ) {
   if (transition.learning_outcome === null) {
     return false;
+  }
+  const v18Snapshot =
+    FormativeConversationV18PersistedProfileSnapshotSchema.safeParse(
+      transition.profile_snapshot
+    );
+  if (v18Snapshot.success) {
+    try {
+      const priorState =
+        canonicalFormativeConversationProfileStateFromStudentProfile(
+          transition.prior_student_profile
+        );
+      const updatedState =
+        canonicalFormativeConversationProfileStateFromStudentProfile(
+          transition.updated_student_profile
+        );
+      return validatePersistedFormativeConversationV18Transition({
+        prior_profile: priorState.canonical_profile,
+        prior_misconception_claim_catalog:
+          priorState.misconception_claim_catalog,
+        updated_profile: updatedState.canonical_profile,
+        updated_misconception_claim_catalog:
+          updatedState.misconception_claim_catalog,
+        profile_snapshot: v18Snapshot.data,
+        learning_outcome: transition.learning_outcome,
+        evidence_interpretation: transition.evidence_interpretation,
+        supporting_turns: transition.supporting_turn_references.map(
+          (reference) => ({
+            sequence_index: reference.conversation_turn.sequence_index,
+            actor:
+              reference.conversation_turn.actor_type === "student"
+                ? ("student" as const)
+                : ("tutor" as const)
+          })
+        )
+      }).valid;
+    } catch {
+      return false;
+    }
   }
   const snapshot = parseFormativeConversationProfileSnapshot(
     transition.profile_snapshot

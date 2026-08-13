@@ -1,0 +1,30 @@
+{
+  "artifact_version": "formative-conversation-v18-source-configuration-v1",
+  "source_base_git_commit": "35dcd9b9de30060a85de3b2f5860e0696303f20c",
+  "source_state": "uncommitted_working_tree_candidate",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "protocol_hash": "4ade4a44ee74bfc59be2ce1fef274e490c1e4bcb3dd330d36229efa530841d47",
+  "student_profiling": {
+    "agent_name": "student_profiling_agent",
+    "model_snapshot": "gpt-5.6-terra",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 4000,
+    "prompt_version": "student-profiling-v5",
+    "prompt_hash": "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626",
+    "schema_version": "student-profile-output-v4"
+  },
+  "formative_conversation": {
+    "agent_name": "formative_conversation_agent",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 7000,
+    "prompt_version": "formative-conversation-host-v7",
+    "prompt_hash": "cec7ea8dcb2ef86b588346b540ef0439f78e6265b12de7a317a3f7514f776a9a",
+    "schema_version": "formative-conversation-agent-contract-v3",
+    "context_version": "formative-conversation-context-v3"
+  },
+  "no_provider_call": true,
+  "render_accessed": false,
+  "database_schema_changed": false,
+  "live_execution_prepared": false
+}

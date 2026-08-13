@@ -1,0 +1,19 @@
+{
+  "reference_version": "formative-conversation-v18-immutable-v17-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v17",
+  "git_commit": "35dcd9b9de30060a85de3b2f5860e0696303f20c",
+  "provider_run_id": "fcv5v17_provider_20260812104724_6e45e95e",
+  "derived_evaluation_id": "fcv5v17_derived_20260812104724_47ac9964",
+  "runtime_candidate_hash": "b077ba062c37340eac2918a2578f118c36fa852006196d31ef4735598ed21e6e",
+  "evaluation_protocol_hash": "e8d76572f9fb11bf88069c3474c6f1a39469a68e2fe1fa1d2a827f42c2283d90",
+  "candidate_tree_sha256": "ee212a40935b46317727c7b0525f0e7d2982dc6c3a7461dd99c84c94f64caecc",
+  "run_tree_sha256": "7ded22b1edf77d0572168a545d759b1f89eed832f4b0f7a03ccc29b7223d9054",
+  "pre_freeze_candidate_identity": "e797f6c077783abc345ef04936ff322906528ed3bda69cf85d95fba6c3433398",
+  "pre_freeze_protocol_hash": "4ade4a44ee74bfc59be2ce1fef274e490c1e4bcb3dd330d36229efa530841d47",
+  "pre_freeze_candidate_manifest_hash": "8c8f064368559105b13a534a125f647033b7928fe78811507e70d9c3f0ade1a0",
+  "pre_freeze_verification_manifest_hash": "d131206aa54538f58f13acfa5167d7f2beb38b16d0fa0b2b3ee1528f057ec649",
+  "local_artifact_policy": "hash_reference_only_not_required_for_v18_live_readiness",
+  "required_for_v18_live_readiness": false,
+  "candidate_artifacts_mutated": false,
+  "run_artifacts_mutated": false
+}

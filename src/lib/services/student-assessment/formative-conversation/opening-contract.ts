@@ -74,6 +74,14 @@ const assessmentAcknowledgementPatterns = [
   /\bI\s+(?:noticed|saw)\b.{0,80}\b(?:in|from)\s+your\s+(?:answers?|responses?|reasoning|explanation)\b/i
 ] as const;
 
+export function hasFormativeConversationOpeningAssessmentAcknowledgement(
+  message: string
+) {
+  return assessmentAcknowledgementPatterns.some((pattern) =>
+    pattern.test(message)
+  );
+}
+
 function repeatsStudentAssessmentResult(message: string) {
   return message
     .split(/(?:[.!?]\s+|\n+)/)
@@ -119,11 +127,7 @@ export function validateFormativeConversationOpeningOutput(
   )) {
     issues.add(issue);
   }
-  if (
-    !assessmentAcknowledgementPatterns.some((pattern) =>
-      pattern.test(message)
-    )
-  ) {
+  if (!hasFormativeConversationOpeningAssessmentAcknowledgement(message)) {
     issues.add("opening_assessment_acknowledgement_missing");
   }
   if (parsed.data.evidence_observations.length > 0) {

@@ -476,7 +476,8 @@ function main() {
     caseId: "ungrounded_atomic_claim_evidence",
     providerInput: profileInput({ initial: persistentItems }),
     output: ungroundedAtomicClaim,
-    issueFragment: "references evidence outside the supplied response package"
+    issueFragment:
+      "references evidence outside the eligible baseline assessment catalog"
   });
 
   const duplicateAtomicClaim = profileOutput({ itemFixtures: persistentItems });

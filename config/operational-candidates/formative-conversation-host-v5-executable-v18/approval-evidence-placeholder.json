@@ -1,0 +1,11 @@
+{
+  "placeholder_version": "formative-conversation-v18-approval-placeholder-v1",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "protocol_hash": "0709d61e2f681e5a73a8b488165bfeffb7a030b5e12bf5dd171eb15a06f4d5ef",
+  "approval_status": "not_approved",
+  "activation_status": "not_permitted",
+  "approval_evidence_created": false,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "reason": "The executable package is frozen but has not been authorized, run, human-reviewed, approved, or activated."
+}

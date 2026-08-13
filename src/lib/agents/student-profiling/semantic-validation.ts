@@ -190,7 +190,8 @@ function hasMixedCorrectness(items: GroundedItemEvidence[]) {
 
 function outputSupportsDominantInterpretation(
   output: StudentProfileOutput,
-  groundedItemReferences: Set<string>
+  groundedItemReferences: Set<string>,
+  groundedMisconceptionReferences: Set<string>
 ) {
   const groundedOutputReferences = output.item_level_evidence
     .map((item) => item.item_public_id)
@@ -202,7 +203,7 @@ function outputSupportsDominantInterpretation(
     (indicator) =>
       Boolean(
         indicator.evidence_reference &&
-          groundedItemReferences.has(indicator.evidence_reference)
+          groundedMisconceptionReferences.has(indicator.evidence_reference)
       )
   );
 
@@ -283,9 +284,21 @@ export function assessStudentProfileEvidenceConsistency(input: {
   const groundedItemReferences = new Set(
     currentItems.map((item) => item.item_public_id)
   );
+  const groundedMisconceptionReferences = new Set([
+    ...groundedItemReferences,
+    ...(input.providerInput?.allowed_evidence_catalog?.evidence ?? [])
+      .filter(
+        (evidence) =>
+          evidence.source_role === "student" &&
+          evidence.evidence_stage === "baseline_assessment" &&
+          evidence.eligibility === "student_understanding"
+      )
+      .map((evidence) => evidence.evidence_id)
+  ]);
   const dominantInterpretationSupported = outputSupportsDominantInterpretation(
     input.output,
-    groundedItemReferences
+    groundedItemReferences,
+    groundedMisconceptionReferences
   );
   const evidenceInsufficient =
     !input.providerInput ||
@@ -375,10 +388,22 @@ function validateAtomicMisconceptionClaims(input: {
   output: StudentProfileOutput;
 }) {
   const issues: string[] = [];
-  const groundedReferences = new Set([
-    ...packageItemEvidence(input.providerInput?.initial_response_package),
-    ...packageItemEvidence(input.providerInput?.followup_evidence_package)
-  ].map((item) => item.item_public_id));
+  const canonicalCatalog = input.providerInput?.allowed_evidence_catalog;
+  const groundedReferences = canonicalCatalog
+    ? new Set(
+        canonicalCatalog.evidence
+          .filter(
+            (evidence) =>
+              evidence.source_role === "student" &&
+              evidence.evidence_stage === "baseline_assessment" &&
+              evidence.eligibility === "student_understanding"
+          )
+          .map((evidence) => evidence.evidence_id)
+      )
+    : new Set([
+        ...packageItemEvidence(input.providerInput?.initial_response_package),
+        ...packageItemEvidence(input.providerInput?.followup_evidence_package)
+      ].map((item) => item.item_public_id));
   const seenIndicators = new Set<string>();
 
   input.output.misconception_indicators.forEach((indicator, indicatorIndex) => {
@@ -388,14 +413,25 @@ function validateAtomicMisconceptionClaims(input: {
     }
     seenIndicators.add(indicatorKey);
 
-    if (!indicator.atomic_claims || indicator.atomic_claims.length === 0) {
+    if (
+      canonicalCatalog &&
+      indicator.evidence_reference !== null &&
+      !groundedReferences.has(indicator.evidence_reference)
+    ) {
+      issues.push(
+        `misconception_indicators[${indicatorIndex}].evidence_reference must use an eligible canonical baseline evidence_id.`
+      );
+    }
+
+    const atomicClaims = indicator.atomic_claims;
+    if (!atomicClaims || atomicClaims.length === 0) {
       issues.push(
         `misconception_indicators[${indicatorIndex}] requires validated atomic_claims before persistence.`
       );
       return;
     }
     const seenClaims = new Set<string>();
-    indicator.atomic_claims.forEach((claim, claimIndex) => {
+    atomicClaims.forEach((claim, claimIndex) => {
       const claimKey = claim.claim_text.replace(/\s+/gu, " ").trim().toLocaleLowerCase("en-US");
       if (seenClaims.has(claimKey)) {
         issues.push(
@@ -415,7 +451,7 @@ function validateAtomicMisconceptionClaims(input: {
         )
       ) {
         issues.push(
-          `misconception_indicators[${indicatorIndex}].atomic_claims[${claimIndex}] references evidence outside the supplied response package.`
+          `misconception_indicators[${indicatorIndex}].atomic_claims[${claimIndex}] references evidence outside the eligible baseline assessment catalog.`
         );
       }
     });

@@ -3,9 +3,9 @@ import type { AgentPromptDefinition } from "../types";
 
 export const studentProfilingPromptV1: AgentPromptDefinition = {
   agent_name: "student_profiling_agent",
-  agent_version: "6a-draft",
-  prompt_version: "student-profiling-v4",
-  schema_version: "student-profile-output-v3",
+  agent_version: "6b-draft",
+  prompt_version: "student-profiling-v5",
+  schema_version: "student-profile-output-v4",
   status: "draft",
   description:
     "Draft contract prompt for the future three-layer Student Profiling Agent. Not active in classroom workflows.",
@@ -29,7 +29,9 @@ ${constraintsBlock([
   "Do not infer motivation as a stable trait.",
   "Clearly separate observed evidence, diagnostic inference, uncertainty, and recommended next evidence.",
   "Return misconception_indicators, item_level_evidence, and recommended_next_evidence as arrays of strict structured objects with null for unavailable references.",
-  "For every misconception indicator, return one or more semantic atomic_claims before formative conversation begins. Each atomic claim must state one misconception proposition and cite its source evidence references.",
+  "For every misconception indicator, return one or more semantic atomic_claims before formative conversation begins. Each atomic claim must state one misconception proposition and cite one or more evidence_id values from allowed_evidence_catalog in source_evidence_references.",
+  "Never invent an evidence reference or substitute item IDs, sequence numbers, quotations, or free-text paraphrases for evidence_id values.",
+  "Use only evidence marked student_understanding to support a misconception claim. Process observations and confidence may qualify evidence interpretation but are not by themselves evidence of a misconception proposition.",
   "A broad indicator may contain multiple atomic claims, but confidence, rationale, evidence metadata, limitations, uncertainty, and untested knowledge are not misconception claims.",
   "Do not assign indicator or claim IDs. The platform assigns stable identities only after this output passes validation.",
   "Use the exact locked enum labels.",

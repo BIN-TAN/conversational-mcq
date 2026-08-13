@@ -1,4 +1,10 @@
 import type { FormativeConversationAgentInput } from "./agent-contract";
+import type { FormativeConversationV18AgentInput } from "./agent-contract-v18";
+
+type SafeFormativeConversationInput = Pick<
+  FormativeConversationAgentInput | FormativeConversationV18AgentInput,
+  "administered_items" | "safety_boundary"
+> & Record<string, unknown>;
 
 export type FormativeConversationSafetyIssueCode =
   | "administered_item_boundary_mismatch"
@@ -12,7 +18,7 @@ export type FormativeConversationSafetyResult = {
 };
 
 export type FormativeConversationSafetyBoundaryValidator = (
-  input: FormativeConversationAgentInput
+  input: SafeFormativeConversationInput
 ) => FormativeConversationSafetyResult;
 
 const forbiddenInternalKeys = new Set([
