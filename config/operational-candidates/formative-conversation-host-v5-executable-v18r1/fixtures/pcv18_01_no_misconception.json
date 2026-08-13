@@ -1,0 +1,316 @@
+{
+  "fixture_version": "formative-conversation-v18-profiling-canary-v2",
+  "case_type": "profiling_contract_canary",
+  "case_id": "pcv18_01_no_misconception",
+  "case_order": 1,
+  "title": "No misconception",
+  "synthetic_only": true,
+  "real_student_information_present": false,
+  "provider_input": {
+    "concept_unit_metadata": {
+      "assessment": {
+        "assessment_public_id": "pcv18_01_no_misconception:assessment",
+        "title": "Synthetic measurement evidence assessment",
+        "description": "Synthetic operational evaluation only.",
+        "status": "published"
+      },
+      "assessment_session": {
+        "session_public_id": "pcv18_01_no_misconception:synthetic-session",
+        "attempt_number": 1,
+        "status": "active",
+        "current_phase": "profiling_pending"
+      },
+      "concept_unit": {
+        "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+        "title": "Measurement evidence and score interpretation",
+        "learning_objective": "Distinguish reliability, measurement error, and validity evidence."
+      }
+    },
+    "initial_response_package": {
+      "package_type": "initial_concept_unit_response_package",
+      "created_at": "2026-08-13T00:00:00.000Z",
+      "payload": {
+        "item_responses": [
+          {
+            "item_public_id": "measurement_reliability",
+            "correctness": "correct",
+            "reasoning_text": "Reliability supports consistency, not validity by itself.",
+            "confidence_rating": "medium"
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "correctness": "correct",
+            "reasoning_text": "SEM describes uncertainty around an observed score.",
+            "confidence_rating": "medium"
+          },
+          {
+            "item_public_id": "validity_argument",
+            "correctness": "correct",
+            "reasoning_text": "Validity evidence depends on the intended interpretation and use.",
+            "confidence_rating": "medium"
+          }
+        ]
+      },
+      "item_evidence": [
+        {
+          "item_public_id": "measurement_reliability",
+          "item_order": 1,
+          "response": {
+            "selected_option": "A",
+            "correctness": "correct",
+            "reasoning_text": "Reliability supports consistency, not validity by itself.",
+            "confidence_rating": "medium",
+            "response_finalized": true
+          }
+        },
+        {
+          "item_public_id": "standard_error_measurement",
+          "item_order": 2,
+          "response": {
+            "selected_option": "A",
+            "correctness": "correct",
+            "reasoning_text": "SEM describes uncertainty around an observed score.",
+            "confidence_rating": "medium",
+            "response_finalized": true
+          }
+        },
+        {
+          "item_public_id": "validity_argument",
+          "item_order": 3,
+          "response": {
+            "selected_option": "A",
+            "correctness": "correct",
+            "reasoning_text": "Validity evidence depends on the intended interpretation and use.",
+            "confidence_rating": "medium",
+            "response_finalized": true
+          }
+        }
+      ],
+      "conversation_turns": [],
+      "process_event_aggregates": {
+        "package_submitted": 1
+      },
+      "process_events": [
+        {
+          "event_type": "package_submitted",
+          "event_category": "initial_administration",
+          "event_source": "student",
+          "occurred_at": "2026-08-13T00:00:00.000Z",
+          "item_public_id": null
+        }
+      ]
+    },
+    "allowed_evidence_catalog": {
+      "identity_version": "canonical-evidence-identity-v2",
+      "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+      "evidence": [
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_a279e182a17c8de8aa9fbcef",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_answer",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Selected option A; scored correct."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_e29bdf5ae6a62edc9b31342b",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Reliability supports consistency, not validity by itself."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_8523f2713ffb9e4e6c9863dc",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_confidence",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Submitted confidence: medium."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_8ff86a619003488ee2df5bc8",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_answer",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Selected option A; scored correct."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_6d399083b32cbf5a339666cd",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "SEM describes uncertainty around an observed score."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_3de3c003c4d90723926c0fad",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_confidence",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Submitted confidence: medium."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_f9bd00c3a62eb27cc334e338",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_answer",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "validity_argument",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Selected option A; scored correct."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_a1c4d3c374db54c0b27d3623",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "validity_argument",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Validity evidence depends on the intended interpretation and use."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_4bd2a9378009f8174c098f34",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_confidence",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": "validity_argument",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Submitted confidence: medium."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_1a65029ae44f1a7c0cef51c2",
+          "evidence_scope_id": "es_65488862a9fc8b83c6571022",
+          "evidence_kind": "assessment_process_observation",
+          "source_role": "platform_observation",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "pcv18_01_no_misconception:assessment",
+          "concept_unit_public_id": "pcv18_01_no_misconception:measurement-evidence",
+          "conversation_public_id": null,
+          "item_public_id": null,
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Observed package_submitted (initial_administration, student) at 2026-08-13T00:00:00.000Z."
+        }
+      ]
+    },
+    "previous_profile": null,
+    "followup_evidence_package": null,
+    "profile_type": "initial",
+    "profiling_constraints": {
+      "conservative_inference_required": true,
+      "semantic_atomic_claims_required": true,
+      "platform_assigns_machine_ids_after_validation": true,
+      "synthetic_operational_evaluation_only": true,
+      "output_schema_version": "student-profile-output-v4"
+    }
+  },
+  "catalog_identity_scope_template": "<provider_run_id>:pcv18_01_no_misconception:initial-profile",
+  "expected_catalog": {
+    "indicator_count": 0,
+    "claim_count": 0,
+    "minimum_claim_count": 0,
+    "empty_catalog_required": true,
+    "distinct_claim_ids_required": true,
+    "partial_resolution_projection_required": false,
+    "metadata_pseudo_claims_forbidden": true,
+    "lexical_splitting_forbidden": true
+  },
+  "case_assertions": [
+    {
+      "assertion_id": "production_profiling_contract_valid",
+      "description": "The exact student-profiling-v5 production request, V4 schema, and evidence-grounded semantic validator accept the output.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    },
+    {
+      "assertion_id": "platform_identity_assignment_valid",
+      "description": "The platform assigns canonical claim and evidence identities only after semantic acceptance.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    }
+  ],
+  "call_graph": {
+    "agent_name": "student_profiling_agent",
+    "prompt_version": "student-profiling-v5",
+    "schema_version": "student-profile-output-v4",
+    "base_logical_calls": 1,
+    "maximum_semantic_regenerations": 1,
+    "maximum_logical_calls": 2,
+    "maximum_provider_attempts_per_logical_call": 3,
+    "maximum_transport_retries_per_logical_call": 2
+  },
+  "fixture_hash": "c38874c189ad1f3450d2e9ac2bda888e23c05cadbd43822604aad30a276a4651"
+}

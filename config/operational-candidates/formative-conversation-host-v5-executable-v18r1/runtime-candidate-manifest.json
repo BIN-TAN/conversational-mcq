@@ -1,0 +1,246 @@
+{
+  "manifest_version": "formative-conversation-v18-runtime-candidate-manifest-v1",
+  "candidate_version": "formative-conversation-v18-dissertation-contract-convergence-v1",
+  "base_v17_runtime_candidate_hash": "b077ba062c37340eac2918a2578f118c36fa852006196d31ef4735598ed21e6e",
+  "change_scope": "dissertation_aligned_llm_platform_contract_convergence",
+  "runtime_source_files": [
+    {
+      "path": "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/route.ts",
+      "sha256": "ffbf9712f5f5b1b96c04c44bd964bb3c233f22f3692a9bd7f55a652cdae09753"
+    },
+    {
+      "path": "src/app/api/student/sessions/[sessionPublicId]/formative-conversation/messages/retry/route.ts",
+      "sha256": "b706e52029c496b835b08e84cdf9f78b9e72bef03e2d8289bbf8362662a17d2e"
+    },
+    {
+      "path": "src/lib/agents/contracts.ts",
+      "sha256": "b9a1ba25ec283ae5c29b6bf2e6f7e379e1c37c3ee0093d481fa8642c76aeed1d"
+    },
+    {
+      "path": "src/lib/agents/execute-agent.ts",
+      "sha256": "89b037cb0e093b892f94b9ca43929c73a79cf86f842904116b16cc7319910a19"
+    },
+    {
+      "path": "src/lib/agents/provider-request.ts",
+      "sha256": "c21f2ee91d269b9c01eb55a9e596d7d38848012f6a0a2eb84ec076eee092700b"
+    },
+    {
+      "path": "src/lib/agents/prompts/registry.ts",
+      "sha256": "c4ee72dd5c958c62757ad1ebcc12c03992570f01b0c64da67ce0117be4a9312a"
+    },
+    {
+      "path": "src/lib/agents/prompts/student-profiling/v1.ts",
+      "sha256": "749daf94755cb34e876601c2fceb63c7791ac72bb3faf9e87e7f5b54879e8d55"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/input-builder.ts",
+      "sha256": "6dfb483c0034d7402a69050da842f163531b66a424fb751acc32e01a271b26f8"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/persistence.ts",
+      "sha256": "ad425875aeb0c46462711c52abca3fdea28277a16d491ac8ee68e63c221652d4"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/semantic-validation.ts",
+      "sha256": "bed0bb37751f4cbde0f04ef7245c68bc35d118c317ee4d35acdd3f8513b96ef9"
+    },
+    {
+      "path": "src/lib/agents/student-profiling/service.ts",
+      "sha256": "c7c63e33397ecbdb17df9440bdc3ebb3be559ef6ad30f49650529db2f36a5038"
+    },
+    {
+      "path": "src/lib/domain/canonical-evidence-identity.ts",
+      "sha256": "95cf158d80108ca878aa226b1165c8fea05677dd1758b90273d7e21349d8d90c"
+    },
+    {
+      "path": "src/lib/domain/misconception-claim-identity.ts",
+      "sha256": "ab83feadc7b92b969777da403d75e96c48d2f165a28f7a9af413eea619a5cc0d"
+    },
+    {
+      "path": "src/lib/llm/config.ts",
+      "sha256": "e9b19951b1ef1d67c05ff34c44038f5ada19fa64fa0cfab878a918b203cc8a69"
+    },
+    {
+      "path": "src/lib/llm/provider-input-privacy.ts",
+      "sha256": "49e8496c4b8e2df1b6b4c1b25f1baa9d7f3205243dd84e9b1235fc21a17469db"
+    },
+    {
+      "path": "src/lib/llm/provider-transport-retry.ts",
+      "sha256": "6d8e80d4f0f7977a259c1fe54010b3afbf0a784224a3bd1f10fe2b87a7bdc4a7"
+    },
+    {
+      "path": "src/lib/llm/providers/openai-responses-provider.ts",
+      "sha256": "b2b15fbc55698665e580e1c36746d949882bd0219ea05fcfc72dcbc7788e6f58"
+    },
+    {
+      "path": "src/lib/llm/providers/types.ts",
+      "sha256": "d6fc11683060f7a65a65a3b438708ae2456e44856da2e92ffae1b4cf6b2adc3c"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/agent-contract.ts",
+      "sha256": "47912a811905314afebc36d76a30d65c75661dac53238b97a8939c76af52f354"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/agent-contract-v18.ts",
+      "sha256": "9a58fb1761b3be8bbd989fa5c958f5403d09439cc78d95e8bf439d3fdec2409a"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18.ts",
+      "sha256": "5d5736ea94db6b3ac6e46edf7567576af1eb7e52205d87641c9cf5026642af25"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/context.ts",
+      "sha256": "e5dcc3b20d1ede34d8439d306b59c1b586f6945ba96a3ec9c19223857f634d75"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/context-v18.ts",
+      "sha256": "0176ae24b558de1e736946d1c4381bdd16720e5e96feb05a9e1aa09e0fb4652f"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
+      "sha256": "27b1561c4dc98b7d4150be6995974ddc91e17f745e4db5570e8545205dffc0ef"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/evidence-references-v18.ts",
+      "sha256": "ecc3aa8634f3710b9daf7ab5aa40149b14ce4d68b4e5eb4c1ffd882d0b9dc2e4"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/execution-v18.ts",
+      "sha256": "94863510ff9303012ec81ad5d79d6eed33ccafacacab7f4930f6b3f5988e5c02"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/index.ts",
+      "sha256": "72629fcc49a33f77fd0a8d450420a839be1a3b6465dbaf23402c146671ec842c"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/live-runner-v18.ts",
+      "sha256": "d38e5c9b8690db4cde9357c11c9356f7fed5078511402edfc0b7e74de1a3650a"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/misconception-claim-closure-v2.ts",
+      "sha256": "022b6d3036320354191b17bacf0fd55f02344988d6da01aea5a950082d47d3d0"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
+      "sha256": "64fa253b6ead010d84dc5f2cc44c32f58d037c1554fda78bceb8368ffdd5d3d2"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/opening-runner.ts",
+      "sha256": "1465bb0dbb6f560228375a7263409cbd9f5a7b2fe605f1d0685218fa6f9d7fef"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/output-format.ts",
+      "sha256": "70a22861851ddef8d57423abee0b4e5fe10402bf43b0a8c651059207e7d09d51"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-projection.ts",
+      "sha256": "3a23dd44fd81c672535daedea7867fd37f4043f677de26aab151194a8ee69a9d"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-update.ts",
+      "sha256": "1a2951bc4810ab6d6fd529724524f39b5686030b03bd5a8caf3898c3fb4b1377"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-update-v18.ts",
+      "sha256": "fff53dad382fe68500e0c1670641c85f3db094940e03421bec81982ee84683e0"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/profile-transition-validator.ts",
+      "sha256": "ffd7196822274279f065a5862ea5500809f930870bfd6a5ce8e8add5510e320f"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/runtime-context.ts",
+      "sha256": "b002ee8c22f2e3e05db9acdbe076702920a53304224ce20444ffebd9d4cb9894"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/runtime.ts",
+      "sha256": "abbafe3f76c2a4fdceab91bf9d285b3051b0ecd1cda7f5bb0e93aaad60c89fdc"
+    },
+    {
+      "path": "src/lib/services/student-assessment/formative-conversation/safety-boundary.ts",
+      "sha256": "51a27c8da8b400ba5539ca5e1cc59433d5f841968215c2cac3daf6b6f3be92f2"
+    },
+    {
+      "path": "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+      "sha256": "b4ee9def711366ad1e57f129ed768c5f8a3a209e2f82b977fef5d25d29d23100"
+    },
+    {
+      "path": "src/lib/services/teacher-review/session-detail.ts",
+      "sha256": "e39151bb7c274eab2a2bf65e0d017a8ba6b02c2edc5b8f7b86560a890c7e9a56"
+    }
+  ],
+  "student_profiling_role": {
+    "agent_name": "student_profiling_agent",
+    "model_snapshot": "gpt-5.6-terra",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 4000,
+    "prompt_version": "student-profiling-v5",
+    "prompt_hash": "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626",
+    "schema_version": "student-profile-output-v4"
+  },
+  "formative_conversation_role": {
+    "agent_name": "formative_conversation_agent",
+    "model_snapshot": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 7000,
+    "prompt_version": "formative-conversation-host-v7",
+    "prompt_hash": "cec7ea8dcb2ef86b588346b540ef0439f78e6265b12de7a317a3f7514f776a9a",
+    "schema_version": "formative-conversation-agent-contract-v3",
+    "context_version": "formative-conversation-context-v3"
+  },
+  "contracts": {
+    "canonical_claim_identity_version": "misconception-claim-identity-v1",
+    "canonical_evidence_identity_version": "canonical-evidence-identity-v2",
+    "evidence_reference_version": "formative-conversation-evidence-reference-v2",
+    "evidence_validator_version": "formative-conversation-evidence-id-validator-v2",
+    "candidate_acceptance_version": "formative-conversation-v18-candidate-acceptance-v1",
+    "profile_recommendation_version": "formative-conversation-profile-recommendation-v4",
+    "profile_snapshot_version": "formative-conversation-profile-snapshot-v2",
+    "profile_transition_version": "formative-conversation-profile-transition-v7",
+    "execution_policy_version": "formative-conversation-v18-execution-policy-v1",
+    "semantic_regeneration_version": "formative-conversation-v18-semantic-regeneration-v1",
+    "accounting_version": "formative-conversation-v18-evaluation-accounting-v1",
+    "opening_version": "formative-conversation-opening-v3",
+    "output_format_version": "formative-conversation-student-output-format-v1",
+    "memory_version": "formative-conversation-memory-v1",
+    "safety_boundary_version": "formative-conversation-safety-boundary-v1"
+  },
+  "recovery_policy": {
+    "maximum_semantic_regenerations": 1,
+    "incomplete_output_recovery_calls": 0,
+    "structured_output_recovery_implemented": false
+  },
+  "responsibility_boundary": {
+    "llm_owns": [
+      "assessment_evidence_interpretation",
+      "provisional_semantic_profile",
+      "adaptive_formative_teaching",
+      "learning_change_judgment",
+      "profile_and_outcome_recommendation"
+    ],
+    "platform_owns": [
+      "canonical_evidence",
+      "entity_and_evidence_identity",
+      "sequence_and_lifecycle_state",
+      "privacy",
+      "persistence",
+      "provenance",
+      "structured_contract_validity",
+      "fail_closed_transition_integrity",
+      "teacher_and_research_reconstruction"
+    ],
+    "deterministic_pedagogy_added": false
+  },
+  "unchanged_boundaries": [
+    "activity_selection",
+    "fixed_tutoring_sequences",
+    "mastery_thresholds",
+    "profile_outcome_meanings",
+    "database_schema",
+    "research_export_architecture",
+    "privacy_controls",
+    "active_approval_bundle",
+    "rollback_bundle"
+  ],
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca"
+}

@@ -1,0 +1,38 @@
+{
+  "manifest_version": "formative-conversation-host-v5-executable-candidate-revision-v18r1",
+  "candidate_state": "inactive",
+  "approval": {
+    "eligible": false,
+    "evidence_created": false
+  },
+  "activation": {
+    "permitted": false
+  },
+  "runtime_behavior_changed": false,
+  "instructional_behavior_changed": false,
+  "database_schema_changed": false,
+  "runtime_change_scope": "deployment_provenance_execution_infrastructure_only",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "pre_freeze_candidate_identity": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "protocol_hash": "1dda208e9a3f454c1b708663790c9f2181a4054b7b06d99951ab4da04a8c7881",
+  "runner_implementation_hash": "89c2d85a7d96a88ab0e9d3e5fdef22a1df3596de336fb63f5842e5e74dc60b2b",
+  "materializer_implementation_hash": "ee7ca8ef5f40c6da61b1114079151444bda610f598a6d91a97f3e2a0d6778a4f",
+  "fixture_manifest_hash": "da6f8bbc8e44828f0f3785f111a7e52d44a7fdd7f3fb71e90d6ac1ddcb5b4be9",
+  "compiled_plan_hash": "ce9cd94162d1d072324254db24b3c0220af3204c53a32e84ec05eac4648564af",
+  "environment_contract_hash": "fa0b1e21461cfdb6ed494ea77b343ff2d62857f4076b3c6a5052f36193feda2f",
+  "dispatch_checkpoint_contract_hash": "13d9ad2709d9fc383d654bd87e6e71a9bb74a3c2fe2155f6887abf4a8a6e237f",
+  "security_wrapper_hash": "9c1e86ae083217d50841f812f37f16d3fa2020f63f7c06c5a5e86e7918c2df39",
+  "provenance_contract_hash": "704703e335e56c4651ad1c3a02ce6e49edc42371473c7745297167a840470edd",
+  "source_configuration_hash": "d7ae964e49a3485947428ad2dc85d54239e4b2421fff12817e3fc5aff9630644",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "immutable_v18_reference_hash": "5c15191c58bc176fb52bd8cd6b4a5dc5980cef2eb13f72eedbed535b90679b41",
+  "committed_source_dependency_closure_ready": true,
+  "deployed_source_closure_hash": "c2ebbd93ac087936314a2190f21af9f7452ba80af7c64a5df032fc65c654bd85",
+  "live_execution_prepared": true,
+  "future_live_evaluation_requires_committed_source_freeze": true,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0,
+  "candidate_manifest_hash": "2fd63af5d200cb684d032bb4b991ef1d027fa19e437a5a221f83f8b04adcee99"
+}

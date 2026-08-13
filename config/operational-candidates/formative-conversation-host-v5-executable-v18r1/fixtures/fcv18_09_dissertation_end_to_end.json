@@ -1,0 +1,234 @@
+{
+  "fixture_version": "formative-conversation-v18-end-to-end-case-v1",
+  "case_type": "dissertation_end_to_end",
+  "case_id": "fcv18_09_dissertation_end_to_end",
+  "case_order": 12,
+  "title": "Dissertation end-to-end claim and evidence provenance",
+  "execution_subject_id": "overconfident_incorrect",
+  "synthetic_only": true,
+  "real_student_information_present": false,
+  "assessment": {
+    "title": "Synthetic measurement evidence assessment",
+    "concept_title": "Measurement evidence and score interpretation",
+    "learning_objective": "Explain how reliability, measurement error, and validity evidence support different claims about scores.",
+    "assessment_boundary": "Only the three administered measurement-theory items and directly related concepts may be discussed.",
+    "administered_items": [
+      {
+        "item_alias": "measurement_reliability",
+        "item_order": 1,
+        "item_stem": "A test has a high internal-consistency coefficient. Which conclusion is best supported?",
+        "options": [
+          {
+            "label": "A",
+            "text": "The scores are internally consistent, but validity still needs separate evidence."
+          },
+          {
+            "label": "B",
+            "text": "The high coefficient proves the scores are valid for every intended use."
+          },
+          {
+            "label": "C",
+            "text": "The coefficient proves every observed score is free from measurement error."
+          }
+        ],
+        "correct_option": "A",
+        "answer_explanation": "Internal consistency concerns how coherently scores behave. It does not by itself establish evidence for a particular interpretation or use.",
+        "distractor_rationales": {
+          "B": "Conflates reliability evidence with validity evidence.",
+          "C": "Treats a group-level reliability coefficient as error-free individual measurement."
+        },
+        "expected_reasoning_patterns": [
+          "Distinguishes score consistency from evidence for an intended interpretation."
+        ],
+        "item_version": 1
+      },
+      {
+        "item_alias": "standard_error_measurement",
+        "item_order": 2,
+        "item_stem": "What does the standard error of measurement contribute when interpreting an observed score?",
+        "options": [
+          {
+            "label": "A",
+            "text": "It describes expected measurement error around an observed score."
+          },
+          {
+            "label": "B",
+            "text": "It proves the observed score is the person's exact true score."
+          },
+          {
+            "label": "C",
+            "text": "It reports the percentage of items answered incorrectly."
+          }
+        ],
+        "correct_option": "A",
+        "answer_explanation": "The standard error of measurement represents expected score uncertainty; it does not make an observed score exact.",
+        "distractor_rationales": {
+          "B": "Removes uncertainty rather than representing it.",
+          "C": "Confuses measurement error with an item-level error percentage."
+        },
+        "expected_reasoning_patterns": [
+          "Connects the standard error of measurement with uncertainty around observed scores."
+        ],
+        "item_version": 1
+      },
+      {
+        "item_alias": "validity_argument",
+        "item_order": 3,
+        "item_stem": "Which statement best reflects a contemporary validity argument?",
+        "options": [
+          {
+            "label": "A",
+            "text": "Evidence is evaluated for the intended interpretation and use of scores."
+          },
+          {
+            "label": "B",
+            "text": "Validity is automatically established whenever reliability is high."
+          },
+          {
+            "label": "C",
+            "text": "Validity is a permanent property of the test independent of context."
+          }
+        ],
+        "correct_option": "A",
+        "answer_explanation": "Validity concerns the evidence supporting an intended score interpretation and use in context, not a context-free property of a test.",
+        "distractor_rationales": {
+          "B": "Treats reliability as sufficient validity evidence.",
+          "C": "Treats validity as detached from interpretation, use, and context."
+        },
+        "expected_reasoning_patterns": [
+          "Relates validity evidence to an intended interpretation and use."
+        ],
+        "item_version": 1
+      }
+    ]
+  },
+  "assessment_responses": [
+    {
+      "item_number": 1,
+      "selected_option": "B",
+      "prior_option_selections": [],
+      "tempting_option": "A",
+      "tempting_option_reason": "A seemed too cautious.",
+      "reasoning_text": "High reliability proves validity because consistent scores must be accurate.",
+      "confidence_rating": "high",
+      "response_time_ms": 42000,
+      "time_to_first_action_ms": 7000,
+      "reasoning_revision_count": 0,
+      "navigation_observations": []
+    },
+    {
+      "item_number": 2,
+      "selected_option": "B",
+      "prior_option_selections": [],
+      "tempting_option": null,
+      "tempting_option_reason": null,
+      "reasoning_text": "SEM should tell the exact score once error is removed.",
+      "confidence_rating": "high",
+      "response_time_ms": 42000,
+      "time_to_first_action_ms": 7000,
+      "reasoning_revision_count": 0,
+      "navigation_observations": []
+    },
+    {
+      "item_number": 3,
+      "selected_option": "C",
+      "prior_option_selections": [],
+      "tempting_option": null,
+      "tempting_option_reason": null,
+      "reasoning_text": "A good test stays valid in every context.",
+      "confidence_rating": "high",
+      "response_time_ms": 42000,
+      "time_to_first_action_ms": 7000,
+      "reasoning_revision_count": 0,
+      "navigation_observations": []
+    }
+  ],
+  "student_messages": [
+    {
+      "sequence": 1,
+      "intent": "explanation_request",
+      "message_text": "Reliability shows consistency, but it does not by itself prove validity for an intended use. I still think SEM might identify an exact true score.",
+      "observable_input_telemetry": {
+        "response_time_ms": 16000,
+        "typing_duration_ms": 12000,
+        "edit_count": 1,
+        "backspace_count": 1,
+        "paste_event_count": 0,
+        "paste_character_count": 0
+      }
+    },
+    {
+      "sequence": 2,
+      "intent": "reflection",
+      "message_text": "For a hiring test I would require separate validity evidence. I have not yet worked out how SEM represents score uncertainty.",
+      "observable_input_telemetry": {
+        "response_time_ms": 16000,
+        "typing_duration_ms": 12000,
+        "edit_count": 0,
+        "backspace_count": 2,
+        "paste_event_count": 0,
+        "paste_character_count": 0
+      }
+    }
+  ],
+  "initial_claim_expectations": [
+    {
+      "claim_text": "High reliability automatically proves validity for an intended use.",
+      "source_item_aliases": [
+        "measurement_reliability"
+      ],
+      "expected_disposition": "resolved"
+    },
+    {
+      "claim_text": "Standard error of measurement identifies an exact true score.",
+      "source_item_aliases": [
+        "standard_error_measurement"
+      ],
+      "expected_disposition": "retained"
+    }
+  ],
+  "required_pipeline": [
+    "baseline_assessment_evidence",
+    "production_student_profiling_request",
+    "profiling_schema_v4",
+    "profiling_semantic_validation",
+    "platform_evidence_id_assignment",
+    "platform_claim_id_assignment",
+    "persisted_initial_profile",
+    "production_formative_request",
+    "student_authored_formative_evidence",
+    "claim_and_evidence_validation",
+    "temporal_admissibility",
+    "transition_persistence",
+    "teacher_projection",
+    "research_export"
+  ],
+  "case_assertions": [
+    {
+      "assertion_id": "end_to_end_provenance_complete",
+      "description": "Assessment evidence, production profiling, canonical identity assignment, formative evidence, transition persistence, teacher projection, and research export are reconstructable.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    },
+    {
+      "assertion_id": "resolved_and_retained_claim_identity_stable",
+      "description": "The resolved claim cites post-baseline evidence while the retained claim preserves the same claim ID and historical provenance.",
+      "severity": "blocking",
+      "evaluation_method": "deterministic_artifact_check"
+    }
+  ],
+  "permitted_terminal_outcomes": [
+    "largely_improved_understanding"
+  ],
+  "call_graph": {
+    "production_student_profiling_base_calls": 1,
+    "assistant_first_opening_calls": 1,
+    "student_message_calls": 2,
+    "formative_base_calls": 3,
+    "total_base_calls": 4,
+    "maximum_semantic_regenerations": 4,
+    "maximum_provider_attempts_per_logical_call": 3,
+    "maximum_transport_retries_per_logical_call": 2
+  },
+  "fixture_hash": "03be0e32822920ec7486653f09dbb2de96bcbe39d3784597aec09da3f326ca3a"
+}

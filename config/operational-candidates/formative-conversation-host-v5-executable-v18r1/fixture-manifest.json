@@ -1,0 +1,350 @@
+{
+  "manifest_version": "formative-conversation-v18r1-fixture-manifest-v1",
+  "fixture_hash_semantics": "stable_hash_with_fixture_hash_omitted",
+  "fixture_count": 12,
+  "profiling_contract_canary_count": 3,
+  "formative_conversation_case_count": 8,
+  "dissertation_end_to_end_case_count": 1,
+  "fixed_case_order": [
+    "pcv18_01_no_misconception",
+    "pcv18_02_single_atomic_misconception",
+    "pcv18_03_compound_conceptual_state",
+    "fcv5_01_assistant_first_opening",
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_05_sound_profile_transition",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence",
+    "fcv18_09_dissertation_end_to_end"
+  ],
+  "fixtures": [
+    {
+      "case_id": "pcv18_01_no_misconception",
+      "case_type": "profiling_contract_canary",
+      "order": 1,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/pcv18_01_no_misconception.json",
+      "fixture_hash": "c38874c189ad1f3450d2e9ac2bda888e23c05cadbd43822604aad30a276a4651",
+      "file_sha256": "5dad6eba2c03ba00ecec2c9875519b67f2f0991cd4df66ca14459d97e1e1b3d5"
+    },
+    {
+      "case_id": "pcv18_02_single_atomic_misconception",
+      "case_type": "profiling_contract_canary",
+      "order": 2,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/pcv18_02_single_atomic_misconception.json",
+      "fixture_hash": "ea657a87ac325c4389e417ff2afc33dd503e5daac363edb0339e0da91ce6f706",
+      "file_sha256": "5b2ba8d095ac8aa654b3c1005308fd06b9b3ff54e0820015e147ffc163245262"
+    },
+    {
+      "case_id": "pcv18_03_compound_conceptual_state",
+      "case_type": "profiling_contract_canary",
+      "order": 3,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/pcv18_03_compound_conceptual_state.json",
+      "fixture_hash": "48d77eef514272045fbf372499a6a65f9c84275d2c414c7ce9f2cdaee5cb461d",
+      "file_sha256": "29ae46ac8149bece70fd62ab1883266cab752029bde364fb45e395344fcdea63"
+    },
+    {
+      "case_id": "fcv5_01_assistant_first_opening",
+      "case_type": "formative_conversation",
+      "order": 4,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_01_assistant_first_opening.json",
+      "fixture_hash": "4aafc0c22a46a78d8d54a2b82a7d21d6726a01a33a58763126967ab318639e6f",
+      "file_sha256": "d844003388bba51f6237af52bfe9a0d04984c3935921c28471cdda66ca47c2aa"
+    },
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "case_type": "formative_conversation",
+      "order": 5,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_02_first_principles_adaptation.json",
+      "fixture_hash": "493004de002772b931114ba980b6d7c85e95514d3d061f7a279f72d75c17756e",
+      "file_sha256": "8ab0fef47cd5807d3d80709cd68fc09f8a0cf2c46f30e16be9bcdb316bad60ac"
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "case_type": "formative_conversation",
+      "order": 6,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_03_direct_answer_handling.json",
+      "fixture_hash": "bca70dd713832867b18871406a5edfee8d83318ed37ee844b452017eb2dfa44e",
+      "file_sha256": "9b8024cdf1d6e2fc3b65bbcef83a8f62c7aef71976a981a08e251adbbf938fd0"
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "case_type": "formative_conversation",
+      "order": 7,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_04_related_concept_discussion.json",
+      "fixture_hash": "b9619367a145f7a6cc4fa8164656b57be42b68a08757eed907c9b9307aa013f2",
+      "file_sha256": "974f0d93c797a8be09be48f27291cf1bdaa3d71c47ddcfbe6ba53e21183f8183"
+    },
+    {
+      "case_id": "fcv5_05_sound_profile_transition",
+      "case_type": "formative_conversation",
+      "order": 8,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_05_sound_profile_transition.json",
+      "fixture_hash": "342ba3f8420d64d32b4a7c1b73b0ac37d84293f7d9288b22bcd096dbaac36481",
+      "file_sha256": "dd69a591ebbe655a947fc6ecf3df13a107666a152cb821b121c0a7eb16eb6f58"
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "case_type": "formative_conversation",
+      "order": 9,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_06_largely_improved_temporal.json",
+      "fixture_hash": "323e41a62b23df1acb4cd647cae4a19000bc84e9bea33de930e44be96bbe10e2",
+      "file_sha256": "c1f0d26fed335f4b5d0c51dcc11f1cd54b1c25394e2bdf80329660262dee3ae0"
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "case_type": "formative_conversation",
+      "order": 10,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_07_persistent_barrier_teacher_assistance.json",
+      "fixture_hash": "4774067fbf4d25d8f8caaad342a75058af66d007be9f268af6f9910e8757a2f3",
+      "file_sha256": "ff61935c0113d63be4ec7269a7319463ff7c847fb439b529342a3ab1f16bb137"
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "case_type": "formative_conversation",
+      "order": 11,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv5_08_mixed_resolved_evidence.json",
+      "fixture_hash": "eabfa95431308b83c30dd38fe6b1c98cb84a15f6f907bdbb1c4df2295eac37b5",
+      "file_sha256": "9f5a8613ad3c8df882454423d72c0358be270481ef6b300465d9f7f287c9cdf0"
+    },
+    {
+      "case_id": "fcv18_09_dissertation_end_to_end",
+      "case_type": "dissertation_end_to_end",
+      "order": 12,
+      "path": "config/operational-candidates/formative-conversation-host-v5-executable-v18r1/fixtures/fcv18_09_dissertation_end_to_end.json",
+      "fixture_hash": "03be0e32822920ec7486653f09dbb2de96bcbe39d3784597aec09da3f326ca3a",
+      "file_sha256": "57576912e93be2547186efcce9adf269b6de2ca66b01e48d4b370ff80d961fc9"
+    }
+  ],
+  "aggregate_fixture_hash": "94bbd1ba2d8eb63c96a041af38f93e84d3d154f4acdd43dd40018d0d347941a1",
+  "immutable_v18_reference_hash": "5c15191c58bc176fb52bd8cd6b4a5dc5980cef2eb13f72eedbed535b90679b41",
+  "verification_source_files": [
+    {
+      "path": ".env.example",
+      "sha256": "82acd67d385d2e48175dc68e7d34fe900aa3e5ca73f425df058326dc1936511a"
+    },
+    {
+      "path": "package.json",
+      "sha256": "50ff537f95fd2204bc8efaf744bff76204de365d5b1333f24f57bdd3323ad072"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-fixture-materialize.ts",
+      "sha256": "7fd63ee5dd65f36a248ce733d876d26d8d311481245daa9e1a4ec9682042744b"
+    },
+    {
+      "path": "prisma/formative-conversation-v7-profile-disposition-smoke-test.ts",
+      "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+    },
+    {
+      "path": "prisma/formative-conversation-v8-profile-disposition-smoke-test.ts",
+      "sha256": "6d039c99407982391cd7737fa04f3667c70220533e3d1a1dc35898aa54037afb"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-test-fixtures.ts",
+      "sha256": "f68a68e50eb51c6706daae8adf980e0a1a49544ee63a0b0cfd7d248bf4b1cfc6"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-v17-forensic-replay-smoke-test.ts",
+      "sha256": "f87f46dfc68cb9bb6d77b578fd30f2f561f46a62299ba5165e17dfddbe18987a"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-provider-request-smoke-test.ts",
+      "sha256": "e7d3257ba8368ad10e737eecc3ceaf65e19432ea316edffbf7cded3e7c600f9c"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-contract-smoke-test.ts",
+      "sha256": "762628775d8a7b812ac0038c0c0ee04b53fda28d455ccee989b20571f8ad818d"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-pipeline-runtime-smoke-test.ts",
+      "sha256": "b687de981108e11934c105584987db4e09f8338224a7265c6e64c65b77442ac5"
+    },
+    {
+      "path": "prisma/formative-conversation-v18-runtime-database-smoke-test.ts",
+      "sha256": "08b4ee243ddbcca49c4142962c5dc3dad328a83a66929f35323e983415f9b499"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18-materialize.ts",
+      "sha256": "bee08171974f83654e2c14fb563de80c2ebec9494ac20c95ed85e171a99feba4"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18-smoke-test.ts",
+      "sha256": "3dcb35f71e957cd97a7c747c772fb3ec1e9def0a83ef647555bb15745ad4133b"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-compilation-smoke-test.ts",
+      "sha256": "7d468ed2645c435f45c3598f46cf2426cec15f848a216791db5d4c933851cbf1"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-launcher-smoke-test.ts",
+      "sha256": "8d85a8e857f6d097f771ae848a8f4bda1ff2ccf44d5df5ad4db38ad515119ed7"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-environment-parity-smoke-test.ts",
+      "sha256": "ced125b51c9bc4a74ef2acae4c877b37b3f3559ac27dd4fe6dc2c02ec6f48624"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-dispatch-checkpoint-smoke-test.ts",
+      "sha256": "e93365605d1ffa2e24a82ca0861cdc5ec9bd6a043fae478bb2825a00ab242a3c"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-security-smoke-test.ts",
+      "sha256": "0e0fbeb217b4ed2749053fc443b000e3f57652ef636cbfeb9cc5220f03fe008e"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-provenance-smoke-test.ts",
+      "sha256": "7ff5edc17148d1f688e0ca878a032aebd45af037d4c725c151d1f85611ec7ff4"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18-evaluate.ts",
+      "sha256": "85c716969e8719293bdbc8a1aa8520186a4f01ab7dba0eeb44d184de8f59ee2a"
+    },
+    {
+      "path": "prisma/helpers/formative-conversation-v5-v18-test-environment.ts",
+      "sha256": "950366a23dd83f74237f0091b9fa361f073159413891bb8cea58e7f0abe51e19"
+    },
+    {
+      "path": "prisma/student-profiling-semantic-validation-smoke-test.ts",
+      "sha256": "cfa387d7dfc498decce71a8438e035054ca2a4c3eecf086e9636bf93ce263a60"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-launcher.mjs",
+      "sha256": "2bd1953bcc2f5007a3d325a461e243911abf87dadd9f7e33b3c1f9787fc5781c"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v5-v18-process-local-runner.mjs",
+      "sha256": "4a5923170ab7d3af9754ebad87c0dc43aa92cd36d66d9b3efbb3881df7834989"
+    },
+    {
+      "path": "src/lib/evaluation/synthetic-student-validation/framework.ts",
+      "sha256": "8ac0dd1ac9e103fb2c90728e7e959e503aaf961ebf144e93d26ca8944f0f5a0e"
+    },
+    {
+      "path": "src/lib/llm/providers/mock-provider.ts",
+      "sha256": "81e29354516f64d54b3959ea58aeb9d0e6e611b6ff9d258e7320f8f40edd2637"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v18/candidate.ts",
+      "sha256": "c3ab8ee94ac65d51f6960951ffd7da0b35d3b0ef30568e55440bf9a5b3a642c0"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v18/forensics.ts",
+      "sha256": "158b1216b08482782b9ea34a76b320335f960f5aa4c5b7e0576e88efcccd802b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/candidate-runner.ts",
+      "sha256": "bc34c327b3a3f5acf7a4ad0c8d5681239c9a290a0cb4bb5d201e30506d99dd07"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/compiler.ts",
+      "sha256": "ae65c89736af7c05f6be546888ee0c83e4f3436de2b5f3f687106a91ca9e460c"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/contracts.ts",
+      "sha256": "12c614f9ceaeb00d3361b35672e2a0e70e08579dfe621019d47da09c849d8dd6"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/dispatch-checkpoint.ts",
+      "sha256": "ced628bb5984ab6468204bfa53deb22f17b932eac14467c97505dbbcca021d0b"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/evaluation-accounting.ts",
+      "sha256": "771de00e8378393a456dd693db39bc66749a06296deb8be11ad28adbe01dd1fd"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/live-environment.ts",
+      "sha256": "1bb8dee45a1aab6ca34080a1b8050b389c2057694f3aac53656a610381cf87d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/package.ts",
+      "sha256": "b090afdb1fc478cff72460c2a9f50e86a59429147a75896a1b87d2875e5cdc69"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/provenance.ts",
+      "sha256": "df739bda45313b014350ed55e6f4541806183c1d4c1d06b3ca383af82cac17d9"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/security-release.ts",
+      "sha256": "ced9a1490d3a1578a7644c0c500e8f7e4be0f53aa9fd128df5faa293bc7fe554"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18/service.ts",
+      "sha256": "83d38631144d0e47f302fdef4c3c0378b7b2358ea76609ed19f30f9ecf494d28"
+    },
+    {
+      "path": "docs/operations/FORMATIVE_CONVERSATION_V18_CONTRACT_CONVERGENCE.md",
+      "sha256": "49dbedd187e98ff23909730e5e0d3b67b0988f1a0d8ec587eb5fa845e374b7b2"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-compilation-smoke-test.ts",
+      "sha256": "c664bdbb0d7d708bbeff8daaa7a93e762102e1ed2c14ceb253d52bb5866f5a30"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-launcher-smoke-test.ts",
+      "sha256": "25d2074fd1fe37c9c832b336d72bef657568a70cb8ad7b72c4058f2a964c2621"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-environment-parity-smoke-test.ts",
+      "sha256": "f9de4608dd74a26bce62e1db1319895919c53b4db76e54a6c09b4fa27de39c30"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-security-smoke-test.ts",
+      "sha256": "63a9d97fd44ba4cdfc658922aa8a0168e4e05be3dd9ad4522576c66e31cd8647"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-deployment-provenance-smoke-test.ts",
+      "sha256": "e544e9a14ff2cbdc811d874a4bcde2a770be437772f2b065bdbf3bed1d39e154"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-provenance-boundary-smoke-test.ts",
+      "sha256": "78cbf4a0d6165a2bfe4f9c5051f04a177ff2cf0eafdcf5867ed69a6ab96b4420"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v5-v18r1-dispatch-checkpoint-smoke-test.ts",
+      "sha256": "dde80b7c3c1174e201ceaea2f950b1b946fbc277677bb8c2c364fb2798527c51"
+    }
+  ],
+  "required_no_provider_tests": [
+    "operational:formative-conversation-v18-candidate-smoke",
+    "operational:formative-conversation-v5-v18-compilation-smoke",
+    "operational:formative-conversation-v18-v17-forensic-replay-smoke",
+    "operational:formative-conversation-v18-provider-request-smoke",
+    "operational:formative-conversation-v18-contract-smoke",
+    "student:profiling-semantic-validation-smoke",
+    "operational:formative-conversation-v17-identity-smoke",
+    "operational:formative-conversation-v17-profiling-canary-smoke",
+    "operational:formative-conversation-v17-v16-replay-smoke",
+    "operational:formative-conversation-v16-misconception-evidence-closure-smoke",
+    "operational:formative-conversation-transition-evidence-closure-v1-smoke",
+    "operational:formative-conversation-semantic-regeneration-v2-smoke",
+    "operational:formative-conversation-profile-transition-v4-smoke",
+    "operational:provider-transport-retry-v3-smoke",
+    "operational:formative-conversation-output-format-v1-smoke",
+    "student:formative-privacy-smoke",
+    "operational:formative-conversation-v5-v17-security-smoke",
+    "operational:formative-conversation-v5-v15-security-smoke",
+    "operational:formative-conversation-v7-profile-disposition-smoke",
+    "operational:formative-conversation-v8-profile-disposition-smoke",
+    "operational:formative-conversation-v18-runtime-database-smoke",
+    "operational:formative-conversation-v5-v18-launcher-smoke",
+    "operational:formative-conversation-v5-v18-environment-parity-smoke",
+    "operational:formative-conversation-v5-v18-dispatch-checkpoint-smoke",
+    "operational:formative-conversation-v5-v18-security-smoke",
+    "npx prisma validate",
+    "typecheck",
+    "lint",
+    "build_with_8gb_heap",
+    "operational:formative-conversation-v5-v18r1-compilation-smoke",
+    "operational:formative-conversation-v5-v18r1-launcher-smoke",
+    "operational:formative-conversation-v5-v18r1-environment-parity-smoke",
+    "operational:formative-conversation-v5-v18r1-security-smoke",
+    "operational:formative-conversation-v5-v18r1-deployment-provenance-smoke",
+    "operational:formative-conversation-v5-v18r1-provenance-boundary-smoke",
+    "operational:formative-conversation-v5-v18r1-dispatch-checkpoint-smoke"
+  ],
+  "provider_calls_during_materialization": 0,
+  "model_auth_requests_during_materialization": 0,
+  "dispatch_checkpoints_during_materialization": 0,
+  "fixture_manifest_hash": "da6f8bbc8e44828f0f3785f111a7e52d44a7fdd7f3fb71e90d6ac1ddcb5b4be9"
+}

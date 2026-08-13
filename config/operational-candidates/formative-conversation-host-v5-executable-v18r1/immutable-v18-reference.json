@@ -1,0 +1,29 @@
+{
+  "reference_version": "formative-conversation-v18r1-immutable-v18-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v18",
+  "source_commit": "9fd41e1139b7e80f433aff76a6985095333e6b7d",
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "protocol_hash": "0709d61e2f681e5a73a8b488165bfeffb7a030b5e12bf5dd171eb15a06f4d5ef",
+  "failed_predispatch_attempt": {
+    "failure_class": "engineering_contract_integration",
+    "failure_code": "spawnSync_git_ENOENT",
+    "failure_artifact_sha256": "7dc167b68ff09abebb79c5c4e3e7da1ce67b1cb371831f1fa7b7e749126a6940",
+    "runner_log_sha256": "9d5250f0bacc39c4318a84aa2502be879193c4447b1095c73ecb65fbf4a4d708",
+    "dispatch_checkpoints": 0,
+    "provider_http_requests": 0,
+    "logical_calls": 0,
+    "provider_attempts": 0,
+    "tokens": 0,
+    "authorization_consumed": false
+  },
+  "revision_reason": "deployed provenance used Git working-tree semantics unavailable in the canonical Render image",
+  "research_runtime_changed": false,
+  "pedagogy_changed": false,
+  "profiling_semantics_changed": false,
+  "formative_semantics_changed": false,
+  "case_meanings_changed": false,
+  "local_artifact_policy": "hash_reference_only_not_required_for_v18r1_live_readiness",
+  "required_for_v18r1_live_readiness": false,
+  "candidate_artifacts_mutated": false,
+  "run_artifacts_mutated": false
+}
