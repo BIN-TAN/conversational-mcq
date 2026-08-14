@@ -7,6 +7,7 @@ import { MISCONCEPTION_CLAIM_IDENTITY_VERSION } from "../src/lib/domain/misconce
 import {
   FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION,
+  FormativeConversationV18R2AgentInputSchema,
   FormativeConversationV18R2AgentOutputSchema
 } from "../src/lib/services/student-assessment/formative-conversation/agent-contract-v18r2";
 import {
@@ -24,7 +25,8 @@ import {
 } from "../src/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
 import {
   FORMATIVE_CONVERSATION_OPENING_VERSION,
-  FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION
+  FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION,
+  FORMATIVE_CONVERSATION_V18R2_OPENING_REVIEW_SIGNAL
 } from "../src/lib/services/student-assessment/formative-conversation/opening-contract";
 import { FORMATIVE_CONVERSATION_V18_PROFILE_TRANSITION_VERSION } from "../src/lib/services/student-assessment/formative-conversation/profile-update-v18";
 import {
@@ -48,6 +50,7 @@ type OpeningCase = {
   message: string;
   expected_valid: boolean;
   expected_issue_code?: string;
+  expected_review_signal_code?: string;
 };
 
 type Fixture = {
@@ -110,11 +113,11 @@ function main() {
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
-      "formative-conversation-v18r2-candidate-acceptance-v2"
+      "formative-conversation-v18r2-candidate-acceptance-v3"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION,
-      "formative-conversation-v18r2-opening-acknowledgement-v1"
+      "formative-conversation-v18r2-opening-acknowledgement-v2"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_OPENING_VERSION,
@@ -207,12 +210,111 @@ function main() {
           `${entry.case_id} must report ${entry.expected_issue_code}`
         );
       }
+      if (entry.expected_review_signal_code) {
+        assert.deepEqual(
+          validation.non_blocking_review_signals,
+          [entry.expected_review_signal_code],
+          `${entry.case_id} review signals`
+        );
+      } else if (entry.expected_valid) {
+        assert.deepEqual(
+          validation.non_blocking_review_signals,
+          [],
+          `${entry.case_id} review signals`
+        );
+      }
       return {
         case_id: entry.case_id,
         accepted: validation.valid,
-        validation_status: validation.validation_status
+        validation_status: validation.validation_status,
+        non_blocking_review_signals:
+          validation.non_blocking_review_signals
       };
     });
+
+    const malformedOpening =
+      validateFormativeConversationV18R2CandidateAcceptance({
+        candidate: {
+          contract_version: FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
+          student_visible_message: "A malformed opening."
+        },
+        context: openingContext
+      });
+    assert.equal(malformedOpening.valid, false);
+    assert.equal(malformedOpening.validation_status, "schema_invalid");
+
+    const invalidLifecycleOpening =
+      validateFormativeConversationV18R2CandidateAcceptance({
+        candidate: {
+          ...openingCandidate(
+            "Here is a safe opening that must not close the conversation."
+          ),
+          lifecycle_recommendation: "pause"
+        },
+        context: openingContext
+      });
+    assert.equal(invalidLifecycleOpening.valid, false);
+    assert.equal(
+      invalidLifecycleOpening.validation_status,
+      "opening_contract_invalid"
+    );
+    assert(
+      invalidLifecycleOpening.validation_issue_paths.includes(
+        "student_visible_message:opening_must_continue_conversation"
+      )
+    );
+
+    const unauthorizedItemContext =
+      FormativeConversationV18R2AgentInputSchema.parse({
+        ...structuredClone(openingContext),
+        administered_items: [
+          {
+            item_public_id: "unrevealed_transfer_item",
+            item_number: 4,
+            item_stem: "A protected transfer item.",
+            options: [
+              { label: "A", text: "First option" },
+              { label: "B", text: "Second option" }
+            ],
+            student_answer: null,
+            correct_answer: "B",
+            concise_explanation: "Protected assessment truth.",
+            administered: true
+          }
+        ]
+      });
+    const unadministeredAnswerOpening =
+      validateFormativeConversationV18R2CandidateAcceptance({
+        candidate: openingCandidate(
+          "The correct answer to the unrevealed transfer item is B."
+        ),
+        context: unauthorizedItemContext
+      });
+    assert.equal(unadministeredAnswerOpening.valid, false);
+    assert.equal(unadministeredAnswerOpening.validation_status, "safety_invalid");
+    assert(
+      unadministeredAnswerOpening.validation_issue_paths.includes(
+        "context.safety_boundary.administered_item_boundary_mismatch"
+      )
+    );
+
+    const safeOpeningWithoutAcknowledgement = openingResults.find(
+      (entry) => entry.case_id === "generic_disconnected_opening"
+    );
+    assert.equal(safeOpeningWithoutAcknowledgement?.accepted, true);
+    assert.deepEqual(
+      safeOpeningWithoutAcknowledgement?.non_blocking_review_signals,
+      [FORMATIVE_CONVERSATION_V18R2_OPENING_REVIEW_SIGNAL]
+    );
+
+    const livePrimaryReplay = openingResults.find(
+      (entry) => entry.case_id === "live_ux_canary_primary_replay"
+    );
+    const liveRegenerationReplay = openingResults.find(
+      (entry) => entry.case_id === "live_ux_canary_regeneration_replay"
+    );
+    assert.equal(livePrimaryReplay?.accepted, true);
+    assert.equal(liveRegenerationReplay?.accepted, true);
 
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
@@ -270,6 +372,13 @@ function main() {
           fixture_version: fixture.fixture_version,
           behavior_results: behaviorResults,
           opening_results: openingResults,
+          exact_live_opening_replays_accepted: 2,
+          acknowledgement_only_semantic_regenerations_required: 0,
+          hard_negative_controls: {
+            malformed_structured_output: "blocked",
+            invalid_opening_lifecycle: "blocked",
+            unadministered_answer_boundary: "blocked"
+          },
           response_length_constraint_introduced: false,
           question_required_on_every_turn: false,
           no_question_continue_conversation_accepted: true,

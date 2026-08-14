@@ -9,7 +9,9 @@ export const FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID =
   "assistant-opening:formative-conversation-opening-v3";
 
 export const FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION =
-  "formative-conversation-v18r2-opening-acknowledgement-v1" as const;
+  "formative-conversation-v18r2-opening-acknowledgement-v2" as const;
+export const FORMATIVE_CONVERSATION_V18R2_OPENING_REVIEW_SIGNAL =
+  "opening_assessment_acknowledgement_missing" as const;
 
 export type FormativeConversationOpeningValidation = {
   valid: boolean;
@@ -71,7 +73,7 @@ const studentAssessmentResultPatterns = [
 
 const assessmentAcknowledgementPatterns = [
   /\b(?:review(?:ed|ing)?|look(?:ed|ing)?|went|go(?:ing)?)\s+(?:back\s+)?(?:through|over|at)?\s*(?:the|your)?\s*(?:answers?|responses?|results?|reasoning|assessment)\b/i,
-  /\b(?:now that|after)\s+(?:you(?:'ve| have)?\s+)?(?:reviewed|completed|worked through|answered)\b.{0,60}\b(?:answers?|responses?|questions?|assessment)\b/i,
+  /\b(?:now that|after)\s+(?:you(?:['’]ve| have)?\s+)?(?:reviewed|completed|worked through|answered)\b.{0,60}\b(?:answers?|responses?|questions?|assessment)\b/i,
   /\b(?:you(?:'ve| have)?|you)\s+(?:already\s+)?(?:identified|explained|noticed|recognized|distinguished|pointed out|worked through|considered)\b/i,
   /\b(?:from|in|based on)\s+(?:what\s+)?you(?:'ve| have)?\s+(?:said|explained|written|wrote|reasoned|noticed|identified)\b/i,
   /\bI\s+(?:noticed|saw)\b.{0,80}\b(?:in|from)\s+your\s+(?:answers?|responses?|reasoning|explanation)\b/i
@@ -79,7 +81,8 @@ const assessmentAcknowledgementPatterns = [
 
 const v18r2SemanticAssessmentAcknowledgementPatterns = [
   /\b(?:you(?:'|’)?ve|you have|we(?:'|’)?ve|we have)\s+(?:already\s+)?(?:reviewed|considered|worked through|looked at)\s+(?:the|these|those|your)?\s*(?:two|three|several)?\s*(?:ideas?|distinctions?|concepts?|points?|patterns?|connections?)\b/i,
-  /\b(?:let(?:'|’)?s|we can|we(?:'|’)?ll)\s+(?:connect|build on|revisit|put together|return to)\s+(?:the|these|those|your)\s+(?:(?:two|three|several)\s+)?(?:ideas?|distinctions?|concepts?|points?|patterns?|connections?)\b/i
+  /\b(?:let(?:'|’)?s|we can|we(?:'|’)?ll)\s+(?:connect|build on|revisit|put together|return to)\s+(?:the|these|those|your)\s+(?:(?:two|three|several)\s+)?(?:ideas?|distinctions?|concepts?|points?|patterns?|connections?)\b/i,
+  /\bbuild(?:ing)?\s+on\s+(?:the|your)\s+(?:assessment\s+)?review\b/i
 ] as const;
 
 export function hasFormativeConversationOpeningAssessmentAcknowledgement(
@@ -99,6 +102,12 @@ export function hasFormativeConversationV18R2OpeningAssessmentAcknowledgement(
       pattern.test(message)
     )
   );
+}
+
+export function formativeConversationV18R2OpeningReviewSignals(message: string) {
+  return hasFormativeConversationV18R2OpeningAssessmentAcknowledgement(message)
+    ? []
+    : [FORMATIVE_CONVERSATION_V18R2_OPENING_REVIEW_SIGNAL];
 }
 
 function repeatsStudentAssessmentResult(message: string) {

@@ -1,12 +1,12 @@
 {
   "protocol_version": "formative-conversation-v18r2-ux-polish-targeted-no-provider-v1",
-  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "runtime_candidate_hash": "5c0ac413ddd014daabc51d8ee725a75a7cc925eb6c5ff01b85961a301724a2e7",
   "prompt_version": "formative-conversation-host-v7.2",
   "prompt_hash": "27488d814b1f3978723a086a05ca22ec31618764f0adb1f64ba83d9f45758b80",
-  "candidate_acceptance_version": "formative-conversation-v18r2-candidate-acceptance-v2",
+  "candidate_acceptance_version": "formative-conversation-v18r2-candidate-acceptance-v3",
   "opening_receipt_version": "formative-conversation-opening-v3",
-  "opening_acknowledgement_version": "formative-conversation-v18r2-opening-acknowledgement-v1",
-  "fixture_manifest_hash": "bb16f8c53eeaadf86751c03f373bd31cab2c13d6ee24104996606f9920b19ccb",
+  "opening_acknowledgement_version": "formative-conversation-v18r2-opening-acknowledgement-v2",
+  "fixture_manifest_hash": "befa3b8e8e81febd650aefc1bec60ae17a5646a49ec740131b73599b65a2868a",
   "required_tests": [
     "operational:formative-conversation-v18r2-ux-polish-smoke",
     "operational:formative-conversation-v18r2-ux-polish-candidate-smoke",
@@ -17,12 +17,12 @@
     "git diff --check"
   ],
   "targeted_behavior_case_count": 7,
-  "targeted_opening_case_count": 6,
+  "targeted_opening_case_count": 10,
   "exact_production_responses_schema_compilation_required": true,
   "provider_calls_permitted": 0,
   "model_auth_requests_permitted": 0,
   "generation_network_requests_permitted": 0,
   "real_dispatch_checkpoints_permitted": 0,
   "full_v18r2_live_evaluation_permitted": false,
-  "protocol_hash": "ac6e24d46ab56ca4b66b3a3f8359a0beab9b3aab0ded06e97e98d80adc1a2731"
+  "protocol_hash": "ecc095d4a03d209d827b2502cb880fc74834881872e29cdcc810a6abf6d12701"
 }

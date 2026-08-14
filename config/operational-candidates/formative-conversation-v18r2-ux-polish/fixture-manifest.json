@@ -4,8 +4,8 @@
   "files": [
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish/fixtures/ux-polish-regression-cases.json",
-      "sha256": "0b15a0a65a770a17dfd5f71e05fa53482ce494505550e2fc1899a661c7267d25"
+      "sha256": "ac08560ac19b82e1dffdb3975d31a6ee046084bfe52b623814c50dcbb2ac1707"
     }
   ],
-  "fixture_manifest_hash": "bb16f8c53eeaadf86751c03f373bd31cab2c13d6ee24104996606f9920b19ccb"
+  "fixture_manifest_hash": "befa3b8e8e81febd650aefc1bec60ae17a5646a49ec740131b73599b65a2868a"
 }

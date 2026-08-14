@@ -144,7 +144,7 @@ export function buildFormativeConversationV18R2UxPolishArtifacts() {
       ...FORMATIVE_CONVERSATION_V18R2_UX_POLISH_REQUIRED_TESTS
     ],
     targeted_behavior_case_count: 7,
-    targeted_opening_case_count: 6,
+    targeted_opening_case_count: 10,
     exact_production_responses_schema_compilation_required: true,
     provider_calls_permitted: 0,
     model_auth_requests_permitted: 0,

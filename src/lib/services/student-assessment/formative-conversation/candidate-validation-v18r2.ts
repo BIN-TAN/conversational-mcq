@@ -7,14 +7,14 @@ import {
 import { canonicalEvidenceById } from "@/lib/domain/canonical-evidence-identity";
 import { validateFormativeConversationV18Transition } from "./evidence-identity-validator-v18";
 import {
-  hasFormativeConversationV18R2OpeningAssessmentAcknowledgement,
+  formativeConversationV18R2OpeningReviewSignals,
   validateFormativeConversationOpeningDisclosureScope
 } from "./opening-contract";
 import { validateFormativeConversationStudentOutputFormat } from "./output-format";
 import { validateFormativeConversationSafetyBoundary } from "./safety-boundary";
 
 export const FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION =
-  "formative-conversation-v18r2-candidate-acceptance-v2" as const;
+  "formative-conversation-v18r2-candidate-acceptance-v3" as const;
 
 export type FormativeConversationV18R2CandidateValidation = {
   valid: boolean;
@@ -26,6 +26,7 @@ export type FormativeConversationV18R2CandidateValidation = {
     | "formatting_invalid"
     | "semantic_contract_invalid";
   validation_issue_paths: string[];
+  non_blocking_review_signals: string[];
   output: FormativeConversationV18R2AgentOutput | null;
 };
 
@@ -43,12 +44,16 @@ function invalid(input: {
     "valid"
   >;
   paths: string[];
+  non_blocking_review_signals?: string[];
   output: FormativeConversationV18R2AgentOutput | null;
 }): FormativeConversationV18R2CandidateValidation {
   return {
     valid: false,
     validation_status: input.status,
     validation_issue_paths: [...new Set(input.paths)].filter(Boolean).sort(),
+    non_blocking_review_signals: [
+      ...new Set(input.non_blocking_review_signals ?? [])
+    ].filter(Boolean).sort(),
     output: input.output
   };
 }
@@ -67,6 +72,11 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       output: null
     });
   }
+  const nonBlockingReviewSignals = isOpeningContext(input.context)
+    ? formativeConversationV18R2OpeningReviewSignals(
+        parsed.data.student_visible_message
+      )
+    : [];
   if (
     input.context.contract_version !==
       FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION ||
@@ -75,6 +85,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
     return invalid({
       status: "schema_invalid",
       paths: ["contract_version"],
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -86,6 +97,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       paths: safety.issue_codes.map(
         (code) => `context.safety_boundary.${code}`
       ),
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -96,13 +108,6 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
         parsed.data.student_visible_message
       )
     ];
-    if (
-      !hasFormativeConversationV18R2OpeningAssessmentAcknowledgement(
-        parsed.data.student_visible_message
-      )
-    ) {
-      openingIssues.push("opening_assessment_acknowledgement_missing");
-    }
     if (parsed.data.outcome !== "continue_conversation") {
       openingIssues.push("opening_must_continue_conversation");
     }
@@ -124,6 +129,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
         paths: openingIssues.map(
           (code) => `student_visible_message:${code}`
         ),
+        non_blocking_review_signals: nonBlockingReviewSignals,
         output: parsed.data
       });
     }
@@ -146,6 +152,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       paths: formatIssues.map(
         (entry) => `${entry.field_path}:${entry.code}`
       ),
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -159,6 +166,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       paths: [
         "formative_lifecycle.another_student_turn_available:continue_conversation_unavailable_on_final_allowed_turn"
       ],
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -189,6 +197,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
     return invalid({
       status: "semantic_contract_invalid",
       paths: observationIssues,
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -210,6 +219,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       paths: transition.issues.map(
         (entry) => `${entry.field_path}:${entry.code}`
       ),
+      non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
   }
@@ -218,6 +228,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
     valid: true,
     validation_status: "valid",
     validation_issue_paths: [],
+    non_blocking_review_signals: nonBlockingReviewSignals,
     output:
       transition.terminal && parsed.data.profile_transition_recommendation
         ? {

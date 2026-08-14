@@ -63,16 +63,26 @@
       "expected_valid": true
     },
     {
+      "case_id": "live_ux_canary_primary_replay",
+      "message": "Building on your assessment review, a useful distinction is between **consistency** and **what a score can legitimately mean**.\n\n- **Reliability** is about consistency or precision. A highly reliable test can produce stable scores while still measuring the wrong thing or being unsuitable for a particular decision. So reliability can support validity, but it does not prove validity.\n- **Validity** concerns whether evidence supports a particular interpretation and use of scores. It depends on the purpose: a score might be useful for one decision but not another.\n- **Standard error of measurement (SEM)** describes uncertainty around an observed score. It helps form a plausible range for a person’s true score; it does not reveal that true score exactly.\n\nA helpful summary is: **reliability tells us how precise the measurement is, validity tells us whether the interpretation and use are justified, and SEM reminds us that an observed score is only an estimate.**",
+      "expected_valid": true
+    },
+    {
+      "case_id": "live_ux_canary_regeneration_replay",
+      "message": "Now that you’ve completed the assessment and reviewed its answers, we can work through any ideas that still feel uncertain. Two useful areas to clarify are **how reliability differs from validity** and **what the standard error of measurement can—and cannot—tell us about a score**. We can start with either one, using a concrete example rather than just definitions.",
+      "expected_valid": true
+    },
+    {
       "case_id": "v18r2_primary_opening_03_disconnected",
       "message": "Let’s focus on a subtle but important distinction: **reliability supports consistency, while validity concerns whether evidence supports a particular interpretation and use of scores**. A high internal-consistency coefficient can be useful evidence that items behave coherently, but it cannot by itself prove that the scores measure the intended construct or are suitable for every purpose.",
-      "expected_valid": false,
-      "expected_issue_code": "opening_assessment_acknowledgement_missing"
+      "expected_valid": true,
+      "expected_review_signal_code": "opening_assessment_acknowledgement_missing"
     },
     {
       "case_id": "generic_disconnected_opening",
       "message": "Reliability and validity answer different questions. Here is an explanation of the distinction.",
-      "expected_valid": false,
-      "expected_issue_code": "opening_assessment_acknowledgement_missing"
+      "expected_valid": true,
+      "expected_review_signal_code": "opening_assessment_acknowledgement_missing"
     },
     {
       "case_id": "profile_disclosure_remains_blocked",
@@ -81,10 +91,22 @@
       "expected_issue_code": "opening_exposes_profile_language"
     },
     {
+      "case_id": "diagnostic_disclosure_remains_blocked",
+      "message": "Your diagnostic classification says you have partial understanding, so let’s continue.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_exposes_diagnosis_language"
+    },
+    {
       "case_id": "assessment_score_disclosure_remains_blocked",
       "message": "You’ve reviewed your answers. Your score was 2 out of 3.",
       "expected_valid": false,
       "expected_issue_code": "opening_repeats_score"
+    },
+    {
+      "case_id": "teacher_only_disclosure_remains_blocked",
+      "message": "Your teacher noted that you struggle with this concept, so let’s continue.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_exposes_teacher_only_information"
     }
   ]
 }

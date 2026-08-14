@@ -98,7 +98,7 @@
     },
     {
       "path": "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18r2.ts",
-      "sha256": "3d5b0bd00f55a04b0b77f1b453d2ac05572287659b53a4c4ada507d1cea92799"
+      "sha256": "6798f75f9ad73b92eefd9836fd0d32d7d0a05964fb7b1bc1d1cf73647d31af40"
     },
     {
       "path": "src/lib/services/student-assessment/formative-conversation/context.ts",
@@ -146,7 +146,7 @@
     },
     {
       "path": "src/lib/services/student-assessment/formative-conversation/opening-contract.ts",
-      "sha256": "43499de91dbcdc2f0ab6d3c677ee30f761cb99d145dfcd785f616fb8d31bd5a6"
+      "sha256": "55fb36ec06cbdcb6a4948eb13d062c19bd91f1aa99f0b42310d611beda9082b4"
     },
     {
       "path": "src/lib/services/student-assessment/formative-conversation/opening-runner.ts",
@@ -235,7 +235,7 @@
   "contracts": {
     "canonical_claim_identity_version": "misconception-claim-identity-v1",
     "canonical_evidence_identity_version": "canonical-evidence-identity-v2",
-    "candidate_acceptance_version": "formative-conversation-v18r2-candidate-acceptance-v2",
+    "candidate_acceptance_version": "formative-conversation-v18r2-candidate-acceptance-v3",
     "profile_recommendation_version": "formative-conversation-profile-recommendation-v4",
     "profile_snapshot_version": "formative-conversation-profile-snapshot-v2",
     "profile_transition_version": "formative-conversation-profile-transition-v7",
@@ -245,7 +245,7 @@
     "semantic_regeneration_version": "formative-conversation-v18r2-semantic-regeneration-v1",
     "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
     "opening_version": "formative-conversation-opening-v3",
-    "opening_acknowledgement_version": "formative-conversation-v18r2-opening-acknowledgement-v1",
+    "opening_acknowledgement_version": "formative-conversation-v18r2-opening-acknowledgement-v2",
     "output_format_version": "formative-conversation-student-output-format-v1",
     "memory_version": "formative-conversation-memory-v1",
     "safety_boundary_version": "formative-conversation-safety-boundary-v1"
@@ -338,5 +338,5 @@
     "evidence_mutated": false,
     "evaluated_the_ux_polish_candidate": false
   },
-  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90"
+  "runtime_candidate_hash": "5c0ac413ddd014daabc51d8ee725a75a7cc925eb6c5ff01b85961a301724a2e7"
 }
