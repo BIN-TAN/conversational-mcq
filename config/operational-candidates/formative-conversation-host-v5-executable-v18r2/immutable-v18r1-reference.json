@@ -1,0 +1,29 @@
+{
+  "reference_version": "formative-conversation-v18r2-immutable-v18r1-reference-v1",
+  "source_revision": "formative-conversation-host-v5-executable-v18r1",
+  "git_commit": "2147e4d340e9adbfd8014433ceede852fbdc54fc",
+  "provider_run_id": "fcv5v18r1_provider_20260813160503_9f33cf65",
+  "derived_evaluation_id": "fcv5v18r1_derived_20260813160503_1534d9b2",
+  "aggregate_status": "completed_failed",
+  "case_counts": {
+    "passed": 5,
+    "failed": 7,
+    "invalid": 0,
+    "not_exercised": 0
+  },
+  "authorization_consumed_exactly_once": true,
+  "runtime_candidate_hash": "17ca582ac937be7f790a2841d3542a4d79ec9364c04703fecdbfc282134378ca",
+  "evaluation_protocol_hash": "1dda208e9a3f454c1b708663790c9f2181a4054b7b06d99951ab4da04a8c7881",
+  "candidate_manifest_hash": "2fd63af5d200cb684d032bb4b991ef1d027fa19e437a5a221f83f8b04adcee99",
+  "aggregate_fixture_hash": "94bbd1ba2d8eb63c96a041af38f93e84d3d154f4acdd43dd40018d0d347941a1",
+  "local_artifact_policy": "committed_hash_reference_only",
+  "required_as_v18r2_runtime_dependency": false,
+  "source_artifacts_mutated": false,
+  "live_artifacts_mutated": false,
+  "rerun_permitted": false,
+  "systematic_blocker": "continue_conversation_mixed_observation_evidence_with_prohibited_transition_state",
+  "v18r2_counterfactual_replay_only": true,
+  "required_for_v18r2_live_readiness": false,
+  "candidate_artifacts_mutated": false,
+  "run_artifacts_mutated": false
+}

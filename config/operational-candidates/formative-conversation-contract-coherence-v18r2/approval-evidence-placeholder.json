@@ -1,0 +1,11 @@
+{
+  "placeholder_version": "formative-conversation-v18r2-approval-placeholder-v1",
+  "runtime_candidate_hash": "db71fa1ed5e9d5ce007bddf21a102cd006ab337584708386a9c4e081a556d58e",
+  "protocol_hash": "83e2c24a03238bd062d2cd89fe2c57db19e2b3cac6377bc61b808a263983e379",
+  "approval_status": "not_approved",
+  "approval_evidence_created": false,
+  "approval_eligible": false,
+  "activation_permitted": false,
+  "live_execution_prepared": false,
+  "reason": "V18R2 is an inactive no-provider candidate and requires a separate committed live freeze."
+}

@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/db";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "./opening-contract";
+import {
+  FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+  projectFormativeConversationV18R2LifecycleForTurnCount
+} from "./lifecycle-contract-v18r2";
 import { recordFormativeConversationLifecycleEvent } from "./telemetry";
 
 export type FormativeConversationOpeningStatus =
@@ -151,6 +155,15 @@ export async function getStudentFormativeConversationProjection(input: {
           !receipt.assistant_turn &&
           receipt.assistant_response_status !== "completed"
       ) ?? null;
+  const studentFormativeTurnCount = conversation.conversation_turns.filter(
+    (turn) => turn.actor_type === "student"
+  ).length;
+  const lifecycle = projectFormativeConversationV18R2LifecycleForTurnCount(
+    studentFormativeTurnCount
+  );
+  const anotherStudentTurnAvailable =
+    conversation.status === "active" &&
+    lifecycle.another_student_turn_available;
 
   return {
     conversation_public_id: conversation.conversation_public_id,
@@ -164,11 +177,28 @@ export async function getStudentFormativeConversationProjection(input: {
     can_send:
       conversation.status === "active" &&
       openingReady &&
-      !incompleteResponse,
+      !incompleteResponse &&
+      anotherStudentTurnAvailable,
     can_pause: conversation.status === "active",
     can_resume: conversation.status === "paused",
     can_end: ["active", "paused"].includes(conversation.status),
     message_max_chars: 5_000,
+    student_formative_turn_count: studentFormativeTurnCount,
+    current_student_turn_index: studentFormativeTurnCount,
+    max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+    final_allowed_turn: lifecycle.final_allowed_turn,
+    another_student_turn_available: anotherStudentTurnAvailable,
+    lifecycle_termination_source:
+      conversation.lifecycle_reason?.startsWith("platform_")
+        ? "platform_lifecycle"
+        : conversation.lifecycle_reason?.startsWith(
+              "llm_terminal_recommendation:"
+            )
+          ? "llm_terminal_recommendation"
+        : conversation.lifecycle_reason
+          ? "student_or_session_lifecycle"
+          : null,
+    lifecycle_termination_reason: conversation.lifecycle_reason,
     assistant_response: incompleteResponse
       ? {
           receipt_public_id: incompleteResponse.receipt_public_id,

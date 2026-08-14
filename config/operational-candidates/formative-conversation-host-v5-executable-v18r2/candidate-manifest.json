@@ -1,0 +1,41 @@
+{
+  "manifest_version": "formative-conversation-host-v5-executable-candidate-revision-v18r2",
+  "candidate_state": "inactive",
+  "approval": {
+    "eligible": false,
+    "evidence_created": false
+  },
+  "activation": {
+    "permitted": false
+  },
+  "runtime_behavior_changed": true,
+  "instructional_behavior_changed": false,
+  "database_schema_changed": false,
+  "runtime_change_scope": "nonterminal_contract_coherence_and_bounded_formative_lifecycle",
+  "runtime_candidate_hash": "db71fa1ed5e9d5ce007bddf21a102cd006ab337584708386a9c4e081a556d58e",
+  "pre_freeze_candidate_identity": "db71fa1ed5e9d5ce007bddf21a102cd006ab337584708386a9c4e081a556d58e",
+  "protocol_hash": "0b491563a116efcdc83e3a46fff31cc8f2751256357a3921f40e31645e8ce870",
+  "runner_implementation_hash": "d65daeb32c91fd23144767ffb236e04f97cfa57d8fd91acc11120d57e494753c",
+  "materializer_implementation_hash": "bb60808d3ba87ae1e4eef1a9c72c560ae39f6decfd7d66b56fa82cbd9467fff6",
+  "fixture_manifest_hash": "333004f8f46b39dddd76b432695f97be3933d05b4d9c4739b6acd68007ced2de",
+  "compiled_plan_hash": "3127ea66721a23bf3e1a39ffb5feb1e57a9e7e9e2994661d3ee43f2f8908d41f",
+  "environment_contract_hash": "2ccc6da980d175e606c3fa6422df378fd9a808c0882f18b18fd181945d497fc7",
+  "dispatch_checkpoint_contract_hash": "272e28a2655555be50e568b28a430182c1accd1e788dcf9a8ea096ea65799fa1",
+  "security_wrapper_hash": "1f37f7800fa2d0f245793afdf262723dbaa0a9c0a1fcc9a4cc2c0f4c4f604f05",
+  "security_wrapper_manifest_hash": "211d72323ec44c82ed06b481125bc1b0a27ff5b205e863ddc01a611e52014a77",
+  "provenance_contract_hash": "2253318a233d7f6eca784269f48fc27c9557b26661d64e6747acbe40fb634755",
+  "verification_identity_hash": "d6fbd961d4a958499e1309d8d354473f74235e4fd1e2178bcd31a2afd75631cb",
+  "forensic_live_lineage_identity_hash": "9050a6207b4ee6682cf491c5719f9e8ed2088084c0ea1873e565f41437a7580f",
+  "source_configuration_hash": "f516014bea26d5aae87968b7ba7501c308a5fd607cda825984744ead9f8bb3fb",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "immutable_v18r1_reference_hash": "53649b9b54adfcf70d42d148dfd686dd0faa76271c96058ad1edf08894d32589",
+  "committed_source_dependency_closure_ready": true,
+  "deployed_source_closure_hash": "a43f08adf363449df1abc54c46ca6463b56d52de1dd00dce14d2750063e9b887",
+  "live_execution_prepared": true,
+  "future_live_evaluation_requires_committed_source_freeze": true,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "dispatch_checkpoints": 0,
+  "candidate_manifest_hash": "fb0937235fe4072b4b5a752b534f219e04145c7336b57285060432a60ea32c36"
+}

@@ -12,7 +12,7 @@ import {
   FormativeConversationUnavailableError,
   formativeConversationUnavailableFromConfiguration
 } from "./availability";
-import { createLiveFormativeConversationV18AgentRunner } from "./live-runner-v18";
+import { createLiveFormativeConversationV18R2AgentRunner } from "./live-runner-v18r2";
 import { FORMATIVE_CONVERSATION_OPENING_VERSION } from "./opening-contract";
 import type {
   AnyFormativeConversationAgentRunner,
@@ -81,7 +81,7 @@ export function createFormativeConversationOpeningRunner(
     if (executionPlan.adapter === "configured_live_runtime") {
       const runtime = getLlmRuntimeConfig();
       if (runtime.provider === "openai" && runtime.live_calls_enabled) {
-        return createLiveFormativeConversationV18AgentRunner();
+        return createLiveFormativeConversationV18R2AgentRunner();
       }
       if (runtime.provider === "mock" && process.env.NODE_ENV !== "production") {
         return noLiveOpeningTestRunner();

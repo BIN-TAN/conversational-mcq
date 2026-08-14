@@ -17,6 +17,7 @@ import {
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
+import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
@@ -356,7 +357,9 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               id: true,
               sequence_index: true,
               actor_type: true,
+              agent_name: true,
               message_text: true,
+              structured_payload: true,
               created_at: true
             }
           },
@@ -575,6 +578,12 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
             : []
         )
       );
+      const platformLifecycleHandoff = conversation.review_signals.find(
+        (signal) => signal.signal_type === "platform_lifecycle_handoff"
+      );
+      const studentFormativeTurnCount = conversation.conversation_turns.filter(
+        (turn) => turn.actor_type === "student"
+      ).length;
 
       return {
         conversation_public_id: conversation.conversation_public_id,
@@ -584,6 +593,39 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         concept_unit_title:
           conversation.concept_unit_session.concept_unit.title,
         status: conversation.status,
+        student_formative_turn_count: studentFormativeTurnCount,
+        max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        final_allowed_turn:
+          studentFormativeTurnCount ===
+          FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        another_student_turn_available:
+          conversation.status === "active" &&
+          studentFormativeTurnCount <
+            FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        lifecycle_termination_source: platformLifecycleHandoff
+          ? "platform_lifecycle"
+          : conversation.lifecycle_reason?.startsWith(
+                "llm_terminal_recommendation:"
+              )
+            ? "llm_terminal_recommendation"
+            : conversation.lifecycle_reason
+              ? "student_or_session_lifecycle"
+              : null,
+        lifecycle_termination_reason:
+          platformLifecycleHandoff?.reason_code ??
+          conversation.lifecycle_reason,
+        semantic_teacher_assistance_recommended:
+          learningOutcome === "teacher_assistance_recommended",
+        platform_lifecycle_handoff: platformLifecycleHandoff
+          ? {
+              signal_public_id:
+                platformLifecycleHandoff.signal_public_id,
+              reason_code: platformLifecycleHandoff.reason_code,
+              created_at: serializeDate(
+                platformLifecycleHandoff.created_at
+              )
+            }
+          : null,
         started_at: serializeDate(conversation.started_at),
         last_activity_at: serializeDate(conversation.last_activity_at),
         paused_at: serializeDate(conversation.paused_at),
@@ -607,6 +649,12 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               ? ("student" as const)
               : ("tutor" as const),
           message_text: turn.message_text ?? "",
+          message_source:
+            turn.agent_name === "platform_lifecycle"
+              ? "platform_lifecycle"
+              : turn.actor_type === "agent"
+                ? "llm_tutor"
+                : "student",
           created_at: serializeDate(turn.created_at),
           assistant_response_status:
             turn.actor_type === "student"

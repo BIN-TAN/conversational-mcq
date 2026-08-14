@@ -22,9 +22,17 @@ import {
   type FormativeConversationV18AgentInput,
   type FormativeConversationV18AgentOutput
 } from "./agent-contract-v18";
+import {
+  FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
+  FormativeConversationV18R2AgentOutputSchema,
+  type FormativeConversationV18R2AgentInput,
+  type FormativeConversationV18R2AgentOutput
+} from "./agent-contract-v18r2";
 import { formativeConversationUnavailableFromConfiguration } from "./availability";
 import { validateFormativeConversationV18CandidateAcceptance } from "./candidate-validation-v18";
+import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
 import { compilePersistedFormativeConversationV18Context } from "./context-v18";
+import { compilePersistedFormativeConversationV18R2Context } from "./context-v18r2";
 import { compilePersistedFormativeConversationContext } from "./context";
 import { recordFormativeConversationV18ProfileEvidenceReferences } from "./evidence-references-v18";
 import { recordFormativeConversationProfileEvidenceReferences } from "./evidence-references";
@@ -57,7 +65,13 @@ import {
   FormativeConversationV18ExecutionError
 } from "./execution-v18";
 import {
+  FormativeConversationV18R2ExecutionAuditSchema,
+  FormativeConversationV18R2ExecutionError
+} from "./execution-v18r2";
+import {
+  closeFormativeConversationAtStudentTurnLimit,
   persistFormativeConversationAssistantMessage,
+  persistFormativeConversationLifecycleHandoff,
   prepareFormativeConversationAssistantResponseAttempt,
   recordFormativeConversationAssistantResponseFailure,
   recordFormativeConversationOpeningFailure,
@@ -80,7 +94,8 @@ const FormativeConversationAgentIdentitySchema = z
     prompt_version: z.string().min(1),
     schema_version: z.union([
       z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
-      z.literal(FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION)
+      z.literal(FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION),
+      z.literal(FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION)
     ]),
     prompt_hash: z.string().min(1),
     reasoning_effort: z.string().min(1).nullable().optional(),
@@ -106,7 +121,8 @@ const FormativeConversationAgentExecutionSchema = z
     provider_execution_audit: z
       .union([
         FormativeConversationProviderExecutionAuditSchema,
-        FormativeConversationV18ExecutionAuditSchema
+        FormativeConversationV18ExecutionAuditSchema,
+        FormativeConversationV18R2ExecutionAuditSchema
       ])
       .optional(),
     started_at: z.coerce.date(),
@@ -145,15 +161,29 @@ export interface FormativeConversationV18AgentRunner {
   }): Promise<FormativeConversationAgentExecution>;
 }
 
+export interface FormativeConversationV18R2AgentRunner {
+  identity: Omit<FormativeConversationAgentIdentity, "schema_version"> & {
+    schema_version: typeof FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION;
+  };
+  execute(input: {
+    agent_call_db_id: string;
+    invocation_key: string;
+    context: FormativeConversationV18R2AgentInput;
+  }): Promise<FormativeConversationAgentExecution>;
+}
+
 export type AnyFormativeConversationAgentRunner =
   | FormativeConversationAgentRunner
-  | FormativeConversationV18AgentRunner;
+  | FormativeConversationV18AgentRunner
+  | FormativeConversationV18R2AgentRunner;
 type AnyFormativeConversationAgentInput =
   | FormativeConversationAgentInput
-  | FormativeConversationV18AgentInput;
+  | FormativeConversationV18AgentInput
+  | FormativeConversationV18R2AgentInput;
 type AnyFormativeConversationAgentOutput =
   | FormativeConversationAgentOutput
-  | FormativeConversationV18AgentOutput;
+  | FormativeConversationV18AgentOutput
+  | FormativeConversationV18R2AgentOutput;
 
 function isV18Runner(
   runner: AnyFormativeConversationAgentRunner
@@ -164,20 +194,52 @@ function isV18Runner(
   );
 }
 
+function isV18R2Runner(
+  runner: AnyFormativeConversationAgentRunner
+): runner is FormativeConversationV18R2AgentRunner {
+  return (
+    runner.identity.schema_version ===
+    FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
+  );
+}
+
 function isV18SchemaVersion(schemaVersion: string) {
   return schemaVersion === FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION;
 }
 
+function isV18R2SchemaVersion(schemaVersion: string) {
+  return schemaVersion === FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION;
+}
+
 function parseOutputForSchema(schemaVersion: string, value: unknown) {
-  return isV18SchemaVersion(schemaVersion)
-    ? FormativeConversationV18AgentOutputSchema.safeParse(value)
-    : FormativeConversationAgentOutputSchema.safeParse(value);
+  if (isV18R2SchemaVersion(schemaVersion)) {
+    return FormativeConversationV18R2AgentOutputSchema.safeParse(value);
+  }
+  if (isV18SchemaVersion(schemaVersion)) {
+    return FormativeConversationV18AgentOutputSchema.safeParse(value);
+  }
+  return FormativeConversationAgentOutputSchema.safeParse(value);
 }
 
 function validateOutputForContext(input: {
   output: AnyFormativeConversationAgentOutput;
   context: AnyFormativeConversationAgentInput;
 }) {
+  if (
+    input.context.contract_version ===
+    FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
+  ) {
+    const validation = validateFormativeConversationV18R2CandidateAcceptance({
+      candidate: input.output,
+      context: input.context as FormativeConversationV18R2AgentInput
+    });
+    return {
+      valid: validation.valid,
+      output: validation.output,
+      issue_paths: validation.validation_issue_paths,
+      validation_status: validation.validation_status
+    };
+  }
   if (
     input.context.contract_version ===
     FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION
@@ -212,6 +274,12 @@ async function compileRuntimeContext(input: {
   context: FormativeConversationRuntimeContextSeed;
   schema_version: string;
 }) {
+  if (isV18R2SchemaVersion(input.schema_version)) {
+    return compilePersistedFormativeConversationV18R2Context({
+      conversation_public_id: input.conversation_public_id,
+      ...input.context
+    });
+  }
   return isV18SchemaVersion(input.schema_version)
     ? compilePersistedFormativeConversationV18Context({
         conversation_public_id: input.conversation_public_id,
@@ -330,12 +398,18 @@ async function persistAgentProfileEvidence(input: {
 }) {
   if (
     input.context.contract_version ===
-    FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION
+      FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION ||
+    input.context.contract_version ===
+      FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
   ) {
-    const output = FormativeConversationV18AgentOutputSchema.parse(
-      input.output
-    );
-    const context = input.context as FormativeConversationV18AgentInput;
+    const output =
+      input.context.contract_version ===
+      FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
+        ? FormativeConversationV18R2AgentOutputSchema.parse(input.output)
+        : FormativeConversationV18AgentOutputSchema.parse(input.output);
+    const context = input.context as
+      | FormativeConversationV18AgentInput
+      | FormativeConversationV18R2AgentInput;
     const evidence =
       await recordFormativeConversationV18ProfileEvidenceReferences({
         conversation_public_id: input.conversation_public_id,
@@ -690,7 +764,13 @@ async function executeOrResumeAgentCall(input: {
     execution = FormativeConversationAgentExecutionSchema.parse(
       await executeFormativeConversationProviderOutsidePersistence({
         execute: () =>
-          isV18Runner(input.runner)
+          isV18R2Runner(input.runner)
+            ? input.runner.execute({
+                agent_call_db_id: started.agent_call.id,
+                invocation_key: key,
+                context: input.context as FormativeConversationV18R2AgentInput
+              })
+            : isV18Runner(input.runner)
             ? input.runner.execute({
                 agent_call_db_id: started.agent_call.id,
                 invocation_key: key,
@@ -704,7 +784,10 @@ async function executeOrResumeAgentCall(input: {
       })
     );
   } catch (error) {
-    if (error instanceof FormativeConversationV18ExecutionError) {
+    if (
+      error instanceof FormativeConversationV18ExecutionError ||
+      error instanceof FormativeConversationV18R2ExecutionError
+    ) {
       const lastResult = error.last_result;
       const providerRequestId =
         lastResult.provider_request_id ??
@@ -764,8 +847,15 @@ async function executeOrResumeAgentCall(input: {
         error.failure_class === "transport_failure"
           ? "agent_call_failed"
           : "agent_output_invalid",
-        "The V18 formative conversation provider result failed closed.",
-        error.failure_class
+        "The canonical-evidence formative conversation provider result failed closed.",
+        error instanceof FormativeConversationV18R2ExecutionError &&
+          error.failure_category === "semantic_regeneration_exhausted" &&
+          input.context.contract_version ===
+            FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
+          (input.context as FormativeConversationV18R2AgentInput)
+            .formative_lifecycle.final_allowed_turn
+          ? "final_turn_semantic_regeneration_exhausted"
+          : error.failure_class
       );
     }
     if (error instanceof FormativeConversationSemanticRegenerationError) {
@@ -911,8 +1001,10 @@ async function executeOrResumeAgentCall(input: {
         output_validated: false,
         validation_error: JSON.stringify({
           category: "formative_conversation_output_contract",
-          validator_version: isV18Runner(input.runner)
-            ? "formative-conversation-v18-candidate-acceptance-v1"
+          validator_version: isV18R2Runner(input.runner)
+            ? "formative-conversation-v18r2-candidate-acceptance-v1"
+            : isV18Runner(input.runner)
+              ? "formative-conversation-v18-candidate-acceptance-v1"
             : "formative-conversation-output-context-validation-v1",
           issue_count: contextualValidation.issue_paths.length,
           issue_paths: contextualValidation.issue_paths
@@ -1204,7 +1296,12 @@ export async function processFormativeConversationOpening(
     });
   }
 
-  const openingValidation = isV18Runner(runner)
+  const openingValidation = isV18R2Runner(runner)
+    ? validateFormativeConversationV18R2CandidateAcceptance({
+        candidate: agentResult.output,
+        context: compiled.context as FormativeConversationV18R2AgentInput
+      })
+    : isV18Runner(runner)
     ? validateFormativeConversationV18CandidateAcceptance({
         candidate: agentResult.output,
         context: compiled.context as FormativeConversationV18AgentInput
@@ -1371,11 +1468,17 @@ export async function processFormativeConversationStudentMessage(
     });
   }
 
-  const responseAttempt =
-    await prepareFormativeConversationAssistantResponseAttempt({
-      conversation_public_id: input.conversation_public_id,
-      client_message_id: input.client_message_id
-    });
+  const responseAttempt = reservation.receipt.assistant_turn
+    ? {
+        receipt: reservation.receipt,
+        attempt_index:
+          reservation.receipt.assistant_response_retry_count + 1,
+        response_completed: true
+      }
+    : await prepareFormativeConversationAssistantResponseAttempt({
+        conversation_public_id: input.conversation_public_id,
+        client_message_id: input.client_message_id
+      });
   const responseReceipt = responseAttempt.receipt;
   if (responseReceipt.assistant_turn) {
     const existingCall = await prisma.agentCall.findUnique({
@@ -1507,15 +1610,61 @@ export async function processFormativeConversationStudentMessage(
           input.client_message_id,
           responseAttempt.attempt_index
         )
-      },
-      select: {
-        id: true,
-        agent_name: true,
-        call_status: true,
-        completed_at: true,
-        updated_at: true
       }
     });
+    const lifecycle =
+      compiled.context.contract_version ===
+      FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
+        ? (compiled.context as FormativeConversationV18R2AgentInput)
+            .formative_lifecycle
+        : null;
+    if (
+      error instanceof FormativeConversationRuntimeError &&
+      error.reason_code ===
+        "final_turn_semantic_regeneration_exhausted" &&
+      lifecycle?.final_allowed_turn &&
+      !lifecycle.another_student_turn_available &&
+      failedCall
+    ) {
+      const handoff = await persistFormativeConversationLifecycleHandoff({
+        conversation_public_id: input.conversation_public_id,
+        client_message_id: input.client_message_id,
+        agent_call_db_id: failedCall.id,
+        reason_code:
+          "student_turn_limit_terminal_recommendation_unavailable"
+      });
+      if (!handoff) {
+        throw new Error("formative_conversation_lifecycle_handoff_missing");
+      }
+      await recordFormativeConversationTurnTelemetry({
+        conversation_public_id: input.conversation_public_id,
+        conversation_turn_db_id: handoff.assistant_turn.id,
+        agent_call_db_id: failedCall.id,
+        turn_started_at: failedCall.started_at ?? failedCall.created_at,
+        turn_submitted_at: failedCall.completed_at ?? failedCall.updated_at,
+        response_time_ms: null,
+        message_length_chars:
+          handoff.assistant_turn.message_text?.length ?? 0,
+        input_token_count: null,
+        output_token_count: null
+      });
+      return {
+        receipt: handoff.receipt,
+        student_turn: studentTurn,
+        tutor_turn: handoff.assistant_turn,
+        agent_call: failedCall,
+        evidence_references: [],
+        profile_transition_recommendation: null,
+        profile_transition_rejection: null,
+        lifecycle_handoff: {
+          source: "platform_lifecycle" as const,
+          reason:
+            "student_turn_limit_terminal_recommendation_unavailable"
+        },
+        replayed: handoff.replayed,
+        resumed: false
+      };
+    }
     throw await persistTerminalAssistantResponseFailure({
       conversation_public_id: input.conversation_public_id,
       client_message_id: input.client_message_id,
@@ -1591,6 +1740,20 @@ export async function processFormativeConversationStudentMessage(
     output: agentResult.output,
     context: compiled.context
   });
+  if (
+    compiled.context.contract_version ===
+      FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
+    (compiled.context as FormativeConversationV18R2AgentInput)
+      .formative_lifecycle.final_allowed_turn
+  ) {
+    await closeFormativeConversationAtStudentTurnLimit({
+      conversation_public_id: input.conversation_public_id,
+      client_message_id: input.client_message_id,
+      agent_call_db_id: agentResult.agent_call.id,
+      source: "llm_terminal_recommendation",
+      reason_code: "final_allowed_turn_terminal_recommendation_recorded"
+    });
+  }
 
   return {
     receipt: tutorMessage.receipt,

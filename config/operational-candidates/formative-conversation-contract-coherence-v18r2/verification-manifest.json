@@ -1,0 +1,99 @@
+{
+  "manifest_version": "formative-conversation-v18r2-verification-manifest-v1",
+  "verification_sources": [
+    {
+      "path": "package.json",
+      "sha256": "6231ccbf868099a9232278de7bb573ecfbe7452f713a6522878780d70e14bd0c"
+    },
+    {
+      "path": "prisma/formative-conversation-v18r2-contract-smoke-test.ts",
+      "sha256": "9eb7c91aaff8703ec27a669a6a6ddf28106d3905e516c80e8d4e34acfad75911"
+    },
+    {
+      "path": "prisma/formative-conversation-v18r2-lifecycle-runtime-smoke-test.ts",
+      "sha256": "39453a487969ec32e79a137270e245a94b8d4b2123bedc78b22cb783471ef84a"
+    },
+    {
+      "path": "prisma/formative-conversation-v18r2-pipeline-runtime-smoke-test.ts",
+      "sha256": "84e27da732a31fb91f62f0ee4258b1d2e73318be8f3cf1937f1a64497c6120b1"
+    },
+    {
+      "path": "prisma/formative-conversation-v18r2-runtime-database-smoke-test.ts",
+      "sha256": "6af0f1e1953f46cee9316cf9c6e741cb099aac5ab8680e1169f61829c1bc5672"
+    },
+    {
+      "path": "prisma/formative-conversation-v18r2-test-fixtures.ts",
+      "sha256": "5af280d7b47b6bbecbe984f48d610a82cc6b8254422262d76ff1c63198691d7e"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18r2-materialize.ts",
+      "sha256": "a19902d7c44ef79c9f8ec7b0c7efaa175c955b6e00abae85423ecebcf2b4d7d6"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18r2-smoke-test.ts",
+      "sha256": "a01717f239c00b6921d4fa9e6e3dcf030a0b4b33814acf2918190d635d53bc36"
+    },
+    {
+      "path": "src/lib/evaluation/synthetic-student-validation/framework.ts",
+      "sha256": "8ac0dd1ac9e103fb2c90728e7e959e503aaf961ebf144e93d26ca8944f0f5a0e"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v18r2/candidate.ts",
+      "sha256": "d13a48fc011826e798f14d4dae6fe853a1a5215bda3d0711bb8c9da2fda013b6"
+    },
+    {
+      "path": "docs/operations/FORMATIVE_CONVERSATION_V18R2_CONTRACT_COHERENCE.md",
+      "sha256": "7bb6b98e9a1005815bb8968d8382869b813471242954102a00bf33fdd2c63712"
+    },
+    {
+      "path": "config/operational-candidates/formative-conversation-contract-coherence-v18r2/fixtures/v18r1-seven-failed-primary-candidates.json",
+      "sha256": "5f543049e74472a0402155b61ac9c8055276ff0a5279610f6099a509ff172604"
+    }
+  ],
+  "required_no_provider_tests": [
+    "operational:formative-conversation-v18r2-candidate-smoke",
+    "operational:formative-conversation-v18r2-contract-smoke",
+    "operational:formative-conversation-v18r2-runtime-database-smoke",
+    "operational:formative-conversation-v18-v17-forensic-replay-smoke",
+    "operational:formative-conversation-v18-provider-request-smoke",
+    "operational:formative-conversation-v18-contract-smoke",
+    "operational:formative-conversation-v17-identity-smoke",
+    "operational:formative-conversation-v17-profiling-canary-smoke",
+    "operational:formative-conversation-v17-v16-replay-smoke",
+    "operational:formative-conversation-v16-misconception-evidence-closure-smoke",
+    "operational:formative-conversation-transition-evidence-closure-v1-smoke",
+    "operational:formative-conversation-semantic-regeneration-v2-smoke",
+    "operational:formative-conversation-profile-transition-v4-smoke",
+    "operational:provider-transport-retry-v3-smoke",
+    "operational:formative-conversation-output-format-v1-smoke",
+    "student:profiling-semantic-validation-smoke",
+    "student:formative-privacy-smoke",
+    "operational:formative-conversation-v5-v18r1-deployment-provenance-smoke",
+    "operational:formative-conversation-v5-v18r1-provenance-boundary-smoke",
+    "operational:formative-conversation-v5-v18r1-dispatch-checkpoint-smoke",
+    "operational:formative-conversation-v5-v18r1-launcher-smoke",
+    "operational:formative-conversation-v5-v18r1-environment-parity-smoke",
+    "operational:formative-conversation-v5-v18r1-security-smoke",
+    "operational:formative-conversation-v7-profile-disposition-smoke",
+    "operational:formative-conversation-v8-profile-disposition-smoke",
+    "npx prisma validate",
+    "typecheck",
+    "lint",
+    "build_with_8gb_heap",
+    "git diff --check"
+  ],
+  "isolated_database_policy": {
+    "temporary_local_postgresql_only": true,
+    "classroom_or_render_database_forbidden": true,
+    "database_drop_required": true,
+    "local_postgresql_stop_required": true
+  },
+  "external_activity_required_counts": {
+    "provider_calls": 0,
+    "model_auth_requests": 0,
+    "generation_network_requests": 0,
+    "real_dispatch_checkpoints": 0
+  },
+  "production_build_node_heap_mb": 8192,
+  "verification_manifest_hash": "4d7ea054c739f61514df7c28a5b6ec0ccbc08bcd4d00cdf24cebca2da0dcff61"
+}

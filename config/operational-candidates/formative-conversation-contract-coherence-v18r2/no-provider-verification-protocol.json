@@ -1,0 +1,69 @@
+{
+  "protocol_version": "formative-conversation-v18r2-no-provider-protocol-v1",
+  "runtime_candidate_hash": "db71fa1ed5e9d5ce007bddf21a102cd006ab337584708386a9c4e081a556d58e",
+  "formative_prompt_hash": "471304a46132d50d3aadfb6f693685c8b838ba5d601dca56d67612890b863451",
+  "profiling_prompt_hash": "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626",
+  "verification_manifest_hash": "4d7ea054c739f61514df7c28a5b6ec0ccbc08bcd4d00cdf24cebca2da0dcff61",
+  "fixture_reference_manifest_hash": "28fb65ff901228a2459dafe8fc5d8574d9200237c7e7f99b20eaf1be899cf82b",
+  "forensic_report_hash": "6b62056ecbc1dc02de25941230c6a6e59886827354d4b002e75365b6534a25b7",
+  "contract": {
+    "output_contract_version": "formative-conversation-agent-contract-v4",
+    "context_version": "formative-conversation-context-v4",
+    "lifecycle_version": "formative-conversation-lifecycle-v1",
+    "canonical_observation_evidence": "eligible student-originating assessment or formative evidence available for interpretation independent of transition state",
+    "profile_transition_supporting_evidence": "canonical student evidence cited specifically to support an actual proposed profile change",
+    "canonical_evidence_ids": "canonical student evidence supporting the proposed profile transition only",
+    "continue_profile_transition_recommendation": null,
+    "terminal_transition_integrity_weakened": false
+  },
+  "lifecycle": {
+    "formative_counter_initial_value": 0,
+    "maximum_student_authored_formative_turns": 12,
+    "assessment_session_messages_counted": false,
+    "item_responses_counted": false,
+    "assistant_opening_counted": false,
+    "retry_or_replay_counted": false,
+    "turn_12_final_allowed": true,
+    "final_turn_continue_semantically_admissible": false,
+    "one_bounded_semantic_regeneration": true,
+    "double_invalid_platform_handoff_without_transition": true
+  },
+  "future_live_evaluation_projection": {
+    "substantive_case_set_unchanged": true,
+    "base_call_graph_unchanged": true,
+    "budgets_unchanged": true,
+    "budget": {
+      "exact_case_count": 12,
+      "profiling_base_calls": 4,
+      "formative_base_calls": 24,
+      "total_base_calls": 28,
+      "maximum_logical_calls": 56,
+      "maximum_provider_attempts": 168,
+      "maximum_input_tokens": 1800000,
+      "maximum_output_tokens": 368000,
+      "maximum_total_tokens": 2168000,
+      "maximum_wall_time_ms": 7200000,
+      "provider_concurrency": 1,
+      "maximum_cost_usd": 60
+    }
+  },
+  "execution_scope": {
+    "live_execution_prepared": false,
+    "live_execution_permitted": false,
+    "launcher_present": false,
+    "environment_contract_present": false,
+    "dispatch_checkpoint_contract_present": false,
+    "authorization_present": false
+  },
+  "governance": {
+    "approval_eligible": false,
+    "activation_permitted": false,
+    "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+    "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2"
+  },
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "generation_network_requests": 0,
+  "dispatch_checkpoints": 0,
+  "protocol_hash": "83e2c24a03238bd062d2cd89fe2c57db19e2b3cac6377bc61b808a263983e379"
+}

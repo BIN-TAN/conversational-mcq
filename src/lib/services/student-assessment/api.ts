@@ -7,6 +7,7 @@ import {
   FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE,
   FormativeConversationUnavailableError
 } from "./formative-conversation/availability";
+import { FormativeConversationFoundationError } from "./formative-conversation/service";
 import { StudentAssessmentServiceError } from "./errors";
 
 export async function requireStudent() {
@@ -44,6 +45,32 @@ export function studentAssessmentRouteError(error: unknown): NextResponse {
 
   if (error instanceof StudentAssessmentServiceError) {
     return jsonApiError(error.code, error.message, error.status, error.details);
+  }
+
+  if (error instanceof FormativeConversationFoundationError) {
+    if (error.code === "conversation_not_found") {
+      return jsonApiError(
+        "not_found",
+        "The learning conversation was not found.",
+        404
+      );
+    }
+    if (
+      error.code === "conversation_not_active" ||
+      error.code === "conversation_turn_limit_reached"
+    ) {
+      return jsonApiError(
+        "invalid_phase_for_action",
+        "This learning conversation is no longer accepting new messages.",
+        409,
+        { retryable: false }
+      );
+    }
+    return jsonApiError(
+      "conflict",
+      "The learning conversation request conflicts with its saved state.",
+      409
+    );
   }
 
   if (error instanceof z.ZodError) {

@@ -6,7 +6,7 @@ import {
 } from "@/lib/services/student-assessment/api";
 import {
   buildFormativeConversationRuntimeContextSeed,
-  createLiveFormativeConversationV18AgentRunner,
+  createLiveFormativeConversationV18R2AgentRunner,
   FormativeConversationResponseGenerationError,
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
@@ -78,7 +78,7 @@ export async function POST(
         }
       );
     }
-    if (!owned.can_send) {
+    if (!owned.can_send && owned.status !== "ended") {
       throw new StudentAssessmentServiceError(
         "invalid_phase_for_action",
         "The learning conversation is not accepting messages.",
@@ -125,7 +125,7 @@ export async function POST(
               }
             : undefined
         },
-        { runner_factory: createLiveFormativeConversationV18AgentRunner }
+        { runner_factory: createLiveFormativeConversationV18R2AgentRunner }
       );
     } catch (error) {
       if (!(error instanceof FormativeConversationResponseGenerationError)) {

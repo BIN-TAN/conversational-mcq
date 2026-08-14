@@ -1,0 +1,35 @@
+{
+  "report_version": "formative-conversation-v18r2-v18r1-forensics-v1",
+  "immutable_v18r1_reference_hash": "20125bc3e6d89bb717c4249c3e33c22dfdcb1496a7bf47b94d65f8487a252508",
+  "replay_fixture": {
+    "path": "config/operational-candidates/formative-conversation-contract-coherence-v18r2/fixtures/v18r1-seven-failed-primary-candidates.json",
+    "sha256": "5f543049e74472a0402155b61ac9c8055276ff0a5279610f6099a509ff172604"
+  },
+  "exact_prompt_instruction": [
+    "Every evidence ID used by a field, claim disposition, rationale-bearing evidence observation, or other supporting observation must also appear in canonical_evidence_ids.",
+    "Use only IDs from the supplied eligible catalog and keep all references within this conversation's evidence scope."
+  ],
+  "exact_schema_validator_rule": {
+    "condition": "proposed_outcome=continue_conversation and any updated_profile, field_evidence, misconception_claim_dispositions, or canonical_evidence_ids is non-empty",
+    "issue_path": "profile_transition_recommendation.updated_profile",
+    "message": "continue_conversation records observations without creating a profile transition."
+  },
+  "failed_case_ids": [
+    "fcv5_02_first_principles_adaptation",
+    "fcv5_03_direct_answer_handling",
+    "fcv5_04_related_concept_discussion",
+    "fcv5_06_largely_improved_temporal",
+    "fcv5_07_persistent_barrier_teacher_assistance",
+    "fcv5_08_mixed_resolved_evidence",
+    "fcv18_09_dissertation_end_to_end"
+  ],
+  "all_seven_selected_continue_conversation": true,
+  "all_seven_share_one_prompt_schema_contradiction": true,
+  "independent_p1_issue_found": false,
+  "passing_controls": [
+    "fcv5_01_assistant_first_opening",
+    "fcv5_05_sound_profile_transition"
+  ],
+  "historical_v18r1_status_changed": false,
+  "forensic_report_hash": "6b62056ecbc1dc02de25941230c6a6e59886827354d4b002e75365b6534a25b7"
+}

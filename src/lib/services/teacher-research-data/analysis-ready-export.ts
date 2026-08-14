@@ -20,6 +20,7 @@ import {
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
+import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { parseFormativeConversationProfileSnapshot } from "@/lib/services/student-assessment/formative-conversation/profile-update";
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
@@ -395,6 +396,16 @@ const analysisSessionSelect = {
           started_at: true,
           completed_at: true
         }
+      },
+      review_signals: {
+        orderBy: { created_at: "asc" },
+        select: {
+          signal_public_id: true,
+          signal_type: true,
+          reason_code: true,
+          evidence_summary: true,
+          created_at: true
+        }
       }
     }
   },
@@ -432,6 +443,15 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "ended_at",
   "wall_clock_duration_ms",
   "turn_count",
+  "student_formative_turn_count",
+  "current_student_turn_index",
+  "max_student_turns",
+  "final_allowed_turn",
+  "another_student_turn_available",
+  "lifecycle_termination_source",
+  "lifecycle_termination_reason",
+  "semantic_teacher_assistance_recommended",
+  "platform_lifecycle_handoff",
   "lifecycle_event_count",
   "agent_call_count",
   "intervention_count",
@@ -1745,6 +1765,12 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
       const canonicalCurrentProfile =
         latestTransition?.updated_student_profile ??
         conversation.initial_student_profile;
+      const platformLifecycleHandoff = conversation.review_signals.find(
+        (signal) => signal.signal_type === "platform_lifecycle_handoff"
+      );
+      const studentFormativeTurnCount = conversation.conversation_turns.filter(
+        (turn) => turn.actor_type === "student"
+      ).length;
       return {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -1768,6 +1794,33 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
           )
         ),
         turn_count: conversation.conversation_turns.length,
+        student_formative_turn_count: studentFormativeTurnCount,
+        current_student_turn_index: studentFormativeTurnCount,
+        max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        final_allowed_turn:
+          studentFormativeTurnCount ===
+          FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        another_student_turn_available:
+          conversation.status === "active" &&
+          studentFormativeTurnCount <
+            FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        lifecycle_termination_source: platformLifecycleHandoff
+          ? "platform_lifecycle"
+          : conversation.lifecycle_reason?.startsWith(
+                "llm_terminal_recommendation:"
+              )
+            ? "llm_terminal_recommendation"
+            : conversation.lifecycle_reason
+              ? "student_or_session_lifecycle"
+              : null,
+        lifecycle_termination_reason:
+          platformLifecycleHandoff?.reason_code ??
+          conversation.lifecycle_reason,
+        semantic_teacher_assistance_recommended:
+          persistedFormativeConversationOutcome(canonicalTransitions) ===
+          "teacher_assistance_recommended",
+        platform_lifecycle_handoff:
+          platformLifecycleHandoff?.signal_public_id ?? null,
         lifecycle_event_count: conversation.lifecycle_events.length,
         agent_call_count: conversation.agent_calls.length,
         intervention_count: conversation.interventions.length,
@@ -2160,6 +2213,33 @@ function formativeConversationDataDictionaryRows() {
     }
     if (variable === "conversation_local_event_sequence_index") {
       return "One-based persisted lifecycle-event order within this formative conversation.";
+    }
+    if (
+      variable === "student_formative_turn_count" ||
+      variable === "current_student_turn_index"
+    ) {
+      return "Count of unique accepted persisted student-authored messages after the formative conversation began; assessment administration, tutor turns, retries, and replays are excluded.";
+    }
+    if (variable === "max_student_turns") {
+      return "Pilot lifecycle limit for phase-local formative student turns; this is not a learning or mastery threshold.";
+    }
+    if (variable === "final_allowed_turn") {
+      return "Whether the current phase-local formative student turn is turn 12, the final accepted student turn.";
+    }
+    if (variable === "another_student_turn_available") {
+      return "Whether the platform lifecycle can accept another unique formative student message.";
+    }
+    if (variable === "lifecycle_termination_source") {
+      return "Source of conversation closure, distinguishing an LLM terminal recommendation from a platform lifecycle handoff or student/session lifecycle action.";
+    }
+    if (variable === "lifecycle_termination_reason") {
+      return "Typed lifecycle reason; it is operational provenance and not a learning-state judgment.";
+    }
+    if (variable === "semantic_teacher_assistance_recommended") {
+      return "Whether a validated persisted LLM profile transition recommended teacher assistance.";
+    }
+    if (variable === "platform_lifecycle_handoff") {
+      return "Public review-signal identifier for a platform turn-limit handoff; null when no such handoff occurred. This is not teacher_assistance_recommended.";
     }
     if (variable.includes("learning_profile")) {
       return "Validated assessment-specific learning-profile category at the named point in the conversation.";

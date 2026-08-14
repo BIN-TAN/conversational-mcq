@@ -1,0 +1,305 @@
+{
+  "fixture_version": "formative-conversation-v18r2-v18r1-primary-replay-v1",
+  "immutable_lineage": {
+    "source_commit_sha": "2147e4d340e9adbfd8014433ceede852fbdc54fc",
+    "source_provider_run_id": "fcv5v18r1_provider_20260813160503_9f33cf65",
+    "source_derived_evaluation_id": "fcv5v18r1_derived_20260813160503_1534d9b2",
+    "aggregate_status": "completed_failed",
+    "source_artifacts_immutable": true
+  },
+  "replay_policy": {
+    "original_candidate_preserved": true,
+    "tutor_student_language_mutation_permitted": false,
+    "v18r2_adaptation": "contract_envelope_only",
+    "provider_calls": 0
+  },
+  "cases": [
+    {
+      "case_id": "fcv5_02_first_principles_adaptation",
+      "agent_call_public_id": "cmsrpn3uk0015oxhenx257xvk",
+      "candidate_hash": "fc6e97b62d89bc822523911396d317ff7f85c662590d38b378aaf526393c1952",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student explicitly reports mixing up reliability, error, and validity and requests a first-principles explanation; this does not yet demonstrate changed conceptual understanding.",
+            "evidence_ids": [
+              "ev_9da308c2fc2adfa3646efd0b"
+            ],
+            "evidence_type": "student_reported_conceptual_confusion"
+          }
+        ],
+        "student_visible_message": "Absolutely. Start with three different questions:\n\n- **Reliability: How consistent are the scores?** If the measurement were repeated under similar conditions, would the scores be reasonably stable? Internal consistency is one kind of reliability: it asks whether items intended to measure the same thing behave coherently. Reliability does **not** prove that the test measures the right thing.\n- **Measurement error: How uncertain is an observed score?** A person’s observed score can vary because of sampling of questions, testing conditions, and other measurement influences. The **standard error of measurement**, or SEM, estimates the typical amount of this score uncertainty in score points. It does not uncover or correct the person’s exact “true score.”\n- **Validity: What interpretation and use do the evidence support?** Validity is about the claim we want to make from the scores in a particular context. The same test might support one use but not another, so validity is not simply a permanent label attached to the test.\n\nHere is one example. Suppose a math test gives Jordan similar scores on repeated occasions. That supports **reliability**. If the SEM is 3 points, Jordan’s observed score should be treated as uncertain by roughly a few points rather than exact; that is **measurement error** information. If the school wants to use the score to decide whether Jordan is ready for algebra, it needs evidence that the score really supports that specific readiness decision; that is **validity**.\n\nThe relationship is:\n\n- Greater reliability usually means less random measurement error.\n- Reliability can help a validity argument because wildly inconsistent scores are difficult to interpret.\n- But reliability alone cannot establish validity. A test can measure the wrong skill very consistently.\n\nA short memory aid is: **reliability = consistency, SEM = uncertainty, validity = justified meaning and use.**\n\nNow try this scenario: A science test produces very consistent scores and has an SEM of 2 points, but most questions require unusually advanced reading. What does each fact tell you about **reliability**, **score uncertainty**, and the **validity of using the scores to judge science knowledge**?",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The current turn identifies the area of confusion but does not yet provide a student explanation or application showing whether understanding has changed. A new application prompt can provide that evidence.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_9da308c2fc2adfa3646efd0b"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv5_03_direct_answer_handling",
+      "agent_call_public_id": "cmsrpnt1k001xoxhe61275zy8",
+      "candidate_hash": "8c00155637dc29f264237bdfe6a45f7d41c59aa0e51a5c66ad8cfb7899b9009d",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student requested the correct answer and explanation but did not yet provide reasoning that demonstrates whether the reliability-validity distinction is understood.",
+            "evidence_ids": [
+              "ev_ba2a3b25709b06dbafac9646"
+            ],
+            "evidence_type": "instruction_request"
+          }
+        ],
+        "student_visible_message": "**The correct answer is A:** *The scores are internally consistent, but validity still needs separate evidence.*\n\nIt is right because a high internal-consistency coefficient tells us that the items produce scores that behave coherently or consistently with one another. That is evidence about **reliability**.\n\nHowever, consistency alone does not show that the scores measure the intended concept or support a particular decision. Those are **validity** questions. A test could consistently measure the wrong skill, so reliable scores are not automatically valid for every use.\n\n- **B is wrong** because high reliability does not prove validity for every intended use.\n- **C is wrong** because reliability does not mean that every individual score is completely free from measurement error.\n\nA useful summary is: **reliability concerns consistency; validity concerns whether evidence supports the intended interpretation and use.**\n\nQuick check: If a hiring test gives very consistent scores but mainly measures test-taking speed rather than job performance, why would high reliability not be enough to justify hiring decisions?",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The current student turn requests direct instruction but does not provide new evidence of conceptual understanding or resolve the existing reliability-validity confusion.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_ba2a3b25709b06dbafac9646"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv5_04_related_concept_discussion",
+      "agent_call_public_id": "cmsrpo9ej002poxhe1aec6avc",
+      "candidate_hash": "adaba5f1116ffed2397a863f45ffda04d1621425a7b0446e1473112d7bb703ab",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student asks to extend the discussion to the relationship between reliability, validity, and fairness, but does not yet make a substantive claim demonstrating that relationship.",
+            "evidence_ids": [
+              "ev_c4a9fdd1059d079bafe3a87d"
+            ],
+            "evidence_type": "student_topic_request"
+          }
+        ],
+        "student_visible_message": "Absolutely. **Reliability, validity, and fairness ask related but different questions.**\n\n- **Reliability:** Are scores sufficiently consistent and precise? An unreliable test can be unfair because random error may change who passes, is admitted, or receives services. But high reliability does not guarantee fairness—a test can consistently produce biased results.\n- **Validity:** Is there adequate evidence for the intended interpretation and use of the scores? Fairness matters here because a decision is difficult to defend if scores do not mean the same thing across relevant groups or if irrelevant barriers distort performance.\n- **Fairness:** Do students have a comparable opportunity to demonstrate the intended construct, and are interpretations and decisions supported appropriately across groups? Fairness does not necessarily mean identical treatment; accommodations may be needed to remove barriers unrelated to what is being measured.\n\nFor example, a reading test could have high internal consistency but still disadvantage multilingual students if unnecessary vocabulary makes items measure language familiarity in addition to the intended reading skill. It could also have different measurement precision for different groups. In either case, reliability for the overall sample would not settle the fairness question.\n\nFor the advanced-placement decision, I would therefore want evidence about:\n\n- score precision, especially near the cutoff;\n- whether the test measures the intended reading construct rather than irrelevant skills;\n- whether items function comparably across relevant groups;\n- accessibility and appropriate accommodations;\n- whether the placement rule predicts suitable outcomes across groups; and\n- whether students have a way to appeal or contribute additional evidence.\n\nSo the compact relationship is: **reliability supports score consistency; validity supports an intended interpretation and use; fairness asks whether that interpretation and use are defensible and equitable across people and contexts.** Reliability contributes to validity and fairness, but it is not sufficient for either.\n\nSuppose the school uses a strict cutoff of 80, while the student scored 82 with an SEM of 3. **How might the score uncertainty and fairness concerns affect your recommendation about placement?**",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The turn requests a relevant conceptual extension but does not yet provide enough student-authored reasoning to support a profile change. The application question invites evidence of transfer.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_c4a9fdd1059d079bafe3a87d"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv5_06_largely_improved_temporal",
+      "agent_call_public_id": "cmsrpq5v7004soxhezmuxhypw",
+      "candidate_hash": "c432e03f8f2433cae207655a89e872a224d3d426cff2ffc2058fdc112224efd3",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student explicitly identifies their prior reliability-validity inference and requests clarification of its logical boundary. This supports continued instruction but does not yet demonstrate that the misconception has been resolved.",
+            "evidence_ids": [
+              "ev_6290ad5f96613daea6672f40"
+            ],
+            "evidence_type": "formative_student_turn"
+          }
+        ],
+        "student_visible_message": "Yes. The boundary is crossed in this chain:\n\n1. **High reliability means scores are consistent.** This step is justified.\n2. **Consistent scores must therefore be accurate.** This is the unjustified step.\n3. **Accurate scores must therefore support any intended use.** This goes even further beyond what reliability establishes.\n\nA measure can be consistently wrong. For example, a scale that always adds five pounds is highly consistent, but its readings are not accurate. Likewise, a test can consistently measure reading skill while being called a test of machinery safety.\n\nSo reliability supports the limited claim, **“The scores behave consistently.”** Validity requires additional evidence for a different claim: **“These scores support this particular interpretation and use in this context.”** Reliability is useful evidence, and often necessary, but it is not sufficient by itself.\n\nTry applying that boundary: A highly reliable math-placement test depends heavily on difficult reading passages. What can its high reliability tell you, and what additional question would you ask before treating the scores as valid indicators of math ability?",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The student’s question shows recognition that a distinction may be needed, but it does not yet provide a corrected explanation or application demonstrating changed understanding.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_6290ad5f96613daea6672f40"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv5_07_persistent_barrier_teacher_assistance",
+      "agent_call_public_id": "cmsrpqoq0005koxhe5hmkfmi1",
+      "candidate_hash": "d33b00017315a98dc2ceafcf7eb88950deb579c3c4b9147a0864bb4fe6456b35",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student explicitly continues to equate consistency with accuracy and treats a high reliability coefficient as proof of validity.",
+            "evidence_ids": [
+              "ev_228b20ef491fb91d5a4fcb53"
+            ],
+            "evidence_type": "current_student_reasoning"
+          }
+        ],
+        "student_visible_message": "I see why “consistent” sounds like “accurate,” but those words describe different properties.\n\nImagine a miscalibrated scale that adds 10 kg every time. A person who actually weighs 70 kg gets readings of 80, 80, and 80 kg.\n\n- The scale is **highly reliable** because its readings are consistent.\n- It is **not accurate** because those consistent readings are systematically wrong.\n\nA test can behave similarly: its items or repeated scores may be highly consistent while measuring the wrong thing, omitting important skills, or being used for a decision it cannot support. Reliability is useful—and usually necessary—but it is **not sufficient** for validity. Validity requires evidence that the scores support the *specific interpretation and use* being proposed.\n\nTry applying that distinction: a reading test gives highly consistent scores, but an employer uses it as the sole measure of electrical-repair skill. Is that decision justified? Explain what the reliability evidence establishes and what it does **not** establish.",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The current student-authored evidence preserves the reliability-validity misconception rather than demonstrating improvement. A contrasting example and a new application question may help elicit whether the distinction becomes understood.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_228b20ef491fb91d5a4fcb53"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv5_08_mixed_resolved_evidence",
+      "agent_call_public_id": "cmsrpr31y006coxhe94i3xwtq",
+      "candidate_hash": "ce49520cd01c13fc1f0c8fd718129b207cb53473ad6d2071b866ace6bad7b2a8",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student asked for help distinguishing reliability, measurement error, and validity, but did not yet explain those distinctions.",
+            "evidence_ids": [
+              "ev_99ec345497fe2b5a7b791390"
+            ],
+            "evidence_type": "learning_question_not_yet_conceptual_demonstration"
+          }
+        ],
+        "student_visible_message": "Yes. The cleanest way to separate them is by asking **what question each concept answers**:\n\n- **Reliability:** *How consistently are the scores measured?* High reliability means scores contain relatively less random measurement error and behave consistently. It does **not** mean every observed score is exact, and it does not establish validity.\n- **Measurement error:** *How uncertain is an individual observed score?* The **standard error of measurement**, or SEM, expresses the expected uncertainty in score units. If Maya scores `80` and the SEM is `3`, the `3` describes uncertainty around `80`; it does not reveal her exact true score. Under common assumptions, `77–83` is an approximate one-SEM interval, not a guarantee.\n- **Validity:** *What evidence supports this particular interpretation and use of the scores?* A test might produce highly consistent scores but still be unsuitable for a particular decision.\n\nA useful summary is: **reliability concerns consistency, SEM quantifies score uncertainty, and validity concerns whether an intended interpretation and use are supported.** Reliability can support a validity argument, but it cannot replace one.\n\nTry applying that distinction. Label each claim as **reliability**, **error/SEM**, or **validity**, and briefly explain your choices:\n\n1. Scores tend to remain consistent across comparable measurements.\n2. A score of `80` should be interpreted with uncertainty of about `3` score points.\n3. The scores provide appropriate evidence for making a placement decision.",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The student's request identifies the concepts needing clarification but does not yet provide evidence that the distinction or the SEM misconception has been resolved.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_99ec345497fe2b5a7b791390"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    },
+    {
+      "case_id": "fcv18_09_dissertation_end_to_end",
+      "agent_call_public_id": "cmsrprwwf0076oxhews09598z",
+      "candidate_hash": "6f25bbde8b78efc12becb3367f2fd968e21dacd34131a2f4b840ffa7159ab0a4",
+      "validation_status": "schema_invalid",
+      "validation_issue_paths": [
+        "profile_transition_recommendation.updated_profile"
+      ],
+      "candidate": {
+        "contract_version": "formative-conversation-agent-contract-v3",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student correctly states that reliability concerns consistency and does not by itself establish validity for an intended use.",
+            "evidence_ids": [
+              "ev_85f1abaffa8f6ae46ff6e899"
+            ],
+            "evidence_type": "conceptual_distinction_demonstrated"
+          },
+          {
+            "observation": "The student continues to suggest that SEM may identify an exact true score, so further explanation and application are warranted.",
+            "evidence_ids": [
+              "ev_85f1abaffa8f6ae46ff6e899"
+            ],
+            "evidence_type": "misconception_still_present"
+          }
+        ],
+        "student_visible_message": "You’ve correctly separated **reliability** from **validity**. Now let’s sharpen the SEM idea.\n\nSEM does **not** identify an exact true score. It estimates how much observed scores would typically vary because of measurement error. In classical test theory, a “true score” is a theoretical average over many equivalent measurements; because we do not actually administer infinitely many equivalent tests, it cannot usually be known exactly.\n\nFor example, suppose someone receives an observed score of `80` and the SEM is `3`. Under common assumptions, we might describe a band around the score—roughly `77–83` for one SEM—to communicate uncertainty. That band does not reveal one exact true score; it shows that values near 80 are more plausible than treating 80 as perfectly precise.\n\nIn your own words, complete this statement: **An SEM of 3 means __________; it does not mean __________.**",
+        "lifecycle_recommendation": "continue",
+        "profile_transition_recommendation": {
+          "rationale": "The student has corrected the reliability-validity distinction but still explicitly retains the exact-true-score interpretation of SEM. A brief constructed explanation is needed before evaluating a broader profile transition.",
+          "recommended": false,
+          "field_evidence": [],
+          "updated_profile": null,
+          "proposed_outcome": "continue_conversation",
+          "canonical_evidence_ids": [
+            "ev_85f1abaffa8f6ae46ff6e899"
+          ],
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "misconception_claim_dispositions": []
+        },
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "manifest_version": "formative-conversation-v18r2-candidate-manifest-v1",
+  "candidate_version": "formative-conversation-v18r2-contract-coherence-and-bounded-lifecycle-v1",
+  "candidate_state": "inactive_no_provider_candidate",
+  "runtime_behavior_changed": true,
+  "prompt_changed": true,
+  "profiling_prompt_changed": false,
+  "database_schema_changed": false,
+  "substantive_live_fixture_set_changed": false,
+  "runtime_candidate_hash": "db71fa1ed5e9d5ce007bddf21a102cd006ab337584708386a9c4e081a556d58e",
+  "formative_prompt_hash": "471304a46132d50d3aadfb6f693685c8b838ba5d601dca56d67612890b863451",
+  "profiling_prompt_hash": "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626",
+  "protocol_hash": "83e2c24a03238bd062d2cd89fe2c57db19e2b3cac6377bc61b808a263983e379",
+  "verification_manifest_hash": "4d7ea054c739f61514df7c28a5b6ec0ccbc08bcd4d00cdf24cebca2da0dcff61",
+  "fixture_reference_manifest_hash": "28fb65ff901228a2459dafe8fc5d8574d9200237c7e7f99b20eaf1be899cf82b",
+  "forensic_report_hash": "6b62056ecbc1dc02de25941230c6a6e59886827354d4b002e75365b6534a25b7",
+  "source_configuration_hash": "9a4eb65df9b4ff63e0e40cbdfc706958a52c77c476180829b75d2781071960a4",
+  "materializer_implementation_hash": "a19902d7c44ef79c9f8ec7b0c7efaa175c955b6e00abae85423ecebcf2b4d7d6",
+  "immutable_v18r1_reference_hash": "20125bc3e6d89bb717c4249c3e33c22dfdcb1496a7bf47b94d65f8487a252508",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "live_execution_prepared": false,
+  "provider_run_created": false,
+  "derived_evaluation_created": false,
+  "approval": {
+    "eligible": false,
+    "evidence_created": false
+  },
+  "activation": {
+    "permitted": false
+  },
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "generation_network_requests": 0,
+  "dispatch_checkpoints": 0,
+  "candidate_manifest_hash": "ffeb858a20178b0c7e86b82232c06e7a9d988f35545c72969538c119f57bdadb"
+}

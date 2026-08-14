@@ -1,8 +1,11 @@
 import type { FormativeConversationAgentInput } from "./agent-contract";
 import type { FormativeConversationV18AgentInput } from "./agent-contract-v18";
+import type { FormativeConversationV18R2AgentInput } from "./agent-contract-v18r2";
 
 type SafeFormativeConversationInput = Pick<
-  FormativeConversationAgentInput | FormativeConversationV18AgentInput,
+  | FormativeConversationAgentInput
+  | FormativeConversationV18AgentInput
+  | FormativeConversationV18R2AgentInput,
   "administered_items" | "safety_boundary"
 > & Record<string, unknown>;
 

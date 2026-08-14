@@ -6,7 +6,7 @@ import {
 } from "@/lib/services/student-assessment/api";
 import {
   buildFormativeConversationRuntimeContextSeed,
-  createLiveFormativeConversationV18AgentRunner,
+  createLiveFormativeConversationV18R2AgentRunner,
   FormativeConversationResponseGenerationError,
   getFormativeConversationStudentMessageForRetry,
   getStudentFormativeConversationProjection,
@@ -80,7 +80,7 @@ export async function POST(
           message_text: storedMessage.message_text,
           context: seed
         },
-        { runner_factory: createLiveFormativeConversationV18AgentRunner }
+        { runner_factory: createLiveFormativeConversationV18R2AgentRunner }
       );
     } catch (error) {
       if (!(error instanceof FormativeConversationResponseGenerationError)) {

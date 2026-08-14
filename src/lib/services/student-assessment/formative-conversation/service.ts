@@ -13,15 +13,19 @@ import {
   executeFormativeConversationIdempotentWrite,
   measureFormativeConversationPersistencePhase
 } from "./persistence-observability";
+import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "./lifecycle-contract-v18r2";
 
 export const FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE =
   "FORMATIVE_CONVERSATION" as const;
+export const FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS =
+  FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS;
 
 export type FormativeConversationFoundationErrorCode =
   | "conversation_session_mismatch"
   | "conversation_profile_mismatch"
   | "conversation_not_found"
   | "conversation_not_active"
+  | "conversation_turn_limit_reached"
   | "idempotency_hash_mismatch";
 
 export class FormativeConversationFoundationError extends Error {
@@ -314,7 +318,8 @@ export async function createOrGetFormativeConversationSession(
 
 async function getConversationPhase(
   transaction: Prisma.TransactionClient,
-  conversationPublicId: string
+  conversationPublicId: string,
+  options: { require_active?: boolean } = {}
 ): Promise<{
   session_id: string;
   assessment_session_db_id: string;
@@ -339,7 +344,7 @@ async function getConversationPhase(
       "The formative conversation does not exist."
     );
   }
-  if (session.status !== "active") {
+  if (options.require_active !== false && session.status !== "active") {
     throw new FormativeConversationFoundationError(
       "conversation_not_active",
       "The formative conversation is not active."
@@ -381,7 +386,8 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
         prisma.$transaction(async (tx) => {
           const session = await getConversationPhase(
             tx,
-            input.conversation_public_id
+            input.conversation_public_id,
+            { require_active: false }
           );
           const existing =
             await tx.formativeConversationMessageReceipt.findUnique({
@@ -404,6 +410,46 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
             return { receipt: existing, replayed: true };
           }
 
+          if (session.status !== "active") {
+            throw new FormativeConversationFoundationError(
+              "conversation_not_active",
+              "The formative conversation is not active."
+            );
+          }
+
+          // Serialize distinct message reservations at the conversation boundary.
+          // This makes the phase-local twelfth-turn limit stable across tabs.
+          const lockedSession =
+            await tx.formativeConversationSession.update({
+              where: { id: session.session_id },
+              data: { concurrency_version: { increment: 1 } },
+              select: { status: true }
+            });
+          if (lockedSession.status !== "active") {
+            throw new FormativeConversationFoundationError(
+              "conversation_not_active",
+              "The formative conversation is not active."
+            );
+          }
+
+          const formativeStudentTurnCount =
+            await tx.formativeConversationMessageReceipt.count({
+              where: {
+                formative_conversation_session_db_id: session.session_id,
+                student_turn_db_id: { not: null }
+              }
+            });
+          if (
+            formativeStudentTurnCount >=
+            FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS
+          ) {
+            throw new FormativeConversationFoundationError(
+              "conversation_turn_limit_reached",
+              "The formative conversation has reached its student-turn limit."
+            );
+          }
+          const formativeStudentTurnIndex = formativeStudentTurnCount + 1;
+
           const studentTurn = await tx.conversationTurn.create({
             data: {
               assessment_session_db_id: session.assessment_session_db_id,
@@ -415,7 +461,16 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
               structured_payload: {
                 message_type: "formative_conversation_student_message",
                 visibility: "student_visible",
-                client_message_id: input.client_message_id
+                client_message_id: input.client_message_id,
+                formative_student_turn_index: formativeStudentTurnIndex,
+                max_formative_student_turns:
+                  FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+                final_allowed_turn:
+                  formativeStudentTurnIndex ===
+                  FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+                another_student_turn_available:
+                  formativeStudentTurnIndex <
+                  FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS
               }
             }
           });
@@ -435,8 +490,7 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
             where: { id: session.session_id },
             data: {
               last_activity_at: new Date(),
-              last_processed_turn_sequence: studentTurn.sequence_index,
-              concurrency_version: { increment: 1 }
+              last_processed_turn_sequence: studentTurn.sequence_index
             }
           });
 
@@ -870,7 +924,8 @@ export async function persistFormativeConversationAssistantMessage(input: {
   fallback_used?: boolean;
   message_type?:
     | "formative_conversation_tutor_message"
-    | "formative_conversation_opening";
+    | "formative_conversation_opening"
+    | "formative_conversation_lifecycle_handoff";
   opening_version?: string;
 }) {
   const messageText = input.message_text.trim();
@@ -1026,6 +1081,302 @@ export async function persistFormativeConversationAssistantMessage(input: {
       }
     );
   }
+}
+
+export const FORMATIVE_CONVERSATION_LIFECYCLE_HANDOFF_MESSAGE =
+  "We've reached the end of this conversation. It may help to ask your instructor for another explanation or work through this concept with them." as const;
+
+export async function persistFormativeConversationLifecycleHandoff(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  agent_call_db_id: string;
+  reason_code: string;
+}) {
+  const logicalOperationId =
+    `lifecycle-handoff:${input.conversation_public_id}:${input.client_message_id}`;
+  const persist = () =>
+    prisma.$transaction(async (tx) => {
+      const session = await tx.formativeConversationSession.findUniqueOrThrow({
+        where: { conversation_public_id: input.conversation_public_id },
+        select: {
+          id: true,
+          assessment_session_db_id: true,
+          concept_unit_session_db_id: true,
+          status: true,
+          current_student_profile_db_id: true,
+          assessment_session: { select: { current_phase: true } }
+        }
+      });
+      const receipt =
+        await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
+          where: {
+            formative_conversation_session_db_id_client_message_id: {
+              formative_conversation_session_db_id: session.id,
+              client_message_id: input.client_message_id
+            }
+          },
+          include: { student_turn: true, assistant_turn: true }
+        });
+      if (receipt.assistant_turn) {
+        return {
+          receipt,
+          assistant_turn: receipt.assistant_turn,
+          replayed: true
+        };
+      }
+      if (!receipt.student_turn) {
+        throw new Error("formative_conversation_lifecycle_handoff_student_turn_missing");
+      }
+      if (session.status !== "active") {
+        throw new FormativeConversationFoundationError(
+          "conversation_not_active",
+          "The formative conversation lifecycle is already closed."
+        );
+      }
+      const now = new Date();
+      const sourceAgentCall = await tx.agentCall.findUniqueOrThrow({
+        where: { id: input.agent_call_db_id },
+        select: {
+          formative_conversation_session_db_id: true,
+          agent_call_public_id: true
+        }
+      });
+      if (sourceAgentCall.formative_conversation_session_db_id !== session.id) {
+        throw new Error("formative_conversation_lifecycle_handoff_agent_call_mismatch");
+      }
+      const assistantTurn = await tx.conversationTurn.create({
+        data: {
+          assessment_session_db_id: session.assessment_session_db_id,
+          concept_unit_session_db_id: session.concept_unit_session_db_id,
+          formative_conversation_session_db_id: session.id,
+          phase: session.assessment_session.current_phase,
+          actor_type: "agent",
+          agent_name: "platform_lifecycle",
+          message_text: FORMATIVE_CONVERSATION_LIFECYCLE_HANDOFF_MESSAGE,
+          structured_payload: {
+            message_type: "formative_conversation_lifecycle_handoff",
+            visibility: "student_visible",
+            generation_source: "platform_lifecycle",
+            validator_status: "lifecycle_fail_safe",
+            agent_call_db_id: input.agent_call_db_id,
+            fallback_used: false,
+            recommendation_source: "platform_lifecycle",
+            lifecycle_termination_reason: input.reason_code,
+            profile_transition_created: false,
+            teacher_assistance_recommended: false,
+            student_formative_turn_count:
+              FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+            max_student_turns: FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+            final_allowed_turn: true,
+            another_student_turn_available: false
+          }
+        }
+      });
+      const updatedReceipt =
+        await tx.formativeConversationMessageReceipt.update({
+          where: { id: receipt.id },
+          data: {
+            status: "assistant_turn_persisted",
+            assistant_response_status: "completed",
+            assistant_turn_db_id: assistantTurn.id,
+            failure_code: null,
+            response_payload: {
+              ...assistantResponsePayload({
+                existing: receipt.response_payload,
+                status: "completed",
+                retry_count: receipt.assistant_response_retry_count
+              }),
+              agent_name: "platform_lifecycle",
+              agent_call_db_id: input.agent_call_db_id,
+              generation_source: "platform_lifecycle",
+              validator_status: "lifecycle_fail_safe",
+              fallback_used: false,
+              message_type: "formative_conversation_lifecycle_handoff",
+              recommendation_source: "platform_lifecycle",
+              lifecycle_termination_reason: input.reason_code,
+              profile_transition_created: false,
+              teacher_assistance_recommended: false
+            },
+            completed_at: now
+          },
+          include: { student_turn: true, assistant_turn: true }
+        });
+      await tx.formativeConversationReviewSignal.create({
+        data: {
+          formative_conversation_session_db_id: session.id,
+          source_student_profile_db_id:
+            session.current_student_profile_db_id,
+          source_turn_db_id: assistantTurn.id,
+          signal_type: "platform_lifecycle_handoff",
+          reason_code: input.reason_code,
+          evidence_summary: {
+            recommendation_source: "platform_lifecycle",
+            profile_transition_created: false,
+            semantic_teacher_assistance_recommended: false,
+            student_formative_turn_count:
+              FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+            max_student_turns: FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
+            final_allowed_turn: true,
+            another_student_turn_available: false,
+            source_agent_call_public_id:
+              sourceAgentCall.agent_call_public_id
+          }
+        }
+      });
+      const endedSession = await tx.formativeConversationSession.update({
+        where: { id: session.id },
+        data: {
+          status: "ended",
+          ended_at: now,
+          lifecycle_reason: `platform_${input.reason_code}`,
+          last_activity_at: now,
+          last_processed_turn_sequence: assistantTurn.sequence_index,
+          concurrency_version: { increment: 1 },
+          telemetry_event_sequence_counter: { increment: 1 }
+        },
+        select: { telemetry_event_sequence_counter: true }
+      });
+      const lifecycleEventPayload = {
+        event_type: "conversation_ended",
+        event_source: "system",
+        agent_call_db_id: input.agent_call_db_id,
+        agent_name: "formative_conversation_agent",
+        failure_category: input.reason_code,
+        retry_count: 0,
+        observed_interval_duration_ms: null,
+        client_instance_id: null,
+        occurred_at: now.toISOString()
+      };
+      await tx.formativeConversationLifecycleEvent.create({
+        data: {
+          formative_conversation_session_db_id: session.id,
+          conversation_local_event_sequence_index:
+            endedSession.telemetry_event_sequence_counter,
+          client_event_id: `platform-lifecycle-handoff:${input.client_message_id}`,
+          event_hash: createHash("sha256")
+            .update(JSON.stringify(lifecycleEventPayload))
+            .digest("hex"),
+          event_type: "conversation_ended",
+          event_source: "system",
+          agent_call_db_id: input.agent_call_db_id,
+          agent_name: "formative_conversation_agent",
+          failure_category: input.reason_code,
+          retry_count: 0,
+          occurred_at: now
+        }
+      });
+      return {
+        receipt: updatedReceipt,
+        assistant_turn: assistantTurn,
+        replayed: false
+      };
+    }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS);
+
+  return executeFormativeConversationIdempotentWrite({
+    operation_name: "formative_conversation_lifecycle_handoff",
+    logical_operation_id: logicalOperationId,
+    execute: persist,
+    reconcile: async () => {
+      const receipt =
+        await prisma.formativeConversationMessageReceipt.findFirst({
+          where: {
+            client_message_id: input.client_message_id,
+            formative_conversation_session: {
+              conversation_public_id: input.conversation_public_id
+            }
+          },
+          include: { student_turn: true, assistant_turn: true }
+        });
+      return receipt?.assistant_turn &&
+        jsonRecord(receipt.assistant_turn.structured_payload).message_type ===
+          "formative_conversation_lifecycle_handoff"
+        ? {
+            status: "committed" as const,
+            value: {
+              receipt,
+              assistant_turn: receipt.assistant_turn,
+              replayed: true
+            }
+          }
+        : { status: "not_committed" as const };
+    }
+  });
+}
+
+export async function closeFormativeConversationAtStudentTurnLimit(input: {
+  conversation_public_id: string;
+  client_message_id: string;
+  agent_call_db_id: string;
+  source: "llm_terminal_recommendation";
+  reason_code: string;
+}) {
+  const now = new Date();
+  return prisma.$transaction(async (tx) => {
+    const session = await tx.formativeConversationSession.findUniqueOrThrow({
+      where: { conversation_public_id: input.conversation_public_id },
+      select: { id: true, status: true }
+    });
+    const clientEventId =
+      `final-formative-turn:${input.client_message_id}:conversation-ended`;
+    const existingEvent =
+      await tx.formativeConversationLifecycleEvent.findUnique({
+        where: {
+          formative_conversation_session_db_id_client_event_id: {
+            formative_conversation_session_db_id: session.id,
+            client_event_id: clientEventId
+          }
+        }
+      });
+    if (existingEvent) {
+      return { event: existingEvent, replayed: true };
+    }
+    if (session.status !== "active") {
+      throw new FormativeConversationFoundationError(
+        "conversation_not_active",
+        "The formative conversation lifecycle is already closed."
+      );
+    }
+    const endedSession = await tx.formativeConversationSession.update({
+      where: { id: session.id },
+      data: {
+        status: "ended",
+        ended_at: now,
+        lifecycle_reason: `${input.source}:${input.reason_code}`,
+        last_activity_at: now,
+        telemetry_event_sequence_counter: { increment: 1 }
+      },
+      select: { telemetry_event_sequence_counter: true }
+    });
+    const eventPayload = {
+      event_type: "conversation_ended",
+      event_source: "system",
+      agent_call_db_id: input.agent_call_db_id,
+      agent_name: "formative_conversation_agent",
+      failure_category: null,
+      retry_count: 0,
+      observed_interval_duration_ms: null,
+      client_instance_id: null,
+      occurred_at: now.toISOString()
+    };
+    const event = await tx.formativeConversationLifecycleEvent.create({
+      data: {
+        formative_conversation_session_db_id: session.id,
+        conversation_local_event_sequence_index:
+          endedSession.telemetry_event_sequence_counter,
+        client_event_id: clientEventId,
+        event_hash: createHash("sha256")
+          .update(JSON.stringify(eventPayload))
+          .digest("hex"),
+        event_type: "conversation_ended",
+        event_source: "system",
+        agent_call_db_id: input.agent_call_db_id,
+        agent_name: "formative_conversation_agent",
+        retry_count: 0,
+        occurred_at: now
+      }
+    });
+    return { event, replayed: false };
+  }, FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS);
 }
 
 export async function getFormativeConversationTranscript(conversationPublicId: string) {
