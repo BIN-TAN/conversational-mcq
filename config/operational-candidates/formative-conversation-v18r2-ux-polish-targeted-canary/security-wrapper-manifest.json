@@ -1,0 +1,29 @@
+{
+  "manifest_version": "formative-conversation-v18r2-ux-canary-security-v1",
+  "wrapper_version": "formative-conversation-v18r2-ux-polish-canary-security-wrapper-v1",
+  "inherited_attestation_boundary": "formative-conversation-v18r2-security-wrapper-v1",
+  "source_files": [
+    {
+      "path": "scripts/operational-formative-conversation-v18r2-ux-polish-canary-process-local-runner.mjs",
+      "sha256": "e8a80ad6c2b4f27597a0aa9485f3b75053ff9b6807a359057fe19fe0e2954e39"
+    },
+    {
+      "path": "scripts/operational-formative-conversation-v18r2-ux-polish-canary-launcher.mjs",
+      "sha256": "a01203332da57d9c4e94f02c10d4c2158693f716d09eda5a8f265eacdb9a8acb"
+    },
+    {
+      "path": "prisma/operational-formative-conversation-v18r2-ux-polish-canary-evaluate.ts",
+      "sha256": "261a314170a438ca5ac40a1f6b90988ffd6747a67f4d2d76a80336c76b99bba1"
+    },
+    {
+      "path": "src/lib/operational/formative-conversation-v5-evaluation-v18r2/security-release.ts",
+      "sha256": "882081907a707390724518a13d27fb43601b18c345a3e8b2b63e876dc4950930"
+    }
+  ],
+  "security_wrapper_hash": "295a256faf6b2d7946844d9ed91a76ded20cfca81648feddbae5de37f64a630b",
+  "exact_secret_scan_required": true,
+  "generic_credential_scan_required": true,
+  "zip_entry_scan_required": true,
+  "secrets_cleared_only_after_attestation": true,
+  "security_wrapper_manifest_hash": "fc4b04b4f5d6b15882fad54d1c97e7fca6fea81ae04b7844f6ca8a16c7111a5b"
+}

@@ -1,0 +1,18 @@
+{
+  "identity_version": "formative-conversation-v18r2-ux-polish-candidate-identity-v1",
+  "candidate_version": "formative-conversation-v18r2-ux-polish-v1",
+  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "prompt_version": "formative-conversation-host-v7.2",
+  "prompt_hash": "27488d814b1f3978723a086a05ca22ec31618764f0adb1f64ba83d9f45758b80",
+  "protocol_hash": "ac6e24d46ab56ca4b66b3a3f8359a0beab9b3aab0ded06e97e98d80adc1a2731",
+  "fixture_manifest_hash": "bb16f8c53eeaadf86751c03f373bd31cab2c13d6ee24104996606f9920b19ccb",
+  "candidate_acceptance_version": "formative-conversation-v18r2-candidate-acceptance-v2",
+  "opening_acknowledgement_version": "formative-conversation-v18r2-opening-acknowledgement-v1",
+  "governance": {
+    "live_authorization_created": false,
+    "live_execution_prepared": false,
+    "approval_eligible": false,
+    "activation_permitted": false
+  },
+  "candidate_identity_hash": "aa26e16c1c560d66e906f4b58516f6eda693d46d90cce7054df30eb623f9010f"
+}

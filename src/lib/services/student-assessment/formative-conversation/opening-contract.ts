@@ -8,6 +8,9 @@ export const FORMATIVE_CONVERSATION_OPENING_VERSION: string =
 export const FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID =
   "assistant-opening:formative-conversation-opening-v3";
 
+export const FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION =
+  "formative-conversation-v18r2-opening-acknowledgement-v1" as const;
+
 export type FormativeConversationOpeningValidation = {
   valid: boolean;
   issue_codes: string[];
@@ -74,11 +77,27 @@ const assessmentAcknowledgementPatterns = [
   /\bI\s+(?:noticed|saw)\b.{0,80}\b(?:in|from)\s+your\s+(?:answers?|responses?|reasoning|explanation)\b/i
 ] as const;
 
+const v18r2SemanticAssessmentAcknowledgementPatterns = [
+  /\b(?:you(?:'|’)?ve|you have|we(?:'|’)?ve|we have)\s+(?:already\s+)?(?:reviewed|considered|worked through|looked at)\s+(?:the|these|those|your)?\s*(?:two|three|several)?\s*(?:ideas?|distinctions?|concepts?|points?|patterns?|connections?)\b/i,
+  /\b(?:let(?:'|’)?s|we can|we(?:'|’)?ll)\s+(?:connect|build on|revisit|put together|return to)\s+(?:the|these|those|your)\s+(?:(?:two|three|several)\s+)?(?:ideas?|distinctions?|concepts?|points?|patterns?|connections?)\b/i
+] as const;
+
 export function hasFormativeConversationOpeningAssessmentAcknowledgement(
   message: string
 ) {
   return assessmentAcknowledgementPatterns.some((pattern) =>
     pattern.test(message)
+  );
+}
+
+export function hasFormativeConversationV18R2OpeningAssessmentAcknowledgement(
+  message: string
+) {
+  return (
+    hasFormativeConversationOpeningAssessmentAcknowledgement(message) ||
+    v18r2SemanticAssessmentAcknowledgementPatterns.some((pattern) =>
+      pattern.test(message)
+    )
   );
 }
 

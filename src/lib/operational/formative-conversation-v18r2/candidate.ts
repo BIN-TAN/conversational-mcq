@@ -35,7 +35,10 @@ import {
   FORMATIVE_CONVERSATION_V18R2_PROMPT_HASH,
   FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION
 } from "@/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
-import { FORMATIVE_CONVERSATION_OPENING_VERSION } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
+import {
+  FORMATIVE_CONVERSATION_OPENING_VERSION,
+  FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION
+} from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION } from "@/lib/services/student-assessment/formative-conversation/output-format";
 import { FORMATIVE_CONVERSATION_V18_PROFILE_TRANSITION_VERSION } from "@/lib/services/student-assessment/formative-conversation/profile-update-v18";
 
@@ -245,6 +248,8 @@ export function buildFormativeConversationV18R2RuntimeCandidateManifest() {
         FORMATIVE_CONVERSATION_V18R2_SEMANTIC_REGENERATION_VERSION,
       accounting_version: FORMATIVE_CONVERSATION_V18R2_ACCOUNTING_VERSION,
       opening_version: FORMATIVE_CONVERSATION_OPENING_VERSION,
+      opening_acknowledgement_version:
+        FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION,
       output_format_version:
         FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION,
       memory_version: FORMATIVE_CONVERSATION_MEMORY_VERSION,

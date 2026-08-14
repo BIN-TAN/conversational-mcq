@@ -7,14 +7,14 @@ import {
 import { canonicalEvidenceById } from "@/lib/domain/canonical-evidence-identity";
 import { validateFormativeConversationV18Transition } from "./evidence-identity-validator-v18";
 import {
-  hasFormativeConversationOpeningAssessmentAcknowledgement,
+  hasFormativeConversationV18R2OpeningAssessmentAcknowledgement,
   validateFormativeConversationOpeningDisclosureScope
 } from "./opening-contract";
 import { validateFormativeConversationStudentOutputFormat } from "./output-format";
 import { validateFormativeConversationSafetyBoundary } from "./safety-boundary";
 
 export const FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION =
-  "formative-conversation-v18r2-candidate-acceptance-v1" as const;
+  "formative-conversation-v18r2-candidate-acceptance-v2" as const;
 
 export type FormativeConversationV18R2CandidateValidation = {
   valid: boolean;
@@ -97,7 +97,7 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       )
     ];
     if (
-      !hasFormativeConversationOpeningAssessmentAcknowledgement(
+      !hasFormativeConversationV18R2OpeningAssessmentAcknowledgement(
         parsed.data.student_visible_message
       )
     ) {

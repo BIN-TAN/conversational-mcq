@@ -1,0 +1,472 @@
+{
+  "fixture_version": "formative-conversation-v18r2-ux-polish-live-canary-fixture-v1",
+  "case_id": "uxc_04_natural_opening",
+  "case_order": 4,
+  "title": "Natural opening",
+  "purpose": "Confirm that a natural evidence-oriented primary opening is accepted without cosmetic semantic regeneration.",
+  "synthetic_only": true,
+  "real_student_information_present": false,
+  "opening_case": true,
+  "context": {
+    "contract_version": "formative-conversation-agent-contract-v4",
+    "context_version": "formative-conversation-context-v4",
+    "conversation_public_id": "v18r2-ux-canary-natural-opening",
+    "assessment_public_id": "fcv18_test_assessment",
+    "concept_unit_public_id": "fcv18_test_measurement",
+    "latest_student_message": null,
+    "visible_transcript": [],
+    "administered_items": [],
+    "assessment_specification": null,
+    "assessment_response_evidence": [
+      {
+        "item_public_id": "measurement_reliability",
+        "selected_option": "B",
+        "correctness": "incorrect",
+        "written_reasoning": "The reliability coefficient proves the scores are valid for the intended use.",
+        "confidence": "high",
+        "revision_summary": null,
+        "tempting_option": "B",
+        "tempting_option_reason": "Consistency seems like proof that the interpretation is valid.",
+        "safe_timing_summary": {
+          "total_item_time_ms": null,
+          "response_time_answer_ms": null,
+          "response_time_reasoning_ms": null,
+          "response_time_confidence_ms": null
+        }
+      },
+      {
+        "item_public_id": "standard_error_measurement",
+        "selected_option": "B",
+        "correctness": "incorrect",
+        "written_reasoning": "SEM gives the exact true score.",
+        "confidence": "high",
+        "revision_summary": null,
+        "tempting_option": "B",
+        "tempting_option_reason": "The error adjustment seems exact.",
+        "safe_timing_summary": {
+          "total_item_time_ms": null,
+          "response_time_answer_ms": null,
+          "response_time_reasoning_ms": null,
+          "response_time_confidence_ms": null
+        }
+      }
+    ],
+    "assessment_process_evidence": [
+      {
+        "event_type": "package_submitted",
+        "event_category": "assessment",
+        "event_source": "student",
+        "item_public_id": null,
+        "occurred_at": "2026-08-13T23:59:00.000Z",
+        "visibility_duration_ms": null,
+        "pause_duration_ms": null
+      }
+    ],
+    "initial_profile": {
+      "profile_version": "v18r2-test-profile-initial",
+      "evidence_cutoff_sequence_index": 0,
+      "outcome": "not_yet_determined",
+      "evidence_summary": [
+        "Submitted assessment evidence."
+      ],
+      "unresolved_evidence": [
+        "High reliability automatically proves validity for the intended use.",
+        "Standard error of measurement identifies an exact true score."
+      ],
+      "evidence_limitations": [
+        "Formative understanding must be established from student-authored conversation evidence."
+      ],
+      "canonical_profile": {
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "ability_pattern_flags": [
+          "misconception_indicator_present"
+        ],
+        "engagement_profile": "adequate_engagement",
+        "engagement_pattern_flags": [
+          "complete_response_package"
+        ],
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+        "evidence_sufficiency": "strong",
+        "confidence_alignment": "overconfident",
+        "independence_interpretability": "independent_understanding_likely",
+        "misconception_indicators": [
+          "High reliability automatically proves validity for the intended use.",
+          "Standard error of measurement identifies an exact true score."
+        ],
+        "item_level_evidence": [
+          "Assessment reasoning conflates reliability with validity.",
+          "Assessment reasoning treats SEM as exact."
+        ],
+        "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+        "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+        "process_interpretation_cautions": [
+          "Process observations are descriptive and not learner traits."
+        ],
+        "profile_confidence": "high",
+        "rationale": "The initial profile is grounded in submitted assessment evidence.",
+        "recommended_next_evidence": [
+          "Seek an independent application of the reliability-validity distinction.",
+          "Ask the student to explain what SEM does and does not establish."
+        ]
+      },
+      "misconception_claim_catalog": {
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+        "indicators": [
+          {
+            "indicator_id": "mi_51774f28ddde8de917ab056b",
+            "indicator_text": "Measurement statistics are treated as definitive proof.",
+            "source_evidence_refs": [
+              "ev_76b32230ed9a585cc2b1fad3",
+              "ev_7bc307a3839307154c8c596f"
+            ],
+            "indicator_confidence": "high",
+            "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+            "claims": [
+              {
+                "claim_id": "mc_aab95b887578e61299606899",
+                "claim_text": "High reliability automatically proves validity for the intended use.",
+                "source_evidence_refs": [
+                  "ev_7bc307a3839307154c8c596f"
+                ]
+              },
+              {
+                "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                "claim_text": "Standard error of measurement identifies an exact true score.",
+                "source_evidence_refs": [
+                  "ev_76b32230ed9a585cc2b1fad3"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "current_profile": {
+      "profile_version": "v18r2-test-profile-initial",
+      "evidence_cutoff_sequence_index": 0,
+      "outcome": "not_yet_determined",
+      "evidence_summary": [
+        "Submitted assessment evidence."
+      ],
+      "unresolved_evidence": [
+        "High reliability automatically proves validity for the intended use.",
+        "Standard error of measurement identifies an exact true score."
+      ],
+      "evidence_limitations": [
+        "Formative understanding must be established from student-authored conversation evidence."
+      ],
+      "canonical_profile": {
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "ability_pattern_flags": [
+          "misconception_indicator_present"
+        ],
+        "engagement_profile": "adequate_engagement",
+        "engagement_pattern_flags": [
+          "complete_response_package"
+        ],
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+        "evidence_sufficiency": "strong",
+        "confidence_alignment": "overconfident",
+        "independence_interpretability": "independent_understanding_likely",
+        "misconception_indicators": [
+          "High reliability automatically proves validity for the intended use.",
+          "Standard error of measurement identifies an exact true score."
+        ],
+        "item_level_evidence": [
+          "Assessment reasoning conflates reliability with validity.",
+          "Assessment reasoning treats SEM as exact."
+        ],
+        "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+        "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+        "process_interpretation_cautions": [
+          "Process observations are descriptive and not learner traits."
+        ],
+        "profile_confidence": "high",
+        "rationale": "The initial profile is grounded in submitted assessment evidence.",
+        "recommended_next_evidence": [
+          "Seek an independent application of the reliability-validity distinction.",
+          "Ask the student to explain what SEM does and does not establish."
+        ]
+      },
+      "misconception_claim_catalog": {
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+        "indicators": [
+          {
+            "indicator_id": "mi_51774f28ddde8de917ab056b",
+            "indicator_text": "Measurement statistics are treated as definitive proof.",
+            "source_evidence_refs": [
+              "ev_76b32230ed9a585cc2b1fad3",
+              "ev_7bc307a3839307154c8c596f"
+            ],
+            "indicator_confidence": "high",
+            "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+            "claims": [
+              {
+                "claim_id": "mc_aab95b887578e61299606899",
+                "claim_text": "High reliability automatically proves validity for the intended use.",
+                "source_evidence_refs": [
+                  "ev_7bc307a3839307154c8c596f"
+                ]
+              },
+              {
+                "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                "claim_text": "Standard error of measurement identifies an exact true score.",
+                "source_evidence_refs": [
+                  "ev_76b32230ed9a585cc2b1fad3"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "allowed_misconception_claim_catalog": {
+      "identity_version": "misconception-claim-identity-v1",
+      "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+      "indicators": [
+        {
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "indicator_text": "Measurement statistics are treated as definitive proof.",
+          "source_evidence_refs": [
+            "ev_76b32230ed9a585cc2b1fad3",
+            "ev_7bc307a3839307154c8c596f"
+          ],
+          "indicator_confidence": "high",
+          "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+          "claims": [
+            {
+              "claim_id": "mc_aab95b887578e61299606899",
+              "claim_text": "High reliability automatically proves validity for the intended use.",
+              "source_evidence_refs": [
+                "ev_7bc307a3839307154c8c596f"
+              ]
+            },
+            {
+              "claim_id": "mc_b234a4a150e3e5d3b132f298",
+              "claim_text": "Standard error of measurement identifies an exact true score.",
+              "source_evidence_refs": [
+                "ev_76b32230ed9a585cc2b1fad3"
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "allowed_evidence_catalog": {
+      "identity_version": "canonical-evidence-identity-v2",
+      "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+      "evidence": [
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_adb3840521ee1a3c09ae533c",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_answer",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Selected option B; scored incorrect."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_7bc307a3839307154c8c596f",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "The reliability coefficient proves the scores are valid for the intended use."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_fabaec8cace3269718428e1e",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_confidence",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Submitted confidence: high."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_b0ff27ea522a3c95f139c363",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "measurement_reliability",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Tempting option B. Consistency seems like proof that the interpretation is valid."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_5d9c829259a76975decd0365",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_answer",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Selected option B; scored incorrect."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_76b32230ed9a585cc2b1fad3",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "SEM gives the exact true score."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_ddc245ddc90d68e8e3086d52",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_confidence",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Submitted confidence: high."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_1172882d0dbbe8fe1b487d16",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "source_role": "student",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "student_understanding",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": "standard_error_measurement",
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Tempting option B. The error adjustment seems exact."
+        },
+        {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_id": "ev_dae98733b916af8497b36adb",
+          "evidence_scope_id": "es_d907cdd668c11c0ceb224d14",
+          "evidence_kind": "assessment_process_observation",
+          "source_role": "platform_observation",
+          "evidence_stage": "baseline_assessment",
+          "eligibility": "evidence_quality_context",
+          "assessment_public_id": "fcv18_test_assessment",
+          "concept_unit_public_id": "fcv18_test_measurement",
+          "conversation_public_id": null,
+          "item_public_id": null,
+          "source_sequence_index": null,
+          "source_ordinal": null,
+          "content": "Observed package_submitted (assessment, student) at 2026-08-13T23:59:00.000Z."
+        }
+      ]
+    },
+    "profile_history": [],
+    "telemetry_summary": {
+      "observable_student_turn_count": 0,
+      "observable_tutor_turn_count": 0,
+      "lifecycle_event_count": 0,
+      "latest_activity_at": null,
+      "total_input_tokens": 0,
+      "total_output_tokens": 0
+    },
+    "formative_lifecycle": {
+      "student_turn_index": 0,
+      "max_student_turns": 12,
+      "final_allowed_turn": false,
+      "another_student_turn_available": true
+    },
+    "teacher_guidance": [],
+    "intervention_history": [],
+    "memory": null,
+    "safety_boundary": {
+      "boundary_version": "formative-conversation-safety-boundary-v1",
+      "administered_item_public_ids": [],
+      "unadministered_item_protection_required": true,
+      "hidden_prompts_excluded": true,
+      "raw_teacher_notes_excluded": true,
+      "credentials_excluded": true
+    }
+  },
+  "historical_reference": {
+    "reference_id": "v18r2_primary_opening_01_semantic_review",
+    "message": "You’ve reviewed the distinctions among reliability, measurement error, and validity. Let’s connect them in one practical situation.",
+    "prior_issue_code": "opening_assessment_acknowledgement_missing",
+    "revised_validator_accepts_reference": true
+  },
+  "machine_validation_criteria": [
+    "structured_response_valid",
+    "privacy_and_assessment_truth_boundary_valid",
+    "legacy_activity_contamination_absent",
+    "nonterminal_or_transition_contract_valid",
+    "formative_lifecycle_valid",
+    "opening_acceptance_valid_when_applicable"
+  ],
+  "human_review_dimensions": [
+    "conversational_naturalness",
+    "unnecessary_appended_question",
+    "alternate_explanation_genuinely_different",
+    "immediate_student_intent_followed",
+    "persistent_misconception_handling_responsive_not_scripted",
+    "detail_level_appropriate"
+  ],
+  "deterministic_ux_wording_assertions": false,
+  "call_graph": {
+    "agent_name": "formative_conversation_agent",
+    "base_logical_calls": 1,
+    "maximum_semantic_regenerations": 1,
+    "maximum_logical_calls": 2,
+    "maximum_provider_attempts_per_logical_call": 3,
+    "maximum_transport_retries_per_logical_call": 2
+  },
+  "fixture_hash": "e77fc786d925888e34ae1d6f42b225eb9f6722c7caee1b6cd0be4dd6d075ae97"
+}

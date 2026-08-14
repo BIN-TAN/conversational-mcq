@@ -30,7 +30,10 @@ import {
 } from "./agent-contract-v18r2";
 import { formativeConversationUnavailableFromConfiguration } from "./availability";
 import { validateFormativeConversationV18CandidateAcceptance } from "./candidate-validation-v18";
-import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
+import {
+  FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
+  validateFormativeConversationV18R2CandidateAcceptance
+} from "./candidate-validation-v18r2";
 import { compilePersistedFormativeConversationV18Context } from "./context-v18";
 import { compilePersistedFormativeConversationV18R2Context } from "./context-v18r2";
 import { compilePersistedFormativeConversationContext } from "./context";
@@ -1002,7 +1005,7 @@ async function executeOrResumeAgentCall(input: {
         validation_error: JSON.stringify({
           category: "formative_conversation_output_contract",
           validator_version: isV18R2Runner(input.runner)
-            ? "formative-conversation-v18r2-candidate-acceptance-v1"
+            ? FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION
             : isV18Runner(input.runner)
               ? "formative-conversation-v18-candidate-acceptance-v1"
             : "formative-conversation-output-context-validation-v1",

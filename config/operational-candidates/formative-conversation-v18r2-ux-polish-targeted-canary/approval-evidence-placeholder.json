@@ -1,0 +1,9 @@
+{
+  "placeholder_version": "formative-conversation-v18r2-ux-canary-approval-v1",
+  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "protocol_hash": "cd9618c85cbaf264e5a3a222bee5a8dc414d21b9930d486833436f80d27d104b",
+  "candidate_manifest_hash": "adb617c51f282d57b2863e8b9338c77bddc77203150afd922d1cb0b9dbee6861",
+  "approval_status": "not_approved",
+  "activation_status": "not_permitted",
+  "official_approval_evidence_created": false
+}

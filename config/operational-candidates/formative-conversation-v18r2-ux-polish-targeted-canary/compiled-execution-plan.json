@@ -1,0 +1,90 @@
+{
+  "compiled_plan_version": "formative-conversation-v18r2-ux-canary-plan-v1",
+  "compilation_status": "ready_for_dispatch",
+  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "evaluation_protocol_hash": "cd9618c85cbaf264e5a3a222bee5a8dc414d21b9930d486833436f80d27d104b",
+  "runner_implementation_hash": "a07ee5daf3caf4dfbb206629ed3d52e5198393d9b321f26ec7cd9efc69f3ca55",
+  "fixture_manifest_hash": "0b0827edcc7d219bed4459811306da8e4441ae5c497cd19a8369bc0f59bec68d",
+  "aggregate_fixture_hash": "5130982e0db461059bde8432952c957d367aad593e947cedc996e86fa9f3c4b4",
+  "live_environment_contract_hash": "4cf66a94ad43c70f8a66c805ad53f8226053d12175269aba07a5c77abb0cfed1",
+  "checkpoint_contract_hash": "661b67b67fd2284340dea633b5e0279b21b8dbafa829544349536b8a174e7e8d",
+  "provenance_contract_hash": "02474222a4764fad79ebe218cba59e178a334edda74bedc7053d6f95ef561a11",
+  "security_wrapper_hash": "295a256faf6b2d7946844d9ed91a76ded20cfca81648feddbae5de37f64a630b",
+  "fixed_case_order": [
+    "uxc_01_direct_answer",
+    "uxc_02_explain_differently",
+    "uxc_03_persistent_misconception",
+    "uxc_04_natural_opening"
+  ],
+  "cases": [
+    {
+      "case_id": "uxc_01_direct_answer",
+      "case_order": 1,
+      "fixture_hash": "b278df168724125ac941a4db6dfaf052312a5256cd4b527dcfdea1c69baf082a",
+      "fixture_file_sha256": "f9268e02b5d7b522ce6d83877dee5f8e8638999ec5cc0dce08379d48655bfe0b",
+      "isolated_namespace_template": "<provider_run_id>:uxc_01_direct_answer",
+      "base_formative_calls": 1,
+      "maximum_semantic_regenerations": 1
+    },
+    {
+      "case_id": "uxc_02_explain_differently",
+      "case_order": 2,
+      "fixture_hash": "79db95e221a780227d886324a00594cc8499b922052f30cf10e8bd3ba3dab3c2",
+      "fixture_file_sha256": "c0bc9db32aa3d6a5a9651d479f8501d38d57178c24c168bab0f21df82d9b8cc7",
+      "isolated_namespace_template": "<provider_run_id>:uxc_02_explain_differently",
+      "base_formative_calls": 1,
+      "maximum_semantic_regenerations": 1
+    },
+    {
+      "case_id": "uxc_03_persistent_misconception",
+      "case_order": 3,
+      "fixture_hash": "23885e68a95d7b1fafb32c09582654585c1199a81e1a60733ecd1b9ee1a9e22d",
+      "fixture_file_sha256": "ae9430f48524aa8049bed5e703093932e91d1bb20f9d221688105da3526d4f83",
+      "isolated_namespace_template": "<provider_run_id>:uxc_03_persistent_misconception",
+      "base_formative_calls": 1,
+      "maximum_semantic_regenerations": 1
+    },
+    {
+      "case_id": "uxc_04_natural_opening",
+      "case_order": 4,
+      "fixture_hash": "e77fc786d925888e34ae1d6f42b225eb9f6722c7caee1b6cd0be4dd6d075ae97",
+      "fixture_file_sha256": "cb83bea306b4f79bfc55e499afea954da3ae299fca770aee1b65ad1a9fac6f52",
+      "isolated_namespace_template": "<provider_run_id>:uxc_04_natural_opening",
+      "base_formative_calls": 1,
+      "maximum_semantic_regenerations": 1
+    }
+  ],
+  "aggregate_call_graph": {
+    "base_profiling_calls": 0,
+    "base_formative_calls": 4,
+    "total_base_calls": 4,
+    "maximum_semantic_regeneration_calls": 4,
+    "maximum_logical_calls": 8,
+    "maximum_provider_attempts": 24,
+    "concurrency": 1
+  },
+  "budget": {
+    "base_profiling_call_count": 0,
+    "base_formative_call_count": 4,
+    "expected_logical_call_count": 4,
+    "maximum_semantic_regeneration_count": 4,
+    "maximum_logical_call_count": 8,
+    "expected_provider_attempt_count": 4,
+    "maximum_provider_attempt_count": 24,
+    "maximum_transport_retries_per_logical_call": 2,
+    "maximum_input_token_count": 400000,
+    "maximum_output_token_count": 56000,
+    "maximum_total_token_count": 456000,
+    "maximum_wall_clock_duration_ms": 1800000,
+    "maximum_concurrency": 1,
+    "maximum_cost_usd": 15,
+    "pricing_metadata_status": "unavailable",
+    "cost_enforcement": "operator_ceiling_required_actual_estimate_recorded_when_available",
+    "maximum_semantic_regenerations_per_agent_call": 1
+  },
+  "isolated_namespaces_required": true,
+  "provider_calls_during_compilation": 0,
+  "model_auth_requests_during_compilation": 0,
+  "dispatch_checkpoints_during_compilation": 0,
+  "compiled_plan_hash": "e84ff86f746105110ae640ec3b4c2fdfe15846511c566bef6f39edcfb1dd9675"
+}

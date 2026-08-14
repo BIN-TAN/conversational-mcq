@@ -1,0 +1,43 @@
+{
+  "configuration_version": "formative-conversation-v18r2-ux-canary-source-v1",
+  "evaluated_roles": [
+    "formative_conversation_agent"
+  ],
+  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "operational_configuration": {
+    "roles": {
+      "student_profiling_agent": {
+        "model_name": "gpt-5.6-terra",
+        "reasoning_effort": "medium",
+        "max_output_tokens": 4000
+      },
+      "formative_conversation_agent": {
+        "model_name": "gpt-5.6-sol",
+        "reasoning_effort": "medium",
+        "max_output_tokens": 7000
+      }
+    },
+    "runtime_policy": {
+      "provider_timeout_ms": 90000,
+      "provider_max_retries": 2,
+      "role_live_toggles": {
+        "student_communication_agent": true,
+        "topic_dialogue_agent": true,
+        "formative_conversation_agent": true
+      },
+      "topic_dialogue_policy": {
+        "maximum_student_turns": 10,
+        "recent_raw_turn_window": 12,
+        "maximum_student_message_characters": 5000,
+        "assessment_system_questions_allowed": true
+      },
+      "topic_dialogue_policy_authoritative_for_canary": false
+    }
+  },
+  "canary_uses_profiling_provider_calls": false,
+  "live_configuration_changed": false,
+  "render_accessed_during_materialization": false,
+  "source_configuration_hash": "5fe298261ef951a1245c084438156d54ff6f164f642a9cab9bf95053cd623feb"
+}

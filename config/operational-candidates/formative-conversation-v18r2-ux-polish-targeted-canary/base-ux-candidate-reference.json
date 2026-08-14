@@ -1,0 +1,10 @@
+{
+  "reference_version": "formative-conversation-v18r2-ux-candidate-reference-v1",
+  "base_candidate_root": "config/operational-candidates/formative-conversation-v18r2-ux-polish",
+  "base_candidate_identity_hash": "aa26e16c1c560d66e906f4b58516f6eda693d46d90cce7054df30eb623f9010f",
+  "base_no_provider_protocol_hash": "ac6e24d46ab56ca4b66b3a3f8359a0beab9b3aab0ded06e97e98d80adc1a2731",
+  "base_fixture_manifest_hash": "bb16f8c53eeaadf86751c03f373bd31cab2c13d6ee24104996606f9920b19ccb",
+  "historical_v18r2_provider_run_id": "fcv5v18r2_provider_20260814042303_c675790a",
+  "historical_evidence_mutated": false,
+  "historical_run_rerun_permitted": false
+}

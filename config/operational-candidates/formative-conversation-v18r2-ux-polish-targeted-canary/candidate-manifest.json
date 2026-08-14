@@ -1,0 +1,30 @@
+{
+  "manifest_version": "formative-conversation-v18r2-ux-canary-candidate-v1",
+  "candidate_revision": "formative-conversation-v18r2-ux-polish-targeted-canary-v1",
+  "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
+  "formative_prompt_hash": "27488d814b1f3978723a086a05ca22ec31618764f0adb1f64ba83d9f45758b80",
+  "protocol_hash": "cd9618c85cbaf264e5a3a222bee5a8dc414d21b9930d486833436f80d27d104b",
+  "runner_implementation_hash": "a07ee5daf3caf4dfbb206629ed3d52e5198393d9b321f26ec7cd9efc69f3ca55",
+  "materializer_implementation_hash": "2b301580c2b6f3e1186a25ee3d37fedbdfac533cd14561cce21e8e652c09aef9",
+  "fixture_manifest_hash": "0b0827edcc7d219bed4459811306da8e4441ae5c497cd19a8369bc0f59bec68d",
+  "aggregate_fixture_hash": "5130982e0db461059bde8432952c957d367aad593e947cedc996e86fa9f3c4b4",
+  "compiled_plan_hash": "e84ff86f746105110ae640ec3b4c2fdfe15846511c566bef6f39edcfb1dd9675",
+  "environment_contract_hash": "4cf66a94ad43c70f8a66c805ad53f8226053d12175269aba07a5c77abb0cfed1",
+  "checkpoint_contract_hash": "661b67b67fd2284340dea633b5e0279b21b8dbafa829544349536b8a174e7e8d",
+  "provenance_contract_hash": "02474222a4764fad79ebe218cba59e178a334edda74bedc7053d6f95ef561a11",
+  "security_wrapper_hash": "295a256faf6b2d7946844d9ed91a76ded20cfca81648feddbae5de37f64a630b",
+  "preserved_active_runtime_hash": "8e30e24a3e04a3c2506b1e23c447557fc2fe623012550de557e5240d7c689993",
+  "preserved_rollback_runtime_hash": "58219c34888076486db21c723a99ac4f4dfa5c29ce78dd162cadbc0566ce9ea2",
+  "historical_v18r2_provider_run_id": "fcv5v18r2_provider_20260814042303_c675790a",
+  "historical_evidence_mutated": false,
+  "live_execution_prepared": true,
+  "approval": {
+    "eligible": false,
+    "status": "not_approved"
+  },
+  "activation": {
+    "permitted": false,
+    "status": "not_permitted"
+  },
+  "candidate_manifest_hash": "adb617c51f282d57b2863e8b9338c77bddc77203150afd922d1cb0b9dbee6861"
+}

@@ -1,0 +1,90 @@
+{
+  "fixture_version": "formative-conversation-v18r2-ux-polish-regression-v1",
+  "behavior_cases": [
+    {
+      "case_id": "complete_explanation_without_question",
+      "student_message": "Explain why reliability does not prove validity.",
+      "tutor_message": "Reliability tells us whether scores are consistent. Validity asks whether evidence supports the particular meaning and use we want to give those scores. A measure can produce nearly identical results every time while consistently measuring the wrong thing, so consistency can support a validity argument without proving it.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "direct_answer_without_comprehension_check",
+      "student_message": "Please give me the answer directly and explain why.",
+      "tutor_message": "The direct answer is that high reliability supports score consistency, not validity by itself. Validity still needs evidence for the specific interpretation and use because a measure can be consistently wrong or consistently measure something different from the intended construct.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "plain_language_changes_representation",
+      "student_message": "Can you explain that in plain language?",
+      "tutor_message": "Think of a bathroom scale that is always five pounds too high. It gives almost the same reading each time, so it is consistent, but the reading is not accurate. Tests can work the same way: steady results do not automatically mean the conclusion drawn from them is justified.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "alternate_explanation_changes_approach",
+      "student_message": "I still do not understand. Explain it another way.",
+      "tutor_message": "Separate the problem into two jobs. Reliability checks whether the measuring process behaves steadily. Validity checks whether the conclusion made from the result is defensible. Passing the first check does not automatically pass the second because they test different claims.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "tailored_example_without_template",
+      "student_message": "Can you give me another example using exam scores?",
+      "tutor_message": "Suppose an exam gives stable scores but mostly rewards fast reading. Those scores may be consistent, yet they may not support a claim about a student's full mathematics ability. The example keeps consistency separate from the interpretation being made.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "relevant_student_led_topic_shift",
+      "student_message": "Can we connect this to bias in a test?",
+      "tutor_message": "Yes. A test can be highly consistent and still produce systematically unfair interpretations for a group. Reliability describes stability; examining bias asks whether the scores support fair interpretations and uses across the relevant population and context.",
+      "expected_outcome": "continue_conversation",
+      "expected_question": false
+    },
+    {
+      "case_id": "persistent_misconception_mental_model_probe",
+      "student_message": "I still think that if the score repeats, it must be valid.",
+      "tutor_message": "It sounds like repeatability is doing most of the convincing for you. What does getting the same result rule out in your mental model, and what makes that feel sufficient to establish that the result measures the intended thing?",
+      "expected_outcome": "continue_conversation",
+      "expected_question": true
+    }
+  ],
+  "opening_cases": [
+    {
+      "case_id": "v18r2_primary_opening_01_semantic_review",
+      "message": "You’ve reviewed the distinctions among reliability, measurement error, and validity. Let’s connect them in one practical situation.\n\nA school uses a highly reliable exam to decide whether students are ready for an advanced course. A student scores 78, and the exam’s standard error of measurement is 3 points.\n\nHow would you explain:\n\n- what the high reliability supports,\n- what the standard error says about the score of 78, and\n- what additional question must be answered before claiming the exam is valid for this placement decision?\n\nExplain it in your own words; you do not need to use a formula.",
+      "expected_valid": true
+    },
+    {
+      "case_id": "v18r2_primary_opening_05_shared_context",
+      "message": "Let’s connect the three ideas with one distinction:\n\n- **Reliability** asks whether scores behave consistently.\n- **Standard error of measurement (SEM)** describes uncertainty around an observed score; it does not reveal an exact true score.\n- **Validity** asks whether evidence supports a particular interpretation and use of scores in a particular context.\n\nA useful analogy is a bathroom scale that gives nearly the same reading every time. That repeatability suggests reliability, but it does not prove the scale is accurate—or that it is suitable for every purpose.\n\nSuppose a hiring test has high internal consistency and an applicant scores 80 with an SEM of 3. What could you reasonably conclude about the score, and what additional question would you ask before using it to make a hiring decision?",
+      "expected_valid": true
+    },
+    {
+      "case_id": "v18r2_primary_opening_03_disconnected",
+      "message": "Let’s focus on a subtle but important distinction: **reliability supports consistency, while validity concerns whether evidence supports a particular interpretation and use of scores**. A high internal-consistency coefficient can be useful evidence that items behave coherently, but it cannot by itself prove that the scores measure the intended construct or are suitable for every purpose.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_assessment_acknowledgement_missing"
+    },
+    {
+      "case_id": "generic_disconnected_opening",
+      "message": "Reliability and validity answer different questions. Here is an explanation of the distinction.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_assessment_acknowledgement_missing"
+    },
+    {
+      "case_id": "profile_disclosure_remains_blocked",
+      "message": "Your diagnostic profile shows partial understanding, so let’s connect the three ideas.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_exposes_profile_language"
+    },
+    {
+      "case_id": "assessment_score_disclosure_remains_blocked",
+      "message": "You’ve reviewed your answers. Your score was 2 out of 3.",
+      "expected_valid": false,
+      "expected_issue_code": "opening_repeats_score"
+    }
+  ]
+}

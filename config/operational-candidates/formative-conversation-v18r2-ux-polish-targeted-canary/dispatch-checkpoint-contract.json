@@ -1,0 +1,14 @@
+{
+  "contract_version": "formative-conversation-v18r2-ux-canary-checkpoint-v1",
+  "inherited_checkpoint_version": "formative-conversation-v18r2-dispatch-checkpoint-v1",
+  "writer_source": "src/lib/operational/formative-conversation-v5-evaluation-v18r2/dispatch-checkpoint.ts",
+  "writer_source_sha256": "1548bb05a38c90695e7ea5360003ffa53b60de6185750c6a6c400714323f2ac3",
+  "exact_checkpoint_count": 1,
+  "boundary": "immediately_before_first_generation_request",
+  "plan_mode_checkpoint_count": 0,
+  "preflight_checkpoint_count": 0,
+  "exclusive_create_required": true,
+  "rerun_after_checkpoint_forbidden": true,
+  "immutable_identity_binding_required": true,
+  "checkpoint_contract_hash": "661b67b67fd2284340dea633b5e0279b21b8dbafa829544349536b8a174e7e8d"
+}

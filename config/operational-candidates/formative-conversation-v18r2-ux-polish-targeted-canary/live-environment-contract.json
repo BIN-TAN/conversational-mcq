@@ -1,0 +1,39 @@
+{
+  "contract_version": "formative-conversation-v18r2-ux-canary-environment-v1",
+  "canonical_service": "conversational-mcq",
+  "deprecated_service_forbidden": "conversational-mcq-staging",
+  "canonical_loader": "node --import tsx",
+  "plan_live_loader_parity": true,
+  "bare_node_forbidden": true,
+  "required_checks": [
+    "canonical_service_identity",
+    "deployed_git_sha_exact",
+    "database_reachable",
+    "schema_ready",
+    "sixty_migrations_current",
+    "active_approval_bundle_exact_and_readable",
+    "rollback_bundle_unchanged",
+    "openai_credential_present",
+    "research_pseudonymization_key_present",
+    "formative_model_gpt_5_6_sol",
+    "formative_reasoning_medium",
+    "formative_max_output_tokens_7000",
+    "formative_live_calls_enabled",
+    "candidate_runtime_and_protocol_exact"
+  ],
+  "required_canary_environment": [
+    "RENDER_GIT_COMMIT",
+    "FORMATIVE_CONVERSATION_V18R2_UX_CANARY_LIVE_EVALUATION_ENABLED"
+  ],
+  "secret_injection": {
+    "mechanism": "owner_only_one_use_fifo_to_process_local_child",
+    "command_line_values_forbidden": true,
+    "persistence_forbidden": true,
+    "exact_value_scan_before_clear_required": true
+  },
+  "database_migrations_run": false,
+  "render_access_during_materialization": false,
+  "provider_calls_during_materialization": 0,
+  "model_auth_requests_during_materialization": 0,
+  "environment_contract_hash": "4cf66a94ad43c70f8a66c805ad53f8226053d12175269aba07a5c77abb0cfed1"
+}
