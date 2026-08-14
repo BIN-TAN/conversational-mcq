@@ -402,7 +402,6 @@ export async function executeV18R2UxCanaryLive(input: {
   await mkdir(stagingRoot, { recursive: false, mode: 0o700 });
   await chmod(stagingRoot, 0o700);
   await writeOwnerOnlyJson(path.join(stagingRoot, "source-provider-run.json"), {
-    artifact_version: "formative-conversation-v18r2-ux-canary-source-run-v1",
     ...aggregate,
     checkpoint,
     cases

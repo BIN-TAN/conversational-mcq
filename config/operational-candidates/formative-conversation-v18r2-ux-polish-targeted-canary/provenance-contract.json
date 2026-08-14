@@ -119,7 +119,7 @@
     },
     {
       "path": "src/lib/operational/formative-conversation-v18r2-ux-polish-canary/contracts.ts",
-      "sha256": "73a8da74e5610950353bc3b8fc97b2f11d14bbcded326d9c5950f659f931c9cf"
+      "sha256": "f9c539819d602cc2045b816c01c7bf56f5f5e8047b38b3215ed890203dcb35ca"
     },
     {
       "path": "src/lib/operational/formative-conversation-v18r2-ux-polish-canary/environment.ts",
@@ -127,11 +127,11 @@
     },
     {
       "path": "src/lib/operational/formative-conversation-v18r2-ux-polish-canary/package.ts",
-      "sha256": "7becbf6c0edc6622e29c9367f6da91935a2cde19f2da6b236895f3e5719da325"
+      "sha256": "fdb5db84333babd8093c2c57894188c741f5a56e8bb0fbe73aab24d64b18623a"
     },
     {
       "path": "src/lib/operational/formative-conversation-v18r2-ux-polish-canary/service.ts",
-      "sha256": "881c937cdb67025eec488b721c936538d845d84fc7caff488f41467e0ce57c91"
+      "sha256": "f1bf39aec75bbe471b11a9fed63b99c20442e2b630fbf5c2a7d964dd08764b65"
     },
     {
       "path": "src/lib/operational/formative-conversation-v5-evaluation-v18r2/candidate-runner.ts",
@@ -280,5 +280,5 @@
   ],
   "git_runtime_dependency_forbidden": true,
   "git_metadata_runtime_dependency_forbidden": true,
-  "provenance_contract_hash": "02474222a4764fad79ebe218cba59e178a334edda74bedc7053d6f95ef561a11"
+  "provenance_contract_hash": "da0dbcefb99c7b9cd7ec0ab410d7962bc474b1d0cf33fdd3953d6910b1356154"
 }

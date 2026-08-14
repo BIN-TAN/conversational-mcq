@@ -84,6 +84,54 @@ export const V18R2UxCanaryBudgetSchema = z
   })
   .strict();
 
+export const V18R2UxCanaryProtocolSchema = z
+  .object({
+    protocol_version: z.literal(
+      "formative-conversation-v18r2-ux-canary-executable-v1"
+    ),
+    candidate_revision: z.literal(V18R2_UX_CANARY_REVISION),
+    runtime_candidate_hash: HashSchema,
+    formative_prompt_version: z.literal("formative-conversation-host-v7.2"),
+    formative_prompt_hash: HashSchema,
+    base_ux_candidate_identity_hash: HashSchema,
+    base_ux_no_provider_protocol_hash: HashSchema,
+    runner_implementation_hash: HashSchema,
+    materializer_implementation_hash: HashSchema,
+    fixture_manifest_hash: HashSchema,
+    aggregate_fixture_hash: HashSchema,
+    live_environment_contract_hash: HashSchema,
+    dispatch_checkpoint_contract_hash: HashSchema,
+    provenance_contract_hash: HashSchema,
+    security_wrapper_hash: HashSchema,
+    fixed_case_order: z.tuple([
+      z.literal("uxc_01_direct_answer"),
+      z.literal("uxc_02_explain_differently"),
+      z.literal("uxc_03_persistent_misconception"),
+      z.literal("uxc_04_natural_opening")
+    ]),
+    canary_count: z.literal(4),
+    machine_validation_criteria: z
+      .array(z.enum(V18R2_UX_CANARY_MACHINE_CRITERIA))
+      .length(V18R2_UX_CANARY_MACHINE_CRITERIA.length),
+    human_review_dimensions: z
+      .array(z.enum(V18R2_UX_CANARY_HUMAN_REVIEW_DIMENSIONS))
+      .length(V18R2_UX_CANARY_HUMAN_REVIEW_DIMENSIONS.length),
+    human_judgment_first: z.literal(true),
+    deterministic_ux_wording_assertions: z.literal(false),
+    budget: V18R2UxCanaryBudgetSchema,
+    no_selective_reruns: z.literal(true),
+    full_v18r2_evaluation_permitted: z.literal(false),
+    provider_calls_during_materialization: z.literal(0),
+    model_auth_requests_during_materialization: z.literal(0),
+    generation_network_requests_during_materialization: z.literal(0),
+    real_dispatch_checkpoints_during_materialization: z.literal(0),
+    live_execution_prepared: z.literal(true),
+    approval_eligible: z.literal(false),
+    activation_permitted: z.literal(false),
+    protocol_hash: HashSchema
+  })
+  .strict();
+
 export const V18R2UxCanaryFixtureSchema = z
   .object({
     fixture_version: z.literal(
@@ -154,6 +202,9 @@ export type V18R2UxCanaryFixture = z.infer<
 >;
 export type V18R2UxCanaryBudget = z.infer<
   typeof V18R2UxCanaryBudgetSchema
+>;
+export type V18R2UxCanaryProtocol = z.infer<
+  typeof V18R2UxCanaryProtocolSchema
 >;
 
 export const V18R2_UX_CANARY_ARTIFACT_PATHS = {

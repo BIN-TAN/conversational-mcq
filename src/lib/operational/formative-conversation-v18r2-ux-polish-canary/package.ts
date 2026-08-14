@@ -10,7 +10,8 @@ import {
   V18R2_UX_CANARY_RUNNER_SOURCE_PATHS,
   V18R2_UX_CANARY_SECURITY_SOURCE_PATHS,
   V18R2UxCanaryBudgetSchema,
-  V18R2UxCanaryFixtureSchema
+  V18R2UxCanaryFixtureSchema,
+  V18R2UxCanaryProtocolSchema
 } from "./contracts";
 
 type JsonRecord = Record<string, unknown>;
@@ -106,7 +107,9 @@ export function loadV18R2UxPolishCanaryPackage() {
   const provenanceContract = readJson(
     V18R2_UX_CANARY_ARTIFACT_PATHS.provenance_contract
   );
-  const protocol = readJson(V18R2_UX_CANARY_ARTIFACT_PATHS.protocol);
+  const protocol = V18R2UxCanaryProtocolSchema.parse(
+    readJson(V18R2_UX_CANARY_ARTIFACT_PATHS.protocol)
+  );
   const compiledPlan = readJson(V18R2_UX_CANARY_ARTIFACT_PATHS.compiled_plan);
   const candidateManifest = readJson(
     V18R2_UX_CANARY_ARTIFACT_PATHS.candidate_manifest

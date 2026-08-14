@@ -3,18 +3,18 @@
   "candidate_revision": "formative-conversation-v18r2-ux-polish-targeted-canary-v1",
   "runtime_candidate_hash": "2d458a8578427e4c6ad1ca143f51ecb17b2c5f762a11aebf1f11a01aebe32d90",
   "formative_prompt_hash": "27488d814b1f3978723a086a05ca22ec31618764f0adb1f64ba83d9f45758b80",
-  "protocol_hash": "cd9618c85cbaf264e5a3a222bee5a8dc414d21b9930d486833436f80d27d104b",
-  "runner_implementation_hash": "a07ee5daf3caf4dfbb206629ed3d52e5198393d9b321f26ec7cd9efc69f3ca55",
+  "protocol_hash": "21de9087d5717d642ed3d0ae182576c2922ac5d0157a9fd6d9eaa2cf367fa098",
+  "runner_implementation_hash": "9f765465ca48835d52db53ca561c287a46395369c42b4358689c63bfb1ee8934",
   "materializer_implementation_hash": "2b301580c2b6f3e1186a25ee3d37fedbdfac533cd14561cce21e8e652c09aef9",
   "fixture_manifest_hash": "0b0827edcc7d219bed4459811306da8e4441ae5c497cd19a8369bc0f59bec68d",
   "aggregate_fixture_hash": "5130982e0db461059bde8432952c957d367aad593e947cedc996e86fa9f3c4b4",
-  "compiled_plan_hash": "e84ff86f746105110ae640ec3b4c2fdfe15846511c566bef6f39edcfb1dd9675",
+  "compiled_plan_hash": "7037ae4e1ac085582fb3b453b557694df69f3a8757234d3510dba957a943e7f1",
   "environment_contract_hash": "4cf66a94ad43c70f8a66c805ad53f8226053d12175269aba07a5c77abb0cfed1",
   "checkpoint_contract_hash": "661b67b67fd2284340dea633b5e0279b21b8dbafa829544349536b8a174e7e8d",
-  "provenance_contract_hash": "02474222a4764fad79ebe218cba59e178a334edda74bedc7053d6f95ef561a11",
+  "provenance_contract_hash": "da0dbcefb99c7b9cd7ec0ab410d7962bc474b1d0cf33fdd3953d6910b1356154",
   "security_wrapper_hash": "295a256faf6b2d7946844d9ed91a76ded20cfca81648feddbae5de37f64a630b",
-  "candidate_manifest_hash": "adb617c51f282d57b2863e8b9338c77bddc77203150afd922d1cb0b9dbee6861",
-  "generated_core_tree_digest": "5ba995d3d66fbaf1be1ddcb82319ed631bc673c6c6078c6f390be3d5b95b8d41",
+  "candidate_manifest_hash": "862b0fd0ae222c2d377b076d9d369bad004db9f76b9bd9c79b0cd15e87422a2e",
+  "generated_core_tree_digest": "1a31192a643f179d554c46ee735b71e251b387595a4965b421c9a0bb7d839360",
   "generated_files": [
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/runtime-candidate-manifest.json",
@@ -46,27 +46,27 @@
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/provenance-contract.json",
-      "sha256": "2c96385619debc5e5ce520f2944212b4cd1f118132d585edf2ab901075866420"
+      "sha256": "c5b66fe84be494e3a8807ebed0d9c0affa8574e35d312b8cea454190f526860c"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/executable-evaluation-protocol.json",
-      "sha256": "d7cc9b43aedaf6e18e9fac316b28877c477142fefa5cb7545926435747f48d84"
+      "sha256": "b9bbc958c0a7cacf72c9650857f6587ce945015beb49acc3e270b9b442a1efd9"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/compiled-execution-plan.json",
-      "sha256": "014232fefb9bfab2a59dbe52e4d356583d86b28c5f9e47702d0aeea2704bb46f"
+      "sha256": "0ed444ddd08cf80c4c8fd6857aa62099e0d44cfb924579552650f9d5e9bc63c3"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/candidate-manifest.json",
-      "sha256": "df99620d607576ac90225cfb1334b4fbc95fd14bf02f87f1aae98650e5dd9a64"
+      "sha256": "854fbcdfafeafdca732c8496125f3afd20e26be519e9257952a5dc84312b75e9"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/approval-evidence-placeholder.json",
-      "sha256": "d4d0ce08ba163ae2a7f9502e7b97d438d68a4aaf410ee309ba5af172fa6aa860"
+      "sha256": "b0d08f97abfa46e94712eb0643f48f8109d159293137e215da4e49d9d146ff9e"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/live-execution-authorization.json",
-      "sha256": "01d43d76b9fa5190804a2d20c0197fd3abf0d9ebb60996d64ae5024b1a2b9d3b"
+      "sha256": "6c18b00d6144f8d7260f326bde4bb4a5ad545203dd2f2561f7126e472e4d76a3"
     },
     {
       "path": "config/operational-candidates/formative-conversation-v18r2-ux-polish-targeted-canary/LIVE_EXECUTION.md",
@@ -93,5 +93,5 @@
   "live_execution_prepared": true,
   "approval_eligible": false,
   "activation_permitted": false,
-  "candidate_identity_hash": "4474570748aea7c7c3cc55af0b90aa95e40f7e30375190479ba1e5c43520190b"
+  "candidate_identity_hash": "b8cacd537878d0928a290a757d23e1c5511c2e10544678313427824bed3c323a"
 }
