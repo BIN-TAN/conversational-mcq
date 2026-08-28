@@ -6,10 +6,8 @@ import {
 } from "@/lib/services/student-assessment/api";
 import {
   FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE,
-  buildFormativeConversationRuntimeContextSeed,
-  createFormativeConversationOpeningRunner,
+  ensureFormativeConversationOpeningForConversation,
   getStudentFormativeConversationProjection,
-  processFormativeConversationOpening
 } from "@/lib/services/student-assessment/formative-conversation";
 import { StudentAssessmentServiceError } from "@/lib/services/student-assessment/errors";
 
@@ -57,20 +55,10 @@ export async function POST(
       );
     }
 
-    const seed = await buildFormativeConversationRuntimeContextSeed({
+    await ensureFormativeConversationOpeningForConversation({
       conversation_public_id: body.conversation_public_id,
-      student_user_db_id: auth.user.user_db_id
+      execution_mode: "production"
     });
-    await processFormativeConversationOpening(
-      {
-        conversation_public_id: body.conversation_public_id,
-        context: seed
-      },
-      {
-        runner_factory: () =>
-          createFormativeConversationOpeningRunner("production")
-      }
-    );
     const conversation = await getStudentFormativeConversationProjection({
       student_user_db_id: auth.user.user_db_id,
       session_public_id: sessionPublicId

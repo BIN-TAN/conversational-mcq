@@ -78,6 +78,7 @@
     "student:formative-conversation-foundation-smoke": "tsx prisma/student-formative-conversation-foundation-smoke-test.ts",
     "student:formative-conversation-runtime-smoke": "tsx prisma/student-formative-conversation-runtime-smoke-test.ts",
     "student:formative-conversation-integration-smoke": "tsx prisma/student-formative-conversation-runtime-smoke-test.ts",
+    "student:formative-conversation-profile-handoff-smoke": "tsx prisma/student-formative-conversation-profile-handoff-smoke-test.ts",
     "student:synthetic-research-validation": "tsx prisma/student-synthetic-research-validation.ts",
     "student:synthetic-research-validation-smoke": "tsx prisma/student-synthetic-research-validation-smoke-test.ts",
     "student:formative-conversation-markdown-smoke": "tsx prisma/student-formative-conversation-markdown-smoke-test.tsx",

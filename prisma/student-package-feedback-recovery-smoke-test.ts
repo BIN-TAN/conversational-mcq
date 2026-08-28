@@ -22,6 +22,7 @@ import {
 import { reconcilePackageCompletionState } from "../src/lib/services/student-assessment/formative-profile";
 import { createOrGetFormativeConversationSession } from "../src/lib/services/student-assessment/formative-conversation";
 import { buildTeacherSessionDataAudit } from "../src/lib/services/teacher-review/session-data-audit";
+import { parseCanonicalMisconceptionClaimCatalog } from "../src/lib/domain/misconception-claim-identity";
 
 const prisma = new PrismaClient();
 
@@ -38,9 +39,21 @@ async function counts(sessionPublicId: string) {
     select: { id: true }
   });
   const conceptUnitSessionIds = conceptUnitSessions.map((entry) => entry.id);
-
   return {
     agent_calls: await prisma.agentCall.count({ where: { assessment_session_db_id: session.id } }),
+    agent_names: (
+      await prisma.agentCall.findMany({
+        where: { assessment_session_db_id: session.id },
+        orderBy: { created_at: "asc" },
+        select: { agent_name: true }
+      })
+    ).map((call) => call.agent_name),
+    student_profiling_calls: await prisma.agentCall.count({
+      where: {
+        assessment_session_db_id: session.id,
+        agent_name: "student_profiling_agent"
+      }
+    }),
     profiles: await prisma.studentProfile.count({
       where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } }
     }),
@@ -156,8 +169,13 @@ async function main() {
 
     const afterFirst = await counts(prepared.state.session_public_id);
     assert(
-      afterFirst.agent_calls === 2,
-      "First completion should create the profile call and one formative conversation opening call."
+      afterFirst.agent_names.includes("formative_value_and_planning_agent") &&
+        afterFirst.agent_names.includes("formative_conversation_agent"),
+      `First completion should create planning and formative opening calls; found ${afterFirst.agent_names.join(",")}.`
+    );
+    assert(
+      afterFirst.student_profiling_calls <= 1,
+      "Canonical profile preparation must create at most one student-profiling call."
     );
     assert(afterFirst.profiles >= 1, "First completion should create profile records.");
     assert(afterFirst.decisions === 1, "First completion should create one decision.");
@@ -166,6 +184,22 @@ async function main() {
     assert(
       afterFirst.formative_conversations === 1,
       "First completion should create one formative conversation."
+    );
+    const formativeConversation =
+      await prisma.formativeConversationSession.findFirstOrThrow({
+        where: {
+          assessment_session: {
+            session_public_id: prepared.state.session_public_id
+          }
+        },
+        include: { initial_student_profile: true }
+      });
+    assert(
+      parseCanonicalMisconceptionClaimCatalog(
+        formativeConversation.initial_student_profile
+          ?.misconception_indicators
+      ),
+      "The conversation handoff must bind a canonical misconception claim profile."
     );
     assert(
       afterFirst.activity_attempts === 0,
@@ -419,7 +453,10 @@ async function main() {
           : []
       )
     }));
-    assert(afterRecovery.agent_calls === 2, "Recovery must not regenerate either agent call.");
+    assert(
+      afterRecovery.agent_calls === afterSecond.agent_calls,
+      "Recovery must not regenerate any agent call."
+    );
     assert(afterRecovery.profiles === afterSecond.profiles, "Recovery must not duplicate profile.");
     assert(afterRecovery.decisions === afterSecond.decisions, "Recovery must not duplicate decision.");
     assert(afterRecovery.rounds === afterSecond.rounds, "Recovery must not duplicate round.");
@@ -628,7 +665,9 @@ async function main() {
       write_artifact: false
     });
     assert(
-      migratedAudit.activity_runtime_summary.attempt_count === 1 &&
+      migratedAudit.activity_runtime_summary.attempt_count === 0 &&
+        migratedAudit.activity_runtime_summary
+          .legacy_non_authoritative_attempt_count === 1 &&
         migratedAudit.activity_runtime_summary.active_attempt_count === 0,
       "Teacher audit should preserve the historical row without treating it as active."
     );

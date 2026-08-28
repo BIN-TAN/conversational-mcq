@@ -2,6 +2,9 @@ import { createHash } from "node:crypto";
 import { Prisma, type AssessmentPhase } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
+  parseCanonicalMisconceptionClaimCatalog
+} from "@/lib/domain/misconception-claim-identity";
+import {
   FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID,
   FORMATIVE_CONVERSATION_OPENING_VERSION
 } from "./opening-contract";
@@ -23,6 +26,8 @@ export const FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS =
 export type FormativeConversationFoundationErrorCode =
   | "conversation_session_mismatch"
   | "conversation_profile_mismatch"
+  | "conversation_profile_rebind_not_empty"
+  | "conversation_profile_rebind_not_canonical"
   | "conversation_not_found"
   | "conversation_not_active"
   | "conversation_turn_limit_reached"
@@ -43,6 +48,13 @@ export type CreateFormativeConversationSessionInput = {
   concept_unit_session_db_id: string;
   initial_student_profile_db_id?: string;
   current_student_profile_db_id?: string;
+};
+
+export type EmptyFormativeConversationProfileRepairInspection = {
+  status: "not_found" | "already_compatible" | "eligible" | "blocked";
+  conversation_db_id: string | null;
+  profile_db_id: string | null;
+  blocking_reasons: string[];
 };
 
 export function formativeConversationMessageRequestHash(messageText: string) {
@@ -181,6 +193,266 @@ async function createConversationStartedEventForNewSession(
       occurred_at: session.started_at
     }
   });
+}
+
+function profileSupportsFormativeConversationContext(input: {
+  misconception_indicators: Prisma.JsonValue;
+}) {
+  return Boolean(
+    parseCanonicalMisconceptionClaimCatalog(
+      input.misconception_indicators
+    )
+  );
+}
+
+function inspectEmptyConversationProfileRepairState(
+  conversation: {
+    id: string;
+    status: string;
+    assessment_session_db_id: string;
+    initial_student_profile_db_id: string | null;
+    current_student_profile_db_id: string | null;
+    initial_student_profile: {
+      id: string;
+      misconception_indicators: Prisma.JsonValue;
+    } | null;
+    current_student_profile: {
+      id: string;
+      misconception_indicators: Prisma.JsonValue;
+    } | null;
+    message_receipts: Array<{
+      client_message_id: string;
+      status: string;
+      student_turn_db_id: string | null;
+      assistant_turn_db_id: string | null;
+    }>;
+    _count: {
+      conversation_turns: number;
+      agent_calls: number;
+      activity_runtime_attempts: number;
+      memory_snapshots: number;
+      interventions: number;
+      review_signals: number;
+      turn_telemetry: number;
+      input_telemetry: number;
+      profile_transitions: number;
+      profile_evidence_references: number;
+    };
+  } | null
+): EmptyFormativeConversationProfileRepairInspection {
+  if (!conversation) {
+    return {
+      status: "not_found",
+      conversation_db_id: null,
+      profile_db_id: null,
+      blocking_reasons: ["conversation_not_found"]
+    };
+  }
+
+  if (
+    conversation.initial_student_profile &&
+    conversation.current_student_profile_db_id ===
+      conversation.initial_student_profile_db_id &&
+    profileSupportsFormativeConversationContext({
+      misconception_indicators:
+        conversation.initial_student_profile.misconception_indicators
+    })
+  ) {
+    return {
+      status: "already_compatible",
+      conversation_db_id: conversation.id,
+      profile_db_id: conversation.initial_student_profile.id,
+      blocking_reasons: []
+    };
+  }
+
+  const blockingReasons: string[] = [];
+  if (conversation.status !== "active") {
+    blockingReasons.push("conversation_not_active");
+  }
+  if (conversation._count.conversation_turns > 0) {
+    blockingReasons.push("conversation_turns_present");
+  }
+  if (conversation._count.agent_calls > 0) {
+    blockingReasons.push("conversation_agent_calls_present");
+  }
+  if (conversation._count.activity_runtime_attempts > 0) {
+    blockingReasons.push("activity_attempts_present");
+  }
+  if (conversation._count.memory_snapshots > 0) {
+    blockingReasons.push("memory_snapshots_present");
+  }
+  if (conversation._count.interventions > 0) {
+    blockingReasons.push("interventions_present");
+  }
+  if (conversation._count.review_signals > 0) {
+    blockingReasons.push("review_signals_present");
+  }
+  if (conversation._count.turn_telemetry > 0) {
+    blockingReasons.push("turn_telemetry_present");
+  }
+  if (conversation._count.input_telemetry > 0) {
+    blockingReasons.push("input_telemetry_present");
+  }
+  if (conversation._count.profile_transitions > 0) {
+    blockingReasons.push("profile_transitions_present");
+  }
+  if (conversation._count.profile_evidence_references > 0) {
+    blockingReasons.push("profile_evidence_references_present");
+  }
+  if (
+    conversation.current_student_profile_db_id &&
+    conversation.initial_student_profile_db_id &&
+    conversation.current_student_profile_db_id !==
+      conversation.initial_student_profile_db_id
+  ) {
+    blockingReasons.push("profile_history_already_advanced");
+  }
+
+  const unsafeReceipt = conversation.message_receipts.find(
+    (receipt) =>
+      receipt.client_message_id !==
+        FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID ||
+      receipt.status !== "failed" ||
+      Boolean(receipt.student_turn_db_id) ||
+      Boolean(receipt.assistant_turn_db_id)
+  );
+  if (unsafeReceipt) {
+    blockingReasons.push("conversation_message_receipts_present");
+  }
+
+  return {
+    status: blockingReasons.length === 0 ? "eligible" : "blocked",
+    conversation_db_id: conversation.id,
+    profile_db_id: conversation.initial_student_profile_db_id,
+    blocking_reasons: blockingReasons
+  };
+}
+
+const emptyConversationProfileRepairSelect = {
+  id: true,
+  status: true,
+  assessment_session_db_id: true,
+  initial_student_profile_db_id: true,
+  current_student_profile_db_id: true,
+  initial_student_profile: {
+    select: {
+      id: true,
+      misconception_indicators: true
+    }
+  },
+  current_student_profile: {
+    select: {
+      id: true,
+      misconception_indicators: true
+    }
+  },
+  message_receipts: {
+    select: {
+      client_message_id: true,
+      status: true,
+      student_turn_db_id: true,
+      assistant_turn_db_id: true
+    }
+  },
+  _count: {
+    select: {
+      conversation_turns: true,
+      agent_calls: true,
+      activity_runtime_attempts: true,
+      memory_snapshots: true,
+      interventions: true,
+      review_signals: true,
+      turn_telemetry: true,
+      input_telemetry: true,
+      profile_transitions: true,
+      profile_evidence_references: true
+    }
+  }
+} satisfies Prisma.FormativeConversationSessionSelect;
+
+export async function inspectEmptyFormativeConversationProfileRepair(
+  conceptUnitSessionDbId: string
+) {
+  const conversation = await prisma.formativeConversationSession.findUnique({
+    where: { concept_unit_session_db_id: conceptUnitSessionDbId },
+    select: emptyConversationProfileRepairSelect
+  });
+  return inspectEmptyConversationProfileRepairState(conversation);
+}
+
+export async function bindCanonicalProfileToEmptyFormativeConversationInTransaction(
+  tx: Prisma.TransactionClient,
+  input: CreateFormativeConversationSessionInput & {
+    canonical_student_profile_db_id: string;
+  }
+) {
+  const candidateProfile = await tx.studentProfile.findFirst({
+    where: {
+      id: input.canonical_student_profile_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id
+    },
+    select: {
+      id: true,
+      misconception_indicators: true
+    }
+  });
+  if (
+    !candidateProfile ||
+    !parseCanonicalMisconceptionClaimCatalog(
+      candidateProfile.misconception_indicators
+    )
+  ) {
+    throw new FormativeConversationFoundationError(
+      "conversation_profile_rebind_not_canonical",
+      "The replacement profile does not contain a canonical misconception claim catalog."
+    );
+  }
+
+  const conversation = await tx.formativeConversationSession.findUnique({
+    where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
+    select: emptyConversationProfileRepairSelect
+  });
+  if (!conversation) {
+    return createOrGetTrustedFormativeConversationSessionInTransaction(tx, {
+      assessment_session_db_id: input.assessment_session_db_id,
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      initial_student_profile_db_id: candidateProfile.id,
+      current_student_profile_db_id: candidateProfile.id
+    });
+  }
+  if (conversation.assessment_session_db_id !== input.assessment_session_db_id) {
+    throw new FormativeConversationFoundationError(
+      "conversation_session_mismatch",
+      "The existing conversation belongs to another assessment session."
+    );
+  }
+  if (
+    conversation.initial_student_profile_db_id === candidateProfile.id &&
+    conversation.current_student_profile_db_id === candidateProfile.id
+  ) {
+    return { session: conversation, created: false, rebound: false };
+  }
+
+  const inspection = inspectEmptyConversationProfileRepairState(conversation);
+  if (inspection.status === "already_compatible") {
+    return { session: conversation, created: false, rebound: false };
+  }
+  if (inspection.status !== "eligible") {
+    throw new FormativeConversationFoundationError(
+      "conversation_profile_rebind_not_empty",
+      `The conversation profile cannot be rebound after formative evidence exists: ${inspection.blocking_reasons.join(",")}.`
+    );
+  }
+
+  const session = await tx.formativeConversationSession.update({
+    where: { id: conversation.id },
+    data: {
+      initial_student_profile_db_id: candidateProfile.id,
+      current_student_profile_db_id: candidateProfile.id
+    }
+  });
+  return { session, created: false, rebound: true };
 }
 
 export async function createOrGetTrustedFormativeConversationSessionInTransaction(

@@ -15,7 +15,13 @@ import {
   buildUpdatedStudentProfilingInput,
   type BuiltStudentProfilingInput
 } from "./input-builder";
-import { persistInitialStudentProfile } from "./persistence";
+import {
+  bindExistingInitialStudentProfileForEmptyConversation,
+  persistInitialStudentProfile
+} from "./persistence";
+import {
+  inspectEmptyFormativeConversationProfileRepair
+} from "@/lib/services/student-assessment/formative-conversation/service";
 import {
   serializeStudentProfileForTeacher,
   type StudentProfileWithAgentCall
@@ -56,6 +62,8 @@ type RunInitialStudentProfilingInput = {
   force_new_invocation?: boolean;
   mock_provider_mode?: MockProviderMode;
   no_provider_test_executor?: StudentProfilingNoProviderExecutor;
+  repair_empty_formative_conversation?: boolean;
+  provider_execution_allowed?: boolean;
 };
 
 type StudentProfilingCandidateInput = {
@@ -98,6 +106,34 @@ async function profileByInvocationKey(agentInvocationKey: string) {
           prompt_version: true,
           schema_version: true,
           prompt_hash: true,
+          agent_invocation_key: true,
+          retry_count: true,
+          call_status: true,
+          output_validated: true,
+          live_call_allowed: true,
+          blocked_reason: true,
+          created_at: true,
+          completed_at: true
+        }
+      }
+    }
+  });
+}
+
+async function profileById(profileDbId: string) {
+  return prisma.studentProfile.findUnique({
+    where: { id: profileDbId },
+    include: {
+      based_on_agent_call: {
+        select: {
+          agent_name: true,
+          provider: true,
+          model_name: true,
+          agent_version: true,
+          prompt_version: true,
+          schema_version: true,
+          prompt_hash: true,
+          agent_invocation_key: true,
           retry_count: true,
           call_status: true,
           output_validated: true,
@@ -411,6 +447,46 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     );
   }
 
+  const repairInspection = input.repair_empty_formative_conversation
+    ? await inspectEmptyFormativeConversationProfileRepair(
+        conceptUnitSession.id
+      )
+    : null;
+  if (repairInspection?.status === "already_compatible") {
+    const compatibleProfile = repairInspection.profile_db_id
+      ? await profileById(repairInspection.profile_db_id)
+      : null;
+    if (!compatibleProfile) {
+      throw new StudentProfilingServiceError(
+        "formative_conversation_profile_missing",
+        "The compatible formative conversation profile could not be loaded.",
+        409
+      );
+    }
+    return {
+      status: "already_profiled" as const,
+      profile: profileSummary(compatibleProfile),
+      agent_invocation_key:
+        compatibleProfile.based_on_agent_call?.agent_invocation_key ??
+        `compatible_profile:${compatibleProfile.id}`
+    };
+  }
+  if (
+    repairInspection?.status === "blocked" ||
+    (repairInspection?.status === "not_found" &&
+      conceptUnitSession.assessment_session.current_phase !==
+        "profiling_pending")
+  ) {
+    throw new StudentProfilingServiceError(
+      "formative_conversation_profile_repair_blocked",
+      "The formative conversation already contains evidence and its initial profile cannot be replaced.",
+      409,
+      {
+        blocking_reasons: repairInspection.blocking_reasons
+      }
+    );
+  }
+
   let responsePackage = await latestInitialResponsePackage(conceptUnitSession.id);
 
   if (!responsePackage) {
@@ -424,10 +500,17 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
   const existingProfile = await profileByInvocationKey(built.agent_invocation_key);
 
   if (existingProfile && !input.force_new_invocation) {
-    await prisma.conceptUnitSession.update({
-      where: { id: conceptUnitSession.id },
-      data: { latest_student_profile_db_id: existingProfile.id }
-    });
+    if (repairInspection?.status === "eligible") {
+      await bindExistingInitialStudentProfileForEmptyConversation({
+        concept_unit_session_db_id: conceptUnitSession.id,
+        student_profile_db_id: existingProfile.id
+      });
+    } else {
+      await prisma.conceptUnitSession.update({
+        where: { id: conceptUnitSession.id },
+        data: { latest_student_profile_db_id: existingProfile.id }
+      });
+    }
 
     if (conceptUnitSession.assessment_session.current_phase === "profiling_pending") {
       await updateAssessmentSessionPhase({
@@ -445,7 +528,11 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     };
   }
 
-  if (conceptUnitSession.assessment_session.current_phase !== "profiling_pending") {
+  if (
+    conceptUnitSession.assessment_session.current_phase !==
+      "profiling_pending" &&
+    repairInspection?.status !== "eligible"
+  ) {
     throw new StudentProfilingServiceError(
       "profiling_not_pending",
       "Student profiling can run only while the assessment session is in profiling_pending.",
@@ -457,61 +544,86 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     );
   }
 
-  await logAgentEvent({
-    assessment_session_db_id: built.assessment_session_db_id,
-    concept_unit_session_db_id: built.concept_unit_session_db_id,
-    event_type: "agent_call_started",
-    payload: {
-      agent_name: "student_profiling_agent",
-      invocation_reason: input.invocation_reason,
-      agent_invocation_key: built.agent_invocation_key
-    }
-  });
-
-  const result = await (
-    input.no_provider_test_executor ?? executeOperationalAgent
-  )({
-    agentName: "student_profiling_agent",
-    allowlistedInput: built.input,
-    invocationKey: built.agent_invocation_key,
-    operationalContext: {
-      assessment_session_db_id: built.assessment_session_db_id,
-      concept_unit_session_db_id: built.concept_unit_session_db_id
-    },
-    forceNewInvocation: input.force_new_invocation,
-    metadata: {
-      invocation_reason: input.invocation_reason,
-      response_package_type: built.response_package.package_type,
-      response_package_created_at: built.response_package.created_at.toISOString(),
-      requested_by_role: input.requested_by_user_db_id ? "teacher_researcher" : "backend",
-      ...(input.mock_provider_mode ? { mock_mode: input.mock_provider_mode } : {})
-    }
-  });
-
-  if (result.status !== "succeeded") {
+  const providerExecutionAllowed =
+    input.provider_execution_allowed ?? true;
+  if (providerExecutionAllowed) {
     await logAgentEvent({
       assessment_session_db_id: built.assessment_session_db_id,
       concept_unit_session_db_id: built.concept_unit_session_db_id,
-      event_type:
-        result.status === "invalid_output" ? "schema_validation_failed" : "agent_call_failed",
+      event_type: "agent_call_started",
       payload: {
         agent_name: "student_profiling_agent",
-        result_status: result.status,
-        agent_call_id: "agent_call_id" in result ? result.agent_call_id : null,
-        reason:
-          result.status === "blocked_by_usage_limit"
-            ? result.reason
-            : result.status === "invalid_output"
-              ? result.validation_error
-              : result.status === "refused"
-                ? result.refusal
-                : result.status === "incomplete"
-                  ? result.reason
-                  : result.status === "failed"
-                    ? result.error.message
-                    : null
+        invocation_reason: input.invocation_reason,
+        agent_invocation_key: built.agent_invocation_key
       }
     });
+  }
+
+  const result = providerExecutionAllowed
+    ? await (
+        input.no_provider_test_executor ?? executeOperationalAgent
+      )({
+        agentName: "student_profiling_agent",
+        allowlistedInput: built.input,
+        invocationKey: built.agent_invocation_key,
+        operationalContext: {
+          assessment_session_db_id: built.assessment_session_db_id,
+          concept_unit_session_db_id: built.concept_unit_session_db_id
+        },
+        forceNewInvocation: input.force_new_invocation,
+        metadata: {
+          invocation_reason: input.invocation_reason,
+          response_package_type: built.response_package.package_type,
+          response_package_created_at:
+            built.response_package.created_at.toISOString(),
+          requested_by_role: input.requested_by_user_db_id
+            ? "teacher_researcher"
+            : "backend",
+          ...(input.mock_provider_mode
+            ? { mock_mode: input.mock_provider_mode }
+            : {})
+        }
+      })
+    : {
+        status: "failed" as const,
+        error: {
+          category: "invalid_request" as const,
+          message:
+            "Provider execution is disabled for this formative execution mode.",
+          retryable: false
+        },
+        retry_count: 0
+      };
+
+  if (result.status !== "succeeded") {
+    if (providerExecutionAllowed) {
+      await logAgentEvent({
+        assessment_session_db_id: built.assessment_session_db_id,
+        concept_unit_session_db_id: built.concept_unit_session_db_id,
+        event_type:
+          result.status === "invalid_output"
+            ? "schema_validation_failed"
+            : "agent_call_failed",
+        payload: {
+          agent_name: "student_profiling_agent",
+          result_status: result.status,
+          agent_call_id:
+            "agent_call_id" in result ? result.agent_call_id : null,
+          reason:
+            result.status === "blocked_by_usage_limit"
+              ? result.reason
+              : result.status === "invalid_output"
+                ? result.validation_error
+                : result.status === "refused"
+                  ? result.refusal
+                  : result.status === "incomplete"
+                    ? result.reason
+                    : result.status === "failed"
+                      ? result.error.message
+                      : null
+        }
+      });
+    }
 
     const fallbackOutput = deterministicInitialProfileFallback(built);
     await persistOperationalEffectiveResult({
@@ -542,19 +654,26 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     const fallbackProfile = await persistInitialStudentProfile({
       concept_unit_session_db_id: built.concept_unit_session_db_id,
       based_on_agent_call_db_id: "agent_call_id" in result ? result.agent_call_id ?? null : null,
-      output: fallbackOutput
+      output: fallbackOutput,
+      repair_empty_formative_conversation:
+        repairInspection?.status === "eligible"
     });
 
-    await updateAssessmentSessionPhase({
-      assessment_session_db_id: built.assessment_session_db_id,
-      to_phase: "profiling_completed",
-      reason: "student_profiling_deterministic_fallback_completed",
-      payload: {
-        agent_name: "student_profiling_agent",
-        fallback_derived: true,
-        result_status: result.status
-      }
-    });
+    if (
+      conceptUnitSession.assessment_session.current_phase ===
+      "profiling_pending"
+    ) {
+      await updateAssessmentSessionPhase({
+        assessment_session_db_id: built.assessment_session_db_id,
+        to_phase: "profiling_completed",
+        reason: "student_profiling_deterministic_fallback_completed",
+        payload: {
+          agent_name: "student_profiling_agent",
+          fallback_derived: true,
+          result_status: result.status
+        }
+      });
+    }
 
     return {
       status: "profile_created" as const,
@@ -641,19 +760,26 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
   const profile = await persistInitialStudentProfile({
     concept_unit_session_db_id: built.concept_unit_session_db_id,
     based_on_agent_call_db_id: result.agent_call_id,
-    output: result.output
+    output: result.output,
+    repair_empty_formative_conversation:
+      repairInspection?.status === "eligible"
   });
 
-  await updateAssessmentSessionPhase({
-    assessment_session_db_id: built.assessment_session_db_id,
-    to_phase: "profiling_completed",
-    reason: "student_profiling_agent_completed",
-    payload: {
-      agent_name: "student_profiling_agent",
-      agent_call_id: result.agent_call_id,
-      retry_count: result.retry_count
-    }
-  });
+  if (
+    conceptUnitSession.assessment_session.current_phase ===
+    "profiling_pending"
+  ) {
+    await updateAssessmentSessionPhase({
+      assessment_session_db_id: built.assessment_session_db_id,
+      to_phase: "profiling_completed",
+      reason: "student_profiling_agent_completed",
+      payload: {
+        agent_name: "student_profiling_agent",
+        agent_call_id: result.agent_call_id,
+        retry_count: result.retry_count
+      }
+    });
+  }
 
   await logAgentEvent({
     assessment_session_db_id: built.assessment_session_db_id,

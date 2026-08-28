@@ -3,7 +3,10 @@ import { prisma } from "@/lib/db";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { createCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { toPrismaJson } from "@/lib/services/json";
-import { createOrGetTrustedFormativeConversationSessionInTransaction } from "@/lib/services/student-assessment/formative-conversation/service";
+import {
+  bindCanonicalProfileToEmptyFormativeConversationInTransaction,
+  createOrGetTrustedFormativeConversationSessionInTransaction
+} from "@/lib/services/student-assessment/formative-conversation/service";
 import {
   FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS,
   formativeConversationPersistenceError
@@ -61,6 +64,7 @@ export async function persistInitialStudentProfile(input: {
   concept_unit_session_db_id: string;
   based_on_agent_call_db_id: string | null;
   output: StudentProfileOutput;
+  repair_empty_formative_conversation?: boolean;
 }) {
   const conceptUnitSession =
     await prisma.conceptUnitSession.findUniqueOrThrow({
@@ -100,17 +104,30 @@ export async function persistInitialStudentProfile(input: {
             latest_student_profile_db_id: profile.id
           }
         });
-        await createOrGetTrustedFormativeConversationSessionInTransaction(
-          tx,
-          {
-            assessment_session_db_id:
-              conceptUnitSession.assessment_session_db_id,
-            concept_unit_session_db_id:
-              input.concept_unit_session_db_id,
-            initial_student_profile_db_id: profile.id,
-            current_student_profile_db_id: profile.id
-          }
-        );
+        if (input.repair_empty_formative_conversation) {
+          await bindCanonicalProfileToEmptyFormativeConversationInTransaction(
+            tx,
+            {
+              assessment_session_db_id:
+                conceptUnitSession.assessment_session_db_id,
+              concept_unit_session_db_id:
+                input.concept_unit_session_db_id,
+              canonical_student_profile_db_id: profile.id
+            }
+          );
+        } else {
+          await createOrGetTrustedFormativeConversationSessionInTransaction(
+            tx,
+            {
+              assessment_session_db_id:
+                conceptUnitSession.assessment_session_db_id,
+              concept_unit_session_db_id:
+                input.concept_unit_session_db_id,
+              initial_student_profile_db_id: profile.id,
+              current_student_profile_db_id: profile.id
+            }
+          );
+        }
 
         return profile;
       },
@@ -122,4 +139,36 @@ export async function persistInitialStudentProfile(input: {
       "conversation_creation"
     );
   }
+}
+
+export async function bindExistingInitialStudentProfileForEmptyConversation(
+  input: {
+    concept_unit_session_db_id: string;
+    student_profile_db_id: string;
+  }
+) {
+  const conceptUnitSession =
+    await prisma.conceptUnitSession.findUniqueOrThrow({
+      where: { id: input.concept_unit_session_db_id },
+      select: { assessment_session_db_id: true }
+    });
+
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.conceptUnitSession.update({
+        where: { id: input.concept_unit_session_db_id },
+        data: { latest_student_profile_db_id: input.student_profile_db_id }
+      });
+      return bindCanonicalProfileToEmptyFormativeConversationInTransaction(
+        tx,
+        {
+          assessment_session_db_id:
+            conceptUnitSession.assessment_session_db_id,
+          concept_unit_session_db_id: input.concept_unit_session_db_id,
+          canonical_student_profile_db_id: input.student_profile_db_id
+        }
+      );
+    },
+    FORMATIVE_CONVERSATION_WRITE_TRANSACTION_OPTIONS
+  );
 }

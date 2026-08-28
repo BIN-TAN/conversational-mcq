@@ -1,5 +1,12 @@
 import { prisma } from "@/lib/db";
-import type { FormativeExecutionMode } from "@/lib/services/student-assessment/formative-execution-mode";
+import {
+  runInitialStudentProfiling,
+  StudentProfilingServiceError
+} from "@/lib/agents/student-profiling/service";
+import {
+  resolveTopicDialogueExecutionPlan,
+  type FormativeExecutionMode
+} from "@/lib/services/student-assessment/formative-execution-mode";
 import { FormativeConversationUnavailableError } from "./availability";
 import { createFormativeConversationOpeningRunner } from "./opening-runner";
 import {
@@ -38,6 +45,34 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
       status: "existing_transcript" as const,
       opening: null
     };
+  }
+
+  try {
+    const profileReadiness = await runInitialStudentProfiling({
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      invocation_reason:
+        "formative_conversation_opening_profile_handoff",
+      repair_empty_formative_conversation: true,
+      provider_execution_allowed:
+        resolveTopicDialogueExecutionPlan(input.execution_mode)
+          .provider_generation_allowed
+    });
+    if (profileReadiness.status === "semantic_validation_failed") {
+      throw new FormativeConversationUnavailableError(
+        "formative_conversation_profile_semantic_validation_failed"
+      );
+    }
+  } catch (error) {
+    if (error instanceof FormativeConversationUnavailableError) {
+      throw error;
+    }
+    if (error instanceof StudentProfilingServiceError) {
+      throw new FormativeConversationUnavailableError(
+        error.code,
+        error.code !== "formative_conversation_profile_repair_blocked"
+      );
+    }
+    throw error;
   }
 
   const context =
@@ -81,4 +116,24 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
     }
     throw error;
   }
+}
+
+export async function ensureFormativeConversationOpeningForConversation(input: {
+  conversation_public_id: string;
+  execution_mode: FormativeExecutionMode;
+}) {
+  const conversation = await prisma.formativeConversationSession.findUnique({
+    where: { conversation_public_id: input.conversation_public_id },
+    select: { concept_unit_session_db_id: true }
+  });
+  if (!conversation) {
+    return {
+      status: "legacy_runtime" as const,
+      opening: null
+    };
+  }
+  return ensureFormativeConversationOpeningForConceptUnitSession({
+    concept_unit_session_db_id: conversation.concept_unit_session_db_id,
+    execution_mode: input.execution_mode
+  });
 }
