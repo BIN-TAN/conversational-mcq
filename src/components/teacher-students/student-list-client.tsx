@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpDown, Eye, Search, Upload, UserPlus } from "lucide-react";
 import { errorFromUnknown, fetchStudents } from "./api";
+import { StudentBatchDeletionControl } from "./student-batch-deletion-control";
 import type { StructuredApiError, StudentListResponse } from "./types";
 import { EmptyPanel, ErrorPanel, formatDate, LoadingPanel, StatusPill } from "./ui";
 
@@ -22,6 +23,7 @@ export function StudentListClient() {
   const [data, setData] = useState<StudentListResponse | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -41,6 +43,7 @@ export function StudentListClient() {
   }, [load]);
 
   function updateFilter(key: keyof typeof filters, value: string | number) {
+    setSelectedUserIds(new Set());
     setFilters((current) => ({
       ...current,
       [key]: value,
@@ -49,6 +52,7 @@ export function StudentListClient() {
   }
 
   function sortBy(field: SortField) {
+    setSelectedUserIds(new Set());
     setFilters((current) => ({
       ...current,
       sort: field,
@@ -58,6 +62,33 @@ export function StudentListClient() {
   }
 
   const pagination = data?.pagination;
+  const pageStudentIds = data?.students.map((student) => student.user_id) ?? [];
+  const allPageStudentsSelected =
+    pageStudentIds.length > 0 && pageStudentIds.every((userId) => selectedUserIds.has(userId));
+
+  function toggleStudentSelection(userId: string) {
+    setSelectedUserIds((current) => {
+      const next = new Set(current);
+
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+
+      return next;
+    });
+  }
+
+  function togglePageSelection() {
+    setSelectedUserIds(() => {
+      if (allPageStudentsSelected) {
+        return new Set();
+      }
+
+      return new Set(pageStudentIds);
+    });
+  }
 
   return (
     <div className="space-y-5">
@@ -147,10 +178,43 @@ export function StudentListClient() {
 
       {!loading && data && data.students.length > 0 ? (
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+          <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2">
+            <span className="text-sm font-medium text-muted">
+              {selectedUserIds.size} selected
+            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedUserIds.size > 0 ? (
+                <button
+                  className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+                  onClick={() => setSelectedUserIds(new Set())}
+                  type="button"
+                >
+                  Clear selection
+                </button>
+              ) : null}
+              <StudentBatchDeletionControl
+                onDeleted={() => {
+                  setSelectedUserIds(new Set());
+                  setFilters((current) => ({ ...current, page: 1 }));
+                }}
+                studentIds={[...selectedUserIds]}
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-line bg-slate-50 text-xs uppercase tracking-wide text-muted">
                 <tr>
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      aria-label="Select all students on this page"
+                      checked={allPageStudentsSelected}
+                      className="h-4 w-4 rounded border-line accent-red-700"
+                      data-testid="select-all-students"
+                      onChange={togglePageSelection}
+                      type="checkbox"
+                    />
+                  </th>
                   <th className="px-4 py-3">
                     <button
                       className="inline-flex items-center gap-1 font-semibold"
@@ -183,7 +247,20 @@ export function StudentListClient() {
               </thead>
               <tbody className="divide-y divide-line">
                 {data.students.map((student) => (
-                  <tr className="align-top" key={student.user_id}>
+                  <tr
+                    className={selectedUserIds.has(student.user_id) ? "align-top bg-red-50/40" : "align-top"}
+                    key={student.user_id}
+                  >
+                    <td className="px-4 py-3">
+                      <input
+                        aria-label={`Select ${student.user_id}`}
+                        checked={selectedUserIds.has(student.user_id)}
+                        className="h-4 w-4 rounded border-line accent-red-700"
+                        data-testid={`select-student-${student.user_id}`}
+                        onChange={() => toggleStudentSelection(student.user_id)}
+                        type="checkbox"
+                      />
+                    </td>
                     <td className="px-4 py-3 font-semibold text-ink">{student.user_id}</td>
                     <td className="px-4 py-3 text-muted">{student.display_name ?? "No display name"}</td>
                     <td className="px-4 py-3 text-muted">{student.email ?? ""}</td>

@@ -661,6 +661,17 @@ input/output, answer keys, correct options, correctness labels, raw distractor
 metadata, diagnostic notes, credentials, API keys, database URLs, cookies, and
 session secrets.
 
+Teacher student-account management supports single-account and bounded batch
+deletion. Batch deletion is limited to 100 explicitly selected student
+accounts, previews aggregate associated-record counts, binds confirmation to a
+SHA-256 fingerprint of the canonical selected account IDs, and requires an
+exact count-specific confirmation phrase. The deletion executes in one
+transaction and retains one safe `student_account_deletion_events` audit row
+per removed account with a shared batch operation reference and aggregate
+counts. The audit does not retain response text, conversation text, prompts,
+provider payloads, credentials, answer keys, or process payloads. Previously
+downloaded exports and external copies remain outside system control.
+
 ### Readable Transcript
 
 The teacher session detail page includes a **Readable transcript** tab separate

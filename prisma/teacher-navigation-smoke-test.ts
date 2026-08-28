@@ -121,11 +121,44 @@ function assertNormalTeacherPagesUseSharedNav() {
 
 function assertStudentAccountActionsRemainInPageContent() {
   const studentList = source("src/components/teacher-students/student-list-client.tsx");
+  const batchDeletion = source(
+    "src/components/teacher-students/student-batch-deletion-control.tsx"
+  );
+  const batchPreviewRoute = source(
+    "src/app/api/teacher/students/batch-deletion/preview/route.ts"
+  );
+  const batchDeletionRoute = source(
+    "src/app/api/teacher/students/batch-deletion/route.ts"
+  );
 
   assertIncludes(studentList, 'href="/teacher/students/import"', "Student accounts page actions");
   assertIncludes(studentList, "Import roster", "Student accounts page actions");
   assertIncludes(studentList, 'href="/teacher/students/new"', "Student accounts page actions");
   assertIncludes(studentList, "Create student", "Student accounts page actions");
+  assertIncludes(studentList, 'data-testid="select-all-students"', "Student batch selection");
+  assertIncludes(studentList, "toggleStudentSelection", "Student batch selection");
+  assertIncludes(studentList, "StudentBatchDeletionControl", "Student batch deletion action");
+  assertIncludes(batchDeletion, "Delete selected", "Student batch deletion action");
+  assertIncludes(
+    batchDeletion,
+    'data-testid="batch-delete-students-dialog"',
+    "Student batch deletion confirmation"
+  );
+  assertIncludes(
+    batchDeletion,
+    "required_delete_confirmation",
+    "Student batch deletion confirmation"
+  );
+  assertIncludes(
+    batchPreviewRoute,
+    "requireStudentAccountTeacher",
+    "Student batch deletion preview API"
+  );
+  assertIncludes(
+    batchDeletionRoute,
+    "requireStudentAccountTeacher",
+    "Student batch deletion API"
+  );
 }
 
 function assertAdvancedRoutesRemainProtected() {

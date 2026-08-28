@@ -5,6 +5,8 @@ import type {
   CredentialResponse,
   RosterImportBatchesResponse,
   RosterPreview,
+  StudentBatchDeletionPreview,
+  StudentBatchDeletionSummary,
   StudentDeletionPreview,
   StudentDeletionSummary,
   StudentDetailResponse,
@@ -138,6 +140,24 @@ export function deleteStudentData(
       body: JSON.stringify(input)
     }
   );
+}
+
+export function previewStudentBatchDeletion(studentIds: string[]) {
+  return apiRequest<StudentBatchDeletionPreview>("/api/teacher/students/batch-deletion/preview", {
+    method: "POST",
+    body: JSON.stringify({ student_ids: studentIds })
+  });
+}
+
+export function deleteStudentBatch(input: {
+  student_ids: string[];
+  selection_fingerprint: string;
+  delete_confirmation: string;
+}) {
+  return apiRequest<StudentBatchDeletionSummary>("/api/teacher/students/batch-deletion", {
+    method: "POST",
+    body: JSON.stringify(input)
+  });
 }
 
 export function previewRoster(input: { csv_text: string; source_file_name?: string }) {

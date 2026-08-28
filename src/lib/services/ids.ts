@@ -19,6 +19,7 @@ export type PublicIdKind =
   | "mcq_import_candidate"
   | "student_account_event"
   | "student_account_deletion_event"
+  | "student_account_batch_deletion"
   | "assessment_deletion_event"
   | "attempt_control"
   | "account_security_token"
@@ -56,6 +57,7 @@ const prefixes: Record<PublicIdKind, string> = {
   mcq_import_candidate: "mic",
   student_account_event: "sae",
   student_account_deletion_event: "sade",
+  student_account_batch_deletion: "sabde",
   assessment_deletion_event: "asde",
   attempt_control: "actctl",
   account_security_token: "ast",

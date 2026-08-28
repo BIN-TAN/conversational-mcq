@@ -667,6 +667,137 @@ async function main() {
       "Deleted account should not appear in future student list."
     );
 
+    const batchStudentIds = [`${prefix}_batch_alpha`, `${prefix}_batch_beta`];
+    let batchStudentCookie = "";
+    for (const batchStudentId of batchStudentIds) {
+      const batchCreated = await jsonRequest<{
+        student: { user_id: string };
+        one_time_credentials: Array<{ temporary_password?: string; temporary_access_code: string }>;
+      }>(
+        "/api/teacher/students",
+        teacher.cookie,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            user_id: batchStudentId,
+            display_name: `Batch deletion ${batchStudentId.endsWith("alpha") ? "Alpha" : "Beta"}`,
+            generate_password: true
+          })
+        }
+      );
+      assert(batchCreated.response.status === 201, "Teacher should create each batch-deletion student.");
+
+      if (!batchStudentCookie) {
+        const batchCredential =
+          batchCreated.body?.one_time_credentials[0]?.temporary_password ??
+          batchCreated.body?.one_time_credentials[0]?.temporary_access_code ??
+          "";
+        const batchStudentLogin = await login({ user_id: batchStudentId, access_code: batchCredential });
+        assert(batchStudentLogin.response.status === 200, "Batch student login should work before deletion.");
+        batchStudentCookie = batchStudentLogin.cookie;
+      }
+    }
+
+    const studentBatchPreview = await jsonRequest<unknown>(
+      "/api/teacher/students/batch-deletion/preview",
+      batchStudentCookie,
+      {
+        method: "POST",
+        body: JSON.stringify({ student_ids: batchStudentIds })
+      }
+    );
+    assert(studentBatchPreview.response.status === 403, "Student user cannot access batch deletion preview.");
+
+    const duplicateBatchPreview = await jsonRequest<unknown>(
+      "/api/teacher/students/batch-deletion/preview",
+      teacher.cookie,
+      {
+        method: "POST",
+        body: JSON.stringify({ student_ids: [batchStudentIds[0], batchStudentIds[0]] })
+      }
+    );
+    assert(duplicateBatchPreview.response.status === 400, "Duplicate batch selections should fail.");
+
+    const batchPreview = await jsonRequest<{
+      selected_student_count: number;
+      selection_fingerprint: string;
+      required_delete_confirmation: string;
+      counts: Record<string, number>;
+      students: Array<{ student_id: string }>;
+    }>("/api/teacher/students/batch-deletion/preview", teacher.cookie, {
+      method: "POST",
+      body: JSON.stringify({ student_ids: [...batchStudentIds].reverse() })
+    });
+    assert(batchPreview.response.status === 200, "Teacher should preview a student batch deletion.");
+    assert(batchPreview.body?.selected_student_count === 2, "Batch preview should report two accounts.");
+    assert(batchPreview.body?.counts.student_account_count === 2, "Batch preview should aggregate account counts.");
+    assert(
+      batchPreview.body?.required_delete_confirmation === "DELETE 2 STUDENT ACCOUNTS",
+      "Batch preview should return the exact count-specific confirmation phrase."
+    );
+    assert(
+      batchPreview.body?.selection_fingerprint.length === 64,
+      "Batch preview should bind the canonical selection to a SHA-256 fingerprint."
+    );
+    assert(
+      batchPreview.body?.students.map((student) => student.student_id).join(",") ===
+        [...batchStudentIds].sort().join(","),
+      "Batch preview should return a canonical student ordering."
+    );
+    assertPreviewIsSafe(batchPreview.text);
+
+    const wrongBatchConfirmation = await jsonRequest<unknown>(
+      "/api/teacher/students/batch-deletion",
+      teacher.cookie,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          student_ids: batchStudentIds,
+          selection_fingerprint: batchPreview.body?.selection_fingerprint,
+          delete_confirmation: "DELETE"
+        })
+      }
+    );
+    assert(wrongBatchConfirmation.response.status === 400, "Wrong batch confirmation should fail.");
+    assert(
+      (await prisma.user.count({ where: { user_id: { in: batchStudentIds } } })) === 2,
+      "A failed batch confirmation must not delete any selected account."
+    );
+
+    const batchDeletion = await jsonRequest<{
+      batch_operation_public_id: string;
+      deletion_event_public_ids: string[];
+      deleted_counts: Record<string, number>;
+    }>("/api/teacher/students/batch-deletion", teacher.cookie, {
+      method: "POST",
+      body: JSON.stringify({
+        student_ids: batchStudentIds,
+        selection_fingerprint: batchPreview.body?.selection_fingerprint,
+        delete_confirmation: batchPreview.body?.required_delete_confirmation
+      })
+    });
+    assert(batchDeletion.response.status === 200, "Teacher should delete the selected student batch.");
+    assert(batchDeletion.body?.batch_operation_public_id, "Batch deletion should return a safe operation ID.");
+    assert(
+      batchDeletion.body?.deletion_event_public_ids.length === 2,
+      "Batch deletion should retain one audit event per deleted student."
+    );
+    assert(
+      batchDeletion.body?.deleted_counts.student_account_count === 2,
+      "Batch deletion summary should report both deleted accounts."
+    );
+    assertPreviewIsSafe(batchDeletion.text);
+    assert(
+      (await prisma.user.count({ where: { user_id: { in: batchStudentIds } } })) === 0,
+      "Batch-deleted student user rows should be gone."
+    );
+    assert(
+      (await prisma.studentAccountDeletionEvent.count({
+        where: { student_user_id_snapshot: { in: batchStudentIds } }
+      })) === 2,
+      "Batch deletion should preserve per-student audit events."
+    );
+
     const controlStudentId = `${prefix}_control`;
     const controlCreated = await jsonRequest<{
       student: { user_id: string; account_status: string };

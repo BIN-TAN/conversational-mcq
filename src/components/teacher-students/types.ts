@@ -109,6 +109,21 @@ export type StudentDeletionCounts = {
   workflow_job_count: number;
   workflow_override_count: number;
   student_action_idempotency_key_count: number;
+  assessment_lifecycle_operation_count: number;
+  student_communication_count: number;
+  topic_dialogue_count: number;
+  topic_dialogue_turn_count: number;
+  formative_conversation_session_count: number;
+  formative_conversation_message_receipt_count: number;
+  formative_conversation_memory_snapshot_count: number;
+  formative_conversation_intervention_count: number;
+  formative_conversation_review_signal_count: number;
+  formative_conversation_lifecycle_event_count: number;
+  formative_conversation_turn_telemetry_count: number;
+  formative_conversation_input_telemetry_count: number;
+  formative_conversation_profile_transition_count: number;
+  formative_conversation_profile_transition_turn_reference_count: number;
+  formative_conversation_profile_evidence_reference_count: number;
   activity_runtime_count: number;
   post_activity_evidence_count: number;
   diagnostic_snapshot_count: number;
@@ -135,6 +150,30 @@ export type StudentDeletionPreview = {
 
 export type StudentDeletionSummary = StudentDeletionPreview & {
   deletion_event_public_id: string;
+  deleted_at: string;
+  deleted_counts: StudentDeletionCounts;
+};
+
+export type StudentBatchDeletionPreview = {
+  selected_student_count: number;
+  students: Array<{
+    student_id: string;
+    display_name: string | null;
+    active_status: "active" | "inactive";
+    assessment_session_count: number;
+  }>;
+  selection_fingerprint: string;
+  required_delete_confirmation: string;
+  warning: string;
+  counts: StudentDeletionCounts;
+  retained_reference_counts: Record<string, number>;
+  warnings: string[];
+  deletion_limitations: string[];
+};
+
+export type StudentBatchDeletionSummary = StudentBatchDeletionPreview & {
+  batch_operation_public_id: string;
+  deletion_event_public_ids: string[];
   deleted_at: string;
   deleted_counts: StudentDeletionCounts;
 };
