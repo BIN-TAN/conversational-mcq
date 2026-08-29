@@ -105,6 +105,7 @@
     "student:topic-dialogue-live-smoke": "tsx prisma/student-topic-dialogue-live-smoke-test.ts",
     "student:student-visible-id-leakage-smoke": "tsx prisma/student-visible-id-leakage-smoke-test.ts",
     "student:assessment-completed-card-smoke": "tsx prisma/student-assessment-completed-card-smoke-test.ts",
+    "student:formative-waiting-attempt-review-smoke": "tsx prisma/student-formative-waiting-attempt-review-smoke-test.ts",
     "student:chat-native-results-smoke": "tsx prisma/student-chat-native-results-smoke-test.ts",
     "student:distractor-first-routing-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",
     "student:single-action-state-smoke": "tsx prisma/student-evidence-integrated-profile-smoke-test.ts",

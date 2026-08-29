@@ -9,6 +9,7 @@ const INACTIVITY_MS = Number(process.env.NEXT_PUBLIC_INACTIVITY_MS ?? 300000);
 export function useStudentProcessEvents(input: {
   sessionPublicId: string;
   currentItemPublicId?: string | null;
+  enabled?: boolean;
 }) {
   const visibleSinceRef = useRef(Date.now());
   const focusedSinceRef = useRef(Date.now());
@@ -28,6 +29,10 @@ export function useStudentProcessEvents(input: {
   });
 
   useEffect(() => {
+    if (input.enabled === false) {
+      return;
+    }
+
     function eventBase(): Pick<FrontendProcessEvent, "item_public_id" | "client_occurred_at"> {
       return {
         item_public_id: input.currentItemPublicId ?? undefined,
@@ -236,5 +241,5 @@ export function useStudentProcessEvents(input: {
       window.removeEventListener("pointerdown", markActivity);
       window.removeEventListener("keydown", handleKeydown);
     };
-  }, [input.sessionPublicId, input.currentItemPublicId]);
+  }, [input.sessionPublicId, input.currentItemPublicId, input.enabled]);
 }

@@ -2,7 +2,15 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Loader2, LogOut, Play, RefreshCcw } from "lucide-react";
+import {
+  AlertTriangle,
+  Eye,
+  History,
+  Loader2,
+  LogOut,
+  Play,
+  RefreshCcw
+} from "lucide-react";
 import {
   endAssessmentAttempt,
   fetchAvailableAssessments,
@@ -83,12 +91,20 @@ function attemptCardSummary(assessment: AvailableAssessment) {
   return null;
 }
 
+function formatAttemptDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
 export function AvailableAssessmentsClient({ userId }: { userId: string }) {
   const router = useRouter();
   const [assessments, setAssessments] = useState<AvailableAssessment[]>([]);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [pendingAssessment, setPendingAssessment] = useState<string | null>(null);
+  const [expandedAttemptHistory, setExpandedAttemptHistory] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   async function loadAssessments() {
@@ -276,13 +292,16 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
             </div>
           ) : null}
 
-          <div className="grid gap-3">
+          <div className="grid min-w-0 gap-3">
             {assessments.map((assessment) => {
               const isBusy =
                 pendingAssessment === assessment.assessment_public_id || isPending;
               const isCompleted = assessment.availability_status === "completed";
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
               const canStartNew = assessment.can_start && !canOpen;
+              const recentAttempts = assessment.recent_reviewable_attempts;
+              const attemptHistoryOpen =
+                expandedAttemptHistory === assessment.assessment_public_id;
               const startLabel =
                 assessment.latest_terminal_attempt_number || assessment.latest_completed_attempt_number
                   ? "Start another attempt"
@@ -290,13 +309,15 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
 
               return (
                 <article
-                  className="rounded-lg border border-line bg-white p-4 shadow-soft"
+                  className="min-w-0 w-full rounded-lg border border-line bg-white p-4 shadow-soft"
                   key={assessment.assessment_public_id}
                 >
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-lg font-semibold text-ink">{assessment.title}</h2>
+                        <h2 className="min-w-0 break-words text-lg font-semibold text-ink [overflow-wrap:anywhere]">
+                          {assessment.title}
+                        </h2>
                         <span
                           className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${statusClass(assessment)}`}
                           aria-label={isCompleted ? "This assessment is completed" : undefined}
@@ -320,7 +341,25 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                         </p>
                       ) : null}
                     </div>
-                    <div className="flex shrink-0 flex-wrap gap-2">
+                    <div className="flex w-full flex-wrap gap-2 md:w-auto md:shrink-0 md:justify-end">
+                      {recentAttempts.length > 0 ? (
+                        <button
+                          aria-expanded={attemptHistoryOpen}
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+                          data-testid={`review-attempt-history-${assessment.assessment_public_id}`}
+                          onClick={() =>
+                            setExpandedAttemptHistory((current) =>
+                              current === assessment.assessment_public_id
+                                ? null
+                                : assessment.assessment_public_id
+                            )
+                          }
+                          type="button"
+                        >
+                          <History className="h-4 w-4" aria-hidden="true" />
+                          Review previous attempts
+                        </button>
+                      ) : null}
                       {canStartNew ? (
                         <button
                           className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -379,6 +418,47 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       ) : null}
                     </div>
                   </div>
+                  {attemptHistoryOpen && recentAttempts.length > 0 ? (
+                    <div
+                      className="mt-4 border-t border-line pt-3"
+                      data-testid={`attempt-history-${assessment.assessment_public_id}`}
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                        Recent attempts
+                      </p>
+                      <div className="mt-2 divide-y divide-line">
+                        {recentAttempts.map((attempt) => (
+                          <div
+                            className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                            key={attempt.session_public_id}
+                          >
+                            <div>
+                              <p className="text-sm font-semibold text-ink">
+                                Attempt {attempt.attempt_number}
+                              </p>
+                              <p className="mt-1 text-xs text-muted">
+                                {attempt.status === "completed" ? "Completed" : "Ended"}{" "}
+                                {formatAttemptDate(attempt.ended_at)}
+                              </p>
+                            </div>
+                            <button
+                              className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+                              data-testid={`review-attempt-${attempt.session_public_id}`}
+                              onClick={() =>
+                                router.push(
+                                  `/student/assessment/${attempt.session_public_id}?review=1`
+                                )
+                              }
+                              type="button"
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                              Review attempt
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                 </article>
               );
             })}

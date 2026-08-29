@@ -73,6 +73,17 @@ export const AvailableAssessmentSchema = StudentAssessmentSummarySchema.extend({
   latest_completed_attempt_number: z.number().nullable().optional(),
   latest_terminal_session_public_id: z.string().nullable().optional(),
   latest_terminal_attempt_number: z.number().nullable().optional(),
+  recent_reviewable_attempts: z
+    .array(
+      z.object({
+        session_public_id: z.string(),
+        attempt_number: z.number().int().positive(),
+        status: z.enum(["completed", "ended"]),
+        ended_at: z.string()
+      })
+    )
+    .max(3)
+    .default([]),
   attempt_policy: z
     .object({
       policy_version: z.string(),

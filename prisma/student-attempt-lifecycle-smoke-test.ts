@@ -4,6 +4,7 @@ import { normalizeUserId } from "../src/lib/services/student-accounts/validation
 import {
   endStudentAssessmentAttempt,
   exitStudentAssessmentSession,
+  getStudentSessionState,
   listAvailableAssessments,
   startOrResumeStudentAssessmentSession
 } from "../src/lib/services/student-assessment/service";
@@ -290,6 +291,20 @@ async function main() {
   assert(afterStudentEnd.can_resume === false, "Student-ended attempt should not be resumable.");
   assert(afterStudentEnd.can_start === true, "Student-ended attempt should permit a later start when policy allows.");
   assert(afterStudentEnd.latest_terminal_attempt_number === 1, "Latest terminal attempt should be recorded.");
+  assert(
+    afterStudentEnd.recent_reviewable_attempts.length === 1 &&
+      afterStudentEnd.recent_reviewable_attempts[0]?.session_public_id ===
+        first.session.session_public_id,
+    "Student-ended attempt should be available in read-only attempt history."
+  );
+  const historicalState = await getStudentSessionState({
+    student_user_db_id: student.id,
+    session_public_id: first.session.session_public_id
+  });
+  assert(
+    historicalState.attempt_lifecycle?.terminal === true,
+    "A student must be able to load their own terminal attempt for read-only review."
+  );
 
   const second = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,
@@ -412,6 +427,21 @@ async function main() {
   assert(teacherClosed.status === "attempt_ended_by_teacher", "Teacher close should terminalize the attempt.");
   assert(await eventCount(third.session.session_public_id, "attempt_ended_by_teacher") === 1, "attempt_ended_by_teacher event missing.");
   assert(await eventCount(third.session.session_public_id, "new_attempt_available") === 1, "new_attempt_available event missing.");
+
+  const afterThreeTerminalAttempts = await availabilityRow(
+    student.id,
+    assessment.assessment_public_id
+  );
+  assert(
+    afterThreeTerminalAttempts.recent_reviewable_attempts.length === 3,
+    "Attempt history should expose at most the three most recent terminal attempts."
+  );
+  assert(
+    afterThreeTerminalAttempts.recent_reviewable_attempts
+      .map((attempt) => attempt.attempt_number)
+      .join(",") === "3,2,1",
+    "Attempt history should be ordered from newest to oldest."
+  );
 
   const sessionCount = await prisma.assessmentSession.count({
     where: {

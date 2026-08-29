@@ -3,9 +3,11 @@ import { AssessmentSessionClient } from "@/components/student-assessment/assessm
 import { getCurrentUser } from "@/lib/auth";
 
 export default async function StudentAssessmentSessionPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ sessionPublicId: string }>;
+  searchParams: Promise<{ review?: string }>;
 }) {
   const user = await getCurrentUser();
 
@@ -22,6 +24,12 @@ export default async function StudentAssessmentSessionPage({
   }
 
   const { sessionPublicId } = await params;
+  const { review } = await searchParams;
 
-  return <AssessmentSessionClient sessionPublicId={sessionPublicId} />;
+  return (
+    <AssessmentSessionClient
+      readOnlyReview={review === "1"}
+      sessionPublicId={sessionPublicId}
+    />
+  );
 }

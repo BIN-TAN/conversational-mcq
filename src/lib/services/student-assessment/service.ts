@@ -35,6 +35,7 @@ import {
   planAttemptLifecycleReconciliation,
   resolveCanonicalAttemptLifecycle
 } from "@/lib/services/student-assessment/attempt-lifecycle";
+import { recentReviewableAttempts } from "@/lib/services/student-assessment/attempt-history";
 import {
   createCommittedLifecycleOperation,
   markLifecycleOperationPostCommitWarning,
@@ -2004,6 +2005,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
       latest_terminal_session_public_id: latestTerminalSession?.session_public_id ?? null,
       latest_terminal_attempt_number: latestTerminalSession?.attempt_number ?? null,
+      recent_reviewable_attempts: recentReviewableAttempts(sessions),
       attempt_policy: attemptPolicy,
       can_start:
         computed.can_start_new_session &&

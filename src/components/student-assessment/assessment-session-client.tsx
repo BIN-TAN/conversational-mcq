@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
+  ArrowLeft,
   Loader2,
   LogOut,
   MessageSquareText,
@@ -69,6 +70,8 @@ const IDK_OPTION_TEXT = "I don't know yet.";
 const STUDENT_FACING_TUTOR_LABEL = "Assessment Tutor";
 const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1";
 const DISPLAY_EVENT_CONTRACT_VERSION = "display-ack-v1";
+const FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000;
+const FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000;
 
 type FailedAction = {
   label: string;
@@ -280,9 +283,7 @@ function FormativeConversationBubble({
               >
                 {turn.assistant_response_status === "failed"
                   ? "Your message is saved, but the tutor has not responded."
-                  : turn.assistant_response_status === "retrying"
-                    ? "Trying the tutor response again..."
-                    : "Waiting for the tutor response..."}
+                  : "Your message is saved."}
               </p>
             ) : null}
           </>
@@ -356,9 +357,70 @@ export function FormativeOpeningStatus({
   );
 }
 
+function FormativeResponseWaitingStatus({
+  onReviewAnswers
+}: {
+  onReviewAnswers?: () => void;
+}) {
+  const [stage, setStage] = useState<"preparing" | "saved" | "delayed">(
+    "preparing"
+  );
+
+  useEffect(() => {
+    const savedTimer = window.setTimeout(
+      () => setStage("saved"),
+      FORMATIVE_RESPONSE_SAVED_NOTICE_MS
+    );
+    const delayedTimer = window.setTimeout(
+      () => setStage("delayed"),
+      FORMATIVE_RESPONSE_DELAY_NOTICE_MS
+    );
+
+    return () => {
+      window.clearTimeout(savedTimer);
+      window.clearTimeout(delayedTimer);
+    };
+  }, []);
+
+  const message =
+    stage === "preparing"
+      ? "Preparing a response..."
+      : stage === "saved"
+        ? "Still preparing a response. Your message is saved."
+        : "This is taking a little longer than usual. You can review your answers or earlier messages while you wait.";
+
+  return (
+    <div className="flex justify-start" data-testid="formative-conversation-response-pending">
+      <div
+        aria-live="polite"
+        className="max-w-[86%] rounded-2xl rounded-bl-md border border-line bg-white px-4 py-3 shadow-sm sm:max-w-[78%]"
+        role="status"
+      >
+        <p className="mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent">
+          {STUDENT_FACING_TUTOR_LABEL}
+        </p>
+        <div className="flex items-start gap-2 text-sm leading-6 text-muted">
+          <Loader2 className="mt-1 h-4 w-4 shrink-0 animate-spin" aria-hidden="true" />
+          <p>{message}</p>
+        </div>
+        {stage === "delayed" && onReviewAnswers ? (
+          <button
+            className="mt-3 inline-flex items-center rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent"
+            onClick={onReviewAnswers}
+            type="button"
+          >
+            Review your answers
+          </button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function FormativeConversationControls(input: {
   conversation: StudentFormativeConversation;
   draft: string;
+  isAwaitingTutorResponse: boolean;
   isBusy: boolean;
   isRetryingOpening: boolean;
   onBackspace: () => void;
@@ -368,10 +430,25 @@ function FormativeConversationControls(input: {
   onPause: () => void;
   onRetryOpening: () => void;
   onRetryResponse: () => void;
+  onReviewAnswers?: () => void;
   onResume: () => void;
   onSend: () => void;
 }) {
   const { conversation } = input;
+  const response = conversation.assistant_response;
+  const responseIsPending =
+    input.isAwaitingTutorResponse ||
+    response?.status === "pending" ||
+    response?.status === "retrying";
+
+  if (responseIsPending) {
+    return (
+      <FormativeResponseWaitingStatus
+        onReviewAnswers={input.onReviewAnswers}
+      />
+    );
+  }
+
   return (
     <section
       aria-label="Learning conversation controls"
@@ -418,9 +495,7 @@ function FormativeConversationControls(input: {
           ) : null}
         </div>
       </div>
-      {conversation.assistant_response ? (
-        conversation.assistant_response.status === "failed" &&
-        conversation.assistant_response.can_retry ? (
+      {response?.status === "failed" ? (
           <div
             className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2"
             data-testid="formative-conversation-response-retry"
@@ -428,29 +503,18 @@ function FormativeConversationControls(input: {
             <p className="text-sm text-amber-950">
               Your message is saved. The tutor could not respond just now.
             </p>
-            <button
-              className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
-              disabled={input.isBusy}
-              onClick={input.onRetryResponse}
-              type="button"
-            >
-              <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              Try tutor response again
-            </button>
+            {response.can_retry ? (
+              <button
+                className="inline-flex items-center gap-2 rounded-md border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
+                disabled={input.isBusy}
+                onClick={input.onRetryResponse}
+                type="button"
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                Try tutor response again
+              </button>
+            ) : null}
           </div>
-        ) : (
-          <p
-            aria-live="polite"
-            className="mt-4 flex items-center gap-2 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
-            data-testid="formative-conversation-response-pending"
-            role="status"
-          >
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {conversation.assistant_response.status === "retrying"
-              ? "Trying the tutor response again..."
-              : "Waiting for the tutor response..."}
-          </p>
-        )
       ) : conversation.can_send ? (
         <div className="mt-4 flex items-end gap-2">
           <label className="flex-1">
@@ -1879,12 +1943,16 @@ function PackageResultsChatCard({
 function StudentAssessmentChatShell({
   state,
   isBusy,
+  readOnlyReview,
+  onBackToAssessments,
   onExit,
   onEndAttempt,
   children
 }: {
   state: StudentSessionState;
   isBusy: boolean;
+  readOnlyReview: boolean;
+  onBackToAssessments: () => void;
   onExit: () => void;
   onEndAttempt: () => void;
   children: React.ReactNode;
@@ -1900,29 +1968,47 @@ function StudentAssessmentChatShell({
             {state.assessment.title}
           </p>
           <h1 className="mt-1 text-lg font-semibold text-ink">
-            {state.current_concept_unit?.title ?? "Assessment"}
+            {readOnlyReview
+              ? state.session?.attempt_number
+                ? `Attempt ${state.session.attempt_number} review`
+                : "Past attempt review"
+              : state.current_concept_unit?.title ?? "Assessment"}
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
-            data-testid="save-exit"
-            disabled={isBusy || !state.can_exit}
-            onClick={onExit}
-            type="button"
-          >
-            <LogOut className="h-4 w-4" aria-hidden="true" />
-            Pause and leave
-          </button>
-          <button
-            className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-            data-testid="end-attempt"
-            disabled={isBusy || !state.can_end_attempt}
-            onClick={onEndAttempt}
-            type="button"
-          >
-            End attempt
-          </button>
+          {readOnlyReview ? (
+            <button
+              className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent"
+              data-testid="back-to-assessments"
+              onClick={onBackToAssessments}
+              type="button"
+            >
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+              Back to assessments
+            </button>
+          ) : (
+            <>
+              <button
+                className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="save-exit"
+                disabled={isBusy || !state.can_exit}
+                onClick={onExit}
+                type="button"
+              >
+                <LogOut className="h-4 w-4" aria-hidden="true" />
+                Pause and leave
+              </button>
+              <button
+                className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="end-attempt"
+                disabled={isBusy || !state.can_end_attempt}
+                onClick={onEndAttempt}
+                type="button"
+              >
+                End attempt
+              </button>
+            </>
+          )}
         </div>
       </header>
       {children}
@@ -2309,10 +2395,12 @@ function activeItemPrompt(input: {
 export function AssessmentSessionClient({
   assessmentPublicId,
   initialSessionPublicId,
+  readOnlyReview = false,
   sessionPublicId
 }: {
   assessmentPublicId?: string;
   initialSessionPublicId?: string;
+  readOnlyReview?: boolean;
   sessionPublicId?: string;
 }) {
   const router = useRouter();
@@ -2325,6 +2413,8 @@ export function AssessmentSessionClient({
   const [isBusy, setIsBusy] = useState(false);
   const [isCompletingPackage, setIsCompletingPackage] = useState(false);
   const [isRetryingOpening, setIsRetryingOpening] = useState(false);
+  const [isAwaitingFormativeTutorResponse, setIsAwaitingFormativeTutorResponse] =
+    useState(false);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
   const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
   const [reasoningDraft, setReasoningDraft] = useState("");
@@ -2341,6 +2431,7 @@ export function AssessmentSessionClient({
     useState(false);
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const packageResultsRef = useRef<HTMLDivElement | null>(null);
   const displayAcknowledgementRef = useRef<Set<string>>(new Set());
   const formativeMessageIdRef = useRef<string | null>(null);
   const formativeTypingStartedAtRef = useRef<Date | null>(null);
@@ -2356,11 +2447,12 @@ export function AssessmentSessionClient({
 
   useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
-    currentItemPublicId: state?.current_item?.item_public_id
+    currentItemPublicId: state?.current_item?.item_public_id,
+    enabled: !readOnlyReview
   });
 
   useEffect(() => {
-    if (!activeSessionPublicId || !formativeConversationPublicId) {
+    if (readOnlyReview || !activeSessionPublicId || !formativeConversationPublicId) {
       return;
     }
     formativeClientInstanceIdRef.current ??=
@@ -2419,7 +2511,8 @@ export function AssessmentSessionClient({
     };
   }, [
     activeSessionPublicId,
-    formativeConversationPublicId
+    formativeConversationPublicId,
+    readOnlyReview
   ]);
 
   async function refreshSecondaryData(sessionPublicId: string) {
@@ -2482,6 +2575,7 @@ export function AssessmentSessionClient({
     const submittedAt = new Date();
     const typingStartedAt = formativeTypingStartedAtRef.current;
     setIsBusy(true);
+    setIsAwaitingFormativeTutorResponse(true);
     setError(null);
     setFailedAction(null);
     try {
@@ -2524,6 +2618,7 @@ export function AssessmentSessionClient({
         void handleSendFormativeConversationMessage();
       });
     } finally {
+      setIsAwaitingFormativeTutorResponse(false);
       setIsBusy(false);
     }
   }
@@ -2570,6 +2665,7 @@ export function AssessmentSessionClient({
       return;
     }
     setIsBusy(true);
+    setIsAwaitingFormativeTutorResponse(true);
     setError(null);
     setFailedAction(null);
     try {
@@ -2590,6 +2686,7 @@ export function AssessmentSessionClient({
         void handleRetryFormativeConversationResponse();
       });
     } finally {
+      setIsAwaitingFormativeTutorResponse(false);
       setIsBusy(false);
     }
   }
@@ -2692,12 +2789,17 @@ export function AssessmentSessionClient({
     return () => {
       mounted = false;
     };
-  }, [assessmentPublicId, resolvedInitialSessionPublicId]);
+  }, [assessmentPublicId, readOnlyReview, resolvedInitialSessionPublicId]);
 
   useEffect(() => {
+    if (readOnlyReview) {
+      return;
+    }
     scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [
     isCompletingPackage,
+    isAwaitingFormativeTutorResponse,
+    readOnlyReview,
     transcript.length,
     state?.assessment_state,
     state?.current_item?.item_public_id
@@ -2721,6 +2823,7 @@ export function AssessmentSessionClient({
 
   useEffect(() => {
     if (
+      readOnlyReview ||
       !state ||
       state.assessment_state !== "FORMATIVE_ACTIVITY" ||
       state.formative_conversation
@@ -2810,6 +2913,7 @@ export function AssessmentSessionClient({
     state?.canonical_runtime_state,
     state?.current_concept_unit?.concept_unit_public_id,
     state?.next_step,
+    readOnlyReview,
     state,
     state?.session_public_id
   ]);
@@ -3471,10 +3575,13 @@ export function AssessmentSessionClient({
     );
   }
 
-  const activePrompt = state.formative_conversation ? (
+  const isReviewablePastAttempt =
+    readOnlyReview && state.attempt_lifecycle?.terminal === true;
+  const activePrompt = readOnlyReview ? null : state.formative_conversation ? (
     <FormativeConversationControls
       conversation={state.formative_conversation}
       draft={formativeConversationDraft}
+      isAwaitingTutorResponse={isAwaitingFormativeTutorResponse}
       isBusy={isBusy}
       isRetryingOpening={isRetryingOpening}
       onBackspace={() => {
@@ -3490,6 +3597,15 @@ export function AssessmentSessionClient({
       onPause={() => void handleFormativeConversationLifecycle("pause")}
       onRetryOpening={() => void handleRetryFormativeConversationOpening()}
       onRetryResponse={() => void handleRetryFormativeConversationResponse()}
+      onReviewAnswers={
+        state.package_results
+          ? () =>
+              packageResultsRef.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "start"
+              })
+          : undefined
+      }
       onResume={() => void handleFormativeConversationLifecycle("resume")}
       onSend={() => void handleSendFormativeConversationMessage()}
     />
@@ -3547,7 +3663,9 @@ export function AssessmentSessionClient({
       !formativeTurnIds.has(entry.turn_id) &&
       !shouldHideActiveAgentTranscriptEntry(entry, state)
   );
-  const showPackageResults = shouldShowLearningProfile(state) && Boolean(state.package_results);
+  const showPackageResults =
+    (isReviewablePastAttempt || shouldShowLearningProfile(state)) &&
+    Boolean(state.package_results);
   const {
     beforePackageResults,
     afterPackageResults
@@ -3556,14 +3674,30 @@ export function AssessmentSessionClient({
   return (
     <StudentAssessmentChatShell
       isBusy={isBusy}
+      onBackToAssessments={() => router.push("/student/assessment")}
       onEndAttempt={() => void handleEndAttempt()}
       onExit={() => void handleExit()}
+      readOnlyReview={readOnlyReview}
       state={state}
     >
       <div className="flex flex-1">
         <ChatTranscript>
           <ErrorNotice error={error} />
-          {failedAction ? (
+          {readOnlyReview ? (
+            <AgentMessage>
+              <p className="font-medium text-ink">
+                {isReviewablePastAttempt
+                  ? "Past attempt review"
+                  : "This attempt is not available as a past attempt."}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted">
+                {isReviewablePastAttempt
+                  ? "This is a read-only view. You can look back through your answers and learning conversation."
+                  : "Return to assessments to resume or manage this attempt."}
+              </p>
+            </AgentMessage>
+          ) : null}
+          {!readOnlyReview && failedAction ? (
             <button
               className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
               data-testid="retry-save-action"
@@ -3578,7 +3712,9 @@ export function AssessmentSessionClient({
             <ChatBubble entry={entry} key={entry.turn_id} />
           ))}
           {showPackageResults ? (
-            <PackageResultsChatCard packageResults={state.package_results} />
+            <div ref={packageResultsRef}>
+              <PackageResultsChatCard packageResults={state.package_results} />
+            </div>
           ) : null}
           {afterPackageResults.map((entry) => (
             <ChatBubble entry={entry} key={entry.turn_id} />
@@ -3587,9 +3723,11 @@ export function AssessmentSessionClient({
             <FormativeConversationBubble key={turn.turn_id} turn={turn} />
           ))}
           {activePrompt}
-          {isBusy &&
+          {!readOnlyReview &&
+          isBusy &&
           !isCompletingPackage &&
-          !isRetryingOpening ? (
+          !isRetryingOpening &&
+          !isAwaitingFormativeTutorResponse ? (
             <div className="flex justify-start">
               <div className="rounded-full border border-line bg-white px-4 py-2 text-sm text-muted shadow-sm">
                 <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" />
@@ -3600,7 +3738,7 @@ export function AssessmentSessionClient({
           <div ref={scrollRef} />
         </ChatTranscript>
       </div>
-      {endConversationDialogOpen ? (
+      {!readOnlyReview && endConversationDialogOpen ? (
         <div
           aria-labelledby="end-conversation-dialog-title"
           aria-modal="true"
@@ -3644,7 +3782,7 @@ export function AssessmentSessionClient({
           </div>
         </div>
       ) : null}
-      {endAssessmentDialogOpen ? (
+      {!readOnlyReview && endAssessmentDialogOpen ? (
         <div
           aria-labelledby="end-assessment-dialog-title"
           aria-modal="true"
@@ -3681,7 +3819,7 @@ export function AssessmentSessionClient({
           </div>
         </div>
       ) : null}
-      {currentItem ? (
+      {!readOnlyReview && currentItem ? (
         <p className="sr-only" aria-live="polite">
           Current question {currentItem.item_order}
         </p>
