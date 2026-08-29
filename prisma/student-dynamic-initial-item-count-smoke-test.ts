@@ -57,6 +57,7 @@ async function cleanup(prefix: string) {
   await prisma.workflowJob.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.workflowOverride.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.studentActionIdempotencyKey.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
+  await prisma.assessmentLifecycleOperation.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.processEvent.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.conversationTurn.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
@@ -264,7 +265,7 @@ async function main() {
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
   const prefix = `dynamic_initial_count_${Date.now()}_${randomUUID().slice(0, 8)}`;
-  await cleanup(prefix);
+  await cleanup("dynamic_initial_count_");
 
   try {
     const teacher = await createTeacher(prefix);

@@ -46,6 +46,31 @@ function safeJson(value: unknown): unknown {
   return stripInternalKeys(value);
 }
 
+export function projectConceptAdministrationRulesForProfiling(value: unknown): unknown {
+  const rules = asRecord(safeJson(value));
+  const blueprint = asRecord(rules.item_design_blueprint);
+  if (Object.keys(blueprint).length === 0) return rules;
+  const generationSettings = asRecord(blueprint.generation_settings);
+
+  return {
+    ...rules,
+    item_design_blueprint: {
+      schema_version: blueprint.schema_version,
+      section_topic: blueprint.section_topic,
+      section_summary: blueprint.section_summary,
+      objectives: Array.isArray(blueprint.objectives) ? safeJson(blueprint.objectives) : [],
+      misconception_hypotheses: Array.isArray(blueprint.misconception_hypotheses)
+        ? safeJson(blueprint.misconception_hypotheses)
+        : [],
+      generation_settings: {
+        target_item_count: generationSettings.target_item_count,
+        option_count: generationSettings.option_count,
+        difficulty_mix: generationSettings.difficulty_mix
+      }
+    }
+  };
+}
+
 function countByEventType(events: Array<{ event_type: string }>) {
   return events.reduce<Record<string, number>>((counts, event) => {
     counts[event.event_type] = (counts[event.event_type] ?? 0) + 1;
@@ -345,7 +370,9 @@ export async function buildInitialStudentProfilingInput(
         learning_objective: conceptUnitSession.concept_unit.learning_objective,
         related_concept_description:
           conceptUnitSession.concept_unit.related_concept_description,
-        administration_rules: safeJson(conceptUnitSession.concept_unit.administration_rules),
+        administration_rules: projectConceptAdministrationRulesForProfiling(
+          conceptUnitSession.concept_unit.administration_rules
+        ),
         order_index: conceptUnitSession.concept_unit.order_index,
         version: conceptUnitSession.concept_unit.version,
         initial_started_at: isoDate(conceptUnitSession.initial_started_at),

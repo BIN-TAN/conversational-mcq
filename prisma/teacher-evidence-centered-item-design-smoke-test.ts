@@ -1,0 +1,151 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import {
+  ITEM_DESIGN_BLUEPRINT_VERSION,
+  ITEM_GENERATION_SCHEMA_VERSION,
+  ItemDesignBlueprintSchema,
+  validateGeneratedItemSet
+} from "../src/lib/services/content/item-design-contract";
+import {
+  ITEM_GENERATION_INSTRUCTIONS,
+  itemDesignBlueprintHash
+} from "../src/lib/services/content/item-design";
+import { projectConceptAdministrationRulesForProfiling } from "../src/lib/agents/student-profiling/input-builder";
+
+const blueprint = ItemDesignBlueprintSchema.parse({
+  schema_version: ITEM_DESIGN_BLUEPRINT_VERSION,
+  section_topic: "Sampling bias",
+  section_summary: "How sampling choices affect generalization.",
+  objectives: [{
+    objective_id: "objective_sampling",
+    statement: "Explain how self-selection can limit generalization.",
+    evidence_requirements: ["Identifies a systematic difference between volunteers and the target population."]
+  }],
+  misconception_hypotheses: [{
+    misconception_id: "misconception_volunteer_representative",
+    statement: "A volunteer sample represents everyone because anyone could participate.",
+    linked_objective_ids: ["objective_sampling"],
+    student_language_examples: ["Anyone had the same chance to volunteer."],
+    why_plausible: "Availability can be confused with representative selection."
+  }],
+  exemplar_items: [],
+  generation_settings: {
+    target_item_count: 3,
+    option_count: 4,
+    difficulty_mix: ["foundational", "application", "reasoning"],
+    context_notes: null
+  }
+});
+
+function candidate(index: number) {
+  return {
+    item_label: `Sampling ${index}`,
+    stem: `A volunteer sample scenario ${index}. Which interpretation is best supported?`,
+    options: [
+      { label: "A", text: "The sample is representative because participation was open.", rationale: "Confuses access with representativeness.", linked_misconception_ids: ["misconception_volunteer_representative"] },
+      { label: "B", text: "Self-selection may create systematic differences.", rationale: "Matches the target reasoning.", linked_misconception_ids: [] },
+      { label: "C", text: "Sample size alone removes selection bias.", rationale: "Confuses precision with selection quality.", linked_misconception_ids: [] },
+      { label: "D", text: "No conclusion can ever be drawn from a survey.", rationale: "Overstates the limitation.", linked_misconception_ids: [] }
+    ],
+    proposed_correct_option: "B",
+    correct_answer_explanation: "Volunteers may differ systematically from the target population.",
+    objective_ids: ["objective_sampling"],
+    misconception_hypothesis_ids: ["misconception_volunteer_representative"],
+    target_reasoning_note: "Connect self-selection to limited generalization.",
+    strong_reasoning_should_mention: "Volunteers can differ systematically from non-volunteers.",
+    cognitive_demand: "apply" as const,
+    difficulty: "application" as const,
+    limitations: []
+  };
+}
+
+const validOutput = {
+  schema_version: ITEM_GENERATION_SCHEMA_VERSION,
+  blueprint_version: ITEM_DESIGN_BLUEPRINT_VERSION,
+  candidates: [candidate(1), candidate(2), candidate(3)],
+  coverage_summary: [{ objective_id: "objective_sampling", candidate_count: 3 }],
+  set_level_limitations: [],
+  teacher_review_required: true as const
+};
+
+assert.equal(validateGeneratedItemSet({ blueprint, output: validOutput }).success, true);
+assert.equal(
+  validateGeneratedItemSet({
+    blueprint,
+    output: { ...validOutput, candidates: [candidate(1), candidate(2)] }
+  }).success,
+  false,
+  "Candidate count must remain bound to the saved blueprint."
+);
+assert.equal(
+  validateGeneratedItemSet({
+    blueprint,
+    output: {
+      ...validOutput,
+      candidates: [
+        { ...candidate(1), objective_ids: ["invented_objective"] },
+        candidate(2),
+        candidate(3)
+      ]
+    }
+  }).success,
+  false,
+  "Generated items must not invent objective identities."
+);
+assert.equal(
+  validateGeneratedItemSet({
+    blueprint,
+    output: {
+      ...validOutput,
+      candidates: [
+        { ...candidate(1), misconception_hypothesis_ids: [], options: candidate(1).options.map((option) => ({ ...option, linked_misconception_ids: [] })) },
+        { ...candidate(2), misconception_hypothesis_ids: [], options: candidate(2).options.map((option) => ({ ...option, linked_misconception_ids: [] })) },
+        { ...candidate(3), misconception_hypothesis_ids: [], options: candidate(3).options.map((option) => ({ ...option, linked_misconception_ids: [] })) }
+      ]
+    }
+  }).success,
+  false,
+  "A supplied misconception hypothesis must be represented in the generated set."
+);
+assert.equal(itemDesignBlueprintHash(blueprint), itemDesignBlueprintHash(structuredClone(blueprint)));
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /draft MCQ candidates/);
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /teacher review/);
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /Do not treat .* as established fact/);
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /cover every objective and every supplied misconception hypothesis/);
+
+const root = process.cwd();
+const detailSource = readFileSync(path.join(root, "src/components/teacher-content/assessment-detail-client.tsx"), "utf8");
+const designSource = readFileSync(path.join(root, "src/components/teacher-content/item-design-client.tsx"), "utf8");
+const reviewSource = readFileSync(path.join(root, "src/components/teacher-content/mcq-import-client.tsx"), "utf8");
+const studentSource = readFileSync(path.join(root, "src/components/student-assessment/assessment-session-client.tsx"), "utf8");
+
+assert.match(detailSource, /Design and generate/);
+assert.match(designSource, /What observable evidence would demonstrate this\?/);
+assert.match(designSource, /Generated items remain draft candidates/);
+assert.match(reviewSource, /Review generated item drafts/);
+assert.match(reviewSource, /teacher-confirmed key/i);
+assert.match(studentSource, /remaining after this/);
+
+const profilingRules = projectConceptAdministrationRulesForProfiling({
+  item_design_blueprint: {
+    ...blueprint,
+    exemplar_items: [{
+      exemplar_id: "private_exam_item",
+      item_text: "Unadministered exam question and answer key B.",
+      observed_difficulty_note: "Teacher-only historical note."
+    }],
+    generation_settings: {
+      ...blueprint.generation_settings,
+      context_notes: "Generation-only course boundary."
+    }
+  }
+});
+const profilingRulesText = JSON.stringify(profilingRules);
+assert.match(profilingRulesText, /objective_sampling/);
+assert.match(profilingRulesText, /misconception_volunteer_representative/);
+assert.doesNotMatch(profilingRulesText, /Unadministered exam question/);
+assert.doesNotMatch(profilingRulesText, /Teacher-only historical note/);
+assert.doesNotMatch(profilingRulesText, /Generation-only course boundary/);
+
+console.log("teacher evidence-centered item design smoke passed");

@@ -755,7 +755,10 @@ function AgentItemMessage({
 }) {
   const initialItemLabel =
     item.initial_item_position && item.initial_item_total
-      ? `Item ${item.initial_item_position} of ${item.initial_item_total}`
+      ? `Item ${item.initial_item_position} of ${item.initial_item_total} - ${Math.max(
+          item.initial_item_total - item.initial_item_position,
+          0
+        )} remaining after this`
       : `Item ${item.item_order}`;
   const answerPrompt = buildInitialAdminPrompt({
     kind: "answer_prompt",

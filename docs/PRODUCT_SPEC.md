@@ -104,6 +104,22 @@ The MVP should support:
 
 Teacher-prepared item upload can be added later. The data model should remain compatible with imported or teacher-authored item sets.
 
+## Evidence-Centered Teacher Authoring
+
+Assessment management includes one evidence-centered item-design workflow inside each mini test. A teacher defines the section/topic, one or more learning objectives, observable evidence requirements, optional misconception hypotheses, and optional exemplar items. Misconceptions are design hypotheses to probe, not facts assigned to students. Historical item difficulty or a high wrong-answer rate is not sufficient by itself to establish a misconception.
+
+The item authoring assistant may use that saved blueprint to generate draft MCQ candidates. Generated keys remain proposals. Generated candidates must enter the same teacher review flow as imported items: the teacher reviews and edits the stem and options, confirms the answer key, reviews reasoning and distractor notes, selects candidates, and imports them as drafts. The assistant cannot publish, include, or administer an item automatically.
+
+This workflow implements the evidence-centered sequence:
+
+- claims: section/topic and learning objectives;
+- evidence: observable reasoning requirements and misconception-linked response patterns;
+- tasks: teacher-reviewed MCQ candidates designed to elicit that evidence;
+- assembly: teacher selection across objectives, reasoning demand, and difficulty;
+- interpretation: item-level evidence retained beneath an objective- and section-level profile.
+
+Six to nine included items is the recommended authoring starting point, not a psychometric requirement. The current validated runtime supports three to twelve included items and shows the student the current item, total item count, and number remaining. No fixed number of items proves or disproves a misconception.
+
 ## Phase 30a Framing Boundary
 
 The main research construct is now the **misconception diagnosis profile**, not a general ability profile. Engagement/process data should be interpreted as evidence-quality context that qualifies the confidence of a diagnosis. Formative value language remains in code for compatibility, but the dissertation framing is a four-purpose distractor-informed diagnostic taxonomy:

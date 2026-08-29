@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { CheckCircle, FileDown, FileUp, RefreshCw, Sparkles, Upload } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
@@ -98,7 +98,13 @@ function statusTone(status: string) {
   return "border-red-200 bg-red-50 text-red-800";
 }
 
-export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: string }) {
+export function McqImportClient({
+  assessmentPublicId,
+  initialBatchPublicId = null
+}: {
+  assessmentPublicId: string;
+  initialBatchPublicId?: string | null;
+}) {
   const [sourceType, setSourceType] = useState<SourceType>("csv");
   const [sourceText, setSourceText] = useState("");
   const [sourceFile, setSourceFile] = useState<File | null>(null);
@@ -112,6 +118,23 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
     () => batch?.candidates.filter((candidate) => candidate.import_selected).length ?? 0,
     [batch]
   );
+  const generatedBatch = batch?.source_type === "generated_evidence_blueprint";
+
+  useEffect(() => {
+    if (!initialBatchPublicId) return;
+    let active = true;
+    setBusyAction("reload");
+    void apiRequest<McqImportBatchResponse>(
+      `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${initialBatchPublicId}`
+    ).then((data) => {
+      if (active) setBatch(data.batch);
+    }).catch((caught) => {
+      if (active) setError(errorFromUnknown(caught));
+    }).finally(() => {
+      if (active) setBusyAction(null);
+    });
+    return () => { active = false; };
+  }, [assessmentPublicId, initialBatchPublicId]);
 
   function candidateUpdatePayload(candidate: McqImportCandidate) {
     return {
@@ -328,7 +351,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Import MCQ items"
+        title={generatedBatch ? "Review generated item drafts" : "Import MCQ items"}
         actions={
           <>
             <a
@@ -348,7 +371,7 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
       <ErrorPanel error={error} />
       <SuccessPanel message={success} />
 
-      <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
+      {!generatedBatch ? <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
         <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
           <Field label="Source type">
             <select
@@ -417,13 +440,17 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
             Missing fields remain blank. Import creates draft items only.
           </p>
         </div>
-      </form>
+      </form> : (
+        <section className="border-y border-line bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
+          These are AI-generated draft candidates from your saved assessment design. Review the wording and distractors, confirm every answer key, and deselect any item you do not want before importing drafts.
+        </section>
+      )}
 
       {batch ? (
         <section className="space-y-4 rounded-lg border border-line bg-white p-5 shadow-soft">
           <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-ink">Import preview</h2>
+              <h2 className="text-xl font-semibold text-ink">{generatedBatch ? "Draft review" : "Import preview"}</h2>
               <p className="mt-1 text-sm text-muted">
                 {batch.candidate_count} candidates. {selectedCount} selected. Batch {batch.batch_public_id}.
               </p>
@@ -582,18 +609,18 @@ export function McqImportClient({ assessmentPublicId }: { assessmentPublicId: st
                       </Field>
                       <div className="flex items-end">
                         <Button
-                          disabled={!candidate.imported_key}
+                          disabled={!candidate.imported_key && !candidate.llm_suggested_key}
                           onClick={() =>
                             updateCandidate(candidate.candidate_public_id, (entry) => ({
                               ...entry,
-                              teacher_confirmed_key: entry.imported_key
+                              teacher_confirmed_key: entry.imported_key ?? entry.llm_suggested_key
                             }))
                           }
                           type="button"
                           variant="secondary"
                         >
                           <CheckCircle className="h-4 w-4" aria-hidden="true" />
-                          Confirm imported key
+                          {candidate.imported_key ? "Confirm imported key" : "Use proposed key"}
                         </Button>
                       </div>
                     </div>

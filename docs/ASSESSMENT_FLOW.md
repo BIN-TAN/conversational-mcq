@@ -8,6 +8,8 @@ Phase 30a reframes the purpose of the flow as distractor-informed misconception 
 
 ## Initial Item Administration
 
+Current teacher-authored mini tests administer the complete included item set for the section. The validated set size is three to twelve items; six to nine is the recommended authoring starting point. The fixed three-item language below documents the original MVP fixture rather than a requirement that every misconception receive exactly three items. The student UI shows `Item X of N` and the number remaining.
+
 For each of the first three items:
 
 1. Present item stem and options in chat.

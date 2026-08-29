@@ -1051,6 +1051,25 @@ input/output audit data. The teacher-facing candidate payload receives only the
 structured, validated suggestion plus safe metadata; unrestricted raw provider
 output stays in the server audit layer.
 
+Evidence-centered item design is stored as a versioned
+`item_design_blueprint` inside the primary topic's administration rules. The
+blueprint records section/topic, teacher-authored objectives, observable
+evidence requirements, misconception hypotheses, student-language examples,
+optional exemplar items, and generation settings. Provider-backed draft
+generation uses `mcq_diagnostic_authoring_assistant_agent` with the distinct
+`evidence-centered-mcq-generation-v1` prompt and stores a redacted `agent_calls`
+record. Generated drafts are materialized as an
+`McqItemImportBatch(source_type=generated_evidence_blueprint)` so the existing
+candidate review, key confirmation, duplicate checking, provenance, and draft
+import controls remain authoritative. Generated answer keys are suggestions
+until the teacher explicitly confirms them.
+
+Teacher-pasted exemplar item text and generation-only context notes remain in
+the authoring record but are excluded from the student-profiling provider
+projection. Profiling retains the section, objectives, evidence requirements,
+and misconception hypotheses needed to interpret administered student evidence
+without exposing unadministered exemplar content.
+
 Imported item rows remain draft `items`. Each imported item stores safe import
 provenance under `items.administration_rules.import_provenance`, including batch
 public ID, source type, source checksum, source location, original-source hash,

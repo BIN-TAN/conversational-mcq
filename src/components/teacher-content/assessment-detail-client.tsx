@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Trash2, Upload } from "lucide-react";
+import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   AssessmentDeletionMode,
@@ -294,6 +294,7 @@ export function AssessmentDetailClient({
   const minimumRequiredItems = 3;
   const addItemHref = `/teacher/content/assessments/${assessmentPublicId}/items/new`;
   const importItemsHref = `/teacher/content/assessments/${assessmentPublicId}/import-mcq`;
+  const designItemsHref = `/teacher/content/assessments/${assessmentPublicId}/item-design`;
 
   function optionCount(value: unknown) {
     return Array.isArray(value) ? value.length : 0;
@@ -310,6 +311,12 @@ export function AssessmentDetailClient({
         title={assessment?.title ?? "Assessment detail"}
         actions={
           <>
+            {isDraftEditable ? (
+              <PrimaryLink href={designItemsHref}>
+                <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                Design and generate
+              </PrimaryLink>
+            ) : null}
             {isDraftEditable ? (
               <PrimaryLink href={addItemHref}>
                 <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -466,21 +473,25 @@ export function AssessmentDetailClient({
                 <div>
                   <h2 className="text-xl font-semibold text-ink">MCQ items</h2>
                   <p className="mt-1 text-sm text-muted">
-                    Add the MCQ items students will answer in this mini test.
+                    Design, generate, import, or manually add the MCQ items students will answer.
                   </p>
                   <div className="mt-3 space-y-1 text-sm">
                     <p className="font-medium text-ink">
-                      {includedMiniTestItems.length} of {minimumRequiredItems} required MCQ items added.
+                      {includedMiniTestItems.length} included MCQ {includedMiniTestItems.length === 1 ? "item" : "items"}.
                     </p>
                     <p className="text-muted">
                       {includedMiniTestItems.length >= minimumRequiredItems
-                        ? "Minimum item requirement met."
+                        ? `Minimum of ${minimumRequiredItems} met. Choose the final count based on the section evidence you need.`
                         : "Add more included MCQ items before publishing."}{" "}
                       This count is a structural authoring check, not a claim that the mini test is pedagogically valid.
                     </p>
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  <PrimaryLink href={designItemsHref}>
+                    <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Design and generate
+                  </PrimaryLink>
                   <PrimaryLink href={addItemHref}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                     Add MCQ item
@@ -542,6 +553,10 @@ export function AssessmentDetailClient({
               )}
               <div className="mt-5 border-t border-line pt-4">
                 <div className="flex flex-wrap gap-2">
+                  <PrimaryLink href={designItemsHref}>
+                    <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                    Design and generate
+                  </PrimaryLink>
                   <PrimaryLink href={addItemHref}>
                     <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
                     Add another MCQ item

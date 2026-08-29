@@ -1477,6 +1477,112 @@ export async function getMcqItemImportBatch(input: {
   };
 }
 
+export async function createGeneratedMcqReviewBatch(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+  source_checksum: string;
+  source_metadata: Record<string, unknown>;
+  candidates: Array<{
+    item_label: string;
+    stem: string;
+    options: Array<{ label: string; text: string; rationale: string }>;
+    proposed_correct_option: string;
+    correct_answer_explanation: string;
+    target_reasoning_note: string;
+    strong_reasoning_should_mention: string;
+    objective_ids: string[];
+    misconception_hypothesis_ids: string[];
+    cognitive_demand: string;
+    difficulty: string;
+    limitations: string[];
+  }>;
+  generation_metadata: Record<string, unknown>;
+}) {
+  const assessment = await assertAssessmentEditable(input);
+  const existing = await prisma.mcqItemImportBatch.findFirst({
+    where: {
+      assessment_db_id: assessment.id,
+      source_type: "generated_evidence_blueprint",
+      source_checksum: input.source_checksum
+    },
+    orderBy: { created_at: "desc" }
+  });
+  if (existing) return { batch: serializeBatch(existing), replayed: true };
+
+  const candidates = input.candidates.map((generated, index) => {
+    const distractorNotes = generated.options
+      .filter((option) => option.label !== generated.proposed_correct_option)
+      .map((option) => `${option.label}: ${option.rationale}`)
+      .join("\n");
+    const candidate = candidateFromDraft({
+      item_label: generated.item_label,
+      stem: generated.stem,
+      options: generated.options.map(({ label, text }) => ({ label, text })),
+      imported_key: null,
+      target_reasoning_note: generated.target_reasoning_note,
+      strong_reasoning_should_mention: generated.strong_reasoning_should_mention,
+      distractor_diagnostic_notes: distractorNotes || null,
+      media_assets: [],
+      original_source_text: `AI-generated draft ${index + 1} from the saved evidence blueprint.`,
+      source_location: `Generated draft ${index + 1}`,
+      source_line_range: null,
+      source_metadata: {
+        ...input.source_metadata,
+        objective_ids: generated.objective_ids,
+        misconception_hypothesis_ids: generated.misconception_hypothesis_ids,
+        cognitive_demand: generated.cognitive_demand,
+        difficulty: generated.difficulty
+      },
+      parsing_confidence: 1,
+      issue_flags: ["teacher_confirmed_key_required"]
+    }, index);
+
+    return {
+      ...candidate,
+      llm_suggested_key: generated.proposed_correct_option,
+      status: "needs_key" as const,
+      suggestion_status: "pending_teacher_review" as const,
+      suggestion: {
+        suggested_key: generated.proposed_correct_option,
+        suggested_target_reasoning_note: generated.target_reasoning_note,
+        suggested_strong_reasoning_should_mention: generated.strong_reasoning_should_mention,
+        suggested_plain_language_distractor_notes: distractorNotes || null,
+        evidence_justification_summary: generated.correct_answer_explanation,
+        limitations: generated.limitations,
+        reviewer_warning: "Teacher review required before import."
+      }
+    };
+  });
+
+  await applyDuplicateWarnings(candidates, {
+    teacher_user_db_id: input.teacher_user_db_id,
+    assessment_db_id: assessment.id
+  });
+  const summary = validationSummary(candidates, [
+    "AI-generated drafts require teacher review, key confirmation, and item verification before publication."
+  ]);
+  const batch = await prisma.mcqItemImportBatch.create({
+    data: {
+      batch_public_id: generatePublicId("mcq_import_batch"),
+      assessment_db_id: assessment.id,
+      uploaded_by_user_db_id: input.teacher_user_db_id,
+      source_type: "generated_evidence_blueprint",
+      source_file_name: null,
+      source_checksum: input.source_checksum,
+      status: "previewed",
+      candidate_count: candidates.length,
+      key_missing_count: candidates.length,
+      llm_suggestion_count: candidates.length,
+      duplicate_count: candidates.filter((candidate) => candidate.issue_flags.includes("possible_duplicate")).length,
+      validation_summary: toRequiredPrismaJson(summary),
+      candidates_payload: toRequiredPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates }),
+      suggestion_payload: toRequiredPrismaJson(input.generation_metadata)
+    }
+  });
+
+  return { batch: serializeBatch(batch), replayed: false };
+}
+
 type McqDiagnosticProviderOverride = {
   provider: LlmProvider;
   model_config?: AgentModelConfig;
