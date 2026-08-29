@@ -1584,6 +1584,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:seed": "tsx prisma/seed.ts",
     "student:teacher-student-account-smoke": "tsx prisma/teacher-student-account-smoke-test.ts",
+    "student:teacher-student-password-reset-ui-smoke": "tsx prisma/teacher-student-password-reset-ui-smoke-test.ts",
     "student:teacher-student-deletion-smoke": "tsx prisma/teacher-student-deletion-smoke-test.ts",
     "student:teacher-student-batch-deletion-contract-smoke": "tsx prisma/teacher-student-batch-deletion-contract-smoke-test.ts",
     "student:teacher-mcq-item-builder-smoke": "tsx prisma/teacher-mcq-item-builder-smoke-test.ts",

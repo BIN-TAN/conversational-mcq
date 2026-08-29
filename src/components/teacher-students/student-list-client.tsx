@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowUpDown, Eye, Search, Upload, UserPlus } from "lucide-react";
 import { errorFromUnknown, fetchStudents } from "./api";
 import { StudentBatchDeletionControl } from "./student-batch-deletion-control";
+import { StudentPasswordResetControl } from "./student-password-reset-control";
 import type { StructuredApiError, StudentListResponse } from "./types";
 import { EmptyPanel, ErrorPanel, formatDate, LoadingPanel, StatusPill } from "./ui";
 
@@ -279,13 +280,21 @@ export function StudentListClient() {
                     <td className="px-4 py-3">{student.summative_outcome_count}</td>
                     <td className="px-4 py-3">{formatDate(student.last_login_at)}</td>
                     <td className="px-4 py-3">
-                      <Link
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
-                        href={`/teacher/students/${encodeURIComponent(student.user_id)}`}
-                      >
-                        <Eye className="h-4 w-4" aria-hidden="true" />
-                        View
-                      </Link>
+                      <div className="flex min-w-max flex-wrap gap-2">
+                        <Link
+                          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+                          href={`/teacher/students/${encodeURIComponent(student.user_id)}`}
+                        >
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                          View
+                        </Link>
+                        <StudentPasswordResetControl
+                          accountStatus={student.account_status}
+                          displayName={student.display_name}
+                          onReset={load}
+                          userId={student.user_id}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
