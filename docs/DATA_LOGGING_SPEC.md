@@ -672,6 +672,16 @@ counts. The audit does not retain response text, conversation text, prompts,
 provider payloads, credentials, answer keys, or process payloads. Previously
 downloaded exports and external copies remain outside system control.
 
+Teacher session management supports bounded batch deletion for terminal
+`completed` and `student_exited` attempts only. The preview is bound to the
+selected session identities and current states, and deletion requires an exact
+count-specific confirmation phrase. Student accounts and assessment authoring
+content are retained. A safe lifecycle audit row remains for each deleted
+session with aggregate counts and a shared batch reference; response,
+reasoning, conversation, provider, and process payload text is not retained in
+that audit. Active, paused, not-started, and review-pending attempts are not
+eligible for this operation.
+
 ### Readable Transcript
 
 The teacher session detail page includes a **Readable transcript** tab separate
@@ -1010,6 +1020,15 @@ Default simple CSV and research exports read current system rows only. Deleted
 assessments and deleted associated session/evidence records should not appear in
 newly generated exports. Previously downloaded exports and external copies are
 outside application control and are documented as deletion limitations.
+
+The assessment library also supports bounded batch deletion of archived mini
+tests, but only when every selected assessment has zero student sessions and
+zero student or operational evidence. The action uses a selection fingerprint,
+an exact count-specific confirmation phrase, one transaction, and one safe
+`assessment_deletion_events` row per removed assessment with a shared batch
+reference. Archived mini tests that still have student data remain blocked;
+the teacher must first use the terminal-session deletion workflow where
+appropriate. Historical deletion events are never removed by the batch action.
 
 ## MCQ Import Provenance
 

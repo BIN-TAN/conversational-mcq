@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma, type AssessmentStatus } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
@@ -7,6 +8,19 @@ import { ContentServiceError } from "./errors";
 
 export const ASSESSMENT_UNUSED_DELETE_CONFIRMATION = "DELETE";
 export const ASSESSMENT_ALL_DATA_DELETE_CONFIRMATION = "DELETE ALL ASSESSMENT DATA";
+const MAX_ARCHIVED_ASSESSMENT_BATCH_DELETION = 50;
+
+const archivedAssessmentSelectionSchema = z.object({
+  assessment_public_ids: z
+    .array(z.string().trim().min(1))
+    .min(1)
+    .max(MAX_ARCHIVED_ASSESSMENT_BATCH_DELETION)
+}).strict();
+
+const archivedAssessmentDeletionSchema = archivedAssessmentSelectionSchema.extend({
+  selection_fingerprint: z.string().length(64),
+  delete_confirmation: z.string()
+}).strict();
 
 export type AssessmentDeletionMode = "unused_assessment" | "assessment_and_all_data";
 
@@ -19,6 +33,7 @@ type AssessmentForDeletion = {
   status: AssessmentStatus;
   folder_label: string | null;
   created_by_user_db_id: string;
+  updated_at: Date;
 };
 
 export type AssessmentDeletionCounts = {
@@ -80,6 +95,38 @@ export type AssessmentDeletionPreview = {
 export type AssessmentDeletionSummary = AssessmentDeletionPreview & {
   deletion_event_public_id: string;
   deletion_mode: AssessmentDeletionMode;
+  deleted_at: string;
+  deleted_counts: AssessmentDeletionCounts;
+};
+
+export type ArchivedAssessmentBatchDeletionPreview = {
+  selected_assessment_count: number;
+  assessments: Array<{
+    assessment_public_id: string;
+    assessment_title: string;
+    status: AssessmentStatus;
+    folder_label: string | null;
+    item_count: number;
+    assessment_session_count: number;
+    allowed: boolean;
+    blocked_reasons: string[];
+  }>;
+  allowed: boolean;
+  blocked_assessments: Array<{
+    assessment_public_id: string;
+    assessment_title: string;
+    blocked_reasons: string[];
+  }>;
+  selection_fingerprint: string;
+  required_delete_confirmation: string;
+  counts: AssessmentDeletionCounts;
+  warning: string;
+  deletion_limitations: string[];
+};
+
+export type ArchivedAssessmentBatchDeletionSummary = ArchivedAssessmentBatchDeletionPreview & {
+  batch_operation_public_id: string;
+  deletion_event_public_ids: string[];
   deleted_at: string;
   deleted_counts: AssessmentDeletionCounts;
 };
@@ -186,7 +233,8 @@ async function findAssessmentForDeletion(
       title: true,
       status: true,
       folder_label: true,
-      created_by_user_db_id: true
+      created_by_user_db_id: true,
+      updated_at: true
     }
   });
 
@@ -195,6 +243,88 @@ async function findAssessmentForDeletion(
   }
 
   return assessment;
+}
+
+function normalizedArchivedAssessmentIds(
+  value: z.infer<typeof archivedAssessmentSelectionSchema>
+) {
+  const ids = [...new Set(value.assessment_public_ids)];
+  if (ids.length !== value.assessment_public_ids.length) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "Each archived mini test may be selected only once.",
+      400
+    );
+  }
+  return ids;
+}
+
+const assessmentDeletionCountKeys: Array<keyof AssessmentDeletionCounts> = [
+  "assessment_count",
+  "concept_unit_count",
+  "item_count",
+  "item_media_asset_count",
+  "option_count",
+  "assessment_session_count",
+  "distinct_student_count",
+  "concept_unit_session_count",
+  "item_response_count",
+  "conversation_turn_count",
+  "process_event_count",
+  "response_package_count",
+  "student_profile_count",
+  "formative_decision_count",
+  "followup_round_count",
+  "followup_update_cycle_count",
+  "concept_progression_record_count",
+  "workflow_job_count",
+  "workflow_override_count",
+  "student_action_idempotency_key_count",
+  "activity_runtime_count",
+  "post_activity_evidence_count",
+  "diagnostic_snapshot_count",
+  "agent_call_summary_count",
+  "operational_effective_result_count",
+  "item_verification_run_count",
+  "summative_outcome_count",
+  "import_export_reference_count",
+  "mcq_item_import_batch_count",
+  "mcq_diagnostic_authoring_agent_call_count"
+];
+
+function sumAssessmentDeletionCounts(graphs: AssessmentDeletionGraph[]) {
+  const counts = Object.fromEntries(
+    assessmentDeletionCountKeys.map((key) => [
+      key,
+      graphs.reduce((total, graph) => total + graph.counts[key], 0)
+    ])
+  ) as AssessmentDeletionCounts;
+  return counts;
+}
+
+function archivedAssessmentDeleteConfirmation(count: number) {
+  return `DELETE ${count} ARCHIVED MINI ${count === 1 ? "TEST" : "TESTS"}`;
+}
+
+function archivedAssessmentSelectionFingerprint(graphs: AssessmentDeletionGraph[]) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify(
+        [...graphs]
+          .sort((left, right) =>
+            left.assessment.assessment_public_id.localeCompare(
+              right.assessment.assessment_public_id
+            )
+          )
+          .map((graph) => ({
+            assessment_public_id: graph.assessment.assessment_public_id,
+            status: graph.assessment.status,
+            updated_at: graph.assessment.updated_at.toISOString(),
+            counts: graph.counts
+          }))
+      )
+    )
+    .digest("hex");
 }
 
 function studentDataCount(counts: AssessmentDeletionCounts) {
@@ -759,4 +889,158 @@ export async function deleteAssessmentAndAssociatedData(input: {
       deleted_counts: graph.counts
     };
   });
+}
+
+async function buildArchivedAssessmentBatchGraphs(
+  client: AssessmentDeletionClient,
+  input: { teacher_user_db_id: string; assessment_public_ids: string[] }
+) {
+  const graphs: AssessmentDeletionGraph[] = [];
+  for (const assessmentPublicId of input.assessment_public_ids) {
+    const assessment = await findAssessmentForDeletion(client, {
+      teacher_user_db_id: input.teacher_user_db_id,
+      assessment_public_id: assessmentPublicId
+    });
+    graphs.push(await buildAssessmentDeletionGraph(client, assessment));
+  }
+  return graphs;
+}
+
+function archivedAssessmentBatchPreview(
+  graphs: AssessmentDeletionGraph[]
+): ArchivedAssessmentBatchDeletionPreview {
+  const assessments = graphs.map((graph) => {
+    const unusedPreview = publicPreview(graph).deletion_modes.unused_assessment;
+    const blockedReasons = [...unusedPreview.blocked_reasons];
+    if (graph.assessment.status !== "archived") {
+      blockedReasons.unshift("archived_status_required");
+    }
+
+    return {
+      assessment_public_id: graph.assessment.assessment_public_id,
+      assessment_title: graph.assessment.title,
+      status: graph.assessment.status,
+      folder_label: graph.assessment.folder_label,
+      item_count: graph.counts.item_count,
+      assessment_session_count: graph.counts.assessment_session_count,
+      allowed: blockedReasons.length === 0,
+      blocked_reasons: [...new Set(blockedReasons)]
+    };
+  });
+  const blockedAssessments = assessments
+    .filter((assessment) => !assessment.allowed)
+    .map((assessment) => ({
+      assessment_public_id: assessment.assessment_public_id,
+      assessment_title: assessment.assessment_title,
+      blocked_reasons: assessment.blocked_reasons
+    }));
+
+  return {
+    selected_assessment_count: assessments.length,
+    assessments,
+    allowed: blockedAssessments.length === 0,
+    blocked_assessments: blockedAssessments,
+    selection_fingerprint: archivedAssessmentSelectionFingerprint(graphs),
+    required_delete_confirmation: archivedAssessmentDeleteConfirmation(assessments.length),
+    counts: sumAssessmentDeletionCounts(graphs),
+    warning:
+      "Permanent deletion cannot be undone. Only archived mini tests with no student sessions or student evidence are eligible.",
+    deletion_limitations: [
+      "Delete student sessions first if a trial mini test still has student data.",
+      "Student accounts are never removed by archived mini-test deletion.",
+      "Previously downloaded exports and external files remain outside this system."
+    ]
+  };
+}
+
+export async function previewArchivedAssessmentBatchDeletion(input: {
+  teacher_user_db_id: string;
+  data: unknown;
+}): Promise<ArchivedAssessmentBatchDeletionPreview> {
+  const parsed = archivedAssessmentSelectionSchema.parse(input.data);
+  const assessmentPublicIds = normalizedArchivedAssessmentIds(parsed);
+  await assertTeacherResearcher(prisma, input.teacher_user_db_id);
+  const graphs = await buildArchivedAssessmentBatchGraphs(prisma, {
+    teacher_user_db_id: input.teacher_user_db_id,
+    assessment_public_ids: assessmentPublicIds
+  });
+  return archivedAssessmentBatchPreview(graphs);
+}
+
+export async function deleteArchivedAssessmentsAndAuthoringData(input: {
+  teacher_user_db_id: string;
+  data: unknown;
+}): Promise<ArchivedAssessmentBatchDeletionSummary> {
+  const parsed = archivedAssessmentDeletionSchema.parse(input.data);
+  const assessmentPublicIds = normalizedArchivedAssessmentIds(parsed);
+
+  return prisma.$transaction(async (tx) => {
+    await assertTeacherResearcher(tx, input.teacher_user_db_id);
+    const graphs = await buildArchivedAssessmentBatchGraphs(tx, {
+      teacher_user_db_id: input.teacher_user_db_id,
+      assessment_public_ids: assessmentPublicIds
+    });
+    const preview = archivedAssessmentBatchPreview(graphs);
+
+    if (!preview.allowed) {
+      throw new ContentServiceError(
+        "assessment_unused_delete_blocked",
+        "Archived mini tests can be deleted only when they have no student sessions or student evidence.",
+        409,
+        { blocked_assessments: preview.blocked_assessments }
+      );
+    }
+    if (parsed.selection_fingerprint !== preview.selection_fingerprint) {
+      throw new ContentServiceError(
+        "assessment_delete_confirmation_mismatch",
+        "The selected mini tests changed after the preview. Review the deletion again.",
+        409
+      );
+    }
+    if (parsed.delete_confirmation !== preview.required_delete_confirmation) {
+      throw new ContentServiceError(
+        "assessment_delete_confirmation_mismatch",
+        "Archived mini-test deletion requires the exact confirmation shown in the preview.",
+        400,
+        { required_delete_confirmation: preview.required_delete_confirmation }
+      );
+    }
+
+    const deletedAt = new Date();
+    const batchOperationPublicId = generatePublicId("assessment_batch_deletion");
+    const deletionEventPublicIds: string[] = [];
+
+    for (const graph of graphs) {
+      await deleteAssessmentGraph(tx, graph);
+      const deletionEventPublicId = generatePublicId("assessment_deletion_event");
+      await tx.assessmentDeletionEvent.create({
+        data: {
+          id: randomUUID(),
+          deletion_public_id: deletionEventPublicId,
+          deleted_assessment_public_id: graph.assessment.assessment_public_id,
+          deleted_assessment_public_hash: publicHash(graph.assessment.assessment_public_id),
+          assessment_title_snapshot: graph.assessment.title,
+          performed_by_user_db_id: input.teacher_user_db_id,
+          deletion_mode: "unused_assessment",
+          deletion_summary:
+            toPrismaJson({
+              batch_operation_public_id: batchOperationPublicId,
+              deletion_mode: "unused_assessment",
+              deleted_counts: graph.counts,
+              retained_reference_counts: graph.retained_reference_counts,
+              deleted_at: deletedAt.toISOString()
+            }) ?? {}
+        }
+      });
+      deletionEventPublicIds.push(deletionEventPublicId);
+    }
+
+    return {
+      ...preview,
+      batch_operation_public_id: batchOperationPublicId,
+      deletion_event_public_ids: deletionEventPublicIds,
+      deleted_at: deletedAt.toISOString(),
+      deleted_counts: preview.counts
+    };
+  }, { maxWait: 10_000, timeout: 180_000 });
 }

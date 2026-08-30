@@ -12,6 +12,8 @@ import type {
   RunFollowupUpdateResponse,
   RunPlanningResponse,
   RunProfilingResponse,
+  SessionBatchDeletionPreview,
+  SessionBatchDeletionSummary,
   SessionDetailResponse,
   SessionDataAuditResponse,
   StartFollowupResponse,
@@ -40,6 +42,30 @@ export function fetchTeacherSessions(params: Record<string, string | number | bo
   return apiRequest<SessionListResponse>(`/api/teacher/sessions${queryString(params)}`, {
     method: "GET"
   });
+}
+
+export function previewSessionBatchDeletion(sessionPublicIds: string[]) {
+  return apiRequest<SessionBatchDeletionPreview>(
+    "/api/teacher/sessions/batch-deletion/preview",
+    {
+      method: "POST",
+      body: JSON.stringify({ session_public_ids: sessionPublicIds })
+    }
+  );
+}
+
+export function deleteSessionBatch(input: {
+  session_public_ids: string[];
+  selection_fingerprint: string;
+  delete_confirmation: string;
+}) {
+  return apiRequest<SessionBatchDeletionSummary>(
+    "/api/teacher/sessions/batch-deletion",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    }
+  );
 }
 
 export function fetchSessionDetail(sessionPublicId: string) {

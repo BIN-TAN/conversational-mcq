@@ -108,6 +108,8 @@ Teacher-prepared item upload can be added later. The data model should remain co
 
 Assessment management includes one evidence-centered item-design workflow inside each mini test. A teacher defines the section/topic, one or more learning objectives, observable evidence requirements, optional misconception hypotheses, and optional exemplar items. Misconceptions are design hypotheses to probe, not facts assigned to students. Historical item difficulty or a high wrong-answer rate is not sufficient by itself to establish a misconception.
 
+**New mini test** is the authoring entry for this workflow. After the teacher saves the initial mini-test details, the system opens the item-design workspace directly. The assessment library is reserved for managing and organizing existing assessments, including folders, ordering, release state, archiving, restoration, and guarded deletion. Archived mini tests remain read-only until restored.
+
 The item authoring assistant may use that saved blueprint to generate draft MCQ candidates. Generated keys remain proposals. Generated candidates must enter the same teacher review flow as imported items: the teacher reviews and edits the stem and options, confirms the answer key, reviews reasoning and distractor notes, selects candidates, and imports them as drafts. The assistant cannot publish, include, or administer an item automatically.
 
 This workflow implements the evidence-centered sequence:

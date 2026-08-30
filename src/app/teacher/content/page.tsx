@@ -17,7 +17,7 @@ export default function TeacherContentHomePage() {
           <Plus className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">New mini test</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            Start a teacher-authored MCQ mini test and add diagnostic items.
+            Design and generate items from learning objectives, evidence requirements, and misconception examples.
           </p>
         </Link>
         <Link
@@ -27,7 +27,7 @@ export default function TeacherContentHomePage() {
           <Library className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">Assessment library</h2>
           <p className="mt-2 text-sm leading-6 text-muted">
-            View mini tests by folder/week/module and open the direct MCQ builder.
+            Manage existing mini tests, folders, release status, archives, and ordering.
           </p>
         </Link>
         <Link

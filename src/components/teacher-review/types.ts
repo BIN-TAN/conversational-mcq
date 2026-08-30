@@ -46,6 +46,46 @@ export type SessionListResponse = {
   };
 };
 
+export type SessionBatchDeletionCounts = {
+  assessment_session_count: number;
+  concept_unit_session_count: number;
+  item_response_count: number;
+  conversation_turn_count: number;
+  process_event_count: number;
+  response_package_count: number;
+  student_profile_count: number;
+  formative_decision_count: number;
+  followup_round_count: number;
+  formative_conversation_session_count: number;
+  activity_runtime_count: number;
+  agent_call_count: number;
+};
+
+export type SessionBatchDeletionPreview = {
+  selected_session_count: number;
+  sessions: Array<{
+    session_public_id: string;
+    student_user_id: string;
+    student_display_name: string | null;
+    assessment_public_id: string;
+    assessment_title: string;
+    status: string;
+    current_phase: string;
+  }>;
+  selection_fingerprint: string;
+  required_delete_confirmation: string;
+  counts: SessionBatchDeletionCounts;
+  warning: string;
+  deletion_limitations: string[];
+};
+
+export type SessionBatchDeletionSummary = SessionBatchDeletionPreview & {
+  batch_operation_public_id: string;
+  deletion_audit_operation_public_ids: string[];
+  deleted_at: string;
+  deleted_counts: SessionBatchDeletionCounts;
+};
+
 export type SessionDetailResponse = {
   session: {
     session_public_id: string;

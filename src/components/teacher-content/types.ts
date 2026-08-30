@@ -332,6 +332,7 @@ export type AssessmentDeletionCounts = {
   assessment_count: number;
   concept_unit_count: number;
   item_count: number;
+  item_media_asset_count: number;
   option_count: number;
   assessment_session_count: number;
   distinct_student_count: number;
@@ -356,7 +357,42 @@ export type AssessmentDeletionCounts = {
   item_verification_run_count: number;
   summative_outcome_count: number;
   import_export_reference_count: number;
+  mcq_item_import_batch_count: number;
+  mcq_diagnostic_authoring_agent_call_count: number;
 };
+
+export type ArchivedAssessmentBatchDeletionPreview = {
+  selected_assessment_count: number;
+  assessments: Array<{
+    assessment_public_id: string;
+    assessment_title: string;
+    status: ContentStatus;
+    folder_label: string | null;
+    item_count: number;
+    assessment_session_count: number;
+    allowed: boolean;
+    blocked_reasons: string[];
+  }>;
+  allowed: boolean;
+  blocked_assessments: Array<{
+    assessment_public_id: string;
+    assessment_title: string;
+    blocked_reasons: string[];
+  }>;
+  selection_fingerprint: string;
+  required_delete_confirmation: string;
+  counts: AssessmentDeletionCounts;
+  warning: string;
+  deletion_limitations: string[];
+};
+
+export type ArchivedAssessmentBatchDeletionSummary =
+  ArchivedAssessmentBatchDeletionPreview & {
+    batch_operation_public_id: string;
+    deletion_event_public_ids: string[];
+    deleted_at: string;
+    deleted_counts: AssessmentDeletionCounts;
+  };
 
 export type AssessmentDeletionPreview = {
   assessment_public_id: string;

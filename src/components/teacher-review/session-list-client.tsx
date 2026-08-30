@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowUpDown, Eye, Search } from "lucide-react";
 import { errorFromUnknown, fetchTeacherSessions } from "./api";
 import type { SessionListResponse, StructuredApiError } from "./types";
+import { SessionBatchDeletionControl } from "./session-batch-deletion-control";
 import { EmptyState, ErrorState, formatDate, LoadingState, StatusPill } from "./ui";
 
 const statuses = ["not_started", "active", "paused", "completed", "student_exited", "needs_review"];
@@ -30,6 +31,10 @@ const phases = [
 ];
 
 type SortField = "started_at" | "last_activity_at" | "completed_at";
+
+function canDeleteSession(status: string) {
+  return status === "completed" || status === "student_exited";
+}
 
 function cleanParams(filters: {
   search: string;
@@ -71,6 +76,8 @@ export function TeacherSessionListClient() {
   const [data, setData] = useState<SessionListResponse | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +98,8 @@ export function TeacherSessionListClient() {
   }, [load]);
 
   function updateFilter(key: keyof typeof filters, value: string | number) {
+    setSelectedSessionIds(new Set());
+    setSuccess(null);
     setFilters((current) => ({
       ...current,
       [key]: value,
@@ -99,6 +108,8 @@ export function TeacherSessionListClient() {
   }
 
   function sortBy(field: SortField) {
+    setSelectedSessionIds(new Set());
+    setSuccess(null);
     setFilters((current) => ({
       ...current,
       sort: field,
@@ -106,6 +117,40 @@ export function TeacherSessionListClient() {
         current.sort === field && current.direction === "desc" ? "asc" : "desc",
       page: 1
     }));
+  }
+
+  const deletablePageSessionIds = useMemo(
+    () =>
+      data?.sessions
+        .filter((session) => canDeleteSession(session.session_status))
+        .map((session) => session.session_public_id) ?? [],
+    [data]
+  );
+  const allDeletablePageSessionsSelected =
+    deletablePageSessionIds.length > 0 &&
+    deletablePageSessionIds.every((sessionPublicId) => selectedSessionIds.has(sessionPublicId));
+
+  function toggleSession(sessionPublicId: string) {
+    setSuccess(null);
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(sessionPublicId)) next.delete(sessionPublicId);
+      else next.add(sessionPublicId);
+      return next;
+    });
+  }
+
+  function toggleAllDeletablePageSessions() {
+    setSuccess(null);
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (allDeletablePageSessionsSelected) {
+        for (const sessionPublicId of deletablePageSessionIds) next.delete(sessionPublicId);
+      } else {
+        for (const sessionPublicId of deletablePageSessionIds) next.add(sessionPublicId);
+      }
+      return next;
+    });
   }
 
   return (
@@ -204,6 +249,11 @@ export function TeacherSessionListClient() {
       </section>
 
       {error ? <ErrorState error={error} /> : null}
+      {success ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
+          {success}
+        </p>
+      ) : null}
       {loading ? <LoadingState label="Loading student sessions" /> : null}
 
       {!loading && data && data.sessions.length === 0 ? (
@@ -215,10 +265,51 @@ export function TeacherSessionListClient() {
 
       {!loading && data && data.sessions.length > 0 ? (
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-ink">
+                {selectedSessionIds.size} selected
+              </p>
+              <p className="mt-1 text-xs text-muted">
+                Only completed or exited sessions can be deleted.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedSessionIds.size > 0 ? (
+                <button
+                  className="h-9 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+                  onClick={() => setSelectedSessionIds(new Set())}
+                  type="button"
+                >
+                  Clear selection
+                </button>
+              ) : null}
+              <SessionBatchDeletionControl
+                onDeleted={(summary) => {
+                  setSelectedSessionIds(new Set());
+                  setSuccess(
+                    `${summary.deleted_counts.assessment_session_count} student ${summary.deleted_counts.assessment_session_count === 1 ? "session" : "sessions"} deleted.`
+                  );
+                  void load();
+                }}
+                sessionPublicIds={[...selectedSessionIds].sort()}
+              />
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="border-b border-line bg-slate-50 text-xs uppercase tracking-wide text-muted">
                 <tr>
+                  <th className="w-12 px-4 py-3">
+                    <input
+                      aria-label="Select all deletable sessions on this page"
+                      checked={allDeletablePageSessionsSelected}
+                      className="h-4 w-4 rounded border-line accent-emerald-700"
+                      disabled={deletablePageSessionIds.length === 0}
+                      onChange={toggleAllDeletablePageSessions}
+                      type="checkbox"
+                    />
+                  </th>
                   <th className="px-4 py-3">Student</th>
                   <th className="px-4 py-3">Assessment</th>
                   <th className="px-4 py-3">Attempt</th>
@@ -253,6 +344,21 @@ export function TeacherSessionListClient() {
               <tbody className="divide-y divide-line">
                 {data.sessions.map((session) => (
                   <tr className="align-top" key={session.session_public_id}>
+                    <td className="px-4 py-3">
+                      <input
+                        aria-label={`Select session for ${session.student_user_id}`}
+                        checked={selectedSessionIds.has(session.session_public_id)}
+                        className="h-4 w-4 rounded border-line accent-emerald-700 disabled:cursor-not-allowed disabled:opacity-40"
+                        disabled={!canDeleteSession(session.session_status)}
+                        onChange={() => toggleSession(session.session_public_id)}
+                        title={
+                          canDeleteSession(session.session_status)
+                            ? "Select session"
+                            : "Only completed or exited sessions can be deleted"
+                        }
+                        type="checkbox"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <p className="font-semibold text-ink">{session.student_user_id}</p>
                       <p className="text-xs text-muted">

@@ -21,6 +21,9 @@ export type PublicIdKind =
   | "student_account_deletion_event"
   | "student_account_batch_deletion"
   | "assessment_deletion_event"
+  | "assessment_batch_deletion"
+  | "session_batch_deletion"
+  | "session_deletion_audit"
   | "attempt_control"
   | "account_security_token"
   | "account_security_event"
@@ -59,6 +62,9 @@ const prefixes: Record<PublicIdKind, string> = {
   student_account_deletion_event: "sade",
   student_account_batch_deletion: "sabde",
   assessment_deletion_event: "asde",
+  assessment_batch_deletion: "asbde",
+  session_batch_deletion: "ssbde",
+  session_deletion_audit: "ssda",
   attempt_control: "actctl",
   account_security_token: "ast",
   account_security_event: "ase",

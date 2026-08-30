@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Eye,
   GripVertical,
-  Plus,
   RefreshCw,
   RotateCcw,
   Save,
@@ -36,6 +35,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { apiRequest, errorFromUnknown } from "./api";
+import { ArchivedAssessmentBatchDeletionControl } from "./archived-assessment-batch-deletion-control";
 import type { AssessmentSummary, StructuredApiError } from "./types";
 import {
   Button,
@@ -43,7 +43,6 @@ import {
   Field,
   LoadingRow,
   PageHeader,
-  PrimaryLink,
   StatusBadge,
   SuccessPanel,
   formatDate
@@ -214,7 +213,10 @@ function SortableAssessmentRow({
   onMoveToFolder,
   onMoveUp,
   onRestore,
-  reorderMode
+  reorderMode,
+  selected,
+  onSelect,
+  showArchivedSelection
 }: {
   assessment: AssessmentSummary;
   folderOptions: string[];
@@ -225,6 +227,9 @@ function SortableAssessmentRow({
   onMoveUp: (assessmentPublicId: string) => void;
   onRestore: (assessment: AssessmentSummary) => void;
   reorderMode: boolean;
+  selected: boolean;
+  onSelect: (assessmentPublicId: string) => void;
+  showArchivedSelection: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: assessment.assessment_public_id,
@@ -254,6 +259,17 @@ function SortableAssessmentRow({
           >
             <GripVertical className="h-5 w-5" aria-hidden="true" />
           </button>
+        </td>
+      ) : null}
+      {showArchivedSelection ? (
+        <td className="w-12 px-4 py-4 align-top">
+          <input
+            aria-label={`Select archived mini test ${assessment.title}`}
+            checked={selected}
+            className="h-4 w-4 rounded border-line accent-emerald-700"
+            onChange={() => onSelect(assessment.assessment_public_id)}
+            type="checkbox"
+          />
         </td>
       ) : null}
       <td className="px-4 py-4 align-top">
@@ -335,7 +351,7 @@ function SortableAssessmentRow({
               href={`/teacher/content/assessments/${assessment.assessment_public_id}`}
             >
               <Eye className="h-4 w-4" aria-hidden="true" />
-              Open builder
+              Open assessment
             </Link>
             {assessment.status === "archived" ? (
               <Button
@@ -375,6 +391,7 @@ export function AssessmentListClient() {
   const [folderFilter, setFolderFilter] = useState("all");
   const [sortMode, setSortMode] = useState<SortMode>("folder_order");
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
+  const [selectedArchivedIds, setSelectedArchivedIds] = useState<Set<string>>(new Set());
   const sensors = useSensors(
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
@@ -403,6 +420,10 @@ export function AssessmentListClient() {
   useEffect(() => {
     void loadAssessments();
   }, [loadAssessments]);
+
+  useEffect(() => {
+    setSelectedArchivedIds(new Set());
+  }, [folderFilter, searchText, sortMode, statusFilter]);
 
   const persistedOrganizationSignature = useMemo(
     () => organizationSignature(assessments),
@@ -474,6 +495,7 @@ export function AssessmentListClient() {
     setCollapsedFolders({});
     setSuccess(null);
     setError(null);
+    setSelectedArchivedIds(new Set());
     setIsReorderMode(true);
   }
 
@@ -704,6 +726,41 @@ export function AssessmentListClient() {
     return groups;
   }, [filteredAssessments, isReorderMode, reorderFolderOptions]);
 
+  const showArchivedSelection = !isReorderMode && statusFilter === "archived";
+  const visibleArchivedIds = useMemo(
+    () =>
+      filteredAssessments
+        .filter((assessment) => assessment.status === "archived")
+        .map((assessment) => assessment.assessment_public_id),
+    [filteredAssessments]
+  );
+  const allVisibleArchivedSelected =
+    visibleArchivedIds.length > 0 &&
+    visibleArchivedIds.every((assessmentPublicId) =>
+      selectedArchivedIds.has(assessmentPublicId)
+    );
+
+  function toggleArchivedAssessment(assessmentPublicId: string) {
+    setSelectedArchivedIds((current) => {
+      const next = new Set(current);
+      if (next.has(assessmentPublicId)) next.delete(assessmentPublicId);
+      else next.add(assessmentPublicId);
+      return next;
+    });
+  }
+
+  function toggleAllVisibleArchivedAssessments() {
+    setSelectedArchivedIds((current) => {
+      const next = new Set(current);
+      if (allVisibleArchivedSelected) {
+        for (const assessmentPublicId of visibleArchivedIds) next.delete(assessmentPublicId);
+      } else {
+        for (const assessmentPublicId of visibleArchivedIds) next.add(assessmentPublicId);
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -726,10 +783,6 @@ export function AssessmentListClient() {
             </>
           ) : (
             <>
-              <PrimaryLink href="/teacher/content/assessments/new">
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                New mini test
-              </PrimaryLink>
               <Button disabled={isLoading} onClick={startReorderMode} type="button" variant="secondary">
                 <GripVertical className="h-4 w-4" aria-hidden="true" />
                 Reorder mini tests
@@ -811,6 +864,43 @@ export function AssessmentListClient() {
         </div>
       </section>
 
+      {showArchivedSelection && !isLoading ? (
+        <section className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
+          <label className="flex items-center gap-3 text-sm font-semibold text-ink">
+            <input
+              aria-label="Select all matching archived mini tests"
+              checked={allVisibleArchivedSelected}
+              className="h-4 w-4 rounded border-line accent-emerald-700"
+              disabled={visibleArchivedIds.length === 0}
+              onChange={toggleAllVisibleArchivedAssessments}
+              type="checkbox"
+            />
+            {selectedArchivedIds.size} selected
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            {selectedArchivedIds.size > 0 ? (
+              <Button
+                onClick={() => setSelectedArchivedIds(new Set())}
+                type="button"
+                variant="secondary"
+              >
+                Clear selection
+              </Button>
+            ) : null}
+            <ArchivedAssessmentBatchDeletionControl
+              assessmentPublicIds={[...selectedArchivedIds].sort()}
+              onDeleted={(summary) => {
+                setSelectedArchivedIds(new Set());
+                setSuccess(
+                  `${summary.deleted_counts.assessment_count} archived mini ${summary.deleted_counts.assessment_count === 1 ? "test" : "tests"} deleted.`
+                );
+                void loadAssessments();
+              }}
+            />
+          </div>
+        </section>
+      ) : null}
+
       {isLoading ? <LoadingRow label="Loading assessments" /> : null}
 
       {!isLoading && assessments.length === 0 ? (
@@ -821,7 +911,16 @@ export function AssessmentListClient() {
 
       {!isLoading && assessments.length > 0 && filteredAssessments.length === 0 ? (
         <section className="rounded-lg border border-line bg-white p-6 text-sm text-muted">
-          No mini tests match the current filters.
+          <p>No mini tests match the current filters.</p>
+          {statusFilter === "active" && assessments.some((assessment) => assessment.status === "archived") ? (
+            <button
+              className="mt-3 font-semibold text-emerald-800 underline underline-offset-4"
+              onClick={() => setStatusFilter("archived")}
+              type="button"
+            >
+              View archived mini tests
+            </button>
+          ) : null}
         </section>
       ) : null}
 
@@ -862,6 +961,9 @@ export function AssessmentListClient() {
                         <thead className="border-b border-line bg-[#fbfcf8] text-xs uppercase tracking-wide text-muted">
                           <tr>
                             {isReorderMode ? <th className="px-4 py-3 font-semibold">Move</th> : null}
+                            {showArchivedSelection ? (
+                              <th className="w-12 px-4 py-3 font-semibold">Select</th>
+                            ) : null}
                             <th className="px-4 py-3 font-semibold">Mini test</th>
                             <th className="px-4 py-3 font-semibold">Status</th>
                             <th className="px-4 py-3 font-semibold">Focus</th>
@@ -903,7 +1005,10 @@ export function AssessmentListClient() {
                                     moveAssessmentRelative(assessmentPublicId, "up")
                                   }
                                   onRestore={restoreAssessment}
+                                  onSelect={toggleArchivedAssessment}
                                   reorderMode={isReorderMode}
+                                  selected={selectedArchivedIds.has(assessment.assessment_public_id)}
+                                  showArchivedSelection={showArchivedSelection}
                                 />
                               ))
                             )}

@@ -1,6 +1,11 @@
 "use client";
 
-import type { ApiErrorResponse, StructuredApiError } from "./types";
+import type {
+  ApiErrorResponse,
+  ArchivedAssessmentBatchDeletionPreview,
+  ArchivedAssessmentBatchDeletionSummary,
+  StructuredApiError
+} from "./types";
 
 export class ClientApiError extends Error {
   code: string;
@@ -67,4 +72,28 @@ export function errorFromUnknown(error: unknown): StructuredApiError {
     code: "client_error",
     message: error instanceof Error ? error.message : "The request could not be completed."
   };
+}
+
+export function previewArchivedAssessmentBatchDeletion(assessmentPublicIds: string[]) {
+  return apiRequest<ArchivedAssessmentBatchDeletionPreview>(
+    "/api/teacher/assessments/batch-deletion/preview",
+    {
+      method: "POST",
+      body: JSON.stringify({ assessment_public_ids: assessmentPublicIds })
+    }
+  );
+}
+
+export function deleteArchivedAssessmentBatch(input: {
+  assessment_public_ids: string[];
+  selection_fingerprint: string;
+  delete_confirmation: string;
+}) {
+  return apiRequest<ArchivedAssessmentBatchDeletionSummary>(
+    "/api/teacher/assessments/batch-deletion",
+    {
+      method: "POST",
+      body: JSON.stringify(input)
+    }
+  );
 }

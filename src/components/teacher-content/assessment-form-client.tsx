@@ -57,7 +57,9 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           close_at_course_time: closeAt || null
         })
       });
-      router.push(`/teacher/content/assessments/${data.assessment.assessment_public_id}`);
+      router.push(
+        `/teacher/content/assessments/${data.assessment.assessment_public_id}/item-design`
+      );
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -144,7 +146,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         <div className="flex flex-wrap gap-2">
           <Button disabled={isSubmitting} type="submit">
             <Save className="h-4 w-4" aria-hidden="true" />
-            {isSubmitting ? "Creating" : "Save and open builder"}
+            {isSubmitting ? "Creating" : "Save and design items"}
           </Button>
           <Button disabled={isSubmitting} onClick={cancel} type="button" variant="secondary">
             <X className="h-4 w-4" aria-hidden="true" />

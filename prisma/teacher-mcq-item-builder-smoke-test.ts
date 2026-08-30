@@ -182,7 +182,7 @@ function assertAssessmentDetailPageIsMiniTestFocused() {
     "Assessment detail should link Import MCQ items through the selected assessment route."
   );
   assert(
-    source.includes("Add the MCQ items students will answer in this mini test."),
+    source.includes("Design, generate, import, or manually add the MCQ items students will answer."),
     "MCQ helper text should use teacher-facing mini-test wording."
   );
   assert(!source.includes("Advanced topic settings"), "Normal mini-test page should not show advanced topic settings.");

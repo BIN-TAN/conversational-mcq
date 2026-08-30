@@ -1590,6 +1590,8 @@
     "student:teacher-student-password-reset-ui-smoke": "tsx prisma/teacher-student-password-reset-ui-smoke-test.ts",
     "student:teacher-student-deletion-smoke": "tsx prisma/teacher-student-deletion-smoke-test.ts",
     "student:teacher-student-batch-deletion-contract-smoke": "tsx prisma/teacher-student-batch-deletion-contract-smoke-test.ts",
+    "teacher:batch-cleanup-contract-smoke": "tsx prisma/teacher-batch-cleanup-contract-smoke-test.ts",
+    "teacher:batch-cleanup-runtime-smoke": "tsx prisma/teacher-batch-cleanup-runtime-smoke-test.ts",
     "student:teacher-mcq-item-builder-smoke": "tsx prisma/teacher-mcq-item-builder-smoke-test.ts",
     "teacher:email-password-reset-smoke": "tsx prisma/teacher-email-password-reset-smoke-test.ts",
     "teacher:email-change-smoke": "tsx prisma/teacher-email-change-smoke-test.ts",
