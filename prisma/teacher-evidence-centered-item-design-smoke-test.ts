@@ -9,11 +9,17 @@ import {
   ITEM_GENERATION_SCHEMA_VERSION,
   ItemDesignAssistantOutputSchema,
   ItemDesignBlueprintSchema,
+  ItemGenerationOutputSchema,
+  normalizeLegacyItemDesignBlueprint,
+  normalizeLegacyItemGenerationOutput,
   validateGeneratedItemSet
 } from "../src/lib/services/content/item-design-contract";
 import {
   ITEM_DESIGN_ASSISTANT_INSTRUCTIONS,
+  ITEM_GENERATION_MAX_CANDIDATES_PER_CALL,
   ITEM_GENERATION_INSTRUCTIONS,
+  createItemGenerationPlan,
+  itemGenerationResultSupportsRecovery,
   itemDesignBlueprintHash
 } from "../src/lib/services/content/item-design";
 import { projectConceptAdministrationRulesForProfiling } from "../src/lib/agents/student-profiling/input-builder";
@@ -38,7 +44,7 @@ const blueprint = ItemDesignBlueprintSchema.parse({
   generation_settings: {
     target_item_count: 3,
     option_count: 4,
-    difficulty_mix: ["foundational", "application", "reasoning"],
+    difficulty_mix: ["foundational", "analyzing", "evaluating", "creating"],
     context_notes: null
   }
 });
@@ -60,7 +66,7 @@ function candidate(index: number) {
     target_reasoning_note: "Connect self-selection to limited generalization.",
     strong_reasoning_should_mention: "Volunteers can differ systematically from non-volunteers.",
     cognitive_demand: "apply" as const,
-    difficulty: "application" as const,
+    difficulty: "foundational" as const,
     limitations: []
   };
 }
@@ -114,6 +120,77 @@ assert.equal(
   "A supplied misconception hypothesis must be represented in the generated set."
 );
 assert.equal(itemDesignBlueprintHash(blueprint), itemDesignBlueprintHash(structuredClone(blueprint)));
+const legacyBlueprint = ItemDesignBlueprintSchema.parse(
+  normalizeLegacyItemDesignBlueprint({
+    ...blueprint,
+    generation_settings: {
+      ...blueprint.generation_settings,
+      difficulty_mix: ["foundational", "application", "reasoning"]
+    }
+  })
+);
+assert.deepEqual(
+  legacyBlueprint.generation_settings.difficulty_mix,
+  ["foundational", "analyzing"],
+  "Legacy application/reasoning settings should load without losing the saved blueprint."
+);
+const legacyOutput = ItemGenerationOutputSchema.parse(
+  normalizeLegacyItemGenerationOutput({
+    ...validOutput,
+    candidates: validOutput.candidates.map((entry) => ({
+      ...entry,
+      difficulty: "application"
+    }))
+  })
+);
+assert.equal(legacyOutput.candidates[0]?.difficulty, "foundational");
+const generationPlan = createItemGenerationPlan(blueprint);
+assert.equal(ITEM_GENERATION_MAX_CANDIDATES_PER_CALL, 2);
+assert.deepEqual(generationPlan.map((chunk) => chunk.candidate_count), [2, 1]);
+assert.deepEqual(
+  generationPlan.flatMap((chunk) => chunk.required_objective_ids),
+  ["objective_sampling", "objective_sampling"],
+  "Every chunk should receive an objective while preserving complete coverage."
+);
+const denseMisconceptionBlueprint = ItemDesignBlueprintSchema.parse({
+  ...blueprint,
+  misconception_hypotheses: Array.from({ length: 20 }, (_, index) => ({
+    misconception_id: `misconception_${index + 1}`,
+    statement: `Misconception ${index + 1}`,
+    linked_objective_ids: ["objective_sampling"],
+    student_language_examples: [],
+    why_plausible: null
+  }))
+});
+assert.deepEqual(
+  createItemGenerationPlan(denseMisconceptionBlueprint).map(
+    (chunk) => chunk.required_misconception_ids.length
+  ),
+  [14, 6],
+  "Evidence distribution must respect the candidate capacity of a shorter final chunk."
+);
+assert.equal(
+  itemGenerationResultSupportsRecovery({
+    provider: "mock",
+    client_request_id: "incomplete_generation",
+    status: "incomplete",
+    incomplete_reason: "max_output_tokens",
+    latency_ms: 1
+  }),
+  true,
+  "An incomplete structured generation should receive one bounded recovery attempt."
+);
+assert.equal(
+  itemGenerationResultSupportsRecovery({
+    provider: "mock",
+    client_request_id: "provider_refusal",
+    status: "refused",
+    refusal: "refused",
+    latency_ms: 1
+  }),
+  false,
+  "A refusal must fail closed without automatic regeneration."
+);
 const assistantOutput = ItemDesignAssistantOutputSchema.parse({
   schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
   assistant_message: "I added an application objective and kept the misconception as a design hypothesis.",
@@ -132,7 +209,7 @@ const assistantOutput = ItemDesignAssistantOutputSchema.parse({
       settings: {
         target_item_count: 6,
         option_count: 4,
-        difficulty_mix: ["foundational", "application", "reasoning"],
+        difficulty_mix: ["foundational", "analyzing", "evaluating", "creating"],
         context_notes: null
       }
     }
@@ -154,6 +231,7 @@ assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /Course materials and exemplar 
 assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /teacher remains responsible for reviewing/);
 assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /confirming every answer key/);
 assert.doesNotThrow(() => zodTextFormat(ItemDesignAssistantOutputSchema, "item_design_assistant"));
+assert.doesNotThrow(() => zodTextFormat(ItemGenerationOutputSchema, "item_generation"));
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /draft MCQ candidates/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /teacher review/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /Do not treat .* as established fact/);
@@ -178,8 +256,13 @@ assert.match(designSource, /Author with assistant/);
 assert.match(designSource, /Review design/);
 assert.match(designSource, /Add PDF, Word, or images/);
 assert.match(designSource, /\.pdf,\.docx,\.png/);
+assert.doesNotMatch(designSource, /Do not include private student information/);
 assert.match(designSource, /Review and edit design/);
 assert.match(designSource, /What observable evidence would demonstrate this\?/);
+assert.match(designSource, /Foundational: remembering, understanding, applying/);
+assert.match(designSource, /Analyzing/);
+assert.match(designSource, /Evaluating/);
+assert.match(designSource, /Creating/);
 assert.match(designSource, /Generated items remain draft candidates/);
 assert.match(assistantRouteSource, /respondToAssessmentItemDesignAssistant/);
 assert.match(reviewSource, /Review generated item drafts/);

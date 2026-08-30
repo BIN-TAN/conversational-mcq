@@ -1,12 +1,23 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v2" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v3" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v1" as const;
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v2" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
+
+export const ItemDesignCognitiveDemandBandSchema = z.enum([
+  "foundational",
+  "analyzing",
+  "evaluating",
+  "creating"
+]);
+
+export type ItemDesignCognitiveDemandBand = z.infer<
+  typeof ItemDesignCognitiveDemandBandSchema
+>;
 
 const shortText = z.string().trim().min(1).max(240);
 const longText = z.string().trim().min(1).max(2000);
@@ -34,7 +45,7 @@ export const ItemDesignExemplarSchema = z.object({
 export const ItemDesignGenerationSettingsSchema = z.object({
   target_item_count: z.number().int().min(3).max(12).default(6),
   option_count: z.number().int().min(3).max(5).default(4),
-  difficulty_mix: z.array(z.enum(["foundational", "application", "reasoning"])).min(1).max(3),
+  difficulty_mix: z.array(ItemDesignCognitiveDemandBandSchema).min(1).max(4),
   context_notes: z.string().trim().max(1200).nullable().default(null)
 }).strict();
 
@@ -254,8 +265,8 @@ export const GeneratedItemCandidateSchema = z.object({
   misconception_hypothesis_ids: z.array(z.string().trim().min(1).max(80)).max(8),
   target_reasoning_note: z.string().trim().min(1).max(1000),
   strong_reasoning_should_mention: z.string().trim().min(1).max(1000),
-  cognitive_demand: z.enum(["remember", "understand", "apply", "analyze", "evaluate"]),
-  difficulty: z.enum(["foundational", "application", "reasoning"]),
+  cognitive_demand: z.enum(["remember", "understand", "apply", "analyze", "evaluate", "create"]),
+  difficulty: ItemDesignCognitiveDemandBandSchema,
   limitations: z.array(z.string().trim().min(1).max(400)).max(6)
 }).strict().superRefine((item, context) => {
   const labels = new Set(item.options.map((option) => option.label));
@@ -290,11 +301,97 @@ export type ItemDesignAssistantThread = z.infer<typeof ItemDesignAssistantThread
 export type ItemDesignSourceMaterial = z.infer<typeof ItemDesignSourceMaterialSchema>;
 export type ItemGenerationOutput = z.infer<typeof ItemGenerationOutputSchema>;
 
+const legacyCognitiveDemandBands: Record<string, ItemDesignCognitiveDemandBand> = {
+  foundational: "foundational",
+  application: "foundational",
+  reasoning: "analyzing",
+  analyzing: "analyzing",
+  evaluating: "evaluating",
+  creating: "creating"
+};
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function normalizeDemandMix(value: unknown) {
+  if (!Array.isArray(value)) return value;
+  return Array.from(new Set(value.map((entry) =>
+    typeof entry === "string" ? legacyCognitiveDemandBands[entry] ?? entry : entry
+  )));
+}
+
+export function normalizeLegacyItemDesignBlueprint(value: unknown): unknown {
+  const blueprint = record(value);
+  const settings = record(blueprint.generation_settings);
+  if (Object.keys(settings).length === 0) return value;
+  return {
+    ...blueprint,
+    generation_settings: {
+      ...settings,
+      difficulty_mix: normalizeDemandMix(settings.difficulty_mix)
+    }
+  };
+}
+
+export function normalizeLegacyItemDesignAssistantOutput(value: unknown): unknown {
+  const output = record(value);
+  if (!Array.isArray(output.blueprint_updates)) return value;
+  return {
+    ...output,
+    blueprint_updates: output.blueprint_updates.map((candidate) => {
+      const update = record(candidate);
+      if (update.update_type !== "update_generation_settings") return candidate;
+      const settings = record(update.settings);
+      return {
+        ...update,
+        settings: {
+          ...settings,
+          difficulty_mix: normalizeDemandMix(settings.difficulty_mix)
+        }
+      };
+    })
+  };
+}
+
+export function normalizeLegacyItemGenerationOutput(value: unknown): unknown {
+  const output = record(value);
+  if (!Array.isArray(output.candidates)) return value;
+  return {
+    ...output,
+    candidates: output.candidates.map((candidate) => {
+      const item = record(candidate);
+      return {
+        ...item,
+        difficulty:
+          typeof item.difficulty === "string"
+            ? legacyCognitiveDemandBands[item.difficulty] ?? item.difficulty
+            : item.difficulty
+      };
+    })
+  };
+}
+
+function cognitiveDemandBand(value: z.infer<typeof GeneratedItemCandidateSchema>["cognitive_demand"]) {
+  if (value === "analyze") return "analyzing" as const;
+  if (value === "evaluate") return "evaluating" as const;
+  if (value === "create") return "creating" as const;
+  return "foundational" as const;
+}
+
 export function validateGeneratedItemSet(input: {
   blueprint: ItemDesignBlueprint;
   output: unknown;
+  expected_candidate_count?: number;
+  required_objective_ids?: string[];
+  required_misconception_ids?: string[];
+  required_cognitive_demand_bands?: ItemDesignCognitiveDemandBand[];
 }) {
-  const parsed = ItemGenerationOutputSchema.safeParse(input.output);
+  const parsed = ItemGenerationOutputSchema.safeParse(
+    normalizeLegacyItemGenerationOutput(input.output)
+  );
   if (!parsed.success) return parsed;
 
   const objectiveIds = new Set(input.blueprint.objectives.map((objective) => objective.objective_id));
@@ -304,7 +401,9 @@ export function validateGeneratedItemSet(input: {
   const issues: Array<{ path: string; message: string }> = [];
   const coveredObjectiveIds = new Set<string>();
   const coveredMisconceptionIds = new Set<string>();
-  if (parsed.data.candidates.length !== input.blueprint.generation_settings.target_item_count) {
+  const expectedCandidateCount =
+    input.expected_candidate_count ?? input.blueprint.generation_settings.target_item_count;
+  if (parsed.data.candidates.length !== expectedCandidateCount) {
     issues.push({ path: "candidates", message: "Generated candidate count does not match the saved blueprint." });
   }
   parsed.data.candidates.forEach((candidate, index) => {
@@ -325,6 +424,18 @@ export function validateGeneratedItemSet(input: {
         coveredMisconceptionIds.add(id);
       }
     });
+    if (!input.blueprint.generation_settings.difficulty_mix.includes(candidate.difficulty)) {
+      issues.push({
+        path: `candidates.${index}.difficulty`,
+        message: `Cognitive-demand band ${candidate.difficulty} was not selected in the saved design.`
+      });
+    }
+    if (candidate.difficulty !== cognitiveDemandBand(candidate.cognitive_demand)) {
+      issues.push({
+        path: `candidates.${index}.difficulty`,
+        message: "The cognitive-demand label and band do not agree."
+      });
+    }
     const candidateMisconceptionIds = new Set(candidate.misconception_hypothesis_ids);
     candidate.options.forEach((option, optionIndex) => {
       option.linked_misconception_ids.forEach((id) => {
@@ -345,14 +456,25 @@ export function validateGeneratedItemSet(input: {
       });
     });
   });
-  objectiveIds.forEach((id) => {
+  const requiredObjectiveIds = input.required_objective_ids ?? [...objectiveIds];
+  requiredObjectiveIds.forEach((id) => {
     if (!coveredObjectiveIds.has(id)) {
       issues.push({ path: "candidates", message: `No generated candidate covers objective ID: ${id}.` });
     }
   });
-  misconceptionIds.forEach((id) => {
+  const requiredMisconceptionIds = input.required_misconception_ids ?? [...misconceptionIds];
+  requiredMisconceptionIds.forEach((id) => {
     if (!coveredMisconceptionIds.has(id)) {
       issues.push({ path: "candidates", message: `No generated candidate probes misconception ID: ${id}.` });
+    }
+  });
+  const coveredDemandBands = new Set(parsed.data.candidates.map((candidate) => candidate.difficulty));
+  (input.required_cognitive_demand_bands ?? []).forEach((band) => {
+    if (!coveredDemandBands.has(band)) {
+      issues.push({
+        path: "candidates",
+        message: `No generated candidate covers cognitive-demand band: ${band}.`
+      });
     }
   });
 
@@ -362,7 +484,7 @@ export function validateGeneratedItemSet(input: {
   }
   objectiveIds.forEach((id) => {
     const actualCount = parsed.data.candidates.filter((candidate) => candidate.objective_ids.includes(id)).length;
-    if (coverageRows.get(id) !== actualCount) {
+    if (actualCount > 0 && coverageRows.get(id) !== actualCount) {
       issues.push({ path: "coverage_summary", message: `Coverage summary is incorrect for objective ID: ${id}.` });
     }
   });

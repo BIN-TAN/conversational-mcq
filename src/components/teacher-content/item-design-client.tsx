@@ -42,6 +42,25 @@ type Exemplar = {
   observed_difficulty_note: string | null;
 };
 
+type CognitiveDemandBand =
+  | "foundational"
+  | "analyzing"
+  | "evaluating"
+  | "creating";
+
+const COGNITIVE_DEMAND_OPTIONS: Array<{
+  value: CognitiveDemandBand;
+  label: string;
+}> = [
+  {
+    value: "foundational",
+    label: "Foundational: remembering, understanding, applying"
+  },
+  { value: "analyzing", label: "Analyzing" },
+  { value: "evaluating", label: "Evaluating" },
+  { value: "creating", label: "Creating" }
+];
+
 type Blueprint = {
   schema_version: "evidence-centered-item-design-v1";
   section_topic: string;
@@ -52,7 +71,7 @@ type Blueprint = {
   generation_settings: {
     target_item_count: number;
     option_count: number;
-    difficulty_mix: Array<"foundational" | "application" | "reasoning">;
+    difficulty_mix: CognitiveDemandBand[];
     context_notes: string | null;
   };
 };
@@ -320,9 +339,7 @@ function ItemDesignAssistantWorkspace({
                   <Paperclip className="h-4 w-4" aria-hidden="true" />
                   Add PDF, Word, or images
                 </button>
-                <p className="text-xs leading-5 text-muted">
-                  Up to 5 files, 15 MB each. Do not include private student information.
-                </p>
+                <p className="text-xs leading-5 text-muted">Up to 5 files, 15 MB each.</p>
               </div>
               <div className="flex items-center justify-end gap-2">
                 <p className="hidden max-w-xs text-right text-xs leading-5 text-muted xl:block">
@@ -954,26 +971,38 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
                   <option value={3}>3</option><option value={4}>4</option><option value={5}>5</option>
                 </select>
               </Field>
-              <Field label="Difficulty and reasoning mix">
-                <div className="flex flex-wrap gap-3">
-                  {(["foundational", "application", "reasoning"] as const).map((level) => (
-                    <label className="flex items-center gap-2 text-sm capitalize text-ink" key={level}>
+              <Field label="Cognitive demand mix">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {COGNITIVE_DEMAND_OPTIONS.map((option) => {
+                    const checked = blueprint.generation_settings.difficulty_mix.includes(
+                      option.value
+                    );
+                    return (
+                    <label className="flex items-start gap-2 text-sm text-ink" key={option.value}>
                       <input
-                        checked={blueprint.generation_settings.difficulty_mix.includes(level)}
-                        disabled={readOnly}
+                        checked={checked}
+                        className="mt-0.5"
+                        disabled={
+                          readOnly ||
+                          (checked && blueprint.generation_settings.difficulty_mix.length === 1)
+                        }
                         onChange={(event) => updateBlueprint((current) => ({
                           ...current,
                           generation_settings: {
                             ...current.generation_settings,
                             difficulty_mix: event.target.checked
-                              ? [...current.generation_settings.difficulty_mix, level]
-                              : current.generation_settings.difficulty_mix.filter((entry) => entry !== level)
+                              ? [...current.generation_settings.difficulty_mix, option.value]
+                              : current.generation_settings.difficulty_mix.filter(
+                                  (entry) => entry !== option.value
+                                )
                           }
                         }))}
                         type="checkbox"
-                      /> {level}
+                      />
+                      <span>{option.label}</span>
                     </label>
-                  ))}
+                    );
+                  })}
                 </div>
               </Field>
               <Field label="Contexts or boundaries" hint="Optional examples, terminology, exclusions, or course conventions.">

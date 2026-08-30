@@ -149,6 +149,13 @@ function ValidationDetails({ details }: { details: unknown }) {
     return null;
   }
 
+  if (typeof details === "object" && !Array.isArray(details)) {
+    const reference = (details as Record<string, unknown>).reference_id;
+    if (typeof reference === "string" && reference.trim()) {
+      return <p className="mt-2 text-xs text-red-800">Reference: {reference}</p>;
+    }
+  }
+
   return (
     <pre className="mt-3 max-h-64 overflow-auto rounded-md bg-white p-3 text-xs text-red-950">
       {JSON.stringify(details, null, 2)}

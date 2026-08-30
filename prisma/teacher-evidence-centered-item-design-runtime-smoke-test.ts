@@ -24,7 +24,16 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-function generatedOutput(itemCount: number) {
+type CognitiveDemandBand = "foundational" | "analyzing" | "evaluating" | "creating";
+
+function cognitiveDemandForBand(band: CognitiveDemandBand) {
+  if (band === "analyzing") return "analyze" as const;
+  if (band === "evaluating") return "evaluate" as const;
+  if (band === "creating") return "create" as const;
+  return "apply" as const;
+}
+
+function generatedOutput(itemCount: number, demandBands: CognitiveDemandBand[]) {
   return {
     schema_version: "evidence-centered-mcq-generation-output-v1",
     blueprint_version: "evidence-centered-item-design-v1",
@@ -43,8 +52,10 @@ function generatedOutput(itemCount: number) {
       misconception_hypothesis_ids: ["misconception_1"],
       target_reasoning_note: "The response should apply the objective to the situation.",
       strong_reasoning_should_mention: "Explain why the evidence supports the conclusion.",
-      cognitive_demand: "apply",
-      difficulty: index % 2 === 0 ? "application" : "reasoning",
+      cognitive_demand: cognitiveDemandForBand(
+        demandBands[index % demandBands.length] ?? "foundational"
+      ),
+      difficulty: demandBands[index % demandBands.length] ?? "foundational",
       limitations: ["Teacher review and key confirmation are required."]
     })),
     coverage_summary: [{ objective_id: "objective_1", candidate_count: itemCount }],
@@ -58,6 +69,7 @@ class ItemGenerationProvider implements LlmProvider {
   assistantCallCount = 0;
   generationCallCount = 0;
   failGenerationCalls = new Set<number>();
+  generationCandidateCounts: number[] = [];
   omitMaterialSummaries = false;
 
   async executeStructured<TInput, TOutput>(
@@ -106,7 +118,7 @@ class ItemGenerationProvider implements LlmProvider {
             settings: {
               target_item_count: 3,
               option_count: 4,
-              difficulty_mix: ["foundational", "application", "reasoning"],
+              difficulty_mix: ["foundational", "analyzing", "evaluating", "creating"],
               context_notes: null
             }
           }
@@ -145,8 +157,16 @@ class ItemGenerationProvider implements LlmProvider {
         error: { category: "network", message: "Injected failure.", retryable: true }
       };
     }
-    const input = request.input as { blueprint?: { generation_settings?: { target_item_count?: number } } };
-    const output = generatedOutput(input.blueprint?.generation_settings?.target_item_count ?? 3);
+    const input = request.input as {
+      blueprint?: { generation_settings?: { target_item_count?: number } };
+      generation_chunk?: { required_cognitive_demand_bands?: CognitiveDemandBand[] };
+    };
+    const candidateCount = input.blueprint?.generation_settings?.target_item_count ?? 1;
+    this.generationCandidateCounts.push(candidateCount);
+    const output = generatedOutput(
+      candidateCount,
+      input.generation_chunk?.required_cognitive_demand_bands ?? ["foundational"]
+    );
     return {
       provider: "mock",
       client_request_id: request.client_request_id,
@@ -341,7 +361,11 @@ async function main() {
       })
     );
     assert(replay.batch_public_id === first.batch_public_id, "Duplicate generation should replay the existing review batch.");
-    assert(provider.generationCallCount === 1, "Idempotent replay must not call the provider again.");
+    assert(provider.generationCallCount === 2, "Three drafts should be generated in two bounded calls.");
+    assert(
+      provider.generationCandidateCounts.every((count) => count <= 2),
+      "Each structured generation call must stay within the bounded chunk size."
+    );
 
     const revised = await saveAssessmentItemDesign({
       teacher_user_db_id: teacher.id,
@@ -357,23 +381,8 @@ async function main() {
         }
       }
     });
-    provider.failGenerationCalls.add(2);
-    let failed = false;
-    try {
-      await withItemGenerationProviderForTest(
-        { provider, provider_label: "mock" },
-        () => generateAssessmentItemDrafts({
-          teacher_user_db_id: teacher.id,
-          assessment_public_id: assessmentPublicId!,
-          data: { expected_blueprint_hash: revised.blueprint_hash, mode: "live" }
-        })
-      );
-    } catch {
-      failed = true;
-    }
-    assert(failed, "Injected provider failure should fail without creating a review batch.");
-
-    const retried = await withItemGenerationProviderForTest(
+    provider.failGenerationCalls.add(3);
+    const recovered = await withItemGenerationProviderForTest(
       { provider, provider_label: "mock" },
       () => generateAssessmentItemDrafts({
         teacher_user_db_id: teacher.id,
@@ -381,14 +390,14 @@ async function main() {
         data: { expected_blueprint_hash: revised.blueprint_hash, mode: "live" }
       })
     );
-    assert(Boolean(retried.batch_public_id), "A failed generation should be retryable for the unchanged blueprint.");
-    assert(Number(provider.generationCallCount) === 3, "Retry coverage should include one success, one failure, and one bounded user retry.");
+    assert(Boolean(recovered.batch_public_id), "A retryable chunk failure should recover without losing the saved design.");
+    assert(Number(provider.generationCallCount) === 5, "Generation should include two initial chunks, one failed chunk, one bounded recovery, and the remaining chunk.");
 
     const calls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_generation:${assessmentPublicId}:` } }
     });
-    assert(calls.length === 3, "Each provider attempt should have a distinct persisted AgentCall.");
-    assert(calls.filter((call) => call.call_status === "succeeded").length === 2, "Expected two successful generation calls.");
+    assert(calls.length === 5, "Each chunk and recovery attempt should have a distinct persisted AgentCall.");
+    assert(calls.filter((call) => call.call_status === "succeeded").length === 4, "Expected four successful generation chunks.");
     assert(calls.filter((call) => call.call_status === "failed").length === 1, "Expected one preserved failed generation call.");
 
     const assistantCalls = await prisma.agentCall.findMany({

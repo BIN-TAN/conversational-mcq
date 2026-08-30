@@ -1076,8 +1076,11 @@ blueprint records section/topic, teacher-authored objectives, observable
 evidence requirements, misconception hypotheses, student-language examples,
 optional exemplar items, and generation settings. Provider-backed draft
 generation uses `mcq_diagnostic_authoring_assistant_agent` with the distinct
-`evidence-centered-mcq-generation-v1` prompt and stores a redacted `agent_calls`
-record. Generated drafts are materialized as an
+`evidence-centered-mcq-generation-v2` prompt and stores one redacted
+`agent_calls` record for each bounded generation chunk or recovery attempt.
+Failed and invalid attempts remain auditable; successful chunks are resumable
+and their public references are linked to the final review batch. Generated
+drafts are materialized as an
 `McqItemImportBatch(source_type=generated_evidence_blueprint)` so the existing
 candidate review, key confirmation, duplicate checking, provenance, and draft
 import controls remain authoritative. Generated answer keys are suggestions
