@@ -1083,6 +1083,19 @@ candidate review, key confirmation, duplicate checking, provenance, and draft
 import controls remain authoritative. Generated answer keys are suggestions
 until the teacher explicitly confirms them.
 
+The same primary-topic rules store the versioned teacher-authoring conversation
+and the assistant's latest advisory design state. Each exchange preserves the
+teacher message, validated teacher-facing assistant wording, public AgentCall
+reference, client message identity, and timestamp. The corresponding
+`agent_calls` row records the dedicated authoring prompt/schema identities,
+model and token metadata, redacted context, validation result, and provider
+attempt status. Client message identities make completed exchanges idempotent.
+The provider context contains the assessment title, current blueprint, bounded
+recent authoring transcript, and latest teacher message; it does not include the
+teacher account identifier, authentication data, or student records. The
+authoring thread is teacher/audit data and is not projected into student
+assessment or profiling payloads.
+
 Teacher-pasted exemplar item text and generation-only context notes remain in
 the authoring record but are excluded from the student-profiling provider
 projection. Profiling retains the section, objectives, evidence requirements,

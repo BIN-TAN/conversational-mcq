@@ -10,6 +10,7 @@ import { createAssessment } from "../src/lib/services/content/assessments";
 import {
   generateAssessmentItemDrafts,
   getAssessmentItemDesign,
+  respondToAssessmentItemDesignAssistant,
   saveAssessmentItemDesign,
   withItemGenerationProviderForTest
 } from "../src/lib/services/content/item-design";
@@ -53,13 +54,77 @@ function generatedOutput(itemCount: number) {
 
 class ItemGenerationProvider implements LlmProvider {
   callCount = 0;
-  failCalls = new Set<number>();
+  assistantCallCount = 0;
+  generationCallCount = 0;
+  failGenerationCalls = new Set<number>();
 
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
   ): Promise<StructuredAgentResult<TOutput>> {
     this.callCount += 1;
-    if (this.failCalls.has(this.callCount)) {
+    if (request.metadata?.purpose === "teacher_evidence_centered_blueprint_conversation") {
+      this.assistantCallCount += 1;
+      const output = {
+        schema_version: "evidence-centered-item-design-assistant-output-v1",
+        assistant_message: "I shaped the material into one section objective, an observable evidence requirement, and a misconception hypothesis. Review the wording before generating drafts.",
+        blueprint_updates: [
+          { update_type: "set_section_topic", value: "Sampling bias and generalization" },
+          { update_type: "set_section_summary", value: "How self-selection affects conclusions about a target population." },
+          {
+            update_type: "upsert_objective",
+            objective: {
+              objective_id: "objective_1",
+              statement: "Apply self-selection bias reasoning to a research scenario.",
+              evidence_requirements: ["Explains how volunteers may differ systematically from the target population."]
+            }
+          },
+          {
+            update_type: "upsert_misconception",
+            misconception: {
+              misconception_id: "misconception_1",
+              statement: "Open participation makes a volunteer sample representative.",
+              linked_objective_ids: ["objective_1"],
+              student_language_examples: ["Anyone could volunteer, so the sample represents everyone."],
+              why_plausible: "Open access can be confused with representative selection."
+            }
+          },
+          {
+            update_type: "upsert_exemplar",
+            exemplar: {
+              exemplar_id: "exemplar_1",
+              item_text: "A researcher recruits volunteers and generalizes the results to all students.",
+              observed_difficulty_note: "Students often confuse availability with representativeness."
+            }
+          },
+          {
+            update_type: "update_generation_settings",
+            settings: {
+              target_item_count: 3,
+              option_count: 4,
+              difficulty_mix: ["foundational", "application", "reasoning"],
+              context_notes: null
+            }
+          }
+        ],
+        change_summary: ["Defined the section and objective.", "Added one misconception hypothesis and exemplar."],
+        remaining_questions: [],
+        ready_for_item_generation: true
+      };
+      return {
+        provider: "mock",
+        client_request_id: request.client_request_id,
+        provider_request_id: `mock_assistant_request_${this.assistantCallCount}`,
+        provider_response_id: `mock_assistant_response_${this.assistantCallCount}`,
+        status: "completed",
+        parsed_output: output as TOutput,
+        raw_output: output,
+        usage: { input_tokens: 90, output_tokens: 120, total_tokens: 210 },
+        latency_ms: 1
+      };
+    }
+
+    this.generationCallCount += 1;
+    if (this.failGenerationCalls.has(this.generationCallCount)) {
       return {
         provider: "mock",
         client_request_id: request.client_request_id,
@@ -73,8 +138,8 @@ class ItemGenerationProvider implements LlmProvider {
     return {
       provider: "mock",
       client_request_id: request.client_request_id,
-      provider_request_id: `mock_request_${this.callCount}`,
-      provider_response_id: `mock_response_${this.callCount}`,
+      provider_request_id: `mock_request_${this.generationCallCount}`,
+      provider_response_id: `mock_response_${this.generationCallCount}`,
       status: "completed",
       parsed_output: output as TOutput,
       raw_output: output,
@@ -115,35 +180,45 @@ async function main() {
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessmentPublicId
     });
-    const saved = await saveAssessmentItemDesign({
-      teacher_user_db_id: teacher.id,
-      assessment_public_id: assessmentPublicId,
-      data: {
-        expected_concept_unit_version: initial.concept_unit_version,
-        blueprint: {
-          ...initial.blueprint,
-          objectives: [{
-            objective_id: "objective_1",
-            statement: "Apply the section concept to a new situation.",
-            evidence_requirements: ["Select a relevant conclusion.", "Explain why the evidence supports it."]
-          }],
-          misconception_hypotheses: [{
-            misconception_id: "misconception_1",
-            statement: "Any familiar rule can justify the conclusion.",
-            linked_objective_ids: ["objective_1"],
-            student_language_examples: ["I used the rule because I recognized it."],
-            why_plausible: "The rule appears in the same section."
-          }],
-          generation_settings: {
-            ...initial.blueprint.generation_settings,
-            target_item_count: 3,
-            option_count: 4
-          }
-        }
-      }
-    });
-
     const provider = new ItemGenerationProvider();
+    const assistantClientMessageId = `assistant_message_${randomUUID()}`;
+    const saved = await withItemGenerationProviderForTest(
+      { provider, provider_label: "mock" },
+      () => respondToAssessmentItemDesignAssistant({
+        teacher_user_db_id: teacher.id,
+        assessment_public_id: assessmentPublicId!,
+        data: {
+          client_message_id: assistantClientMessageId,
+          expected_blueprint_hash: initial.blueprint_hash,
+          expected_concept_unit_version: initial.concept_unit_version,
+          message: "Use this course material to design a mini test about volunteer sampling and generalization. Students should explain why volunteers can differ from the target population."
+        }
+      })
+    );
+    assert(saved.blueprint.section_topic === "Sampling bias and generalization", "The assistant should update the section topic.");
+    assert(saved.blueprint.objectives[0]?.evidence_requirements.length === 1, "The assistant should preserve observable evidence.");
+    assert(saved.blueprint.misconception_hypotheses.length === 1, "The assistant should add a misconception hypothesis.");
+    assert(saved.blueprint.exemplar_items.length === 1, "The assistant should preserve an exemplar item for review.");
+    assert(saved.assistant_thread.messages.length === 2, "The persisted authoring transcript should contain one teacher-assistant exchange.");
+    assert(saved.assistant_state.ready_for_item_generation, "Assistant readiness should be advisory and persisted.");
+
+    const assistantReplay = await withItemGenerationProviderForTest(
+      { provider, provider_label: "mock" },
+      () => respondToAssessmentItemDesignAssistant({
+        teacher_user_db_id: teacher.id,
+        assessment_public_id: assessmentPublicId!,
+        data: {
+          client_message_id: assistantClientMessageId,
+          expected_blueprint_hash: initial.blueprint_hash,
+          expected_concept_unit_version: initial.concept_unit_version,
+          message: "Use this course material to design a mini test about volunteer sampling and generalization. Students should explain why volunteers can differ from the target population."
+        }
+      })
+    );
+    assert(assistantReplay.concept_unit_version === saved.concept_unit_version, "A stale duplicate request should replay the persisted exchange.");
+    assert(assistantReplay.assistant_thread.messages.length === 2, "Idempotent replay must not duplicate authoring messages.");
+    assert(provider.assistantCallCount === 1, "Idempotent authoring replay must not call the provider again.");
+
     const first = await withItemGenerationProviderForTest(
       { provider, provider_label: "mock" },
       () => generateAssessmentItemDrafts({
@@ -176,7 +251,7 @@ async function main() {
       })
     );
     assert(replay.batch_public_id === first.batch_public_id, "Duplicate generation should replay the existing review batch.");
-    assert(provider.callCount === 1, "Idempotent replay must not call the provider again.");
+    assert(provider.generationCallCount === 1, "Idempotent replay must not call the provider again.");
 
     const revised = await saveAssessmentItemDesign({
       teacher_user_db_id: teacher.id,
@@ -192,7 +267,7 @@ async function main() {
         }
       }
     });
-    provider.failCalls.add(2);
+    provider.failGenerationCalls.add(2);
     let failed = false;
     try {
       await withItemGenerationProviderForTest(
@@ -217,7 +292,7 @@ async function main() {
       })
     );
     assert(Boolean(retried.batch_public_id), "A failed generation should be retryable for the unchanged blueprint.");
-    assert(Number(provider.callCount) === 3, "Retry coverage should include one success, one failure, and one bounded user retry.");
+    assert(Number(provider.generationCallCount) === 3, "Retry coverage should include one success, one failure, and one bounded user retry.");
 
     const calls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_generation:${assessmentPublicId}:` } }
@@ -225,6 +300,16 @@ async function main() {
     assert(calls.length === 3, "Each provider attempt should have a distinct persisted AgentCall.");
     assert(calls.filter((call) => call.call_status === "succeeded").length === 2, "Expected two successful generation calls.");
     assert(calls.filter((call) => call.call_status === "failed").length === 1, "Expected one preserved failed generation call.");
+
+    const assistantCalls = await prisma.agentCall.findMany({
+      where: { agent_invocation_key: { startsWith: `evidence_item_design_assistant:${assessmentPublicId}:` } }
+    });
+    assert(assistantCalls.length === 1, "The authoring exchange should have one persisted AgentCall.");
+    assert(assistantCalls[0]?.call_status === "succeeded", "The authoring AgentCall should record successful validation.");
+    assert(
+      !JSON.stringify(assistantCalls[0]?.input_payload).includes(userId),
+      "Teacher account identifiers must not enter the provider context."
+    );
 
     console.log("teacher evidence-centered item design runtime smoke passed");
   } finally {
@@ -235,7 +320,12 @@ async function main() {
       });
       if (assessment) {
         await prisma.agentCall.deleteMany({
-          where: { agent_invocation_key: { startsWith: `evidence_item_generation:${assessmentPublicId}:` } }
+          where: {
+            OR: [
+              { agent_invocation_key: { startsWith: `evidence_item_generation:${assessmentPublicId}:` } },
+              { agent_invocation_key: { startsWith: `evidence_item_design_assistant:${assessmentPublicId}:` } }
+            ]
+          }
         });
         await prisma.mcqItemImportBatch.deleteMany({ where: { assessment_db_id: assessment.id } });
         await prisma.item.deleteMany({

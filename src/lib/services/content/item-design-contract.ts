@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v1" as const;
+export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v1" as const;
+export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v1" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
@@ -27,6 +30,13 @@ export const ItemDesignExemplarSchema = z.object({
   observed_difficulty_note: z.string().trim().max(1000).nullable().default(null)
 }).strict();
 
+export const ItemDesignGenerationSettingsSchema = z.object({
+  target_item_count: z.number().int().min(3).max(12).default(6),
+  option_count: z.number().int().min(3).max(5).default(4),
+  difficulty_mix: z.array(z.enum(["foundational", "application", "reasoning"])).min(1).max(3),
+  context_notes: z.string().trim().max(1200).nullable().default(null)
+}).strict();
+
 export const ItemDesignBlueprintSchema = z.object({
   schema_version: z.literal(ITEM_DESIGN_BLUEPRINT_VERSION),
   section_topic: z.string().trim().min(1).max(240),
@@ -34,12 +44,7 @@ export const ItemDesignBlueprintSchema = z.object({
   objectives: z.array(ItemDesignObjectiveSchema).min(1).max(12),
   misconception_hypotheses: z.array(ItemDesignMisconceptionSchema).max(20).default([]),
   exemplar_items: z.array(ItemDesignExemplarSchema).max(12).default([]),
-  generation_settings: z.object({
-    target_item_count: z.number().int().min(3).max(12).default(6),
-    option_count: z.number().int().min(3).max(5).default(4),
-    difficulty_mix: z.array(z.enum(["foundational", "application", "reasoning"])).min(1).max(3),
-    context_notes: z.string().trim().max(1200).nullable().default(null)
-  }).strict()
+  generation_settings: ItemDesignGenerationSettingsSchema
 }).strict().superRefine((blueprint, context) => {
   const objectiveIds = new Set(blueprint.objectives.map((objective) => objective.objective_id));
   if (objectiveIds.size !== blueprint.objectives.length) {
@@ -69,6 +74,139 @@ export const ItemDesignBlueprintSchema = z.object({
     });
   });
 });
+
+export const ItemDesignAssistantBlueprintUpdateSchema = z.discriminatedUnion("update_type", [
+  z.object({
+    update_type: z.literal("set_section_topic"),
+    value: z.string().trim().min(1).max(240)
+  }).strict(),
+  z.object({
+    update_type: z.literal("set_section_summary"),
+    value: z.string().trim().min(1).max(2000)
+  }).strict(),
+  z.object({
+    update_type: z.literal("upsert_objective"),
+    objective: ItemDesignObjectiveSchema
+  }).strict(),
+  z.object({
+    update_type: z.literal("remove_objective"),
+    objective_id: z.string().trim().min(1).max(80)
+  }).strict(),
+  z.object({
+    update_type: z.literal("upsert_misconception"),
+    misconception: ItemDesignMisconceptionSchema
+  }).strict(),
+  z.object({
+    update_type: z.literal("remove_misconception"),
+    misconception_id: z.string().trim().min(1).max(80)
+  }).strict(),
+  z.object({
+    update_type: z.literal("upsert_exemplar"),
+    exemplar: ItemDesignExemplarSchema
+  }).strict(),
+  z.object({
+    update_type: z.literal("remove_exemplar"),
+    exemplar_id: z.string().trim().min(1).max(80)
+  }).strict(),
+  z.object({
+    update_type: z.literal("update_generation_settings"),
+    settings: ItemDesignGenerationSettingsSchema
+  }).strict()
+]);
+
+export const ItemDesignAssistantOutputSchema = z.object({
+  schema_version: z.literal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION),
+  assistant_message: z.string().trim().min(1).max(4000),
+  blueprint_updates: z.array(ItemDesignAssistantBlueprintUpdateSchema).max(24),
+  change_summary: z.array(z.string().trim().min(1).max(300)).max(10),
+  remaining_questions: z.array(z.string().trim().min(1).max(500)).max(8),
+  ready_for_item_generation: z.boolean()
+}).strict();
+
+export const ItemDesignAssistantMessageSchema = z.object({
+  message_id: z.string().trim().min(1).max(160),
+  client_message_id: z.string().trim().min(1).max(120),
+  role: z.enum(["teacher", "assistant"]),
+  message_text: z.string().trim().min(1).max(20000),
+  created_at: z.string().datetime(),
+  agent_call_public_id: z.string().trim().min(1).max(160).nullable()
+}).strict();
+
+export const ItemDesignAssistantThreadSchema = z.object({
+  schema_version: z.literal(ITEM_DESIGN_ASSISTANT_THREAD_VERSION),
+  messages: z.array(ItemDesignAssistantMessageSchema).max(100)
+}).strict();
+
+export function applyItemDesignAssistantUpdates(input: {
+  blueprint: ItemDesignBlueprint;
+  updates: z.infer<typeof ItemDesignAssistantBlueprintUpdateSchema>[];
+}) {
+  const next = structuredClone(input.blueprint);
+
+  for (const update of input.updates) {
+    switch (update.update_type) {
+      case "set_section_topic":
+        next.section_topic = update.value;
+        break;
+      case "set_section_summary":
+        next.section_summary = update.value;
+        break;
+      case "upsert_objective": {
+        const index = next.objectives.findIndex(
+          (objective) => objective.objective_id === update.objective.objective_id
+        );
+        next.objectives = index === -1
+          ? [...next.objectives, update.objective]
+          : next.objectives.map((objective, objectiveIndex) =>
+              objectiveIndex === index ? update.objective : objective
+            );
+        break;
+      }
+      case "remove_objective":
+        next.objectives = next.objectives.filter(
+          (objective) => objective.objective_id !== update.objective_id
+        );
+        break;
+      case "upsert_misconception": {
+        const index = next.misconception_hypotheses.findIndex(
+          (misconception) => misconception.misconception_id === update.misconception.misconception_id
+        );
+        next.misconception_hypotheses = index === -1
+          ? [...next.misconception_hypotheses, update.misconception]
+          : next.misconception_hypotheses.map((misconception, misconceptionIndex) =>
+              misconceptionIndex === index ? update.misconception : misconception
+            );
+        break;
+      }
+      case "remove_misconception":
+        next.misconception_hypotheses = next.misconception_hypotheses.filter(
+          (misconception) => misconception.misconception_id !== update.misconception_id
+        );
+        break;
+      case "upsert_exemplar": {
+        const index = next.exemplar_items.findIndex(
+          (exemplar) => exemplar.exemplar_id === update.exemplar.exemplar_id
+        );
+        next.exemplar_items = index === -1
+          ? [...next.exemplar_items, update.exemplar]
+          : next.exemplar_items.map((exemplar, exemplarIndex) =>
+              exemplarIndex === index ? update.exemplar : exemplar
+            );
+        break;
+      }
+      case "remove_exemplar":
+        next.exemplar_items = next.exemplar_items.filter(
+          (exemplar) => exemplar.exemplar_id !== update.exemplar_id
+        );
+        break;
+      case "update_generation_settings":
+        next.generation_settings = update.settings;
+        break;
+    }
+  }
+
+  return ItemDesignBlueprintSchema.parse(next);
+}
 
 const GeneratedOptionSchema = z.object({
   label: z.string().trim().regex(/^[A-E]$/),
@@ -117,6 +255,9 @@ export const ItemGenerationOutputSchema = z.object({
 }).strict();
 
 export type ItemDesignBlueprint = z.infer<typeof ItemDesignBlueprintSchema>;
+export type ItemDesignAssistantMessage = z.infer<typeof ItemDesignAssistantMessageSchema>;
+export type ItemDesignAssistantOutput = z.infer<typeof ItemDesignAssistantOutputSchema>;
+export type ItemDesignAssistantThread = z.infer<typeof ItemDesignAssistantThreadSchema>;
 export type ItemGenerationOutput = z.infer<typeof ItemGenerationOutputSchema>;
 
 export function validateGeneratedItemSet(input: {

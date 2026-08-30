@@ -6,6 +6,16 @@ The student assessment should be chat-native. The platform should present the as
 
 Phase 30a reframes the purpose of the flow as distractor-informed misconception diagnosis. The flow still collects the same answer, reasoning, confidence, and tempting-option evidence, but the design rationale is now to form, test, weaken, or reject distractor-linked misconception hypotheses rather than to produce a broad ability profile or broad adaptive tutoring path.
 
+## Teacher Authoring Flow
+
+Teacher-created mini tests use this evidence-centered sequence:
+
+`NEW MINI TEST -> AUTHORING CONVERSATION -> BLUEPRINT REVIEW -> DRAFT GENERATION -> ITEM REVIEW AND KEY CONFIRMATION -> DRAFT MINI TEST`
+
+The first step records only the mini-test identity, organization, and availability dates. The item-design assistant then works conversationally from teacher-provided course material, section boundaries, objectives, observable evidence requirements, misconception hypotheses, and source exemplar items. Every accepted assistant response applies validated structured updates to the versioned blueprint and is retained in the teacher-authoring transcript.
+
+The teacher can switch to blueprint review at any time and directly edit every design field. Readiness language from the assistant is advisory only. The platform does not generate items automatically, and generated candidates cannot enter the mini test until the teacher reviews their wording and rationale and explicitly confirms each answer key. Assessment-library screens manage existing mini tests; they do not own the authoring conversation.
+
 ## Initial Item Administration
 
 Current teacher-authored mini tests administer the complete included item set for the section. The validated set size is three to twelve items; six to nine is the recommended authoring starting point. The fixed three-item language below documents the original MVP fixture rather than a requirement that every misconception receive exactly three items. The student UI shows `Item X of N` and the number remaining.

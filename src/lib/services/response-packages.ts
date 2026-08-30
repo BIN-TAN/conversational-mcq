@@ -8,6 +8,7 @@ import {
 } from "./content/item-media";
 import { toPrismaJson } from "./json";
 import { aggregateProcessEventsByConceptUnitSession } from "./process-events";
+import { projectConceptAdministrationRulesForStudentAgents } from "./content/item-design-provider-boundary";
 
 const createResponsePackageSchema = z.object({
   concept_unit_session_db_id: z.string().uuid(),
@@ -273,7 +274,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       title: conceptUnitSession.concept_unit.title,
       learning_objective: conceptUnitSession.concept_unit.learning_objective,
       related_concept_description: conceptUnitSession.concept_unit.related_concept_description,
-      administration_rules: conceptUnitSession.concept_unit.administration_rules,
+      administration_rules: projectConceptAdministrationRulesForStudentAgents(
+        conceptUnitSession.concept_unit.administration_rules
+      ),
       teacher_diagnostic_context: teacherDiagnosticContextForProvider({
         administration_rules: conceptUnitSession.concept_unit.administration_rules,
         assessment_diagnostic_focus:

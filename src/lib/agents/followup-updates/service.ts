@@ -30,6 +30,7 @@ import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operationa
 import { operationalReadinessHasFatalConfigurationBlock } from "@/lib/operational/guarded-agent-integration";
 import { generatePublicId } from "@/lib/services/ids";
 import { toPrismaJson } from "@/lib/services/json";
+import { projectConceptAdministrationRulesForStudentAgents } from "@/lib/services/content/item-design-provider-boundary";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { aggregateProcessEventsByConceptUnitSession } from "@/lib/services/process-events";
 import {
@@ -548,7 +549,11 @@ async function buildFollowupEvidencePackagePayload(input: {
       learning_objective: conceptUnitSession.concept_unit.learning_objective,
       related_concept_description:
         conceptUnitSession.concept_unit.related_concept_description,
-      administration_rules: safePayload(conceptUnitSession.concept_unit.administration_rules),
+      administration_rules: safePayload(
+        projectConceptAdministrationRulesForStudentAgents(
+          conceptUnitSession.concept_unit.administration_rules
+        )
+      ),
       order_index: conceptUnitSession.concept_unit.order_index,
       version: conceptUnitSession.concept_unit.version
     },

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { AgentInputByName } from "@/lib/agents/contracts";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { projectConceptAdministrationRulesForStudentAgents } from "@/lib/services/content/item-design-provider-boundary";
 import {
   defaultFormativeValueForIntegratedProfile,
   planningMappingForPrompt
@@ -228,7 +229,11 @@ export async function buildInitialFormativePlanningInput(
         learning_objective: conceptUnitSession.concept_unit.learning_objective,
         related_concept_description:
           conceptUnitSession.concept_unit.related_concept_description,
-        administration_rules: safeJson(conceptUnitSession.concept_unit.administration_rules),
+        administration_rules: safeJson(
+          projectConceptAdministrationRulesForStudentAgents(
+            conceptUnitSession.concept_unit.administration_rules
+          )
+        ),
         order_index: conceptUnitSession.concept_unit.order_index,
         version: conceptUnitSession.concept_unit.version
       },

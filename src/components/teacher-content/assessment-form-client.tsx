@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Save, X } from "lucide-react";
+import { ArrowRight, MessageSquareText, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { AssessmentSummary, StructuredApiError } from "./types";
 import { Breadcrumbs, Button, ErrorPanel, Field, PageHeader } from "./ui";
@@ -14,7 +14,6 @@ type CreateAssessmentResponse = {
 export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: string }) {
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [diagnosticFocus, setDiagnosticFocus] = useState("");
   const [folderLabel, setFolderLabel] = useState("");
   const [releaseAt, setReleaseAt] = useState("");
   const [closeAt, setCloseAt] = useState("");
@@ -48,7 +47,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         method: "POST",
         body: JSON.stringify({
           title,
-          diagnostic_focus: diagnosticFocus.trim() ? diagnosticFocus : null,
+          diagnostic_focus: null,
           folder_label: folderLabel.trim() ? folderLabel : null,
           workflow_mode: "automatic",
           response_collection_mode: "llm_assisted",
@@ -79,7 +78,18 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
 
       <ErrorPanel error={error} />
 
-      <form className="max-w-2xl space-y-4 rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={onSubmit}>
+      <section className="max-w-3xl border-y border-line bg-accent-soft px-5 py-4 text-sm leading-6 text-ink">
+        <div className="flex gap-3">
+          <MessageSquareText className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
+          <p>
+            Create the mini-test shell first. Next, work with the item-design assistant using course
+            material, learning objectives, evidence requirements, misconception examples, and
+            exemplar items.
+          </p>
+        </div>
+      </section>
+
+      <form className="max-w-3xl space-y-4 rounded-md border border-line bg-white p-5 shadow-soft" onSubmit={onSubmit}>
         <Field label="Assessment name">
           <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -89,19 +99,6 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
             }}
             required
             value={title}
-          />
-        </Field>
-        <Field
-          label="Diagnostic focus"
-          hint="What misconception, cognitive process, or diagnostic framework does this assessment target? Write in plain English. The system uses this as teacher guidance when interpreting student reasoning. Students do not see this note."
-        >
-          <textarea
-            className="min-h-32 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-            onChange={(event) => {
-              markDirty();
-              setDiagnosticFocus(event.target.value);
-            }}
-            value={diagnosticFocus}
           />
         </Field>
         <Field label="Folder / week / module">
@@ -145,8 +142,8 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
         </p>
         <div className="flex flex-wrap gap-2">
           <Button disabled={isSubmitting} type="submit">
-            <Save className="h-4 w-4" aria-hidden="true" />
-            {isSubmitting ? "Creating" : "Save and design items"}
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+            {isSubmitting ? "Creating" : "Create and open assistant"}
           </Button>
           <Button disabled={isSubmitting} onClick={cancel} type="button" variant="secondary">
             <X className="h-4 w-4" aria-hidden="true" />

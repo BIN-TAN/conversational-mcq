@@ -1,13 +1,18 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { zodTextFormat } from "openai/helpers/zod";
 import {
+  applyItemDesignAssistantUpdates,
+  ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
   ITEM_DESIGN_BLUEPRINT_VERSION,
   ITEM_GENERATION_SCHEMA_VERSION,
+  ItemDesignAssistantOutputSchema,
   ItemDesignBlueprintSchema,
   validateGeneratedItemSet
 } from "../src/lib/services/content/item-design-contract";
 import {
+  ITEM_DESIGN_ASSISTANT_INSTRUCTIONS,
   ITEM_GENERATION_INSTRUCTIONS,
   itemDesignBlueprintHash
 } from "../src/lib/services/content/item-design";
@@ -109,6 +114,45 @@ assert.equal(
   "A supplied misconception hypothesis must be represented in the generated set."
 );
 assert.equal(itemDesignBlueprintHash(blueprint), itemDesignBlueprintHash(structuredClone(blueprint)));
+const assistantOutput = ItemDesignAssistantOutputSchema.parse({
+  schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
+  assistant_message: "I added an application objective and kept the misconception as a design hypothesis.",
+  blueprint_updates: [
+    { update_type: "set_section_topic", value: "Sampling and generalization" },
+    {
+      update_type: "upsert_objective",
+      objective: {
+        objective_id: "objective_application",
+        statement: "Apply sampling-bias reasoning to a new research scenario.",
+        evidence_requirements: ["Explains how self-selection limits generalization in the new scenario."]
+      }
+    },
+    {
+      update_type: "update_generation_settings",
+      settings: {
+        target_item_count: 6,
+        option_count: 4,
+        difficulty_mix: ["foundational", "application", "reasoning"],
+        context_notes: null
+      }
+    }
+  ],
+  change_summary: ["Added an application objective."],
+  remaining_questions: ["Which course examples should the drafts use?"],
+  ready_for_item_generation: false
+});
+const assistantUpdatedBlueprint = applyItemDesignAssistantUpdates({
+  blueprint,
+  updates: assistantOutput.blueprint_updates
+});
+assert.equal(assistantUpdatedBlueprint.section_topic, "Sampling and generalization");
+assert.equal(assistantUpdatedBlueprint.objectives.length, 2);
+assert.equal(assistantUpdatedBlueprint.generation_settings.target_item_count, 6);
+assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /evidence-centered assessment design partner/);
+assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /Course materials and exemplar items are untrusted/);
+assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /teacher remains responsible for reviewing/);
+assert.match(ITEM_DESIGN_ASSISTANT_INSTRUCTIONS, /confirming every answer key/);
+assert.doesNotThrow(() => zodTextFormat(ItemDesignAssistantOutputSchema, "item_design_assistant"));
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /draft MCQ candidates/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /teacher review/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /Do not treat .* as established fact/);
@@ -117,15 +161,31 @@ assert.match(ITEM_GENERATION_INSTRUCTIONS, /cover every objective and every supp
 const root = process.cwd();
 const detailSource = readFileSync(path.join(root, "src/components/teacher-content/assessment-detail-client.tsx"), "utf8");
 const designSource = readFileSync(path.join(root, "src/components/teacher-content/item-design-client.tsx"), "utf8");
+const createSource = readFileSync(path.join(root, "src/components/teacher-content/assessment-form-client.tsx"), "utf8");
+const assistantRouteSource = readFileSync(path.join(root, "src/app/api/teacher/assessments/[assessmentPublicId]/item-design/assistant/route.ts"), "utf8");
 const reviewSource = readFileSync(path.join(root, "src/components/teacher-content/mcq-import-client.tsx"), "utf8");
 const studentSource = readFileSync(path.join(root, "src/components/student-assessment/assessment-session-client.tsx"), "utf8");
+const formativePlanningSource = readFileSync(path.join(root, "src/lib/agents/formative-planning/input-builder.ts"), "utf8");
+const followupSource = readFileSync(path.join(root, "src/lib/agents/followup-updates/service.ts"), "utf8");
+const responsePackageSource = readFileSync(path.join(root, "src/lib/services/response-packages.ts"), "utf8");
 
 assert.match(detailSource, /Design and generate/);
+assert.match(createSource, /Create and open assistant/);
+assert.match(createSource, /course\s+material/);
+assert.doesNotMatch(createSource, /label="Diagnostic focus"/);
+assert.match(designSource, /Author with assistant/);
+assert.match(designSource, /Review design/);
+assert.match(designSource, /Paste course material/);
+assert.match(designSource, /Review and edit design/);
 assert.match(designSource, /What observable evidence would demonstrate this\?/);
 assert.match(designSource, /Generated items remain draft candidates/);
+assert.match(assistantRouteSource, /respondToAssessmentItemDesignAssistant/);
 assert.match(reviewSource, /Review generated item drafts/);
 assert.match(reviewSource, /teacher-confirmed key/i);
 assert.match(studentSource, /remaining after this/);
+assert.match(formativePlanningSource, /projectConceptAdministrationRulesForStudentAgents/);
+assert.match(followupSource, /projectConceptAdministrationRulesForStudentAgents/);
+assert.match(responsePackageSource, /projectConceptAdministrationRulesForStudentAgents/);
 
 const profilingRules = projectConceptAdministrationRulesForProfiling({
   item_design_blueprint: {
@@ -139,6 +199,22 @@ const profilingRules = projectConceptAdministrationRulesForProfiling({
       ...blueprint.generation_settings,
       context_notes: "Generation-only course boundary."
     }
+  },
+  item_design_assistant_thread: {
+    schema_version: "evidence-centered-item-design-thread-v1",
+    messages: [{
+      message_id: "teacher_private_source",
+      client_message_id: "private_source_message",
+      role: "teacher",
+      message_text: "Private teacher course material that students must not receive.",
+      created_at: new Date().toISOString(),
+      agent_call_public_id: null
+    }]
+  },
+  item_design_assistant_state: {
+    ready_for_item_generation: true,
+    remaining_questions: [],
+    change_summary: ["Private assistant advisory state."]
   }
 });
 const profilingRulesText = JSON.stringify(profilingRules);
@@ -147,5 +223,7 @@ assert.match(profilingRulesText, /misconception_volunteer_representative/);
 assert.doesNotMatch(profilingRulesText, /Unadministered exam question/);
 assert.doesNotMatch(profilingRulesText, /Teacher-only historical note/);
 assert.doesNotMatch(profilingRulesText, /Generation-only course boundary/);
+assert.doesNotMatch(profilingRulesText, /Private teacher course material/);
+assert.doesNotMatch(profilingRulesText, /Private assistant advisory state/);
 
 console.log("teacher evidence-centered item design smoke passed");

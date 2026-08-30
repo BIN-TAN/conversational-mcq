@@ -6,6 +6,7 @@ import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { assertNoRawStudentIdentifiersInProviderPayload } from "@/lib/llm/provider-input-privacy";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { buildCanonicalEvidenceCatalog } from "@/lib/domain/canonical-evidence-identity";
+import { projectConceptAdministrationRulesForStudentAgents } from "@/lib/services/content/item-design-provider-boundary";
 
 export type StudentProfilingInput = AgentInputByName["student_profiling_agent"];
 
@@ -47,28 +48,7 @@ function safeJson(value: unknown): unknown {
 }
 
 export function projectConceptAdministrationRulesForProfiling(value: unknown): unknown {
-  const rules = asRecord(safeJson(value));
-  const blueprint = asRecord(rules.item_design_blueprint);
-  if (Object.keys(blueprint).length === 0) return rules;
-  const generationSettings = asRecord(blueprint.generation_settings);
-
-  return {
-    ...rules,
-    item_design_blueprint: {
-      schema_version: blueprint.schema_version,
-      section_topic: blueprint.section_topic,
-      section_summary: blueprint.section_summary,
-      objectives: Array.isArray(blueprint.objectives) ? safeJson(blueprint.objectives) : [],
-      misconception_hypotheses: Array.isArray(blueprint.misconception_hypotheses)
-        ? safeJson(blueprint.misconception_hypotheses)
-        : [],
-      generation_settings: {
-        target_item_count: generationSettings.target_item_count,
-        option_count: generationSettings.option_count,
-        difficulty_mix: generationSettings.difficulty_mix
-      }
-    }
-  };
+  return safeJson(projectConceptAdministrationRulesForStudentAgents(value));
 }
 
 function countByEventType(events: Array<{ event_type: string }>) {

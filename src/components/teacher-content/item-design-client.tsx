@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { type FormEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, BookOpenCheck, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpenCheck,
+  CheckCircle2,
+  FileText,
+  MessageSquareText,
+  PencilLine,
+  Plus,
+  Save,
+  Send,
+  Sparkles,
+  Trash2
+} from "lucide-react";
+import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { StructuredApiError } from "./types";
 import { Button, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
@@ -42,12 +55,32 @@ type Blueprint = {
   };
 };
 
+type AssistantMessage = {
+  message_id: string;
+  client_message_id: string;
+  role: "teacher" | "assistant";
+  message_text: string;
+  created_at: string;
+  agent_call_public_id: string | null;
+};
+
+type AssistantState = {
+  ready_for_item_generation: boolean;
+  change_summary: string[];
+  remaining_questions: string[];
+};
+
 type DesignResponse = {
   assessment: { assessment_public_id: string; title: string; status: string; is_editable: boolean };
   concept_unit_public_id: string;
   concept_unit_version: number;
   blueprint: Blueprint;
   blueprint_hash: string;
+  assistant_thread: {
+    schema_version: "evidence-centered-item-design-thread-v1";
+    messages: AssistantMessage[];
+  };
+  assistant_state: AssistantState;
 };
 
 function localId(prefix: string) {
@@ -58,13 +91,225 @@ function lines(value: string) {
   return value.split("\n").map((entry) => entry.trim()).filter(Boolean);
 }
 
+function ItemDesignAssistantWorkspace({
+  assistantInput,
+  blueprint,
+  busy,
+  design,
+  onAssistantInputChange,
+  onOpenReview,
+  onSend,
+  readOnly,
+  transcriptEndRef
+}: {
+  assistantInput: string;
+  blueprint: Blueprint;
+  busy: "load" | "save" | "assistant" | "generate" | null;
+  design: DesignResponse;
+  onAssistantInputChange: (value: string) => void;
+  onOpenReview: () => void;
+  onSend: (event: FormEvent<HTMLFormElement>) => void;
+  readOnly: boolean;
+  transcriptEndRef: RefObject<HTMLDivElement | null>;
+}) {
+  const evidenceCount = blueprint.objectives.reduce(
+    (total, objective) => total + objective.evidence_requirements.filter(Boolean).length,
+    0
+  );
+  const messages = design.assistant_thread.messages;
+  const suggestions = [
+    "I will paste course material",
+    "Help me refine the learning objectives",
+    "I have exemplar items students found difficult"
+  ];
+
+  return (
+    <section className="overflow-hidden rounded-md border border-line bg-white shadow-soft">
+      <div className="grid min-h-[640px] lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-h-[600px] min-w-0 flex-col lg:border-r lg:border-line">
+          <header className="border-b border-line px-5 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
+                <MessageSquareText className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-semibold text-ink">Item-design assistant</h2>
+                <p className="text-sm text-muted">{design.assessment.title}</p>
+              </div>
+            </div>
+          </header>
+
+          <div
+            aria-live="polite"
+            className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAF9] px-4 py-5 sm:px-6"
+            data-testid="item-design-assistant-transcript"
+          >
+            {messages.length === 0 ? (
+              <div className="mx-auto max-w-xl py-8 text-center">
+                <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
+                <h3 className="mt-4 text-lg font-semibold text-ink">Start with the course material</h3>
+                <p className="mt-2 text-sm leading-6 text-muted">
+                  Paste a relevant excerpt, describe the section, or share an exemplar item. The
+                  assistant will help turn it into objectives, observable evidence, and
+                  misconception hypotheses.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                  {suggestions.map((suggestion) => (
+                    <button
+                      className="rounded-md border border-line bg-white px-3 py-2 text-left text-sm font-medium text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+                      disabled={readOnly || busy !== null}
+                      key={suggestion}
+                      onClick={() => onAssistantInputChange(suggestion)}
+                      type="button"
+                    >
+                      {suggestion}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
+            {messages.map((message) => (
+              <div
+                className={`flex ${message.role === "teacher" ? "justify-end" : "justify-start"}`}
+                key={message.message_id}
+              >
+                <div
+                  className={
+                    message.role === "teacher"
+                      ? "max-w-[88%] rounded-md bg-accent px-4 py-3 text-sm leading-6 text-white sm:max-w-[78%]"
+                      : "max-w-[92%] rounded-md border border-line bg-white px-4 py-3 text-ink sm:max-w-[84%]"
+                  }
+                >
+                  {message.role === "assistant" ? (
+                    <SafeTutorMessageMarkdown message={message.message_text} />
+                  ) : (
+                    <p className="whitespace-pre-wrap">{message.message_text}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {busy === "assistant" ? (
+              <div className="flex justify-start">
+                <div className="rounded-md border border-line bg-white px-4 py-3 text-sm text-muted">
+                  Reviewing your material and updating the design...
+                </div>
+              </div>
+            ) : null}
+            <div ref={transcriptEndRef} />
+          </div>
+
+          <form className="border-t border-line bg-white p-4" onSubmit={onSend}>
+            <label className="sr-only" htmlFor="item-design-assistant-message">
+              Message the item-design assistant
+            </label>
+            <textarea
+              className="min-h-28 w-full resize-y rounded-md border border-line px-3 py-3 text-sm leading-6 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+              disabled={readOnly || busy !== null}
+              id="item-design-assistant-message"
+              maxLength={20000}
+              onChange={(event) => onAssistantInputChange(event.target.value)}
+              placeholder="Paste course material, describe the topic, list objectives, or share exemplar items..."
+              value={assistantInput}
+            />
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-xs leading-5 text-muted">
+                Do not include private student information. You will review all design details and
+                answer keys before items are added.
+              </p>
+              <Button
+                className="shrink-0"
+                disabled={readOnly || busy !== null || !assistantInput.trim()}
+                type="submit"
+              >
+                <Send className="h-4 w-4" aria-hidden="true" />
+                {busy === "assistant" ? "Working" : "Send"}
+              </Button>
+            </div>
+          </form>
+        </div>
+
+        <aside className="border-t border-line bg-white lg:border-t-0">
+          <div className="border-b border-line px-5 py-4">
+            <h2 className="font-semibold text-ink">Current design</h2>
+            <p className="mt-1 text-sm leading-5 text-muted">Updated as you work with the assistant.</p>
+          </div>
+          <div className="space-y-5 p-5">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Section or topic</p>
+              <p className="mt-1 text-sm font-medium leading-6 text-ink">{blueprint.section_topic}</p>
+            </div>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-4 border-y border-line py-4 text-sm">
+              <div>
+                <dt className="text-muted">Objectives</dt>
+                <dd className="mt-1 text-lg font-semibold text-ink">{blueprint.objectives.length}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Evidence points</dt>
+                <dd className="mt-1 text-lg font-semibold text-ink">{evidenceCount}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Misconceptions</dt>
+                <dd className="mt-1 text-lg font-semibold text-ink">{blueprint.misconception_hypotheses.length}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Exemplars</dt>
+                <dd className="mt-1 text-lg font-semibold text-ink">{blueprint.exemplar_items.length}</dd>
+              </div>
+            </dl>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Draft target</p>
+              <p className="mt-1 text-sm leading-6 text-ink">
+                {blueprint.generation_settings.target_item_count} items, {blueprint.generation_settings.option_count} options each
+              </p>
+            </div>
+
+            {design.assistant_state.change_summary.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Latest changes</p>
+                <ul className="mt-2 space-y-2 text-sm leading-5 text-ink">
+                  {design.assistant_state.change_summary.map((entry) => (
+                    <li className="flex gap-2" key={entry}>
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                      <span>{entry}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {design.assistant_state.remaining_questions.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">Questions to resolve</p>
+                <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-5 text-ink">
+                  {design.assistant_state.remaining_questions.map((entry) => <li key={entry}>{entry}</li>)}
+                </ul>
+              </div>
+            ) : null}
+
+            <Button className="w-full" onClick={onOpenReview} type="button" variant="secondary">
+              <PencilLine className="h-4 w-4" aria-hidden="true" />
+              Review and edit design
+            </Button>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
 export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: string }) {
   const router = useRouter();
   const [design, setDesign] = useState<DesignResponse | null>(null);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"load" | "save" | "generate" | null>("load");
+  const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | null>("load");
+  const [view, setView] = useState<"assistant" | "review">("assistant");
+  const [assistantInput, setAssistantInput] = useState("");
+  const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
+  const transcriptEndRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     setBusy("load");
@@ -83,6 +328,11 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
   }, [assessmentPublicId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (view !== "assistant") return;
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [busy, design?.assistant_thread.messages.length, view]);
 
   function updateBlueprint(updater: (current: Blueprint) => Blueprint) {
     setBlueprint((current) => current ? updater(current) : current);
@@ -139,12 +389,58 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
     }
   }
 
+  function handleAssistantInputChange(value: string) {
+    setAssistantInput(value);
+    if (busy !== "assistant") setAssistantClientMessageId(null);
+  }
+
+  async function handleAssistantSend(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const message = assistantInput.trim();
+    if (!message || !design || !blueprint) return;
+
+    setBusy("assistant");
+    setError(null);
+    setSuccess(null);
+    const clientMessageId = assistantClientMessageId ?? crypto.randomUUID();
+    setAssistantClientMessageId(clientMessageId);
+
+    try {
+      const currentDesign = JSON.stringify(blueprint) === JSON.stringify(design.blueprint)
+        ? design
+        : await saveBlueprint(false);
+      if (!currentDesign) return;
+
+      const response = await apiRequest<DesignResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/item-design/assistant`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            client_message_id: clientMessageId,
+            expected_blueprint_hash: currentDesign.blueprint_hash,
+            expected_concept_unit_version: currentDesign.concept_unit_version,
+            message
+          })
+        }
+      );
+      setDesign(response);
+      setBlueprint(response.blueprint);
+      setAssistantInput("");
+      setAssistantClientMessageId(null);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   const readOnly = !design?.assessment.is_editable;
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Design assessment items"
+        description={design ? design.assessment.title : undefined}
+        title="Design mini test"
         actions={
           <a
             className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent"
@@ -162,11 +458,58 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
 
       {blueprint && design ? (
         <>
+          <div
+            aria-label="Item-design workspace"
+            className="inline-flex w-full rounded-md border border-line bg-[#F5F7F6] p-1 sm:w-auto"
+            role="tablist"
+          >
+            <button
+              aria-selected={view === "assistant"}
+              className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition sm:flex-none ${
+                view === "assistant" ? "bg-white text-accent shadow-sm" : "text-muted hover:text-ink"
+              }`}
+              onClick={() => setView("assistant")}
+              role="tab"
+              type="button"
+            >
+              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
+              Author with assistant
+            </button>
+            <button
+              aria-selected={view === "review"}
+              className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition sm:flex-none ${
+                view === "review" ? "bg-white text-accent shadow-sm" : "text-muted hover:text-ink"
+              }`}
+              onClick={() => setView("review")}
+              role="tab"
+              type="button"
+            >
+              <FileText className="h-4 w-4" aria-hidden="true" />
+              Review design
+            </button>
+          </div>
+
+          {view === "assistant" ? (
+            <ItemDesignAssistantWorkspace
+              assistantInput={assistantInput}
+              blueprint={blueprint}
+              busy={busy}
+              design={design}
+              onAssistantInputChange={handleAssistantInputChange}
+              onOpenReview={() => setView("review")}
+              onSend={handleAssistantSend}
+              readOnly={readOnly}
+              transcriptEndRef={transcriptEndRef}
+            />
+          ) : (
+            <>
           <section className="border-y border-line bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
             <div className="flex gap-3">
               <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
               <p>
-                Define what students should understand and what evidence would demonstrate it. The assistant creates draft items only. You confirm every answer key, revise the wording, and choose what enters the mini test.
+                Review the section, objectives, evidence, misconception hypotheses, exemplars,
+                and draft settings. Generated items remain proposals until you edit them and
+                confirm every answer key.
               </p>
             </div>
           </section>
@@ -467,6 +810,8 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
               </Button>
             </div>
           </section>
+            </>
+          )}
         </>
       ) : null}
     </div>
