@@ -139,6 +139,7 @@ const assistantOutput = ItemDesignAssistantOutputSchema.parse({
   ],
   change_summary: ["Added an application objective."],
   remaining_questions: ["Which course examples should the drafts use?"],
+  material_summaries: [],
   ready_for_item_generation: false
 });
 const assistantUpdatedBlueprint = applyItemDesignAssistantUpdates({
@@ -175,7 +176,8 @@ assert.match(createSource, /course\s+material/);
 assert.doesNotMatch(createSource, /label="Diagnostic focus"/);
 assert.match(designSource, /Author with assistant/);
 assert.match(designSource, /Review design/);
-assert.match(designSource, /Paste course material/);
+assert.match(designSource, /Add PDF, Word, or images/);
+assert.match(designSource, /\.pdf,\.docx,\.png/);
 assert.match(designSource, /Review and edit design/);
 assert.match(designSource, /What observable evidence would demonstrate this\?/);
 assert.match(designSource, /Generated items remain draft candidates/);
@@ -208,13 +210,21 @@ const profilingRules = projectConceptAdministrationRulesForProfiling({
       role: "teacher",
       message_text: "Private teacher course material that students must not receive.",
       created_at: new Date().toISOString(),
-      agent_call_public_id: null
+      agent_call_public_id: null,
+      attachment_material_ids: []
     }]
   },
   item_design_assistant_state: {
     ready_for_item_generation: true,
     remaining_questions: [],
     change_summary: ["Private assistant advisory state."]
+  },
+  item_design_source_materials: {
+    schema_version: "evidence-centered-item-design-source-materials-v1",
+    materials: [{
+      material_id: "material_private",
+      extracted_text: "Private uploaded course source and unadministered answer key C."
+    }]
   }
 });
 const profilingRulesText = JSON.stringify(profilingRules);
@@ -225,5 +235,6 @@ assert.doesNotMatch(profilingRulesText, /Teacher-only historical note/);
 assert.doesNotMatch(profilingRulesText, /Generation-only course boundary/);
 assert.doesNotMatch(profilingRulesText, /Private teacher course material/);
 assert.doesNotMatch(profilingRulesText, /Private assistant advisory state/);
+assert.doesNotMatch(profilingRulesText, /Private uploaded course source/);
 
 console.log("teacher evidence-centered item design smoke passed");

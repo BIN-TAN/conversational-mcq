@@ -17,7 +17,8 @@ export function projectConceptAdministrationRulesForStudentAgents(
     Object.entries(rules).filter(
       ([key]) =>
         key !== "item_design_assistant_thread" &&
-        key !== "item_design_assistant_state"
+        key !== "item_design_assistant_state" &&
+        key !== "item_design_source_materials"
     )
   );
   const blueprint = asRecord(studentSafeRules.item_design_blueprint);

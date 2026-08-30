@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v1" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v2" as const;
+export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
+export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
 export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v1" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
@@ -120,7 +121,34 @@ export const ItemDesignAssistantOutputSchema = z.object({
   blueprint_updates: z.array(ItemDesignAssistantBlueprintUpdateSchema).max(24),
   change_summary: z.array(z.string().trim().min(1).max(300)).max(10),
   remaining_questions: z.array(z.string().trim().min(1).max(500)).max(8),
+  material_summaries: z.array(z.object({
+    material_id: z.string().trim().min(1).max(100),
+    summary: z.string().trim().min(1).max(2400),
+    limitations: z.array(z.string().trim().min(1).max(400)).max(8)
+  }).strict()).max(5),
   ready_for_item_generation: z.boolean()
+}).strict();
+
+export const ItemDesignSourceMaterialSchema = z.object({
+  material_id: z.string().trim().min(1).max(100),
+  client_message_id: z.string().trim().min(1).max(120),
+  file_name: z.string().trim().min(1).max(240),
+  media_type: z.string().trim().min(1).max(120),
+  source_kind: z.enum(["docx", "pdf", "image"]),
+  byte_size: z.number().int().positive(),
+  sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  parser_version: z.string().trim().min(1).max(120).nullable(),
+  extracted_text: z.string().max(50000).nullable(),
+  content_summary: z.string().trim().min(1).max(2400),
+  limitations: z.array(z.string().trim().min(1).max(400)).max(8),
+  warnings: z.array(z.string().trim().min(1).max(160)).max(12),
+  agent_call_public_id: z.string().trim().min(1).max(160),
+  created_at: z.string().datetime()
+}).strict();
+
+export const ItemDesignSourceMaterialCollectionSchema = z.object({
+  schema_version: z.literal(ITEM_DESIGN_SOURCE_MATERIAL_VERSION),
+  materials: z.array(ItemDesignSourceMaterialSchema).max(40)
 }).strict();
 
 export const ItemDesignAssistantMessageSchema = z.object({
@@ -129,7 +157,8 @@ export const ItemDesignAssistantMessageSchema = z.object({
   role: z.enum(["teacher", "assistant"]),
   message_text: z.string().trim().min(1).max(20000),
   created_at: z.string().datetime(),
-  agent_call_public_id: z.string().trim().min(1).max(160).nullable()
+  agent_call_public_id: z.string().trim().min(1).max(160).nullable(),
+  attachment_material_ids: z.array(z.string().trim().min(1).max(100)).max(5).default([])
 }).strict();
 
 export const ItemDesignAssistantThreadSchema = z.object({
@@ -258,6 +287,7 @@ export type ItemDesignBlueprint = z.infer<typeof ItemDesignBlueprintSchema>;
 export type ItemDesignAssistantMessage = z.infer<typeof ItemDesignAssistantMessageSchema>;
 export type ItemDesignAssistantOutput = z.infer<typeof ItemDesignAssistantOutputSchema>;
 export type ItemDesignAssistantThread = z.infer<typeof ItemDesignAssistantThreadSchema>;
+export type ItemDesignSourceMaterial = z.infer<typeof ItemDesignSourceMaterialSchema>;
 export type ItemGenerationOutput = z.infer<typeof ItemGenerationOutputSchema>;
 
 export function validateGeneratedItemSet(input: {

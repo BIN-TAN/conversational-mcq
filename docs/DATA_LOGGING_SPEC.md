@@ -1096,6 +1096,19 @@ teacher account identifier, authentication data, or student records. The
 authoring thread is teacher/audit data and is not projected into student
 assessment or profiling payloads.
 
+Versioned `item_design_source_materials` records support teacher uploads in the
+authoring conversation. Accepted types are bounded PDF, DOCX, PNG, JPEG, and
+WebP files. The record preserves a stable material ID, client message ID, safe
+file name, media type, byte count, SHA-256 content checksum, source kind,
+parser version where applicable, bounded extracted DOCX text, validated
+educational-content summary, limitations, parser warnings, public AgentCall
+reference, and timestamp. PDF and image binaries are transient provider inputs;
+original binary data and base64 payloads are not stored in the database or
+AgentCall audit payload. The attachment IDs are linked to the corresponding
+teacher transcript turn. All source-material records, summaries, filenames,
+checksums, and extracted text are teacher/audit only and are removed by the
+student-agent provider projection.
+
 Teacher-pasted exemplar item text and generation-only context notes remain in
 the authoring record but are excluded from the student-profiling provider
 projection. Profiling retains the section, objectives, evidence requirements,

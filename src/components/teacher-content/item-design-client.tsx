@@ -8,12 +8,14 @@ import {
   CheckCircle2,
   FileText,
   MessageSquareText,
+  Paperclip,
   PencilLine,
   Plus,
   Save,
   Send,
   Sparkles,
-  Trash2
+  Trash2,
+  X
 } from "lucide-react";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 import { apiRequest, errorFromUnknown } from "./api";
@@ -62,6 +64,20 @@ type AssistantMessage = {
   message_text: string;
   created_at: string;
   agent_call_public_id: string | null;
+  attachment_material_ids: string[];
+};
+
+type SourceMaterial = {
+  material_id: string;
+  file_name: string;
+  media_type: string;
+  source_kind: "docx" | "pdf" | "image";
+  byte_size: number;
+  sha256: string;
+  content_summary: string;
+  limitations: string[];
+  warnings: string[];
+  created_at: string;
 };
 
 type AssistantState = {
@@ -81,7 +97,18 @@ type DesignResponse = {
     messages: AssistantMessage[];
   };
   assistant_state: AssistantState;
+  source_materials: SourceMaterial[];
 };
+
+const MAX_ASSISTANT_FILES = 5;
+const MAX_ASSISTANT_FILE_BYTES = 15_000_000;
+const MAX_ASSISTANT_TOTAL_BYTES = 30_000_000;
+const ACCEPTED_ASSISTANT_FILES = ".pdf,.docx,.png,.jpg,.jpeg,.webp";
+
+function fileSizeLabel(bytes: number) {
+  if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
+  return `${(bytes / 1_000_000).toFixed(1)} MB`;
+}
 
 function localId(prefix: string) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -92,33 +119,40 @@ function lines(value: string) {
 }
 
 function ItemDesignAssistantWorkspace({
+  assistantFiles,
   assistantInput,
   blueprint,
   busy,
   design,
   onAssistantInputChange,
+  onFilesAdd,
+  onFileRemove,
   onOpenReview,
   onSend,
   readOnly,
   transcriptEndRef
 }: {
+  assistantFiles: File[];
   assistantInput: string;
   blueprint: Blueprint;
   busy: "load" | "save" | "assistant" | "generate" | null;
   design: DesignResponse;
   onAssistantInputChange: (value: string) => void;
+  onFilesAdd: (files: File[]) => void;
+  onFileRemove: (index: number) => void;
   onOpenReview: () => void;
   onSend: (event: FormEvent<HTMLFormElement>) => void;
   readOnly: boolean;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const evidenceCount = blueprint.objectives.reduce(
     (total, objective) => total + objective.evidence_requirements.filter(Boolean).length,
     0
   );
   const messages = design.assistant_thread.messages;
   const suggestions = [
-    "I will paste course material",
+    "I will add course material",
     "Help me refine the learning objectives",
     "I have exemplar items students found difficult"
   ];
@@ -149,7 +183,7 @@ function ItemDesignAssistantWorkspace({
                 <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
                 <h3 className="mt-4 text-lg font-semibold text-ink">Start with the course material</h3>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  Paste a relevant excerpt, describe the section, or share an exemplar item. The
+                  Upload a PDF, Word file, or screenshot; paste an excerpt; or describe the section. The
                   assistant will help turn it into objectives, observable evidence, and
                   misconception hypotheses.
                 </p>
@@ -169,7 +203,14 @@ function ItemDesignAssistantWorkspace({
               </div>
             ) : null}
 
-            {messages.map((message) => (
+            {messages.map((message) => {
+              const attachments = message.attachment_material_ids.flatMap((materialId) => {
+                const material = design.source_materials.find(
+                  (entry) => entry.material_id === materialId
+                );
+                return material ? [material] : [];
+              });
+              return (
               <div
                 className={`flex ${message.role === "teacher" ? "justify-end" : "justify-start"}`}
                 key={message.message_id}
@@ -186,9 +227,29 @@ function ItemDesignAssistantWorkspace({
                   ) : (
                     <p className="whitespace-pre-wrap">{message.message_text}</p>
                   )}
+                  {attachments.length > 0 ? (
+                    <ul
+                      className={`mt-3 space-y-1 border-t pt-2 text-xs ${
+                        message.role === "teacher"
+                          ? "border-white/30 text-white"
+                          : "border-line text-muted"
+                      }`}
+                    >
+                      {attachments.map((material) => (
+                        <li className="flex items-center gap-2" key={material.material_id}>
+                          <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 truncate">{material.file_name}</span>
+                          <span className="shrink-0 opacity-80">
+                            {fileSizeLabel(material.byte_size)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
                 </div>
               </div>
-            ))}
+              );
+            })}
 
             {busy === "assistant" ? (
               <div className="flex justify-start">
@@ -210,22 +271,76 @@ function ItemDesignAssistantWorkspace({
               id="item-design-assistant-message"
               maxLength={20000}
               onChange={(event) => onAssistantInputChange(event.target.value)}
-              placeholder="Paste course material, describe the topic, list objectives, or share exemplar items..."
+              placeholder="Describe the topic, paste course material, list objectives, or add exemplar items..."
               value={assistantInput}
             />
+            <input
+              accept={ACCEPTED_ASSISTANT_FILES}
+              className="sr-only"
+              disabled={readOnly || busy !== null}
+              multiple
+              onChange={(event) => {
+                onFilesAdd(Array.from(event.target.files ?? []));
+                event.target.value = "";
+              }}
+              ref={fileInputRef}
+              type="file"
+            />
+            {assistantFiles.length > 0 ? (
+              <ul className="mt-3 grid gap-2 sm:grid-cols-2" aria-label="Selected course materials">
+                {assistantFiles.map((file, index) => (
+                  <li
+                    className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-[#F8FAF9] px-3 py-2 text-sm"
+                    key={`${file.name}_${file.size}_${file.lastModified}_${index}`}
+                  >
+                    <Paperclip className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                    <span className="min-w-0 flex-1 truncate text-ink">{file.name}</span>
+                    <span className="shrink-0 text-xs text-muted">{fileSizeLabel(file.size)}</span>
+                    <button
+                      aria-label={`Remove ${file.name}`}
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white hover:text-ink"
+                      disabled={readOnly || busy !== null}
+                      onClick={() => onFileRemove(index)}
+                      type="button"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs leading-5 text-muted">
-                Do not include private student information. You will review all design details and
-                answer keys before items are added.
-              </p>
-              <Button
-                className="shrink-0"
-                disabled={readOnly || busy !== null || !assistantInput.trim()}
-                type="submit"
-              >
-                <Send className="h-4 w-4" aria-hidden="true" />
-                {busy === "assistant" ? "Working" : "Send"}
-              </Button>
+              <div className="space-y-1">
+                <button
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={readOnly || busy !== null || assistantFiles.length >= MAX_ASSISTANT_FILES}
+                  onClick={() => fileInputRef.current?.click()}
+                  type="button"
+                >
+                  <Paperclip className="h-4 w-4" aria-hidden="true" />
+                  Add PDF, Word, or images
+                </button>
+                <p className="text-xs leading-5 text-muted">
+                  Up to 5 files, 15 MB each. Do not include private student information.
+                </p>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <p className="hidden max-w-xs text-right text-xs leading-5 text-muted xl:block">
+                  You will review all design details and answer keys before items are added.
+                </p>
+                <Button
+                  className="shrink-0"
+                  disabled={
+                    readOnly ||
+                    busy !== null ||
+                    (!assistantInput.trim() && assistantFiles.length === 0)
+                  }
+                  type="submit"
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" />
+                  {busy === "assistant" ? "Working" : "Send"}
+                </Button>
+              </div>
             </div>
           </form>
         </div>
@@ -264,6 +379,27 @@ function ItemDesignAssistantWorkspace({
                 {blueprint.generation_settings.target_item_count} items, {blueprint.generation_settings.option_count} options each
               </p>
             </div>
+
+            {design.source_materials.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Course materials ({design.source_materials.length})
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {design.source_materials.slice(-4).reverse().map((material) => (
+                    <li className="flex min-w-0 items-center gap-2 text-sm text-ink" key={material.material_id}>
+                      <Paperclip className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                      <span className="min-w-0 flex-1 truncate">{material.file_name}</span>
+                    </li>
+                  ))}
+                </ul>
+                {design.source_materials.length > 4 ? (
+                  <p className="mt-2 text-xs text-muted">
+                    {design.source_materials.length - 4} earlier material{design.source_materials.length - 4 === 1 ? "" : "s"}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {design.assistant_state.change_summary.length > 0 ? (
               <div>
@@ -308,6 +444,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
   const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | null>("load");
   const [view, setView] = useState<"assistant" | "review">("assistant");
   const [assistantInput, setAssistantInput] = useState("");
+  const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
 
@@ -394,9 +531,49 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
     if (busy !== "assistant") setAssistantClientMessageId(null);
   }
 
+  function handleAssistantFilesAdd(files: File[]) {
+    if (files.length === 0) return;
+    const next = [...assistantFiles, ...files];
+    if (next.length > MAX_ASSISTANT_FILES) {
+      setError({
+        code: "validation_failed",
+        message: `Attach no more than ${MAX_ASSISTANT_FILES} files in one message.`
+      });
+      return;
+    }
+    const tooLarge = next.find((file) => file.size > MAX_ASSISTANT_FILE_BYTES);
+    if (tooLarge) {
+      setError({
+        code: "validation_failed",
+        message: `${tooLarge.name} is larger than the 15 MB attachment limit.`
+      });
+      return;
+    }
+    const totalBytes = next.reduce((total, file) => total + file.size, 0);
+    if (totalBytes > MAX_ASSISTANT_TOTAL_BYTES) {
+      setError({
+        code: "validation_failed",
+        message: "The selected course materials are too large to process together."
+      });
+      return;
+    }
+    setError(null);
+    setAssistantFiles(next);
+    setAssistantClientMessageId(null);
+  }
+
+  function handleAssistantFileRemove(index: number) {
+    setAssistantFiles((current) => current.filter((_file, fileIndex) => fileIndex !== index));
+    setAssistantClientMessageId(null);
+  }
+
   async function handleAssistantSend(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const message = assistantInput.trim();
+    const message = assistantInput.trim() || (
+      assistantFiles.length > 0
+        ? "Please use the attached course materials to help refine this mini test."
+        : ""
+    );
     if (!message || !design || !blueprint) return;
 
     setBusy("assistant");
@@ -411,21 +588,31 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
         : await saveBlueprint(false);
       if (!currentDesign) return;
 
+      const requestPayload = {
+        client_message_id: clientMessageId,
+        expected_blueprint_hash: currentDesign.blueprint_hash,
+        expected_concept_unit_version: currentDesign.concept_unit_version,
+        message
+      };
+      const requestBody = assistantFiles.length > 0
+        ? (() => {
+            const form = new FormData();
+            form.append("payload", JSON.stringify(requestPayload));
+            assistantFiles.forEach((file) => form.append("files", file, file.name));
+            return form;
+          })()
+        : JSON.stringify(requestPayload);
       const response = await apiRequest<DesignResponse>(
         `/api/teacher/assessments/${assessmentPublicId}/item-design/assistant`,
         {
           method: "POST",
-          body: JSON.stringify({
-            client_message_id: clientMessageId,
-            expected_blueprint_hash: currentDesign.blueprint_hash,
-            expected_concept_unit_version: currentDesign.concept_unit_version,
-            message
-          })
+          body: requestBody
         }
       );
       setDesign(response);
       setBlueprint(response.blueprint);
       setAssistantInput("");
+      setAssistantFiles([]);
       setAssistantClientMessageId(null);
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -491,11 +678,14 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
 
           {view === "assistant" ? (
             <ItemDesignAssistantWorkspace
+              assistantFiles={assistantFiles}
               assistantInput={assistantInput}
               blueprint={blueprint}
               busy={busy}
               design={design}
               onAssistantInputChange={handleAssistantInputChange}
+              onFilesAdd={handleAssistantFilesAdd}
+              onFileRemove={handleAssistantFileRemove}
               onOpenReview={() => setView("review")}
               onSend={handleAssistantSend}
               readOnly={readOnly}

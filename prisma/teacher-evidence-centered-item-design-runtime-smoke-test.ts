@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import JSZip from "jszip";
 import { hashSecret } from "../src/lib/password";
 import type {
   LlmProvider,
@@ -57,6 +58,7 @@ class ItemGenerationProvider implements LlmProvider {
   assistantCallCount = 0;
   generationCallCount = 0;
   failGenerationCalls = new Set<number>();
+  omitMaterialSummaries = false;
 
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
@@ -64,8 +66,11 @@ class ItemGenerationProvider implements LlmProvider {
     this.callCount += 1;
     if (request.metadata?.purpose === "teacher_evidence_centered_blueprint_conversation") {
       this.assistantCallCount += 1;
+      const assistantInput = request.input as {
+        current_source_materials?: Array<{ material_id?: string; file_name?: string }>;
+      };
       const output = {
-        schema_version: "evidence-centered-item-design-assistant-output-v1",
+        schema_version: "evidence-centered-item-design-assistant-output-v2",
         assistant_message: "I shaped the material into one section objective, an observable evidence requirement, and a misconception hypothesis. Review the wording before generating drafts.",
         blueprint_updates: [
           { update_type: "set_section_topic", value: "Sampling bias and generalization" },
@@ -108,6 +113,13 @@ class ItemGenerationProvider implements LlmProvider {
         ],
         change_summary: ["Defined the section and objective.", "Added one misconception hypothesis and exemplar."],
         remaining_questions: [],
+        material_summaries: this.omitMaterialSummaries
+          ? []
+          : (assistantInput.current_source_materials ?? []).map((material) => ({
+              material_id: material.material_id,
+              summary: `Teacher course material from ${material.file_name ?? "the uploaded document"} supports the sampling-bias objective.`,
+              limitations: []
+            })),
         ready_for_item_generation: true
       };
       return {
@@ -149,6 +161,13 @@ class ItemGenerationProvider implements LlmProvider {
   }
 }
 
+async function courseMaterialDocx() {
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml", `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>`);
+  zip.file("word/document.xml", `<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>Volunteer samples may differ systematically from the broader population.</w:t></w:r></w:p></w:body></w:document>`);
+  return zip.generateAsync({ type: "nodebuffer" });
+}
+
 async function main() {
   const suffix = `${Date.now()}_${randomUUID().slice(0, 8)}`;
   const userId = `item_design_teacher_${suffix}`;
@@ -182,6 +201,29 @@ async function main() {
     });
     const provider = new ItemGenerationProvider();
     const assistantClientMessageId = `assistant_message_${randomUUID()}`;
+    const uploadedDocx = await courseMaterialDocx();
+    const uploadedPdf = Buffer.from("%PDF-1.7\nsynthetic course source\n%%EOF", "ascii");
+    const uploadedPng = Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      Buffer.from("synthetic screenshot source", "ascii")
+    ]);
+    const uploadedFiles = [
+      {
+        file_name: "sampling-course-material.docx",
+        media_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        bytes: uploadedDocx
+      },
+      {
+        file_name: "sampling-reading.pdf",
+        media_type: "application/pdf",
+        bytes: uploadedPdf
+      },
+      {
+        file_name: "sampling-slide.png",
+        media_type: "image/png",
+        bytes: uploadedPng
+      }
+    ];
     const saved = await withItemGenerationProviderForTest(
       { provider, provider_label: "mock" },
       () => respondToAssessmentItemDesignAssistant({
@@ -192,7 +234,8 @@ async function main() {
           expected_blueprint_hash: initial.blueprint_hash,
           expected_concept_unit_version: initial.concept_unit_version,
           message: "Use this course material to design a mini test about volunteer sampling and generalization. Students should explain why volunteers can differ from the target population."
-        }
+        },
+        files: uploadedFiles
       })
     );
     assert(saved.blueprint.section_topic === "Sampling bias and generalization", "The assistant should update the section topic.");
@@ -200,6 +243,9 @@ async function main() {
     assert(saved.blueprint.misconception_hypotheses.length === 1, "The assistant should add a misconception hypothesis.");
     assert(saved.blueprint.exemplar_items.length === 1, "The assistant should preserve an exemplar item for review.");
     assert(saved.assistant_thread.messages.length === 2, "The persisted authoring transcript should contain one teacher-assistant exchange.");
+    assert(saved.source_materials.length === 3, "All uploaded teacher course materials should be retained as normalized source evidence.");
+    assert(saved.source_materials[0]?.file_name === "sampling-course-material.docx", "The source-material projection should retain the safe file name.");
+    assert(saved.assistant_thread.messages[0]?.attachment_material_ids.length === 3, "The teacher turn should link all uploaded materials.");
     assert(saved.assistant_state.ready_for_item_generation, "Assistant readiness should be advisory and persisted.");
 
     const assistantReplay = await withItemGenerationProviderForTest(
@@ -212,12 +258,56 @@ async function main() {
           expected_blueprint_hash: initial.blueprint_hash,
           expected_concept_unit_version: initial.concept_unit_version,
           message: "Use this course material to design a mini test about volunteer sampling and generalization. Students should explain why volunteers can differ from the target population."
-        }
+        },
+        files: uploadedFiles
       })
     );
     assert(assistantReplay.concept_unit_version === saved.concept_unit_version, "A stale duplicate request should replay the persisted exchange.");
     assert(assistantReplay.assistant_thread.messages.length === 2, "Idempotent replay must not duplicate authoring messages.");
     assert(provider.assistantCallCount === 1, "Idempotent authoring replay must not call the provider again.");
+
+    provider.omitMaterialSummaries = true;
+    let incompleteMaterialSummaryRejected = false;
+    try {
+      await withItemGenerationProviderForTest(
+        { provider, provider_label: "mock" },
+        () => respondToAssessmentItemDesignAssistant({
+          teacher_user_db_id: teacher.id,
+          assessment_public_id: assessmentPublicId!,
+          data: {
+            client_message_id: `missing_summary_${randomUUID()}`,
+            expected_blueprint_hash: saved.blueprint_hash,
+            expected_concept_unit_version: saved.concept_unit_version,
+            message: "Review this additional reading."
+          },
+          files: [{
+            file_name: "additional-reading.pdf",
+            media_type: "application/pdf",
+            bytes: Buffer.from("%PDF-1.7\nadditional source\n%%EOF", "ascii")
+          }]
+        })
+      );
+    } catch {
+      incompleteMaterialSummaryRejected = true;
+    } finally {
+      provider.omitMaterialSummaries = false;
+    }
+    assert(incompleteMaterialSummaryRejected, "A response missing an uploaded-material summary must fail closed.");
+    const afterRejectedMaterial = await getAssessmentItemDesign({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessmentPublicId
+    });
+    assert(afterRejectedMaterial.source_materials.length === 3, "An invalid material response must not partially persist its source.");
+    assert(afterRejectedMaterial.assistant_thread.messages.length === 2, "An invalid material response must not append a partial exchange.");
+
+    const conceptUnit = await prisma.conceptUnit.findUniqueOrThrow({
+      where: { concept_unit_public_id: saved.concept_unit_public_id },
+      select: { administration_rules: true }
+    });
+    const storedRulesText = JSON.stringify(conceptUnit.administration_rules);
+    assert(storedRulesText.includes("Volunteer samples may differ systematically"), "Extracted Word text should remain in the teacher-only authoring record.");
+    assert(!storedRulesText.includes(uploadedPdf.toString("base64")), "PDF binary data must not be persisted in the authoring record.");
+    assert(!storedRulesText.includes(uploadedPng.toString("base64")), "Image binary data must not be persisted in the authoring record.");
 
     const first = await withItemGenerationProviderForTest(
       { provider, provider_label: "mock" },
@@ -304,11 +394,17 @@ async function main() {
     const assistantCalls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_design_assistant:${assessmentPublicId}:` } }
     });
-    assert(assistantCalls.length === 1, "The authoring exchange should have one persisted AgentCall.");
-    assert(assistantCalls[0]?.call_status === "succeeded", "The authoring AgentCall should record successful validation.");
+    assert(assistantCalls.length === 2, "The authoring audit should preserve the accepted call and the rejected material-summary call.");
+    assert(assistantCalls.filter((call) => call.call_status === "succeeded").length === 1, "The accepted authoring AgentCall should record successful validation.");
+    assert(assistantCalls.filter((call) => call.call_status === "invalid_output").length === 1, "The incomplete material summary should remain a typed invalid output.");
     assert(
       !JSON.stringify(assistantCalls[0]?.input_payload).includes(userId),
       "Teacher account identifiers must not enter the provider context."
+    );
+    assert(
+      !JSON.stringify(assistantCalls[0]?.input_payload).includes(uploadedPdf.toString("base64")) &&
+        !JSON.stringify(assistantCalls[0]?.input_payload).includes(uploadedPng.toString("base64")),
+      "Binary course-material payloads must not enter the persisted AgentCall audit context."
     );
 
     console.log("teacher evidence-centered item design runtime smoke passed");

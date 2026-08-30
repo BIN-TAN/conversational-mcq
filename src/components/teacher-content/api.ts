@@ -31,12 +31,15 @@ function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
 }
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
   const response = await fetch(path, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    }
+    headers: isFormData
+      ? init?.headers
+      : {
+          "Content-Type": "application/json",
+          ...(init?.headers ?? {})
+        }
   });
   const text = await response.text();
   const payload = text ? (JSON.parse(text) as unknown) : null;
