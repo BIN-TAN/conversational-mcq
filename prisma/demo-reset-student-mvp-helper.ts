@@ -105,6 +105,9 @@ export async function resetStudentDemoFixedMvpAttempt(
     const idempotencyKeys = await tx.studentActionIdempotencyKey.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });
+    const lifecycleOperations = await tx.assessmentLifecycleOperation.deleteMany({
+      where: { assessment_session_db_id: { in: sessionIds } }
+    });
     const followupUpdateCycles = await tx.followupUpdateCycle.deleteMany({
       where: { assessment_session_db_id: { in: sessionIds } }
     });
@@ -158,6 +161,7 @@ export async function resetStudentDemoFixedMvpAttempt(
       workflow_jobs_deleted: workflowJobs.count,
       workflow_overrides_deleted: workflowOverrides.count,
       idempotency_keys_deleted: idempotencyKeys.count,
+      lifecycle_operations_deleted: lifecycleOperations.count,
       operational_effective_results_deleted: operationalEffectiveResults.count
     };
   });

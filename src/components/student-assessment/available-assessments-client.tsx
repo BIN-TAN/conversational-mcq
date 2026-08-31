@@ -43,6 +43,10 @@ function availabilityLabel(assessment: AvailableAssessment) {
     return "Available";
   }
 
+  if (assessment.recent_reviewable_attempts.length > 0) {
+    return "Previous assessment";
+  }
+
   if (assessment.availability_state === "not_released") {
     return "Not released";
   }
@@ -51,7 +55,7 @@ function availabilityLabel(assessment: AvailableAssessment) {
     return "Closed";
   }
 
-  return "Unavailable";
+  return "Previous assessment";
 }
 
 function statusClass(assessment: AvailableAssessment) {
@@ -65,6 +69,10 @@ function statusClass(assessment: AvailableAssessment) {
 
   if (assessment.can_start) {
     return "border-emerald-200 bg-emerald-50 text-emerald-800";
+  }
+
+  if (assessment.recent_reviewable_attempts.length > 0) {
+    return "border-slate-200 bg-slate-50 text-slate-700";
   }
 
   return "border-amber-200 bg-amber-50 text-amber-800";
@@ -300,6 +308,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
               const canStartNew = assessment.can_start && !canOpen;
               const recentAttempts = assessment.recent_reviewable_attempts;
+              const isHistoryOnly = !canOpen && !canStartNew && recentAttempts.length > 0;
               const attemptHistoryOpen =
                 expandedAttemptHistory === assessment.assessment_public_id;
               const startLabel =
@@ -330,7 +339,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           {assessment.description}
                         </p>
                       ) : null}
-                      {!isCompleted ? (
+                      {!isCompleted && !isHistoryOnly ? (
                         <p className="mt-3 text-sm leading-6 text-muted">
                           {assessment.student_safe_availability_message}
                         </p>
@@ -406,15 +415,6 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                             End current assessment
                           </button>
                         </>
-                      ) : null}
-                      {!isCompleted && !assessment.can_start && !canOpen ? (
-                        <button
-                          className="inline-flex h-10 items-center justify-center rounded-md border border-line bg-slate-50 px-4 text-sm font-semibold text-muted"
-                          disabled
-                          type="button"
-                        >
-                          Unavailable
-                        </button>
                       ) : null}
                     </div>
                   </div>

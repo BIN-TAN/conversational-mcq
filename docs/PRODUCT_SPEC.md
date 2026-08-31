@@ -38,6 +38,8 @@ MCQ options and confidence choices can appear as clickable chips inside the chat
 
 The assessment list and session shell should support explicit attempt lifecycle actions. Pause and leave preserves a resumable attempt. End attempt is terminal after confirmation and preserves the prior attempt for audit/research. A student must not have two active or paused attempts for the same assessment at the same time.
 
+The student assessment list omits tests that cannot currently be started and have no resumable or reviewable attempt. A closed or archived test may remain as a history-only entry when the student can review one of the three most recent terminal attempts; it must not display an unavailable action.
+
 The first three-item package must not use:
 
 - Saved messages;

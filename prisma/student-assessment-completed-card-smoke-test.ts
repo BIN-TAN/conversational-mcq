@@ -26,6 +26,8 @@ assert.doesNotMatch(source, /Current attempt .* status/);
 assert.doesNotMatch(source, /latest completed attempt/i);
 assert.doesNotMatch(source, /next attempt/i);
 assert.match(source, /const canStartNew = assessment\.can_start && !canOpen;/);
+assert.doesNotMatch(source, />\s*Unavailable\s*</);
+assert.match(source, /Previous assessment/);
 
 console.log(JSON.stringify({
   status: "passed",

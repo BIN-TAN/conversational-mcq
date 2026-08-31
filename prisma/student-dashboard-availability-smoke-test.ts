@@ -46,12 +46,9 @@ async function main() {
   const unavailableFixedRow = unavailable.assessments.find(
     (assessment) => assessment.assessment_public_id === demoAssessmentPublicId
   );
-  assert(unavailableFixedRow, "Fixed IRT MVP row should remain visible when tutor runtime is blocked.");
-  assert(unavailableFixedRow.can_start === false, "Fixed IRT MVP start should be blocked without tutor runtime readiness.");
   assert(
-    unavailableFixedRow.student_safe_availability_message ===
-      "This assessment is temporarily unavailable. Please try again later.",
-    "Blocked tutor runtime should show only the neutral temporary-unavailable message."
+    !unavailableFixedRow,
+    "A runtime-blocked assessment without student history should be hidden from the student list."
   );
   if (priorLifecycleEvent === undefined) {
     delete process.env.npm_lifecycle_event;

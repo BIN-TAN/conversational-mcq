@@ -90,6 +90,11 @@ async function expectStudentStartError(assessmentPublicId: string, studentId: st
 
 async function main() {
   process.env.COURSE_TIMEZONE = "America/Edmonton";
+  process.env.LLM_PROVIDER = "mock";
+  process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
+  process.env.ALLOW_LOCAL_MOCK_RUNTIME = "true";
+  process.env.OPERATIONAL_AGENT_MODE = "disabled";
   await cleanupFollowupSmoke(prisma, prefix);
 
   const teacher = await prisma.user.create({
@@ -128,6 +133,12 @@ async function main() {
     releaseAt: minutesAfter(now, -120),
     closeAt: minutesAfter(now, -30)
   });
+  const closedReview = await createValidAssessment({
+    teacherId: teacher.id,
+    title: `${prefix} closed review`,
+    releaseAt: minutesAfter(now, -120),
+    closeAt: minutesAfter(now, -30)
+  });
   const resumeSession = await prisma.assessmentSession.create({
     data: {
       session_public_id: generatePublicId("session"),
@@ -150,6 +161,21 @@ async function main() {
       initial_started_at: minutesAfter(now, -90)
     }
   });
+  const reviewSession = await prisma.assessmentSession.create({
+    data: {
+      session_public_id: generatePublicId("session"),
+      user_db_id: student.id,
+      assessment_db_id: closedReview.assessment.id,
+      attempt_number: 1,
+      status: "completed",
+      current_phase: "session_completed",
+      workflow_mode_snapshot: "automatic",
+      current_concept_unit_db_id: closedReview.conceptUnit.id,
+      started_at: minutesAfter(now, -100),
+      last_activity_at: minutesAfter(now, -60),
+      completed_at: minutesAfter(now, -60)
+    }
+  });
 
   const available = await listAvailableAssessments({ student_user_db_id: student.id });
   const openRow = available.assessments.find(
@@ -164,15 +190,24 @@ async function main() {
   const resumeRow = available.assessments.find(
     (assessment) => assessment.assessment_public_id === closedResume.assessment.assessment_public_id
   );
+  const reviewRow = available.assessments.find(
+    (assessment) => assessment.assessment_public_id === closedReview.assessment.assessment_public_id
+  );
 
   assert(openRow?.availability_state === "open", "Open assessment should be open.");
   assert(openRow.can_start, "Open assessment should allow new starts.");
-  assert(futureRow?.availability_state === "not_released", "Future assessment should not be released.");
-  assert(!futureRow.can_start, "Future assessment should block new starts.");
-  assert(closedRow?.availability_state === "closed_to_new_starts", "Closed assessment should block new starts.");
-  assert(!closedRow.can_start, "Closed assessment without existing session should not start.");
+  assert(!futureRow, "A future assessment without student history should be hidden.");
+  assert(!closedRow, "A closed assessment without student history should be hidden.");
   assert(resumeRow?.availability_state === "closed_to_new_starts", "Closed resume assessment should remain closed to new starts.");
   assert(resumeRow.can_resume, "Existing session should be resumable after close.");
+  assert(reviewRow?.availability_state === "closed_to_new_starts", "Closed assessment history should retain its availability state.");
+  assert(!reviewRow.can_start && !reviewRow.can_resume, "A history-only assessment should not expose start or resume actions.");
+  assert(
+    reviewRow.recent_reviewable_attempts.some(
+      (attempt) => attempt.session_public_id === reviewSession.session_public_id
+    ),
+    "A closed assessment should remain visible when the student can review a prior attempt."
+  );
 
   const started = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,

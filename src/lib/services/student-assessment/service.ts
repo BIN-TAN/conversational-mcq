@@ -1951,6 +1951,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       : null;
     const latestCompletedSession = sessions.find(isCompletedAssessmentSession) ?? null;
     const latestTerminalSession = sessions.find(isTerminalAssessmentSession) ?? null;
+    const reviewableAttempts = recentReviewableAttempts(sessions);
     const completed =
       !existingSession && Boolean(latestCompletedSession);
     const computed = computeAssessmentAvailability({
@@ -1983,6 +1984,19 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
           ? "This assessment is not available for student starts yet."
           : computed.student_safe_availability_message;
     const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
+    const canStart =
+      computed.can_start_new_session &&
+      !manualReviewNewStartBlocked &&
+      !tutorRuntimeBlocksOpen;
+    const canResume = Boolean(
+      existingSession &&
+      !completed &&
+      computed.can_resume_existing_session
+    );
+
+    if (!canStart && !canResume && reviewableAttempts.length === 0) {
+      continue;
+    }
 
     availability.push({
       ...serializeStudentAssessment(assessment),
@@ -2005,17 +2019,10 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       latest_completed_attempt_number: latestCompletedSession?.attempt_number ?? null,
       latest_terminal_session_public_id: latestTerminalSession?.session_public_id ?? null,
       latest_terminal_attempt_number: latestTerminalSession?.attempt_number ?? null,
-      recent_reviewable_attempts: recentReviewableAttempts(sessions),
+      recent_reviewable_attempts: reviewableAttempts,
       attempt_policy: attemptPolicy,
-      can_start:
-        computed.can_start_new_session &&
-        !manualReviewNewStartBlocked &&
-        !tutorRuntimeBlocksOpen,
-      can_resume: Boolean(
-        existingSession &&
-        !completed &&
-        computed.can_resume_existing_session
-      )
+      can_start: canStart,
+      can_resume: canResume
     });
   }
 
