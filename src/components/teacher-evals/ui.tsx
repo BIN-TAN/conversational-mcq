@@ -1,28 +1,29 @@
 import Link from "next/link";
 
-export function TeacherEvalNav({ userId }: { userId: string }) {
+export function TeacherEvalNav() {
   return (
-    <nav className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white px-4 py-3 shadow-soft">
-      <div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-accent">
-          teacher_researcher
-        </p>
-        <p className="text-sm text-muted">Signed in as {userId}</p>
-      </div>
-      <div className="flex flex-wrap gap-2 text-sm">
-        <Link className="rounded-md border border-line px-3 py-2 hover:border-accent" href="/teacher/dashboard">
-          Dashboard
-        </Link>
-        <Link className="rounded-md border border-line px-3 py-2 hover:border-accent" href="/teacher/evals">
-          Model evaluation
-        </Link>
-        <Link className="rounded-md border border-line px-3 py-2 hover:border-accent" href="/teacher/evals/suites">
-          Suites
-        </Link>
-        <Link className="rounded-md border border-line px-3 py-2 hover:border-accent" href="/teacher/evals/runs">
-          Runs
-        </Link>
-      </div>
+    <nav
+      aria-label="Model evaluation navigation"
+      className="mb-6 flex flex-wrap gap-2 text-sm"
+    >
+      <Link
+        className="rounded-md border border-line px-3 py-2 hover:border-accent"
+        href="/teacher/evals"
+      >
+        Model evaluation
+      </Link>
+      <Link
+        className="rounded-md border border-line px-3 py-2 hover:border-accent"
+        href="/teacher/evals/suites"
+      >
+        Suites
+      </Link>
+      <Link
+        className="rounded-md border border-line px-3 py-2 hover:border-accent"
+        href="/teacher/evals/runs"
+      >
+        Runs
+      </Link>
     </nav>
   );
 }

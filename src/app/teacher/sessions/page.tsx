@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { TeacherSessionListClient } from "@/components/teacher-review/session-list-client";
-import { TeacherReviewNav } from "@/components/teacher-review/ui";
 import { getCurrentUser } from "@/lib/auth";
 
 export default async function TeacherSessionsPage() {
@@ -16,11 +14,9 @@ export default async function TeacherSessionsPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="px-6 py-8">
       <div className="mx-auto max-w-7xl">
-        <TeacherReviewNav userId={user.user_id} />
-        <TeacherPageHeader title="Student sessions" />
-        <section className="mt-6">
+        <section>
           <TeacherSessionListClient />
         </section>
       </div>

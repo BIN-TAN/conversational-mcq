@@ -101,12 +101,14 @@ async function cleanup(prefix: string) {
 function assertManagementSurface() {
   const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
   const contentLayout = readProjectFile("src/app/teacher/content/layout.tsx");
+  const workspaceLayout = readProjectFile("src/app/teacher/layout.tsx");
+  const workspaceHeader = readProjectFile("src/components/teacher-workspace-header.tsx");
   const libraryClient = readProjectFile("src/components/teacher-content/assessment-list-client.tsx");
   const organizationRoute = readProjectFile("src/app/api/teacher/assessments/organization/route.ts");
   const legacyReorganizePage = readProjectFile("src/app/teacher/content/reorganize-assessments/page.tsx");
   const legacyLibraryReorganizePage = readProjectFile("src/app/teacher/content/assessments/reorganize/page.tsx");
 
-  assertIncludes(contentHome, "Assessment management", "Assessment management page");
+  assertIncludes(workspaceHeader, "Assessment management", "Teacher workspace header");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
   assertIncludes(contentHome, "JSON import", "Assessment management page");
@@ -120,7 +122,9 @@ function assertManagementSurface() {
   const primaryCardCount = (contentHome.match(/rounded-lg border border-line bg-white p-5/g) ?? []).length;
   assert(primaryCardCount === 3, `Assessment management page should have exactly three primary cards, found ${primaryCardCount}.`);
 
-  assertIncludes(contentLayout, "TeacherPrimaryNav", "Content layout navigation");
+  assertIncludes(workspaceLayout, "TeacherWorkspaceHeader", "Teacher workspace layout");
+  assertIncludes(workspaceHeader, "TeacherPrimaryNav", "Teacher workspace header");
+  assertExcludes(contentLayout, "TeacherPrimaryNav", "Content layout navigation");
   const expectedNavLabels = [
     "Dashboard",
     "Assessment management",

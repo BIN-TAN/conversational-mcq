@@ -36,19 +36,16 @@ function assertExcludes(source: string, forbidden: string, label: string) {
 
 function assertDashboardSurface() {
   const dashboard = readProjectFile("src/app/teacher/dashboard/page.tsx");
+  const header = readProjectFile("src/components/teacher-workspace-header.tsx");
   const client = readProjectFile("src/components/teacher-dashboard/assessment-dashboard-client.tsx");
   const service = readProjectFile("src/lib/services/teacher-dashboard/assessment-dashboard.ts");
   const route = readProjectFile("src/app/api/teacher/dashboard/route.ts");
   const exportRoute = readProjectFile("src/app/api/teacher/dashboard/export/route.ts");
   const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
 
-  for (const expected of [
-    "Assessment dashboard",
-    "AssessmentDashboardClient",
-    "TeacherLogoutButton",
-    "TeacherPrimaryNav"
-  ]) {
-    assertIncludes(dashboard, expected, "Teacher dashboard");
+  assertIncludes(dashboard, "AssessmentDashboardClient", "Teacher dashboard");
+  for (const expected of ["Assessment dashboard", "TeacherLogoutButton", "TeacherPrimaryNav"]) {
+    assertIncludes(header, expected, "Teacher workspace header");
   }
 
   for (const expected of [
@@ -117,7 +114,7 @@ function assertDashboardSurface() {
   assertIncludes(exportRoute, "downloadTeacherAssessmentDashboardCsv", "Teacher dashboard export API");
   assertIncludes(exportRoute, "requireTeacherResearcher", "Teacher dashboard export API");
   assertIncludes(exportRoute, "Content-Type", "Teacher dashboard export API");
-  assertIncludes(contentHome, "Assessment management", "Assessment management page");
+  assertIncludes(header, "Assessment management", "Teacher workspace header");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
   assertIncludes(contentHome, "JSON import", "Assessment management page");
@@ -230,7 +227,9 @@ function assertStandardTeacherNav() {
   assertIncludes(sharedNav, 'aria-current={active ? "page" : undefined}', "Teacher primary nav component");
   assertIncludes(sharedNav, "flex flex-wrap", "Teacher primary nav component");
 
-  const standardNavFiles = [
+  const layout = readProjectFile("src/app/teacher/layout.tsx");
+  const header = readProjectFile("src/components/teacher-workspace-header.tsx");
+  const formerNavSurfaces = [
     "src/app/teacher/dashboard/page.tsx",
     "src/app/teacher/content/layout.tsx",
     "src/components/teacher-data/ui.tsx",
@@ -238,9 +237,13 @@ function assertStandardTeacherNav() {
     "src/components/teacher-students/ui.tsx"
   ];
 
-  for (const filePath of standardNavFiles) {
+  assertIncludes(layout, "TeacherWorkspaceHeader", "Teacher workspace layout");
+  assertIncludes(header, "TeacherPrimaryNav", "Teacher workspace header");
+  assertIncludes(header, '<TeacherPrimaryNav variant="dark" />', "Teacher workspace header");
+
+  for (const filePath of formerNavSurfaces) {
     const source = readProjectFile(filePath);
-    assertIncludes(source, "TeacherPrimaryNav", filePath);
+    assertExcludes(source, "TeacherPrimaryNav", filePath);
     assertExcludes(source, "JSON import", filePath);
     assertExcludes(source, 'href: "/teacher/content/import-json"', filePath);
     assertExcludes(source, "Model evaluation", filePath);

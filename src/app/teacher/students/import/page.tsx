@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { RosterImportClient } from "@/components/teacher-students/roster-import-client";
-import { StudentAccountNav } from "@/components/teacher-students/ui";
 import { getCurrentUser } from "@/lib/auth";
 
 export default async function TeacherRosterImportPage() {
@@ -16,9 +15,8 @@ export default async function TeacherRosterImportPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="px-6 py-8">
       <div className="mx-auto max-w-7xl">
-        <StudentAccountNav userId={user.user_id} />
         <TeacherPageHeader title="Import roster" />
         <section className="mt-6">
           <RosterImportClient />

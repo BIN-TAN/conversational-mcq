@@ -1,6 +1,4 @@
 import { redirect } from "next/navigation";
-import { DataNav } from "@/components/teacher-data/ui";
-import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { getCurrentUser } from "@/lib/auth";
 import { getLlmReadiness } from "@/lib/llm/readiness";
 
@@ -24,12 +22,9 @@ export default async function TeacherLlmSystemPage() {
   const operationalIntegration = readiness.guarded_operational_agent_integration;
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="px-6 py-8">
       <div className="mx-auto max-w-6xl">
-        <DataNav userId={user.user_id} />
-        <TeacherPageHeader title="LLM status" />
-
-        <section className="mt-6 grid gap-4 md:grid-cols-3">
+        <section className="grid gap-4 md:grid-cols-3">
           <StatusCard label="Provider" value={String(readiness.provider)} />
           <StatusCard
             label="Live calls"

@@ -140,6 +140,11 @@ function assertStudentPreviewSafe(item: Awaited<ReturnType<typeof getItemDetail>
 
 function assertDashboardCardsAreActionable() {
   const source = readFileSync(path.join(process.cwd(), "src/app/teacher/dashboard/page.tsx"), "utf8");
+  const layout = readFileSync(path.join(process.cwd(), "src/app/teacher/layout.tsx"), "utf8");
+  const header = readFileSync(
+    path.join(process.cwd(), "src/components/teacher-workspace-header.tsx"),
+    "utf8"
+  );
   const client = readFileSync(
     path.join(process.cwd(), "src/components/teacher-dashboard/assessment-dashboard-client.tsx"),
     "utf8"
@@ -152,7 +157,8 @@ function assertDashboardCardsAreActionable() {
   assert(navByLabel.get("Data and outcomes") === "/teacher/data", "Teacher dashboard nav should link to Data and outcomes.");
   assert(navByLabel.get("LLM status") === "/teacher/system/llm", "Teacher dashboard nav should link to LLM status.");
   assert(source.includes("AssessmentDashboardClient"), "Dashboard should render the assessment-level dashboard client.");
-  assert(source.includes("TeacherPrimaryNav"), "Dashboard should render shared teacher primary navigation.");
+  assert(layout.includes("TeacherWorkspaceHeader"), "Teacher routes should render the shared workspace header.");
+  assert(header.includes("TeacherPrimaryNav"), "Workspace header should render shared teacher primary navigation.");
   assert(client.includes("Assessment / mini test"), "Dashboard should expose an assessment selector.");
   assert(client.includes("Item-level diagnostic view"), "Dashboard should expose item-level diagnostics.");
   assert(client.includes("Candidate misconception patterns"), "Dashboard should expose deterministic pattern review.");

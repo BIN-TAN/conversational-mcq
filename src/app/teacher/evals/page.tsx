@@ -15,9 +15,9 @@ export default async function TeacherEvalsPage() {
   }
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="px-6 py-8">
       <div className="mx-auto max-w-6xl">
-        <TeacherEvalNav userId={user.user_id} />
+        <TeacherEvalNav />
         <header className="mb-6 border-b border-line pb-5">
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">
             model evaluation

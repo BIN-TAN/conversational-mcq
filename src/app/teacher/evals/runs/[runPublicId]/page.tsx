@@ -19,9 +19,9 @@ export default async function EvalRunDetailPage(
   const params = await context.params;
 
   return (
-    <main className="min-h-screen px-6 py-8">
+    <main className="px-6 py-8">
       <div className="mx-auto max-w-6xl">
-        <TeacherEvalNav userId={user.user_id} />
+        <TeacherEvalNav />
         <EvalRunDetailClient runPublicId={params.runPublicId} />
       </div>
     </main>

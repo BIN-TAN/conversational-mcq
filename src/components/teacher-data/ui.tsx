@@ -2,8 +2,6 @@
 
 import type { ReactNode } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
-import { TeacherAccountUtilityLink } from "@/components/teacher-account-utility-link";
-import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import type { StructuredApiError } from "./types";
 
 export function formatDate(value?: string | null) {
@@ -15,18 +13,6 @@ export function formatDate(value?: string | null) {
     dateStyle: "medium",
     timeStyle: "short"
   }).format(new Date(value));
-}
-
-export function DataNav({ userId }: { userId: string }) {
-  return (
-    <div className="mb-6 flex flex-wrap items-center gap-2 text-sm">
-      <TeacherPrimaryNav />
-      <div className="ml-auto flex flex-wrap items-center gap-2">
-        <TeacherAccountUtilityLink />
-        <span className="text-muted">Signed in as {userId}</span>
-      </div>
-    </div>
-  );
 }
 
 export function StatusPill({ value, tone = "neutral" }: { value: string; tone?: "neutral" | "good" | "warn" | "bad" }) {

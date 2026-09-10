@@ -73,7 +73,9 @@ function assertPrimaryNavComponent() {
 }
 
 function assertNormalTeacherPagesUseSharedNav() {
-  const pages = [
+  const layout = source("src/app/teacher/layout.tsx");
+  const header = source("src/components/teacher-workspace-header.tsx");
+  const formerNavSurfaces = [
     "src/app/teacher/dashboard/page.tsx",
     "src/app/teacher/content/layout.tsx",
     "src/components/teacher-students/ui.tsx",
@@ -88,10 +90,36 @@ function assertNormalTeacherPagesUseSharedNav() {
     "Model evaluation"
   ];
 
-  for (const filePath of pages) {
+  assertIncludes(layout, "TeacherWorkspaceHeader", "Teacher workspace layout");
+  assertIncludes(layout, "getCurrentUser", "Teacher workspace layout");
+  assertIncludes(layout, 'user.role !== "teacher_researcher"', "Teacher workspace layout");
+
+  for (const expected of [
+    "TeacherPrimaryNav",
+    "TeacherAccountUtilityLink",
+    "TeacherLogoutButton",
+    "UAlbertaLogo",
+    "EDPY 507: Measurement Theory",
+    "Assessment dashboard",
+    "Assessment management",
+    "Student accounts",
+    "Student sessions",
+    "Data and outcomes",
+    "LLM status"
+  ]) {
+    assertIncludes(header, expected, "Teacher workspace header");
+  }
+  assertIncludes(header, '<TeacherPrimaryNav variant="dark" />', "Teacher workspace header");
+  assertIncludes(
+    header,
+    '<TeacherAccountUtilityLink variant="dark" />',
+    "Teacher workspace header"
+  );
+
+  for (const filePath of formerNavSurfaces) {
     const file = source(filePath);
-    assertIncludes(file, "TeacherPrimaryNav", filePath);
-    assertIncludes(file, "TeacherAccountUtilityLink", filePath);
+    assertExcludes(file, "TeacherPrimaryNav", filePath);
+    assertExcludes(file, "TeacherAccountUtilityLink", filePath);
     assertExcludes(file, 'href: "/teacher/content/import-json"', filePath);
     assertExcludes(file, 'href="/teacher/evals"', filePath);
     for (const label of forbiddenPrimaryLabels) {
@@ -99,10 +127,6 @@ function assertNormalTeacherPagesUseSharedNav() {
     }
   }
 
-  const dashboard = source("src/app/teacher/dashboard/page.tsx");
-  assertIncludes(dashboard, "TeacherLogoutButton", "Teacher dashboard");
-  assertIncludes(dashboard, '<TeacherPrimaryNav variant="dark" />', "Teacher dashboard");
-  assertIncludes(dashboard, '<TeacherAccountUtilityLink variant="dark" />', "Teacher dashboard");
   const utility = source("src/components/teacher-account-utility-link.tsx");
   assertIncludes(utility, 'href="/teacher/account"', "Teacher account utility link");
   assertIncludes(utility, "Account settings", "Teacher account utility link");

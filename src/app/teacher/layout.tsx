@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
+import { TeacherWorkspaceHeader } from "@/components/teacher-workspace-header";
 import { getCurrentUser } from "@/lib/auth";
 
-export default async function TeacherContentLayout({
+export default async function TeacherLayout({
   children
 }: Readonly<{
   children: React.ReactNode;
@@ -17,10 +18,9 @@ export default async function TeacherContentLayout({
   }
 
   return (
-    <main className="px-6 py-8">
-      <div className="mx-auto max-w-6xl">
-        {children}
-      </div>
-    </main>
+    <div className="min-h-screen bg-panel-gray">
+      <TeacherWorkspaceHeader userId={user.user_id} />
+      {children}
+    </div>
   );
 }

@@ -120,6 +120,7 @@ function assertNormalTeacherCopyIsConcise() {
 
 function assertRoutineActionsRemainAvailable() {
   const dashboard = source("src/app/teacher/dashboard/page.tsx");
+  const header = source("src/components/teacher-workspace-header.tsx");
   const contentHome = source("src/app/teacher/content/page.tsx");
   const studentList = source("src/components/teacher-students/student-list-client.tsx");
   const sessionList = source("src/components/teacher-review/session-list-client.tsx");
@@ -127,9 +128,10 @@ function assertRoutineActionsRemainAvailable() {
   const llmPage = source("src/app/teacher/system/llm/page.tsx");
   const assessmentDetail = source("src/components/teacher-content/assessment-detail-client.tsx");
 
-  assertIncludes(dashboard, "Assessment dashboard", "Teacher dashboard");
-  assertIncludes(dashboard, "TeacherLogoutButton", "Teacher dashboard");
-  assertIncludes(contentHome, "Assessment management", "Assessment management page");
+  assertIncludes(header, "Assessment dashboard", "Teacher workspace header");
+  assertIncludes(header, "Assessment management", "Teacher workspace header");
+  assertIncludes(header, "TeacherLogoutButton", "Teacher workspace header");
+  assertIncludes(dashboard, "AssessmentDashboardClient", "Teacher dashboard");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
   assertIncludes(contentHome, "JSON import", "Assessment management page");
@@ -153,7 +155,9 @@ function assertRoutineActionsRemainAvailable() {
 
 function assertAdvancedRoutesRemainHiddenButProtected() {
   const dashboard = source("src/app/teacher/dashboard/page.tsx");
-  const navFiles = [
+  const layout = source("src/app/teacher/layout.tsx");
+  const header = source("src/components/teacher-workspace-header.tsx");
+  const formerNavSurfaces = [
     "src/app/teacher/dashboard/page.tsx",
     "src/app/teacher/content/layout.tsx",
     "src/components/teacher-data/ui.tsx",
@@ -164,10 +168,14 @@ function assertAdvancedRoutesRemainHiddenButProtected() {
   assertExcludes(dashboard, 'href="/teacher/content/import-json"', "Teacher dashboard");
   assertExcludes(dashboard, 'href="/teacher/evals"', "Teacher dashboard");
   assertExcludes(dashboard, "Model evaluation", "Teacher dashboard");
+  assertIncludes(layout, "TeacherWorkspaceHeader", "Teacher workspace layout");
+  assertIncludes(header, "TeacherPrimaryNav", "Teacher workspace header");
+  assertExcludes(header, "JSON import", "Teacher workspace header");
+  assertExcludes(header, 'href="/teacher/evals"', "Teacher workspace header");
 
-  for (const filePath of navFiles) {
+  for (const filePath of formerNavSurfaces) {
     const file = source(filePath);
-    assertIncludes(file, "TeacherPrimaryNav", filePath);
+    assertExcludes(file, "TeacherPrimaryNav", filePath);
     assertExcludes(file, "JSON import", filePath);
     assertExcludes(file, "Model evaluation", filePath);
   }
