@@ -53,6 +53,10 @@ const ITEM_DESIGN_ASSISTANT_AGENT_VERSION = "evidence-centered-blueprint-authori
 const ITEM_DESIGN_ASSISTANT_CONTEXT_VERSION = "evidence-centered-blueprint-conversation-context-v2" as const;
 const ITEM_GENERATION_AGENT_VERSION = "evidence-centered-item-authoring-v3" as const;
 const ITEM_GENERATION_CONTEXT_VERSION = "evidence-centered-item-generation-context-v3" as const;
+const ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_VERSION =
+  "evidence-centered-item-design-assistant-recovery-v1" as const;
+export const ITEM_DESIGN_ASSISTANT_MAX_RECOVERY_ATTEMPTS = 1 as const;
+export const ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS = 7000 as const;
 export const ITEM_GENERATION_MAX_CANDIDATES_PER_CALL = 2 as const;
 export const ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS = 1 as const;
 
@@ -75,6 +79,16 @@ This conversation defines the blueprint only. Do not produce a final item set he
 
 export const ITEM_DESIGN_ASSISTANT_PROMPT_HASH = createHash("sha256")
   .update(`${ITEM_DESIGN_ASSISTANT_PROMPT_VERSION}\n${ITEM_DESIGN_ASSISTANT_INSTRUCTIONS}`)
+  .digest("hex");
+
+const ITEM_DESIGN_ASSISTANT_RECOVERY_INSTRUCTIONS = `
+The preceding response reached its output limit before producing a complete structured update. Return a fresh, concise response for the same teacher message and source materials. Do not repeat the source material. Preserve all materially distinct objectives, evidence requirements, and misconception hypotheses while merging overlap and keeping every field concise. Preserve required fields and return exactly one material summary for every current source material.
+`.trim();
+
+export const ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_HASH = createHash("sha256")
+  .update(
+    `${ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_VERSION}\n${ITEM_DESIGN_ASSISTANT_INSTRUCTIONS}\n${ITEM_DESIGN_ASSISTANT_RECOVERY_INSTRUCTIONS}`
+  )
   .digest("hex");
 
 export const ITEM_GENERATION_INSTRUCTIONS = `
@@ -385,6 +399,11 @@ function providerAuditUpdate(result: StructuredAgentResult<unknown>) {
   return {
     provider: result.provider,
     ...providerAuditMetadata(result),
+    refusal_text: result.status === "refused" ? result.refusal ?? "refused" : null,
+    incomplete_reason:
+      result.status === "incomplete"
+        ? result.incomplete_reason ?? "incomplete"
+        : null,
     raw_output: result.raw_output === undefined
       ? Prisma.JsonNull
       : toPrismaJson(redactForAudit(result.raw_output)),
@@ -394,6 +413,12 @@ function providerAuditUpdate(result: StructuredAgentResult<unknown>) {
     total_tokens: result.usage?.total_tokens,
     token_usage: result.usage ? toPrismaJson(result.usage.raw ?? result.usage) : undefined
   };
+}
+
+export function itemDesignAssistantResultSupportsRecovery(
+  result: StructuredAgentResult<unknown>
+) {
+  return result.status === "incomplete" && result.incomplete_reason === "max_output_tokens";
 }
 
 function boundedAssistantTranscript(thread: ItemDesignAssistantThread) {
@@ -842,131 +867,176 @@ export async function respondToAssessmentItemDesignAssistant(input: {
     prior_source_materials: priorSourceMaterials,
     current_source_materials: preparedMaterials
   });
-  const attemptNumber = previousCalls.length + 1;
-  const invocationKey =
-    attemptNumber === 1 ? invocationPrefix : `${invocationPrefix}:attempt:${attemptNumber}`;
-  const clientRequestId = `item_design_assistant_${randomUUID()}`;
-  let agentCall;
-  try {
-    agentCall = await prisma.agentCall.create({
-      data: {
-        id: randomUUID(),
-        agent_name: ITEM_GENERATION_AGENT_NAME,
-        agent_version: ITEM_DESIGN_ASSISTANT_AGENT_VERSION,
-        model_name: modelConfig.model_name,
-        provider: providerLabel,
-        client_request_id: clientRequestId,
-        agent_invocation_key: invocationKey,
-        prompt_hash: ITEM_DESIGN_ASSISTANT_PROMPT_HASH,
-        max_output_tokens: modelConfig.max_output_tokens ?? null,
-        reasoning_effort: modelConfig.reasoning_effort ?? null,
-        prompt_version: ITEM_DESIGN_ASSISTANT_PROMPT_VERSION,
-        schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
-        input_payload: toPrismaJson(redactForAudit(context)) ?? Prisma.JsonNull,
-        live_call_allowed: liveCallAllowed,
-        call_status: "started",
-        started_at: new Date()
-      }
-    });
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      throw new ContentServiceError(
-        "conflict",
-        "The authoring assistant is already responding to this message.",
-        409
-      );
-    }
-    throw error;
-  }
-
-  const providerRequest = {
-    agent_name: ITEM_GENERATION_AGENT_NAME,
-    model_config: modelConfig,
-    instructions: ITEM_DESIGN_ASSISTANT_INSTRUCTIONS,
-    input: context,
-    output_schema: ItemDesignAssistantOutputSchema,
-    schema_name: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
-    client_request_id: clientRequestId,
-    timeout_ms: 120000,
-    metadata: {
-      purpose: "teacher_evidence_centered_blueprint_conversation",
-      prompt_version: ITEM_DESIGN_ASSISTANT_PROMPT_VERSION,
-      schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION
-    }
-  };
   const multimodalAttachments = preparedMaterials.flatMap((material) =>
     material.provider_attachment ? [material.provider_attachment] : []
   );
-  const result = providerOverrideForTest || multimodalAttachments.length === 0
-    ? await provider.executeStructured(providerRequest)
-    : await executeItemDesignMultimodalStructured({
-        request: providerRequest,
-        attachments: multimodalAttachments
+  let acceptedOutput: ItemDesignAssistantOutput | null = null;
+  let acceptedAgentCallPublicId: string | null = null;
+  let lastAgentCallPublicId: string | null = null;
+  let recoveryExhausted = false;
+  const maximumAttempts = ITEM_DESIGN_ASSISTANT_MAX_RECOVERY_ATTEMPTS + 1;
+
+  for (let recoveryIndex = 0; recoveryIndex < maximumAttempts; recoveryIndex += 1) {
+    const isRecovery = recoveryIndex > 0;
+    const attemptNumber = previousCalls.length + recoveryIndex + 1;
+    const invocationKey =
+      attemptNumber === 1 ? invocationPrefix : `${invocationPrefix}:attempt:${attemptNumber}`;
+    const clientRequestId = `item_design_assistant_${randomUUID()}`;
+    const promptVersion = isRecovery
+      ? ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_VERSION
+      : ITEM_DESIGN_ASSISTANT_PROMPT_VERSION;
+    const promptHash = isRecovery
+      ? ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_HASH
+      : ITEM_DESIGN_ASSISTANT_PROMPT_HASH;
+    const requestModelConfig = isRecovery
+      ? {
+          ...modelConfig,
+          max_output_tokens: Math.max(
+            modelConfig.max_output_tokens ?? 0,
+            ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS
+          )
+        }
+      : modelConfig;
+    let agentCall;
+    try {
+      agentCall = await prisma.agentCall.create({
+        data: {
+          id: randomUUID(),
+          agent_name: ITEM_GENERATION_AGENT_NAME,
+          agent_version: ITEM_DESIGN_ASSISTANT_AGENT_VERSION,
+          model_name: modelConfig.model_name,
+          provider: providerLabel,
+          client_request_id: clientRequestId,
+          agent_invocation_key: invocationKey,
+          prompt_hash: promptHash,
+          max_output_tokens: requestModelConfig.max_output_tokens ?? null,
+          reasoning_effort: modelConfig.reasoning_effort ?? null,
+          prompt_version: promptVersion,
+          schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
+          input_payload: toPrismaJson(redactForAudit(context)) ?? Prisma.JsonNull,
+          live_call_allowed: liveCallAllowed,
+          call_status: "started",
+          retry_count: recoveryIndex,
+          started_at: new Date()
+        }
       });
-
-  if (result.status !== "completed") {
-    await prisma.agentCall.update({
-      where: { id: agentCall.id },
-      data: {
-        ...providerAuditUpdate(result),
-        output_validated: false,
-        call_status: "failed",
-        error_category: result.error?.category ?? result.status,
-        blocked_reason: result.error?.category ?? result.status,
-        completed_at: new Date()
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        throw new ContentServiceError(
+          "conflict",
+          "The authoring assistant is already responding to this message.",
+          409
+        );
       }
-    });
-    throw new ContentServiceError(
-      "validation_failed",
-      "The authoring assistant could not respond. Your message and saved design were not changed; try again when ready.",
-      503,
-      { agent_call_public_id: agentCall.agent_call_public_id }
-    );
-  }
-
-  let output: ItemDesignAssistantOutput;
-  try {
-    output = ItemDesignAssistantOutputSchema.parse(
-      normalizeLegacyItemDesignAssistantOutput(result.parsed_output)
-    );
-    validateCurrentMaterialSummaries({
-      output,
-      current_materials: preparedMaterials
-    });
-    applyItemDesignAssistantUpdates({
-      blueprint: design.blueprint,
-      updates: output.blueprint_updates
-    });
-  } catch (error) {
-    await prisma.agentCall.update({
-      where: { id: agentCall.id },
-      data: {
-        ...providerAuditUpdate(result),
-        output_validated: false,
-        call_status: "invalid_output",
-        validation_error:
-          error instanceof Error ? error.message : "Authoring-assistant validation failed.",
-        completed_at: new Date()
-      }
-    });
-    throw new ContentServiceError(
-      "validation_failed",
-      "The authoring assistant returned an invalid design update. Your saved design is unchanged; try again or continue editing manually.",
-      422,
-      { agent_call_public_id: agentCall.agent_call_public_id }
-    );
-  }
-
-  await prisma.agentCall.update({
-    where: { id: agentCall.id },
-    data: {
-      ...providerAuditUpdate(result),
-      output_payload: toPrismaJson(output),
-      output_validated: true,
-      call_status: "succeeded",
-      completed_at: new Date()
+      throw error;
     }
-  });
+    lastAgentCallPublicId = agentCall.agent_call_public_id;
+
+    const providerRequest = {
+      agent_name: ITEM_GENERATION_AGENT_NAME,
+      model_config: requestModelConfig,
+      instructions: isRecovery
+        ? `${ITEM_DESIGN_ASSISTANT_INSTRUCTIONS}\n\n${ITEM_DESIGN_ASSISTANT_RECOVERY_INSTRUCTIONS}`
+        : ITEM_DESIGN_ASSISTANT_INSTRUCTIONS,
+      input: context,
+      output_schema: ItemDesignAssistantOutputSchema,
+      schema_name: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
+      client_request_id: clientRequestId,
+      timeout_ms: 120000,
+      metadata: {
+        purpose: "teacher_evidence_centered_blueprint_conversation",
+        prompt_version: promptVersion,
+        schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
+        recovery_attempt: String(recoveryIndex)
+      }
+    };
+    const result = providerOverrideForTest || multimodalAttachments.length === 0
+      ? await provider.executeStructured(providerRequest)
+      : await executeItemDesignMultimodalStructured({
+          request: providerRequest,
+          attachments: multimodalAttachments
+        });
+
+    if (result.status !== "completed") {
+      await prisma.agentCall.update({
+        where: { id: agentCall.id },
+        data: {
+          ...providerAuditUpdate(result),
+          output_validated: false,
+          call_status: "failed",
+          error_category: result.error?.category ?? result.status,
+          blocked_reason: result.error?.category ?? result.status,
+          completed_at: new Date()
+        }
+      });
+      if (
+        recoveryIndex < ITEM_DESIGN_ASSISTANT_MAX_RECOVERY_ATTEMPTS &&
+        itemDesignAssistantResultSupportsRecovery(result)
+      ) {
+        continue;
+      }
+      recoveryExhausted = isRecovery && itemDesignAssistantResultSupportsRecovery(result);
+      break;
+    }
+
+    let output: ItemDesignAssistantOutput;
+    try {
+      output = ItemDesignAssistantOutputSchema.parse(
+        normalizeLegacyItemDesignAssistantOutput(result.parsed_output)
+      );
+      validateCurrentMaterialSummaries({
+        output,
+        current_materials: preparedMaterials
+      });
+      applyItemDesignAssistantUpdates({
+        blueprint: design.blueprint,
+        updates: output.blueprint_updates
+      });
+    } catch (error) {
+      await prisma.agentCall.update({
+        where: { id: agentCall.id },
+        data: {
+          ...providerAuditUpdate(result),
+          output_validated: false,
+          call_status: "invalid_output",
+          validation_error:
+            error instanceof Error ? error.message : "Authoring-assistant validation failed.",
+          completed_at: new Date()
+        }
+      });
+      throw new ContentServiceError(
+        "validation_failed",
+        "The authoring assistant returned an invalid design update. Your saved design is unchanged; try again or continue editing manually.",
+        422,
+        { agent_call_public_id: agentCall.agent_call_public_id }
+      );
+    }
+
+    await prisma.agentCall.update({
+      where: { id: agentCall.id },
+      data: {
+        ...providerAuditUpdate(result),
+        output_payload: toPrismaJson(output),
+        output_validated: true,
+        call_status: "succeeded",
+        completed_at: new Date()
+      }
+    });
+    acceptedOutput = output;
+    acceptedAgentCallPublicId = agentCall.agent_call_public_id;
+    break;
+  }
+
+  if (!acceptedOutput || !acceptedAgentCallPublicId) {
+    throw new ContentServiceError(
+      "validation_failed",
+      recoveryExhausted
+        ? "The authoring assistant reached its response limit twice. Your message and saved design were not changed. Try a narrower request or attach fewer pages."
+        : "The authoring assistant could not respond. Your message and saved design were not changed; try again when ready.",
+      503,
+      lastAgentCallPublicId ? { agent_call_public_id: lastAgentCallPublicId } : undefined
+    );
+  }
 
   return persistItemDesignAssistantExchange({
     teacher_user_db_id: input.teacher_user_db_id,
@@ -975,8 +1045,8 @@ export async function respondToAssessmentItemDesignAssistant(input: {
     expected_concept_unit_version: data.expected_concept_unit_version,
     client_message_id: data.client_message_id,
     teacher_message: teacherMessage,
-    agent_call_public_id: agentCall.agent_call_public_id,
-    output,
+    agent_call_public_id: acceptedAgentCallPublicId,
+    output: acceptedOutput,
     current_source_materials: preparedMaterials
   });
 }

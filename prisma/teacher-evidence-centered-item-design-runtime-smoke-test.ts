@@ -68,8 +68,14 @@ class ItemGenerationProvider implements LlmProvider {
   callCount = 0;
   assistantCallCount = 0;
   generationCallCount = 0;
+  incompleteAssistantCalls = new Set<number>();
   failGenerationCalls = new Set<number>();
   generationCandidateCounts: number[] = [];
+  assistantRequests: Array<{
+    instructions: string;
+    recoveryAttempt: string | undefined;
+    maxOutputTokens: number | undefined;
+  }> = [];
   omitMaterialSummaries = false;
 
   async executeStructured<TInput, TOutput>(
@@ -78,6 +84,27 @@ class ItemGenerationProvider implements LlmProvider {
     this.callCount += 1;
     if (request.metadata?.purpose === "teacher_evidence_centered_blueprint_conversation") {
       this.assistantCallCount += 1;
+      this.assistantRequests.push({
+        instructions: request.instructions,
+        recoveryAttempt: request.metadata.recovery_attempt,
+        maxOutputTokens: request.model_config.max_output_tokens
+      });
+      if (this.incompleteAssistantCalls.has(this.assistantCallCount)) {
+        return {
+          provider: "mock",
+          client_request_id: request.client_request_id,
+          provider_request_id: `mock_assistant_request_${this.assistantCallCount}`,
+          provider_response_id: `mock_assistant_response_${this.assistantCallCount}`,
+          status: "incomplete",
+          incomplete_reason: "max_output_tokens",
+          raw_output: {
+            status: "incomplete",
+            incomplete_details: { reason: "max_output_tokens" }
+          },
+          usage: { input_tokens: 800, output_tokens: 2500, total_tokens: 3300 },
+          latency_ms: 1
+        };
+      }
       const assistantInput = request.input as {
         current_source_materials?: Array<{ material_id?: string; file_name?: string }>;
       };
@@ -286,6 +313,36 @@ async function main() {
     assert(assistantReplay.assistant_thread.messages.length === 2, "Idempotent replay must not duplicate authoring messages.");
     assert(provider.assistantCallCount === 1, "Idempotent authoring replay must not call the provider again.");
 
+    provider.incompleteAssistantCalls.add(2);
+    const recoveredAssistant = await withItemGenerationProviderForTest(
+      { provider, provider_label: "mock" },
+      () => respondToAssessmentItemDesignAssistant({
+        teacher_user_db_id: teacher.id,
+        assessment_public_id: assessmentPublicId!,
+        data: {
+          client_message_id: `assistant_recovery_${randomUUID()}`,
+          expected_blueprint_hash: saved.blueprint_hash,
+          expected_concept_unit_version: saved.concept_unit_version,
+          message: "Summarize the most important objective and misconception evidence from this reading."
+        },
+        files: [{
+          file_name: "recovery-reading.pdf",
+          media_type: "application/pdf",
+          bytes: Buffer.from("%PDF-1.7\nrecovery source\n%%EOF", "ascii")
+        }]
+      })
+    );
+    assert(Number(provider.assistantCallCount) === 3, "An output-limit failure should receive exactly one bounded recovery call.");
+    assert(
+      provider.assistantRequests[2]?.recoveryAttempt === "1" &&
+        provider.assistantRequests[2]?.instructions.includes("fresh, concise response") &&
+        provider.assistantRequests[1]?.maxOutputTokens === 2500 &&
+        provider.assistantRequests[2]?.maxOutputTokens === 7000,
+      "Only the recovery request should use the expanded output budget."
+    );
+    assert(recoveredAssistant.assistant_thread.messages.length === 4, "Recovery must persist exactly one additional teacher-assistant exchange.");
+    assert(recoveredAssistant.source_materials.length === 4, "Recovery must persist the uploaded material only after a valid response.");
+
     provider.omitMaterialSummaries = true;
     let incompleteMaterialSummaryRejected = false;
     try {
@@ -296,8 +353,8 @@ async function main() {
           assessment_public_id: assessmentPublicId!,
           data: {
             client_message_id: `missing_summary_${randomUUID()}`,
-            expected_blueprint_hash: saved.blueprint_hash,
-            expected_concept_unit_version: saved.concept_unit_version,
+            expected_blueprint_hash: recoveredAssistant.blueprint_hash,
+            expected_concept_unit_version: recoveredAssistant.concept_unit_version,
             message: "Review this additional reading."
           },
           files: [{
@@ -317,8 +374,8 @@ async function main() {
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessmentPublicId
     });
-    assert(afterRejectedMaterial.source_materials.length === 3, "An invalid material response must not partially persist its source.");
-    assert(afterRejectedMaterial.assistant_thread.messages.length === 2, "An invalid material response must not append a partial exchange.");
+    assert(afterRejectedMaterial.source_materials.length === 4, "An invalid material response must not partially persist its source.");
+    assert(afterRejectedMaterial.assistant_thread.messages.length === 4, "An invalid material response must not append a partial exchange.");
 
     const conceptUnit = await prisma.conceptUnit.findUniqueOrThrow({
       where: { concept_unit_public_id: saved.concept_unit_public_id },
@@ -334,7 +391,7 @@ async function main() {
       () => generateAssessmentItemDrafts({
         teacher_user_db_id: teacher.id,
         assessment_public_id: assessmentPublicId!,
-        data: { expected_blueprint_hash: saved.blueprint_hash, mode: "live" }
+        data: { expected_blueprint_hash: recoveredAssistant.blueprint_hash, mode: "live" }
       })
     );
     const review = await getMcqItemImportBatch({
@@ -357,7 +414,7 @@ async function main() {
       () => generateAssessmentItemDrafts({
         teacher_user_db_id: teacher.id,
         assessment_public_id: assessmentPublicId!,
-        data: { expected_blueprint_hash: saved.blueprint_hash, mode: "live" }
+        data: { expected_blueprint_hash: recoveredAssistant.blueprint_hash, mode: "live" }
       })
     );
     assert(replay.batch_public_id === first.batch_public_id, "Duplicate generation should replay the existing review batch.");
@@ -371,11 +428,11 @@ async function main() {
       teacher_user_db_id: teacher.id,
       assessment_public_id: assessmentPublicId,
       data: {
-        expected_concept_unit_version: saved.concept_unit_version,
+        expected_concept_unit_version: recoveredAssistant.concept_unit_version,
         blueprint: {
-          ...saved.blueprint,
+          ...recoveredAssistant.blueprint,
           generation_settings: {
-            ...saved.blueprint.generation_settings,
+            ...recoveredAssistant.blueprint.generation_settings,
             context_notes: "Use a different course context for retry coverage."
           }
         }
@@ -403,9 +460,14 @@ async function main() {
     const assistantCalls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_design_assistant:${assessmentPublicId}:` } }
     });
-    assert(assistantCalls.length === 2, "The authoring audit should preserve the accepted call and the rejected material-summary call.");
-    assert(assistantCalls.filter((call) => call.call_status === "succeeded").length === 1, "The accepted authoring AgentCall should record successful validation.");
+    assert(assistantCalls.length === 4, "The authoring audit should preserve accepted, recovery, and rejected calls.");
+    assert(assistantCalls.filter((call) => call.call_status === "succeeded").length === 2, "Accepted authoring calls should record successful validation.");
+    assert(assistantCalls.filter((call) => call.call_status === "failed").length === 1, "The incomplete primary call should remain preserved.");
     assert(assistantCalls.filter((call) => call.call_status === "invalid_output").length === 1, "The incomplete material summary should remain a typed invalid output.");
+    const incompleteCall = assistantCalls.find((call) => call.call_status === "failed");
+    const recoveryCall = assistantCalls.find((call) => call.retry_count === 1);
+    assert(incompleteCall?.incomplete_reason === "max_output_tokens", "The failed call should retain its typed incomplete reason.");
+    assert(recoveryCall?.call_status === "succeeded", "The bounded recovery call should be independently auditable and successful.");
     assert(
       !JSON.stringify(assistantCalls[0]?.input_payload).includes(userId),
       "Teacher account identifiers must not enter the provider context."
