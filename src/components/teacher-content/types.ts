@@ -357,6 +357,11 @@ export type AssessmentDeletionCounts = {
   workflow_job_count: number;
   workflow_override_count: number;
   student_action_idempotency_key_count: number;
+  student_communication_count: number;
+  topic_dialogue_count: number;
+  topic_dialogue_turn_count: number;
+  assessment_lifecycle_operation_count: number;
+  formative_conversation_session_count: number;
   activity_runtime_count: number;
   post_activity_evidence_count: number;
   diagnostic_snapshot_count: number;
@@ -378,9 +383,12 @@ export type ArchivedAssessmentBatchDeletionPreview = {
     folder_label: string | null;
     item_count: number;
     assessment_session_count: number;
+    has_student_or_operational_data: boolean;
     allowed: boolean;
     blocked_reasons: string[];
   }>;
+  deletion_mode: AssessmentDeletionMode;
+  requires_delete_all_confirmation: boolean;
   allowed: boolean;
   blocked_assessments: Array<{
     assessment_public_id: string;

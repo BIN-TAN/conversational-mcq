@@ -78,13 +78,16 @@ npm run student:teacher-student-deletion-smoke
 
 Assessment lifecycle behavior: Archive is the normal reversible mini-test
 control. Archived mini tests are hidden by default in the teacher library and
-can be restored. Permanent assessment deletion is available only in the
-assessment detail danger zone after previewed aggregate counts. Verify unused
+can be restored. Permanent deletion is available in the assessment detail
+danger zone and as a bounded archived-library batch action after previewed
+aggregate counts. A batch containing student data requires a count-specific
+typed phrase and a second all-data acknowledgement. Verify unused
 draft/archived deletion, strong-confirmation all-data deletion, no-orphan
-cleanup, and safe aggregate audit records with:
+cleanup, student-account retention, and safe aggregate audit records with:
 
 ```bash
 npm run student:teacher-assessment-deletion-smoke
+npm run teacher:batch-cleanup-runtime-smoke
 ```
 
 Attempt lifecycle behavior: students can Pause and leave to resume the same attempt later, or explicitly End attempt after confirmation. If a resumable attempt exists, the dashboard should show Resume attempt and End current attempt, not Start. Teachers can close a stuck or test attempt from session review with Close attempt and allow another; this preserves old attempt records and does not delete data. Verify with:

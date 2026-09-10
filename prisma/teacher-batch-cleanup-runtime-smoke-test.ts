@@ -45,6 +45,9 @@ async function cleanup() {
     select: { id: true }
   });
   const assessmentIds = assessments.map((assessment) => assessment.id);
+  await prisma.formativeConversationSession.deleteMany({
+    where: { assessment_session: { assessment_db_id: { in: assessmentIds } } }
+  });
   await prisma.assessmentSession.deleteMany({
     where: { assessment_db_id: { in: assessmentIds } }
   });
@@ -197,7 +200,19 @@ async function main() {
       created_by_user_db_id: teacher.id
     }
   });
-  await prisma.assessmentSession.create({
+  const archivedWithSessionConcept = await prisma.conceptUnit.create({
+    data: {
+      concept_unit_public_id: `${prefix}_archived_session_concept`,
+      assessment_db_id: archivedWithSession.id,
+      title: "Synthetic formative topic",
+      learning_objective: "Verify current formative records are deleted safely.",
+      related_concept_description: "Synthetic formative cleanup concept.",
+      order_index: 1,
+      status: "archived",
+      version: 1
+    }
+  });
+  const archivedSession = await prisma.assessmentSession.create({
     data: {
       session_public_id: `${prefix}_archived_session`,
       user_db_id: student.id,
@@ -208,24 +223,36 @@ async function main() {
       response_collection_mode_snapshot: "llm_assisted"
     }
   });
-
-  const blockedAssessmentPreview = await previewArchivedAssessmentBatchDeletion({
-    teacher_user_db_id: teacher.id,
+  const archivedConceptSession = await prisma.conceptUnitSession.create({
     data: {
-      assessment_public_ids: [
-        archivedUnused.assessment_public_id,
-        archivedWithSession.assessment_public_id
-      ]
+      assessment_session_db_id: archivedSession.id,
+      concept_unit_db_id: archivedWithSessionConcept.id,
+      status: "followup_active",
+      followup_status: "active"
     }
   });
-  assert(!blockedAssessmentPreview.allowed, "Archived mini test with a session must be blocked.");
-  assert(blockedAssessmentPreview.blocked_assessments.length === 1, "Expected one blocked mini test.");
+  const formativeConversation = await prisma.formativeConversationSession.create({
+    data: {
+      conversation_public_id: `${prefix}_formative_conversation`,
+      assessment_session_db_id: archivedSession.id,
+      concept_unit_session_db_id: archivedConceptSession.id,
+      status: "ended"
+    }
+  });
 
   const assessmentPreview = await previewArchivedAssessmentBatchDeletion({
     teacher_user_db_id: teacher.id,
     data: { assessment_public_ids: [archivedUnused.assessment_public_id] }
   });
   assert(assessmentPreview.allowed, "Unused archived mini test should be deletable.");
+  assert(
+    assessmentPreview.deletion_mode === "unused_assessment",
+    "Unused archived mini test should use the unused deletion mode."
+  );
+  assert(
+    !assessmentPreview.requires_delete_all_confirmation,
+    "Unused archived mini test should not require the all-data acknowledgement."
+  );
   await assertServiceError(
     () =>
       deleteArchivedAssessmentsAndAuthoringData({
@@ -233,6 +260,7 @@ async function main() {
         data: {
           assessment_public_ids: [archivedUnused.assessment_public_id],
           selection_fingerprint: "0".repeat(64),
+          deletion_mode: assessmentPreview.deletion_mode,
           delete_confirmation: assessmentPreview.required_delete_confirmation
         }
       }),
@@ -244,6 +272,7 @@ async function main() {
     data: {
       assessment_public_ids: [archivedUnused.assessment_public_id],
       selection_fingerprint: assessmentPreview.selection_fingerprint,
+      deletion_mode: assessmentPreview.deletion_mode,
       delete_confirmation: assessmentPreview.required_delete_confirmation
     }
   });
@@ -252,9 +281,106 @@ async function main() {
     (await prisma.assessment.count({ where: { id: archivedUnused.id } })) === 0,
     "Deleted archived mini test still exists."
   );
+
+  const archivedUnusedMixed = await prisma.assessment.create({
+    data: {
+      assessment_public_id: `${prefix}_archived_unused_mixed`,
+      title: `${prefix} archived unused mixed`,
+      status: "archived",
+      workflow_mode: "automatic",
+      response_collection_mode: "llm_assisted",
+      created_by_user_db_id: teacher.id
+    }
+  });
+
+  const allDataAssessmentPreview = await previewArchivedAssessmentBatchDeletion({
+    teacher_user_db_id: teacher.id,
+    data: {
+      assessment_public_ids: [
+        archivedUnusedMixed.assessment_public_id,
+        archivedWithSession.assessment_public_id
+      ]
+    }
+  });
+  assert(allDataAssessmentPreview.allowed, "Archived mini tests with trial data should be deletable.");
   assert(
-    (await prisma.assessment.count({ where: { id: archivedWithSession.id } })) === 1,
-    "Blocked archived mini test should be retained."
+    allDataAssessmentPreview.deletion_mode === "assessment_and_all_data",
+    "A batch containing student data must use all-data deletion."
+  );
+  assert(
+    allDataAssessmentPreview.requires_delete_all_confirmation,
+    "A batch containing student data must require a second acknowledgement."
+  );
+  assert(
+    allDataAssessmentPreview.counts.formative_conversation_session_count === 1,
+    "Preview should count formative-conversation sessions."
+  );
+  assert(
+    allDataAssessmentPreview.counts.distinct_student_count === 1,
+    "Batch preview should de-duplicate affected students."
+  );
+  await assertServiceError(
+    () =>
+      deleteArchivedAssessmentsAndAuthoringData({
+        teacher_user_db_id: teacher.id,
+        data: {
+          assessment_public_ids: [
+            archivedUnusedMixed.assessment_public_id,
+            archivedWithSession.assessment_public_id
+          ],
+          selection_fingerprint: allDataAssessmentPreview.selection_fingerprint,
+          deletion_mode: allDataAssessmentPreview.deletion_mode,
+          delete_confirmation: allDataAssessmentPreview.required_delete_confirmation
+        }
+      }),
+    "assessment_delete_all_confirmation_mismatch",
+    ContentServiceError
+  );
+  const allDataAssessmentDeletion = await deleteArchivedAssessmentsAndAuthoringData({
+    teacher_user_db_id: teacher.id,
+    data: {
+      assessment_public_ids: [
+        archivedUnusedMixed.assessment_public_id,
+        archivedWithSession.assessment_public_id
+      ],
+      selection_fingerprint: allDataAssessmentPreview.selection_fingerprint,
+      deletion_mode: allDataAssessmentPreview.deletion_mode,
+      delete_confirmation: allDataAssessmentPreview.required_delete_confirmation,
+      confirm_delete_all_assessment_data: true
+    }
+  });
+  assert(allDataAssessmentDeletion.deleted_counts.assessment_count === 2, "Archived batch was not deleted.");
+  assert(
+    (await prisma.assessment.count({
+      where: { id: { in: [archivedUnusedMixed.id, archivedWithSession.id] } }
+    })) === 0,
+    "Deleted archived mini-test batch still exists."
+  );
+  assert(
+    (await prisma.assessmentSession.count({ where: { id: archivedSession.id } })) === 0,
+    "Associated student session should be deleted."
+  );
+  assert(
+    (await prisma.formativeConversationSession.count({ where: { id: formativeConversation.id } })) === 0,
+    "Associated formative-conversation session should be deleted."
+  );
+  assert((await prisma.user.count({ where: { id: student.id } })) === 1, "Student account should be retained.");
+
+  const allDataAudits = await prisma.assessmentDeletionEvent.findMany({
+    where: { deletion_public_id: { in: allDataAssessmentDeletion.deletion_event_public_ids } }
+  });
+  assert(allDataAudits.length === 2, "Each deleted mini test should have a safe deletion audit.");
+  assert(
+    allDataAudits.every((audit) => audit.deletion_mode === "assessment_and_all_data"),
+    "All-data batch audits should record the all-data deletion mode."
+  );
+  assert(
+    allDataAudits.every(
+      (audit) =>
+        (audit.deletion_summary as { batch_operation_public_id?: string })
+          .batch_operation_public_id === allDataAssessmentDeletion.batch_operation_public_id
+    ),
+    "All batch audits should share the batch operation ID."
   );
 
   console.log(
@@ -265,7 +391,7 @@ async function main() {
         active_session_retained: true,
         student_account_retained: true,
         archived_unused_deleted: true,
-        archived_with_session_retained: true,
+        archived_with_session_and_formative_data_deleted: true,
         provider_calls: 0,
         synthetic_nonce: randomUUID()
       },

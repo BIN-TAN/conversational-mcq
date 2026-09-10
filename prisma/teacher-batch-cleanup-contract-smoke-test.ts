@@ -42,8 +42,8 @@ assertIncludes(
 );
 assertIncludes(
   assessmentService,
-  "student_or_operational_records_exist",
-  "Student-evidence deletion guard"
+  'deletion_mode: z.enum(["unused_assessment", "assessment_and_all_data"])',
+  "Archived batch deletion mode contract"
 );
 assertIncludes(
   assessmentService,
@@ -56,9 +56,34 @@ assertIncludes(
   "Archived batch deletion service"
 );
 assertIncludes(
+  assessmentService,
+  "confirm_delete_all_assessment_data",
+  "Archived batch second confirmation"
+);
+assertIncludes(
+  assessmentService,
+  "formativeConversationSession.deleteMany",
+  "Current formative-conversation cleanup"
+);
+assertIncludes(
+  assessmentService,
+  "assessmentLifecycleOperation.deleteMany",
+  "Assessment lifecycle cleanup"
+);
+assertIncludes(
   assessmentControl,
   "Delete selected archived mini tests?",
   "Archived deletion confirmation UI"
+);
+assertIncludes(
+  assessmentControl,
+  "Associated student and learning records will also be deleted.",
+  "Archived all-data deletion warning"
+);
+assertIncludes(
+  assessmentControl,
+  "batch-delete-archived-mini-tests-all-data-confirmation",
+  "Archived all-data second confirmation UI"
 );
 assertIncludes(
   assessmentList,
@@ -67,9 +92,9 @@ assertIncludes(
 );
 assert(!assessmentList.includes("Design and generate"), "Assessment library must not expose item design entry.");
 assertIncludes(contentHome, "New mini test", "Teacher authoring entry");
-assertIncludes(contentHome, "Design and generate items", "Teacher authoring purpose");
+assertIncludes(contentHome, 'href="/teacher/content/assessments/new"', "Teacher authoring route");
 assertIncludes(createClient, "/item-design", "New mini-test design redirect");
-assertIncludes(createClient, "Save and design items", "New mini-test design continuation");
+assertIncludes(createClient, "Create and open assistant", "New mini-test design continuation");
 
 for (const file of [
   sessionService,

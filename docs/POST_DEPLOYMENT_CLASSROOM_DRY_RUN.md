@@ -82,7 +82,7 @@ Record only safe observations: pass/fail status, public IDs, timestamps, artifac
     - If using media-enabled items, confirm exported/session-visible media fields are limited to safe display URLs, titles, descriptions, captions, transcripts/summaries, and attribution. They must not include storage keys, media hashes, answer keys, correct options, raw distractor notes, credentials, or secrets.
 
 12b. Assessment lifecycle:
-    - Expected: `/teacher/content/assessments` hides archived mini tests by default, can show archived/all mini tests with filters, and can restore archived mini tests. Permanent assessment deletion is only in the assessment detail danger zone after previewed aggregate counts and exact typed confirmations. Do not use delete-all on pilot data unless there is an approved withdrawal or staging cleanup reason.
+    - Expected: `/teacher/content/assessments` hides archived mini tests by default, can show archived/all mini tests with filters, and can restore archived mini tests. Permanent deletion is available in the assessment detail danger zone and as a bounded batch action in the Archived filter. A batch with student records shows all affected counts and requires both the exact count-specific phrase and the all-data acknowledgement. Do not use delete-all on pilot data unless there is an approved withdrawal or trial-data cleanup reason.
 
 13. Export integrity review:
     - Expected: if possible, bring the export ZIP back to the local protected environment and run the export integrity review. Do not commit the ZIP.

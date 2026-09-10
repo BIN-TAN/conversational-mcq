@@ -1023,13 +1023,14 @@ newly generated exports. Previously downloaded exports and external copies are
 outside application control and are documented as deletion limitations.
 
 The assessment library also supports bounded batch deletion of archived mini
-tests, but only when every selected assessment has zero student sessions and
-zero student or operational evidence. The action uses a selection fingerprint,
-an exact count-specific confirmation phrase, one transaction, and one safe
-`assessment_deletion_events` row per removed assessment with a shared batch
-reference. Archived mini tests that still have student data remain blocked;
-the teacher must first use the terminal-session deletion workflow where
-appropriate. Historical deletion events are never removed by the batch action.
+tests. The action uses a selection fingerprint, an exact count-specific
+confirmation phrase, one transaction, and one safe `assessment_deletion_events`
+row per removed assessment with a shared batch reference. If any selected mini
+test has student or operational records, the preview switches the entire batch
+to `assessment_and_all_data`, requires a second acknowledgement, and includes
+all associated sessions, responses, conversations, profiles, and evidence in
+the transaction. Student accounts and historical deletion events are never
+removed by the batch action.
 
 ## MCQ Import Provenance
 

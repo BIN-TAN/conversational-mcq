@@ -16,9 +16,6 @@ import { ErrorPanel } from "./ui";
 
 function blockedReasonLabel(reason: string) {
   if (reason === "archived_status_required") return "The mini test is not archived.";
-  if (reason === "student_or_operational_records_exist") {
-    return "Student sessions or learning evidence still exist. Delete the trial sessions first.";
-  }
   if (reason === "unused_delete_requires_draft_or_archived_status") {
     return "The mini test is not eligible for unused-content deletion.";
   }
@@ -35,6 +32,7 @@ export function ArchivedAssessmentBatchDeletionControl({
   const [open, setOpen] = useState(false);
   const [preview, setPreview] = useState<ArchivedAssessmentBatchDeletionPreview | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -44,6 +42,7 @@ export function ArchivedAssessmentBatchDeletionControl({
     setOpen(true);
     setPreview(null);
     setConfirmation("");
+    setConfirmDeleteAll(false);
     setError(null);
     setLoading(true);
     try {
@@ -59,7 +58,8 @@ export function ArchivedAssessmentBatchDeletionControl({
     if (
       !preview ||
       !preview.allowed ||
-      confirmation !== preview.required_delete_confirmation
+      confirmation !== preview.required_delete_confirmation ||
+      (preview.requires_delete_all_confirmation && !confirmDeleteAll)
     ) {
       return;
     }
@@ -72,12 +72,15 @@ export function ArchivedAssessmentBatchDeletionControl({
           (assessment) => assessment.assessment_public_id
         ),
         selection_fingerprint: preview.selection_fingerprint,
-        delete_confirmation: confirmation
+        deletion_mode: preview.deletion_mode,
+        delete_confirmation: confirmation,
+        confirm_delete_all_assessment_data: confirmDeleteAll
       });
       onDeleted(summary);
       setOpen(false);
       setPreview(null);
       setConfirmation("");
+      setConfirmDeleteAll(false);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -90,6 +93,7 @@ export function ArchivedAssessmentBatchDeletionControl({
     setOpen(false);
     setPreview(null);
     setConfirmation("");
+    setConfirmDeleteAll(false);
     setError(null);
   }
 
@@ -124,7 +128,7 @@ export function ArchivedAssessmentBatchDeletionControl({
                   Delete selected archived mini tests?
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-muted">
-                  This permanently removes their item-authoring content. Mini tests with student sessions are blocked.
+                  Archived mini tests can be removed together. If student data exists, the preview includes it in the permanent deletion.
                 </p>
               </div>
               <button
@@ -151,7 +155,7 @@ export function ArchivedAssessmentBatchDeletionControl({
 
             {preview ? (
               <div className="mt-4 space-y-4">
-                <div className="grid gap-2 sm:grid-cols-3">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                   <p className="rounded-md border border-line px-3 py-2 text-sm">
                     <span className="text-muted">Mini tests</span>{" "}
                     <strong className="float-right">{preview.counts.assessment_count}</strong>
@@ -164,6 +168,18 @@ export function ArchivedAssessmentBatchDeletionControl({
                     <span className="text-muted">Sessions</span>{" "}
                     <strong className="float-right">{preview.counts.assessment_session_count}</strong>
                   </p>
+                  <p className="rounded-md border border-line px-3 py-2 text-sm">
+                    <span className="text-muted">Students</span>{" "}
+                    <strong className="float-right">{preview.counts.distinct_student_count}</strong>
+                  </p>
+                  <p className="rounded-md border border-line px-3 py-2 text-sm">
+                    <span className="text-muted">Responses</span>{" "}
+                    <strong className="float-right">{preview.counts.item_response_count}</strong>
+                  </p>
+                  <p className="rounded-md border border-line px-3 py-2 text-sm">
+                    <span className="text-muted">Conversation turns</span>{" "}
+                    <strong className="float-right">{preview.counts.conversation_turn_count}</strong>
+                  </p>
                 </div>
 
                 <div className="max-h-56 overflow-y-auto rounded-md border border-line">
@@ -174,6 +190,11 @@ export function ArchivedAssessmentBatchDeletionControl({
                         <p className="mt-1 text-xs text-muted">
                           {assessment.item_count} items · {assessment.assessment_session_count} sessions
                         </p>
+                        {assessment.has_student_or_operational_data ? (
+                          <p className="mt-1 text-xs font-medium text-red-800">
+                            Associated student and learning records will also be deleted.
+                          </p>
+                        ) : null}
                         {!assessment.allowed ? (
                           <ul className="mt-2 space-y-1 text-xs font-medium text-red-800">
                             {assessment.blocked_reasons.map((reason) => (
@@ -191,19 +212,35 @@ export function ArchivedAssessmentBatchDeletionControl({
                 </p>
 
                 {preview.allowed ? (
-                  <label className="flex flex-col gap-2 text-sm font-medium text-red-950">
-                    Type {preview.required_delete_confirmation}
-                    <input
-                      autoComplete="off"
-                      className="h-10 rounded-md border border-red-300 bg-white px-3 text-sm text-ink outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100"
-                      data-testid="batch-delete-archived-mini-tests-confirmation"
-                      onChange={(event) => setConfirmation(event.target.value)}
-                      value={confirmation}
-                    />
-                  </label>
+                  <div className="space-y-3">
+                    {preview.requires_delete_all_confirmation ? (
+                      <label className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm leading-6 text-red-950">
+                        <input
+                          checked={confirmDeleteAll}
+                          className="mt-1 h-4 w-4 shrink-0 accent-red-700"
+                          data-testid="batch-delete-archived-mini-tests-all-data-confirmation"
+                          onChange={(event) => setConfirmDeleteAll(event.target.checked)}
+                          type="checkbox"
+                        />
+                        <span>
+                          I understand this also permanently deletes associated student sessions, responses, conversations, profiles, and learning evidence. Student accounts are retained.
+                        </span>
+                      </label>
+                    ) : null}
+                    <label className="flex flex-col gap-2 text-sm font-medium text-red-950">
+                      Type {preview.required_delete_confirmation}
+                      <input
+                        autoComplete="off"
+                        className="h-10 rounded-md border border-red-300 bg-white px-3 text-sm text-ink outline-none focus:border-red-600 focus:ring-2 focus:ring-red-100"
+                        data-testid="batch-delete-archived-mini-tests-confirmation"
+                        onChange={(event) => setConfirmation(event.target.value)}
+                        value={confirmation}
+                      />
+                    </label>
+                  </div>
                 ) : (
                   <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950">
-                    Delete the listed trial sessions first, then preview this deletion again.
+                    Only archived mini tests can be deleted from this batch action.
                   </p>
                 )}
 
@@ -222,7 +259,8 @@ export function ArchivedAssessmentBatchDeletionControl({
                     disabled={
                       deleting ||
                       !preview.allowed ||
-                      confirmation !== preview.required_delete_confirmation
+                      confirmation !== preview.required_delete_confirmation ||
+                      (preview.requires_delete_all_confirmation && !confirmDeleteAll)
                     }
                     onClick={() => void confirmDeletion()}
                     type="button"

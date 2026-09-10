@@ -19,7 +19,9 @@ const archivedAssessmentSelectionSchema = z.object({
 
 const archivedAssessmentDeletionSchema = archivedAssessmentSelectionSchema.extend({
   selection_fingerprint: z.string().length(64),
-  delete_confirmation: z.string()
+  deletion_mode: z.enum(["unused_assessment", "assessment_and_all_data"]),
+  delete_confirmation: z.string(),
+  confirm_delete_all_assessment_data: z.boolean().optional()
 }).strict();
 
 export type AssessmentDeletionMode = "unused_assessment" | "assessment_and_all_data";
@@ -57,6 +59,11 @@ export type AssessmentDeletionCounts = {
   workflow_job_count: number;
   workflow_override_count: number;
   student_action_idempotency_key_count: number;
+  student_communication_count: number;
+  topic_dialogue_count: number;
+  topic_dialogue_turn_count: number;
+  assessment_lifecycle_operation_count: number;
+  formative_conversation_session_count: number;
   activity_runtime_count: number;
   post_activity_evidence_count: number;
   diagnostic_snapshot_count: number;
@@ -108,9 +115,12 @@ export type ArchivedAssessmentBatchDeletionPreview = {
     folder_label: string | null;
     item_count: number;
     assessment_session_count: number;
+    has_student_or_operational_data: boolean;
     allowed: boolean;
     blocked_reasons: string[];
   }>;
+  deletion_mode: AssessmentDeletionMode;
+  requires_delete_all_confirmation: boolean;
   allowed: boolean;
   blocked_assessments: Array<{
     assessment_public_id: string;
@@ -141,6 +151,8 @@ type AssessmentDeletionGraph = {
   studentUserDbIds: string[];
   conceptUnitSessionIds: string[];
   followupRoundIds: string[];
+  formativeConversationSessionIds: string[];
+  formativeConversationPublicIds: string[];
   agentCallIds: string[];
   itemVerificationRunIds: string[];
   itemVerificationAgentCallIds: string[];
@@ -280,6 +292,11 @@ const assessmentDeletionCountKeys: Array<keyof AssessmentDeletionCounts> = [
   "workflow_job_count",
   "workflow_override_count",
   "student_action_idempotency_key_count",
+  "student_communication_count",
+  "topic_dialogue_count",
+  "topic_dialogue_turn_count",
+  "assessment_lifecycle_operation_count",
+  "formative_conversation_session_count",
   "activity_runtime_count",
   "post_activity_evidence_count",
   "diagnostic_snapshot_count",
@@ -299,11 +316,20 @@ function sumAssessmentDeletionCounts(graphs: AssessmentDeletionGraph[]) {
       graphs.reduce((total, graph) => total + graph.counts[key], 0)
     ])
   ) as AssessmentDeletionCounts;
+  counts.distinct_student_count = new Set(
+    graphs.flatMap((graph) => graph.studentUserDbIds)
+  ).size;
   return counts;
 }
 
-function archivedAssessmentDeleteConfirmation(count: number) {
-  return `DELETE ${count} ARCHIVED MINI ${count === 1 ? "TEST" : "TESTS"}`;
+function archivedAssessmentDeleteConfirmation(
+  count: number,
+  deletionMode: AssessmentDeletionMode
+) {
+  const suffix = `${count} ARCHIVED MINI ${count === 1 ? "TEST" : "TESTS"}`;
+  return deletionMode === "assessment_and_all_data"
+    ? `DELETE ${suffix} AND ALL DATA`
+    : `DELETE ${suffix}`;
 }
 
 function archivedAssessmentSelectionFingerprint(graphs: AssessmentDeletionGraph[]) {
@@ -343,6 +369,11 @@ function studentDataCount(counts: AssessmentDeletionCounts) {
     counts.workflow_job_count +
     counts.workflow_override_count +
     counts.student_action_idempotency_key_count +
+    counts.student_communication_count +
+    counts.topic_dialogue_count +
+    counts.topic_dialogue_turn_count +
+    counts.assessment_lifecycle_operation_count +
+    counts.formative_conversation_session_count +
     counts.activity_runtime_count +
     counts.post_activity_evidence_count +
     counts.diagnostic_snapshot_count +
@@ -390,6 +421,17 @@ async function buildAssessmentDeletionGraph(
     select: { id: true }
   });
   const followupRoundIds = followupRounds.map((round) => round.id);
+
+  const formativeConversations = await client.formativeConversationSession.findMany({
+    where: { assessment_session_db_id: safeIn(sessionIds) },
+    select: { id: true, conversation_public_id: true }
+  });
+  const formativeConversationSessionIds = formativeConversations.map(
+    (conversation) => conversation.id
+  );
+  const formativeConversationPublicIds = formativeConversations.map(
+    (conversation) => conversation.conversation_public_id
+  );
 
   const activityAttempts = await client.activityRuntimeAttempt.findMany({
     where: {
@@ -473,6 +515,7 @@ async function buildAssessmentDeletionGraph(
         { assessment_session_db_id: safeIn(sessionIds) },
         { concept_unit_session_db_id: safeIn(conceptUnitSessionIds) },
         { followup_round_db_id: safeIn(followupRoundIds) },
+        { formative_conversation_session_db_id: safeIn(formativeConversationSessionIds) },
         { id: safeIn([...activityAgentCallIds, ...itemVerificationAgentCallIds, ...mcqAuthoringAgentCallIds]) }
       ]
     },
@@ -492,6 +535,10 @@ async function buildAssessmentDeletionGraph(
     workflowJobCount,
     workflowOverrideCount,
     studentActionIdempotencyKeyCount,
+    studentCommunicationCount,
+    topicDialogueCount,
+    topicDialogueTurnCount,
+    assessmentLifecycleOperationCount,
     diagnosticSnapshotCount,
     operationalEffectiveResultCount,
     itemMediaAssetCount,
@@ -523,6 +570,25 @@ async function buildAssessmentDeletionGraph(
     client.workflowJob.count({ where: { assessment_session_db_id: safeIn(sessionIds) } }),
     client.workflowOverride.count({ where: { assessment_session_db_id: safeIn(sessionIds) } }),
     client.studentActionIdempotencyKey.count({ where: { assessment_session_db_id: safeIn(sessionIds) } }),
+    client.studentCommunication.count({
+      where: { assessment_session_db_id: safeIn(sessionIds) }
+    }),
+    client.topicDialogue.count({
+      where: { assessment_session_db_id: safeIn(sessionIds) }
+    }),
+    client.topicDialogueTurn.count({
+      where: { assessment_session_db_id: safeIn(sessionIds) }
+    }),
+    client.assessmentLifecycleOperation.count({
+      where: {
+        OR: [
+          { assessment_session_db_id: safeIn(sessionIds) },
+          { target_assessment_public_id: assessment.assessment_public_id },
+          { target_session_public_id: { in: sessionPublicIds } },
+          { resulting_session_public_id: { in: sessionPublicIds } }
+        ]
+      }
+    }),
     client.postActivityDiagnosticSnapshot.count({
       where: {
         OR: [
@@ -538,7 +604,15 @@ async function buildAssessmentDeletionGraph(
       where: {
         OR: [
           { agent_call_db_id: safeIn(agentCallIds) },
-          { operational_context_public_id: { in: [...sessionPublicIds, ...activityAttemptPublicIds] } }
+          {
+            operational_context_public_id: {
+              in: [
+                ...sessionPublicIds,
+                ...activityAttemptPublicIds,
+                ...formativeConversationPublicIds
+              ]
+            }
+          }
         ]
       }
     }),
@@ -564,6 +638,8 @@ async function buildAssessmentDeletionGraph(
     studentUserDbIds,
     conceptUnitSessionIds,
     followupRoundIds,
+    formativeConversationSessionIds,
+    formativeConversationPublicIds,
     agentCallIds,
     itemVerificationRunIds,
     itemVerificationAgentCallIds,
@@ -593,6 +669,11 @@ async function buildAssessmentDeletionGraph(
       workflow_job_count: workflowJobCount,
       workflow_override_count: workflowOverrideCount,
       student_action_idempotency_key_count: studentActionIdempotencyKeyCount,
+      student_communication_count: studentCommunicationCount,
+      topic_dialogue_count: topicDialogueCount,
+      topic_dialogue_turn_count: topicDialogueTurnCount,
+      assessment_lifecycle_operation_count: assessmentLifecycleOperationCount,
+      formative_conversation_session_count: formativeConversationSessionIds.length,
       activity_runtime_count: activityAttemptIds.length,
       post_activity_evidence_count: activityEvidenceIds.length,
       diagnostic_snapshot_count: diagnosticSnapshotCount,
@@ -774,6 +855,26 @@ async function deleteAssessmentGraph(
     }
   });
 
+  await tx.topicDialogueTurn.deleteMany({
+    where: { assessment_session_db_id: safeIn(graph.sessionIds) }
+  });
+  await tx.topicDialogue.deleteMany({
+    where: { assessment_session_db_id: safeIn(graph.sessionIds) }
+  });
+  await tx.studentCommunication.deleteMany({
+    where: { assessment_session_db_id: safeIn(graph.sessionIds) }
+  });
+  await tx.assessmentLifecycleOperation.deleteMany({
+    where: {
+      OR: [
+        { assessment_session_db_id: safeIn(graph.sessionIds) },
+        { target_assessment_public_id: graph.assessment.assessment_public_id },
+        { target_session_public_id: { in: graph.sessionPublicIds } },
+        { resulting_session_public_id: { in: graph.sessionPublicIds } }
+      ]
+    }
+  });
+
   await tx.workflowJob.deleteMany({ where: { assessment_session_db_id: safeIn(graph.sessionIds) } });
   await tx.workflowOverride.deleteMany({ where: { assessment_session_db_id: safeIn(graph.sessionIds) } });
   await tx.studentActionIdempotencyKey.deleteMany({
@@ -805,11 +906,22 @@ async function deleteAssessmentGraph(
     where: {
       OR: [
         { agent_call_db_id: safeIn(graph.agentCallIds) },
-        { operational_context_public_id: { in: [...graph.sessionPublicIds, ...graph.activityAttemptPublicIds] } }
+        {
+          operational_context_public_id: {
+            in: [
+              ...graph.sessionPublicIds,
+              ...graph.activityAttemptPublicIds,
+              ...graph.formativeConversationPublicIds
+            ]
+          }
+        }
       ]
     }
   });
   await tx.agentCall.deleteMany({ where: { id: safeIn(graph.agentCallIds) } });
+  await tx.formativeConversationSession.deleteMany({
+    where: { id: safeIn(graph.formativeConversationSessionIds) }
+  });
   await tx.followupRound.deleteMany({ where: { concept_unit_session_db_id: safeIn(graph.conceptUnitSessionIds) } });
   await tx.formativeDecision.deleteMany({
     where: { concept_unit_session_db_id: safeIn(graph.conceptUnitSessionIds) }
@@ -909,11 +1021,16 @@ async function buildArchivedAssessmentBatchGraphs(
 function archivedAssessmentBatchPreview(
   graphs: AssessmentDeletionGraph[]
 ): ArchivedAssessmentBatchDeletionPreview {
+  const requiresDeleteAllConfirmation = graphs.some(
+    (graph) => studentDataCount(graph.counts) > 0
+  );
+  const deletionMode: AssessmentDeletionMode = requiresDeleteAllConfirmation
+    ? "assessment_and_all_data"
+    : "unused_assessment";
   const assessments = graphs.map((graph) => {
-    const unusedPreview = publicPreview(graph).deletion_modes.unused_assessment;
-    const blockedReasons = [...unusedPreview.blocked_reasons];
+    const blockedReasons: string[] = [];
     if (graph.assessment.status !== "archived") {
-      blockedReasons.unshift("archived_status_required");
+      blockedReasons.push("archived_status_required");
     }
 
     return {
@@ -923,6 +1040,7 @@ function archivedAssessmentBatchPreview(
       folder_label: graph.assessment.folder_label,
       item_count: graph.counts.item_count,
       assessment_session_count: graph.counts.assessment_session_count,
+      has_student_or_operational_data: studentDataCount(graph.counts) > 0,
       allowed: blockedReasons.length === 0,
       blocked_reasons: [...new Set(blockedReasons)]
     };
@@ -938,16 +1056,21 @@ function archivedAssessmentBatchPreview(
   return {
     selected_assessment_count: assessments.length,
     assessments,
+    deletion_mode: deletionMode,
+    requires_delete_all_confirmation: requiresDeleteAllConfirmation,
     allowed: blockedAssessments.length === 0,
     blocked_assessments: blockedAssessments,
     selection_fingerprint: archivedAssessmentSelectionFingerprint(graphs),
-    required_delete_confirmation: archivedAssessmentDeleteConfirmation(assessments.length),
+    required_delete_confirmation: archivedAssessmentDeleteConfirmation(
+      assessments.length,
+      deletionMode
+    ),
     counts: sumAssessmentDeletionCounts(graphs),
-    warning:
-      "Permanent deletion cannot be undone. Only archived mini tests with no student sessions or student evidence are eligible.",
+    warning: requiresDeleteAllConfirmation
+      ? "Permanent deletion cannot be undone. This removes the selected archived mini tests and all of their student sessions, responses, conversations, profiles, and learning evidence."
+      : "Permanent deletion cannot be undone. This removes the selected archived mini tests and their item-authoring content.",
     deletion_limitations: [
-      "Delete student sessions first if a trial mini test still has student data.",
-      "Student accounts are never removed by archived mini-test deletion.",
+      "Student accounts are retained; only data associated with the selected mini tests is removed.",
       "Previously downloaded exports and external files remain outside this system."
     ]
   };
@@ -985,7 +1108,7 @@ export async function deleteArchivedAssessmentsAndAuthoringData(input: {
     if (!preview.allowed) {
       throw new ContentServiceError(
         "assessment_unused_delete_blocked",
-        "Archived mini tests can be deleted only when they have no student sessions or student evidence.",
+        "Batch deletion is available only for archived mini tests.",
         409,
         { blocked_assessments: preview.blocked_assessments }
       );
@@ -1005,6 +1128,24 @@ export async function deleteArchivedAssessmentsAndAuthoringData(input: {
         { required_delete_confirmation: preview.required_delete_confirmation }
       );
     }
+    if (parsed.deletion_mode !== preview.deletion_mode) {
+      throw new ContentServiceError(
+        "assessment_delete_confirmation_mismatch",
+        "The selected mini-test deletion mode changed after the preview. Review the deletion again.",
+        409,
+        { required_deletion_mode: preview.deletion_mode }
+      );
+    }
+    if (
+      preview.requires_delete_all_confirmation &&
+      parsed.confirm_delete_all_assessment_data !== true
+    ) {
+      throw new ContentServiceError(
+        "assessment_delete_all_confirmation_mismatch",
+        "Deleting archived mini tests with student data requires a second confirmation.",
+        400
+      );
+    }
 
     const deletedAt = new Date();
     const batchOperationPublicId = generatePublicId("assessment_batch_deletion");
@@ -1021,11 +1162,11 @@ export async function deleteArchivedAssessmentsAndAuthoringData(input: {
           deleted_assessment_public_hash: publicHash(graph.assessment.assessment_public_id),
           assessment_title_snapshot: graph.assessment.title,
           performed_by_user_db_id: input.teacher_user_db_id,
-          deletion_mode: "unused_assessment",
+          deletion_mode: preview.deletion_mode,
           deletion_summary:
             toPrismaJson({
               batch_operation_public_id: batchOperationPublicId,
-              deletion_mode: "unused_assessment",
+              deletion_mode: preview.deletion_mode,
               deleted_counts: graph.counts,
               retained_reference_counts: graph.retained_reference_counts,
               deleted_at: deletedAt.toISOString()

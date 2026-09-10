@@ -2392,6 +2392,11 @@ Phase 6A.5 must not implement:
   follow-up records, workflow records, agent summaries, activity attempts,
   activity evidence, diagnostic snapshots, item verification records, items,
   concept units, and the assessment in one transaction where possible.
+- The archived-library batch action may combine up to 50 archived mini tests.
+  If any selected test has student or operational records, the entire batch uses
+  the all-data deletion mode, a count-specific typed confirmation, and a second
+  confirmation. The selection fingerprint binds current aggregate counts, every
+  test is removed in one transaction, and student accounts are retained.
 - Assessment deletion audits must retain only safe aggregate counts, safe
   identifiers, deletion mode, deleting teacher reference, timestamp, and
   limitations. They must not retain deleted item content, raw student

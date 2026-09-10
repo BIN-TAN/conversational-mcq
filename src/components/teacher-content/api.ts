@@ -90,7 +90,9 @@ export function previewArchivedAssessmentBatchDeletion(assessmentPublicIds: stri
 export function deleteArchivedAssessmentBatch(input: {
   assessment_public_ids: string[];
   selection_fingerprint: string;
+  deletion_mode: "unused_assessment" | "assessment_and_all_data";
   delete_confirmation: string;
+  confirm_delete_all_assessment_data?: boolean;
 }) {
   return apiRequest<ArchivedAssessmentBatchDeletionSummary>(
     "/api/teacher/assessments/batch-deletion",
