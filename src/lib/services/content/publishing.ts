@@ -13,6 +13,7 @@ import {
   readTopicDiagnosticNote
 } from "./teacher-diagnostic-context";
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
+import { archiveSupersededAssessmentForRevision } from "./assessment-revisions";
 
 export type PublishValidationResult = {
   ok: boolean;
@@ -381,15 +382,22 @@ export async function publishAssessment(input: {
       });
     }
 
-    return tx.assessment.update({
+    const supersededAssessmentPublicId = await archiveSupersededAssessmentForRevision(
+      tx,
+      assessmentWithConceptUnits
+    );
+    const revisedAssessment = await tx.assessment.update({
       where: { id: assessmentWithConceptUnits.id },
       data: { status: "published" },
       include: { _count: { select: { concept_units: true, assessment_sessions: true } } }
     });
+
+    return { revisedAssessment, supersededAssessmentPublicId };
   });
 
   return {
-    assessment: serializeAssessment(published),
+    assessment: serializeAssessment(published.revisedAssessment),
+    superseded_assessment_public_id: published.supersededAssessmentPublicId,
     published_concept_unit_public_ids: conceptUnitResults.map(
       (result) => result.concept_unit_public_id
     ),

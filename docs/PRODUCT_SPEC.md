@@ -128,6 +128,8 @@ This workflow implements the evidence-centered sequence:
 
 Six to nine included items is the recommended authoring starting point, not a psychometric requirement. The current validated runtime supports three to twelve included items and shows the student the current item, total item count, and number remaining. No fixed number of items proves or disproves a misconception.
 
+Once any student attempt exists, that mini-test version, its topics, items, media, and answer keys are immutable. A teacher may correct an error by creating a linked editable revision. The revision receives new assessment, topic, item, and media public IDs while retaining predecessor identifiers, a teacher-entered correction reason, and a hash of the copied source content. Existing attempts remain attached to the original version. Publishing the correction atomically archives the predecessor for new starts; only future attempts use the corrected version. Historical correctness snapshots are never recalculated by this workflow.
+
 ## Phase 30a Framing Boundary
 
 The main research construct is now the **misconception diagnosis profile**, not a general ability profile. Engagement/process data should be interpreted as evidence-quality context that qualifies the confidence of a diagnosis. Formative value language remains in code for compatibility, but the dissertation framing is a four-purpose distractor-informed diagnostic taxonomy:

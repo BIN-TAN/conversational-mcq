@@ -112,6 +112,7 @@ total_item_time_ms
 Likely current support:
 
 - `item_responses` already stores selected option, reasoning text, confidence rating, skipped evidence flags, revision count, response timing, started/submitted timestamps, correctness snapshot, item snapshot, and finalized state.
+- Corrected post-administration content is copy-on-write: assessment, concept-unit, item, and item-media records retain predecessor public IDs; the assessment revision retains its family ID, revision number, teacher correction reason, and source-content hash. Existing response and correctness snapshots are not rewritten, and only future attempts use a published correction.
 - Some initial-versus-final fields may be represented through revisions, process events, or structured payloads rather than new columns.
 - Tempting-option fields may require either structured payload storage, new normalized fields, or a revision to the item-response model after implementation design is approved.
 

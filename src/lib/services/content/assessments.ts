@@ -526,8 +526,16 @@ export async function getAssessmentDetail(input: {
     throw new ContentServiceError("not_found", "Assessment was not found.", 404);
   }
 
+  const successor = await prisma.assessment.findUnique({
+    where: { supersedes_assessment_public_id: assessment.assessment_public_id },
+    select: { assessment_public_id: true }
+  });
+
   return {
-    ...serializeAssessment(assessment),
+    ...serializeAssessment({
+      ...assessment,
+      superseded_by_assessment_public_id: successor?.assessment_public_id ?? null
+    }),
     concept_units: assessment.concept_units.map(serializeConceptUnit),
     mini_test_items: assessment.concept_units
       .flatMap((conceptUnit) => conceptUnit.items)

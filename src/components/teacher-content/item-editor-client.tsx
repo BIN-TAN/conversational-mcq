@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Archive, ArrowLeft, Image as ImageIcon, Link2, Plus, Save, Trash2, Video, X } from "lucide-react";
+import { Archive, ArrowLeft, FilePenLine, Image as ImageIcon, Link2, Plus, Save, Trash2, Video, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import {
   normalizeOptions,
@@ -33,6 +33,13 @@ type ItemResponse = {
 
 type AssessmentDetailResponse = {
   assessment: AssessmentDetail;
+};
+
+type CreateAssessmentRevisionResponse = {
+  revision: {
+    revision_assessment_public_id: string;
+    target_item_public_id: string | null;
+  };
 };
 
 type SaveIntent = "add_another" | "return" | "stay";
@@ -255,6 +262,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const [activeSaveIntent, setActiveSaveIntent] = useState<SaveIntent | null>(null);
   const [isArchiving, setIsArchiving] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [isCreatingRevision, setIsCreatingRevision] = useState(false);
 
   const optionLabels = useMemo(
     () => options.map((option) => option.label.trim()).filter(Boolean),
@@ -698,6 +708,46 @@ export function ItemEditorClient(props: ItemEditorProps) {
     }
   }
 
+  async function createCorrectedItemVersion() {
+    if (!item?.assessment_public_id || !itemPublicId) {
+      return;
+    }
+
+    const reason = revisionReason.trim();
+    if (reason.length < 5) {
+      setError({
+        code: "validation_failed",
+        message: "Briefly describe what needs correction."
+      });
+      return;
+    }
+
+    setIsCreatingRevision(true);
+    setError(null);
+
+    try {
+      const data = await apiRequest<CreateAssessmentRevisionResponse>(
+        `/api/teacher/assessments/${item.assessment_public_id}/revision`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            revision_reason: reason,
+            source_item_public_id: itemPublicId
+          })
+        }
+      );
+      router.push(
+        data.revision.target_item_public_id
+          ? `/teacher/content/items/${data.revision.target_item_public_id}`
+          : `/teacher/content/assessments/${data.revision.revision_assessment_public_id}`
+      );
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setIsCreatingRevision(false);
+    }
+  }
+
   const title = props.mode === "create" ? "Add MCQ item" : "Edit MCQ item";
   const assessmentHref = parentAssessmentHref();
   const assessmentTitle = parentAssessmentTitle();
@@ -772,9 +822,56 @@ export function ItemEditorClient(props: ItemEditorProps) {
               </div>
             ) : null}
             {!isEditable && item ? (
-              <p className="mb-5 rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">
-                {readOnlyReason}
-              </p>
+              <div className="mb-5 rounded-md border border-line bg-slate-50 p-4 text-sm leading-6 text-muted">
+                <p>{readOnlyReason}</p>
+                {item.is_content_locked ? (
+                  <div className="mt-3">
+                    {!showRevisionForm ? (
+                      <Button onClick={() => setShowRevisionForm(true)} type="button" variant="secondary">
+                        <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                        Correct for future attempts
+                      </Button>
+                    ) : (
+                      <div className="space-y-3">
+                        <Field label="Reason for correction">
+                          <textarea
+                            className="min-h-24 rounded-md border border-line bg-white px-3 py-2 text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                            onChange={(event) => setRevisionReason(event.target.value)}
+                            placeholder="Describe the wording, option, or answer-key issue."
+                            value={revisionReason}
+                          />
+                        </Field>
+                        <p>
+                          A new editable mini-test version will be created. Existing attempts and
+                          responses will continue to use this version unchanged.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            disabled={isCreatingRevision}
+                            onClick={createCorrectedItemVersion}
+                            type="button"
+                          >
+                            <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                            {isCreatingRevision ? "Creating" : "Create editable correction"}
+                          </Button>
+                          <Button
+                            disabled={isCreatingRevision}
+                            onClick={() => {
+                              setShowRevisionForm(false);
+                              setRevisionReason("");
+                            }}
+                            type="button"
+                            variant="secondary"
+                          >
+                            <X className="h-4 w-4" aria-hidden="true" />
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
             ) : null}
             {createReadOnlyReason ? (
               <p className="mb-5 rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">

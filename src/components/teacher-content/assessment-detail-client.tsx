@@ -3,7 +3,7 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, CheckCircle, Download, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import { Archive, CheckCircle, Download, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   AssessmentDeletionMode,
@@ -32,6 +32,18 @@ type AssessmentDetailResponse = {
 type PublishAssessmentResponse = {
   assessment: AssessmentDetail;
   publishable_concept_unit_public_ids: string[];
+  superseded_assessment_public_id: string | null;
+};
+
+type CreateAssessmentRevisionResponse = {
+  revision: {
+    source_assessment_public_id: string;
+    revision_assessment_public_id: string;
+    revision_number: number;
+    revision_status: string;
+    target_item_public_id: string | null;
+    created_new_revision: boolean;
+  };
 };
 
 type AssessmentDeletionPreviewResponse = {
@@ -65,6 +77,9 @@ export function AssessmentDetailClient({
   const [assessmentConfirmation, setAssessmentConfirmation] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
+  const [showRevisionForm, setShowRevisionForm] = useState(false);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [isCreatingRevision, setIsCreatingRevision] = useState(false);
 
   const loadAssessment = useCallback(async () => {
     setIsLoading(true);
@@ -244,14 +259,46 @@ export function AssessmentDetailClient({
         `/api/teacher/assessments/${assessmentPublicId}/publish`,
         { method: "POST" }
       );
-      setSuccess(
-        `Assessment published. Publishable topics: ${data.publishable_concept_unit_public_ids.join(", ")}`
-      );
+      setSuccess(data.superseded_assessment_public_id
+        ? "Corrected version published. The previous version is archived for existing attempts and research history."
+        : `Assessment published. Publishable topics: ${data.publishable_concept_unit_public_ids.join(", ")}`);
       await loadAssessment();
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
       setBusyAction(null);
+    }
+  }
+
+  async function createCorrectedVersion() {
+    const reason = revisionReason.trim();
+    if (reason.length < 5) {
+      setError({
+        code: "validation_failed",
+        message: "Briefly describe what needs correction."
+      });
+      return;
+    }
+
+    setIsCreatingRevision(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      const data = await apiRequest<CreateAssessmentRevisionResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/revision`,
+        {
+          method: "POST",
+          body: JSON.stringify({ revision_reason: reason })
+        }
+      );
+      router.push(
+        `/teacher/content/assessments/${data.revision.revision_assessment_public_id}`
+      );
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setIsCreatingRevision(false);
     }
   }
 
@@ -352,6 +399,22 @@ export function AssessmentDetailClient({
       {assessment ? (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <section className="space-y-6">
+            {assessment.supersedes_assessment_public_id ? (
+              <section className="border-l-4 border-accent bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
+                <p className="font-semibold">Corrected version, revision {assessment.revision_number}</p>
+                <p>
+                  Existing attempts remain attached to the previous version. {isDraftEditable
+                    ? "Edit and review this correction before publishing it for future attempts."
+                    : "This version is used only for attempts that start after it was published."}
+                </p>
+                <Link
+                  className="mt-2 inline-flex font-semibold text-accent underline underline-offset-4"
+                  href={`/teacher/content/assessments/${assessment.supersedes_assessment_public_id}`}
+                >
+                  View previous version
+                </Link>
+              </section>
+            ) : null}
             <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={saveAssessment}>
               <div className="flex flex-wrap items-center gap-3">
                 <StatusBadge status={assessment.status} />
@@ -359,11 +422,64 @@ export function AssessmentDetailClient({
                 <span className="font-mono text-xs text-muted">{assessment.assessment_public_id}</span>
               </div>
               {isReadOnly ? (
-                <p className="mt-4 rounded-md border border-line bg-slate-50 p-3 text-sm leading-6 text-muted">
-                  {isLocked
-                    ? "Student data collection has started. The administered content is now read-only to preserve research consistency."
-                    : "This assessment can still be returned to draft because no student session has started."}
-                </p>
+                <div className="mt-4 rounded-md border border-line bg-slate-50 p-4 text-sm leading-6 text-muted">
+                  <p>
+                    {isLocked
+                      ? "Student data collection has started. This version is read-only so its questions, answer keys, and historical responses remain consistent."
+                      : "This assessment can still be returned to draft because no student session has started."}
+                  </p>
+                  {isLocked && assessment.superseded_by_assessment_public_id ? (
+                    <Link
+                      className="mt-3 inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 font-semibold text-ink transition hover:border-accent"
+                      href={`/teacher/content/assessments/${assessment.superseded_by_assessment_public_id}`}
+                    >
+                      <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                      Open corrected version
+                    </Link>
+                  ) : isLocked ? (
+                    <div className="mt-3">
+                      {!showRevisionForm ? (
+                        <Button onClick={() => setShowRevisionForm(true)} type="button" variant="secondary">
+                          <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                          Create corrected version
+                        </Button>
+                      ) : (
+                        <div className="space-y-3">
+                          <Field label="Reason for correction">
+                            <textarea
+                              className="min-h-24 rounded-md border border-line bg-white px-3 py-2 text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              onChange={(event) => setRevisionReason(event.target.value)}
+                              placeholder="Describe the wording, option, or answer-key issue."
+                              value={revisionReason}
+                            />
+                          </Field>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              disabled={isCreatingRevision}
+                              onClick={createCorrectedVersion}
+                              type="button"
+                            >
+                              <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                              {isCreatingRevision ? "Creating" : "Create editable correction"}
+                            </Button>
+                            <Button
+                              disabled={isCreatingRevision}
+                              onClick={() => {
+                                setShowRevisionForm(false);
+                                setRevisionReason("");
+                              }}
+                              type="button"
+                              variant="secondary"
+                            >
+                              <X className="h-4 w-4" aria-hidden="true" />
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
               <div className="mt-5 grid gap-4">
                 <Field label="Assessment name">
@@ -488,18 +604,22 @@ export function AssessmentDetailClient({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <PrimaryLink href={designItemsHref}>
-                    <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Design and generate
-                  </PrimaryLink>
-                  <PrimaryLink href={addItemHref}>
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add MCQ item
-                  </PrimaryLink>
-                  <PrimaryLink href={importItemsHref}>
-                    <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Import MCQ items
-                  </PrimaryLink>
+                  {isDraftEditable ? (
+                    <>
+                      <PrimaryLink href={designItemsHref}>
+                        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Design and generate
+                      </PrimaryLink>
+                      <PrimaryLink href={addItemHref}>
+                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Add MCQ item
+                      </PrimaryLink>
+                      <PrimaryLink href={importItemsHref}>
+                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Import MCQ items
+                      </PrimaryLink>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
@@ -531,7 +651,7 @@ export function AssessmentDetailClient({
                             className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
                             href={`/teacher/content/items/${item.item_public_id}`}
                           >
-                            Edit
+                            {isDraftEditable ? "Edit" : "View"}
                           </Link>
                           <Link
                             className="inline-flex h-10 items-center rounded-md border border-line px-4 text-sm font-semibold text-ink transition hover:border-accent"
@@ -553,18 +673,22 @@ export function AssessmentDetailClient({
               )}
               <div className="mt-5 border-t border-line pt-4">
                 <div className="flex flex-wrap gap-2">
-                  <PrimaryLink href={designItemsHref}>
-                    <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Design and generate
-                  </PrimaryLink>
-                  <PrimaryLink href={addItemHref}>
-                    <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Add another MCQ item
-                  </PrimaryLink>
-                  <PrimaryLink href={importItemsHref}>
-                    <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                    Import MCQ items
-                  </PrimaryLink>
+                  {isDraftEditable ? (
+                    <>
+                      <PrimaryLink href={designItemsHref}>
+                        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Design and generate
+                      </PrimaryLink>
+                      <PrimaryLink href={addItemHref}>
+                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Add another MCQ item
+                      </PrimaryLink>
+                      <PrimaryLink href={importItemsHref}>
+                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
+                        Import MCQ items
+                      </PrimaryLink>
+                    </>
+                  ) : null}
                 </div>
               </div>
             </section>
@@ -609,6 +733,16 @@ export function AssessmentDetailClient({
                     {assessment.has_student_sessions ? "Started" : "None"}
                   </dd>
                 </div>
+                <div>
+                  <dt className="text-muted">Content revision</dt>
+                  <dd className="font-medium text-ink">{assessment.revision_number}</dd>
+                </div>
+                {assessment.revision_reason ? (
+                  <div>
+                    <dt className="text-muted">Correction reason</dt>
+                    <dd className="font-medium text-ink">{assessment.revision_reason}</dd>
+                  </div>
+                ) : null}
                 <div>
                   <dt className="text-muted">Lock reason</dt>
                   <dd className="font-medium text-ink">{assessment.content_lock_reason ?? "None"}</dd>

@@ -59,10 +59,16 @@ export function serializeAssessment(
     | "response_collection_mode"
     | "release_at"
     | "close_at"
+    | "revision_family_public_id"
+    | "revision_number"
+    | "supersedes_assessment_public_id"
+    | "revision_reason"
+    | "source_content_hash"
     | "created_at"
     | "updated_at"
   > & {
     _count?: { concept_units?: number; assessment_sessions?: number };
+    superseded_by_assessment_public_id?: string | null;
   }
 ) {
   const contentState = serializeAssessmentContentState(assessment);
@@ -85,6 +91,14 @@ export function serializeAssessment(
     release_at_course_time_input: toCourseDateTimeInputValue(assessment.release_at),
     close_at_course_time_input: toCourseDateTimeInputValue(assessment.close_at),
     course_timezone: getCourseTimezone(),
+    revision_family_public_id:
+      assessment.revision_family_public_id ?? assessment.assessment_public_id,
+    revision_number: assessment.revision_number,
+    supersedes_assessment_public_id: assessment.supersedes_assessment_public_id,
+    superseded_by_assessment_public_id:
+      assessment.superseded_by_assessment_public_id ?? null,
+    revision_reason: assessment.revision_reason,
+    source_content_hash: assessment.source_content_hash,
     ...contentState,
     concept_unit_count: assessment._count?.concept_units,
     created_at: serializeDate(assessment.created_at),
@@ -103,6 +117,7 @@ export function serializeConceptUnit(
     | "order_index"
     | "status"
     | "version"
+    | "supersedes_concept_unit_public_id"
     | "created_at"
     | "updated_at"
   > & {
@@ -137,6 +152,7 @@ export function serializeConceptUnit(
     status: conceptUnit.status,
     ...contentState,
     version: conceptUnit.version,
+    supersedes_concept_unit_public_id: conceptUnit.supersedes_concept_unit_public_id,
     item_count: conceptUnit._count?.items,
     candidate_item_count:
       conceptUnit.candidate_item_count ?? conceptUnit.items?.length ?? conceptUnit._count?.items,
@@ -165,6 +181,7 @@ export function serializeItem(
     | "included_in_published_set"
     | "status"
     | "version"
+    | "supersedes_item_public_id"
     | "created_at"
     | "updated_at"
   > & {
@@ -202,6 +219,7 @@ export function serializeItem(
     concept_unit_status: item.concept_unit?.status,
     ...(contentState ?? {}),
     version: item.version,
+    supersedes_item_public_id: item.supersedes_item_public_id,
     created_at: serializeDate(item.created_at),
     updated_at: serializeDate(item.updated_at)
   };

@@ -19,6 +19,8 @@
     "db:service-smoke": "tsx prisma/service-smoke-test.ts",
     "content:smoke": "tsx prisma/content-smoke-test.ts",
     "content:governance-smoke": "tsx prisma/content-governance-smoke-test.ts",
+    "content:revision-smoke": "node --import tsx prisma/content-revision-smoke-test.ts",
+    "content:revision-runtime-smoke": "node --import tsx prisma/content-revision-runtime-database-smoke-test.ts",
     "student:initial-admin-smoke": "tsx prisma/student-initial-admin-smoke-test.ts",
     "student:state-machine-smoke": "tsx prisma/student-state-machine-smoke-test.ts",
     "student:ui-smoke": "tsx prisma/student-ui-smoke-test.ts",

@@ -41,6 +41,12 @@ export type AssessmentSummary = ContentGovernanceFields & {
   release_at_course_time_input: string;
   close_at_course_time_input: string;
   course_timezone: string;
+  revision_family_public_id: string;
+  revision_number: number;
+  supersedes_assessment_public_id: string | null;
+  superseded_by_assessment_public_id: string | null;
+  revision_reason: string | null;
+  source_content_hash: string | null;
   concept_unit_count?: number;
   item_count?: number;
   assessment_session_count?: number;
@@ -63,6 +69,7 @@ export type ConceptUnitSummary = ContentGovernanceFields & {
   order_index: number;
   status: ContentStatus;
   version: number;
+  supersedes_concept_unit_public_id: string | null;
   item_count?: number;
   candidate_item_count?: number;
   included_active_item_count?: number;
@@ -175,6 +182,7 @@ export type ItemDetail = {
   content_lock_reason?: string | null;
   has_student_sessions?: boolean;
   version: number;
+  supersedes_item_public_id: string | null;
   created_at: string;
   updated_at: string;
 };

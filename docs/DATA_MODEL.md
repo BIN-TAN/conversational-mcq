@@ -674,6 +674,19 @@ assessment page. Student-facing serializers must not expose correct options,
 answer keys, raw diagnostic focus, raw teacher notes, raw distractor metadata,
 or internal topic metadata.
 
+Post-administration corrections use copy-on-write content revisions:
+
+- `assessments.revision_family_public_id`, `revision_number`, and
+  `supersedes_assessment_public_id` identify the version chain.
+- `assessments.revision_reason` and `source_content_hash` record why the copy
+  was created and bind it to the copied source content.
+- `concept_units.supersedes_concept_unit_public_id`,
+  `items.supersedes_item_public_id`, and
+  `item_media_assets.supersedes_media_public_id` preserve content lineage.
+- Lineage uses immutable public IDs rather than foreign keys so a permitted
+  permanent deletion cannot create referential blockers. Runtime publication
+  validation still requires the source version and matching content hash.
+
 ## Diagram
 
 ```mermaid

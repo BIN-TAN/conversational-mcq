@@ -577,22 +577,27 @@ model AccountSecurityEvent {
 }
 
 model Assessment {
-  id                       String                 @id @default(uuid()) @db.Uuid
-  assessment_public_id     String                 @unique @default(cuid())
-  title                    String
-  description              String?                @db.Text
-  diagnostic_focus         String?                @db.Text
-  folder_label             String?
-  folder_order_index       Int                    @default(0)
-  assessment_order_index   Int                    @default(0)
-  status                   AssessmentStatus       @default(draft)
-  workflow_mode            AssessmentWorkflowMode @default(automatic)
-  response_collection_mode ResponseCollectionMode @default(llm_assisted)
-  release_at               DateTime?              @db.Timestamptz(6)
-  close_at                 DateTime?              @db.Timestamptz(6)
-  created_by_user_db_id    String                 @db.Uuid
-  created_at               DateTime               @default(now()) @db.Timestamptz(6)
-  updated_at               DateTime               @updatedAt @db.Timestamptz(6)
+  id                              String                 @id @default(uuid()) @db.Uuid
+  assessment_public_id            String                 @unique @default(cuid())
+  title                           String
+  description                     String?                @db.Text
+  diagnostic_focus                String?                @db.Text
+  folder_label                    String?
+  folder_order_index              Int                    @default(0)
+  assessment_order_index          Int                    @default(0)
+  status                          AssessmentStatus       @default(draft)
+  workflow_mode                   AssessmentWorkflowMode @default(automatic)
+  response_collection_mode        ResponseCollectionMode @default(llm_assisted)
+  release_at                      DateTime?              @db.Timestamptz(6)
+  close_at                        DateTime?              @db.Timestamptz(6)
+  revision_family_public_id       String?
+  revision_number                 Int                    @default(1)
+  supersedes_assessment_public_id String?                @unique
+  revision_reason                 String?                @db.Text
+  source_content_hash             String?
+  created_by_user_db_id           String                 @db.Uuid
+  created_at                      DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                      DateTime               @updatedAt @db.Timestamptz(6)
 
   created_by              User                 @relation("AssessmentCreator", fields: [created_by_user_db_id], references: [id], onDelete: Restrict)
   concept_units           ConceptUnit[]
@@ -607,6 +612,7 @@ model Assessment {
   @@index([folder_order_index, assessment_order_index])
   @@index([release_at])
   @@index([close_at])
+  @@index([revision_family_public_id, revision_number])
   @@map("assessments")
 }
 
@@ -621,6 +627,7 @@ model ConceptUnit {
   order_index                        Int
   status                             ConceptUnitStatus @default(draft)
   version                            Int               @default(1)
+  supersedes_concept_unit_public_id  String?           @unique
   latest_item_verification_run_db_id String?           @db.Uuid
   created_at                         DateTime          @default(now()) @db.Timestamptz(6)
   updated_at                         DateTime          @updatedAt @db.Timestamptz(6)
@@ -655,6 +662,7 @@ model Item {
   included_in_published_set         Boolean    @default(true)
   status                            ItemStatus @default(draft)
   version                           Int        @default(1)
+  supersedes_item_public_id         String?    @unique
   created_at                        DateTime   @default(now()) @db.Timestamptz(6)
   updated_at                        DateTime   @updatedAt @db.Timestamptz(6)
 
@@ -692,6 +700,7 @@ model ItemMediaAsset {
   order_index                   Int                 @default(0)
   active                        Boolean             @default(true)
   media_version                 Int                 @default(1)
+  supersedes_media_public_id    String?             @unique
   created_at                    DateTime            @default(now()) @db.Timestamptz(6)
   updated_at                    DateTime            @updatedAt @db.Timestamptz(6)
 
