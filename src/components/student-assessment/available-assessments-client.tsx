@@ -99,6 +99,14 @@ function attemptCardSummary(assessment: AvailableAssessment) {
   return null;
 }
 
+function availabilityTimingNote(assessment: AvailableAssessment) {
+  if (assessment.can_start && assessment.close_at_course_time) {
+    return `New starts close on ${assessment.close_at_course_time}.`;
+  }
+
+  return null;
+}
+
 function formatAttemptDate(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -308,9 +316,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               const canOpen = Boolean(assessment.can_resume && assessment.existing_session_public_id);
               const canStartNew = assessment.can_start && !canOpen;
               const recentAttempts = assessment.recent_reviewable_attempts;
-              const isHistoryOnly = !canOpen && !canStartNew && recentAttempts.length > 0;
               const attemptHistoryOpen =
                 expandedAttemptHistory === assessment.assessment_public_id;
+              const timingNote = availabilityTimingNote(assessment);
               const startLabel =
                 assessment.latest_terminal_attempt_number || assessment.latest_completed_attempt_number
                   ? "Start another attempt"
@@ -334,14 +342,9 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                           {availabilityLabel(assessment)}
                         </span>
                       </div>
-                      {!isCompleted && assessment.description ? (
-                        <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-                          {assessment.description}
-                        </p>
-                      ) : null}
-                      {!isCompleted && !isHistoryOnly ? (
+                      {!isCompleted && timingNote ? (
                         <p className="mt-3 text-sm leading-6 text-muted">
-                          {assessment.student_safe_availability_message}
+                          {timingNote}
                         </p>
                       ) : null}
                       {assessment.attempt_policy && attemptCardSummary(assessment) ? (

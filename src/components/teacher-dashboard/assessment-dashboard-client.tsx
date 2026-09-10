@@ -73,13 +73,11 @@ function BarChart({
 
 function ChartCard({
   title,
-  description,
   data,
   sampleSize,
   tone
 }: {
   title: string;
-  description: string;
   data: ChartDatum[];
   sampleSize: number;
   tone?: "green" | "gold" | "slate";
@@ -87,7 +85,6 @@ function ChartCard({
   return (
     <section className="h-full rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">{title}</h2>
-      {description ? <p className="mt-2 text-sm leading-6 text-muted">{description}</p> : null}
       <p className="sr-only">Total students: {formatCount(sampleSize)}.</p>
       <div className="mt-4">
         <BarChart data={data} tone={tone} ariaLabel={`${title}: counts and percentages`} />
@@ -366,14 +363,12 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                 <ParticipationStatusCard dashboard={dashboard} />
                 <ChartCard
                   title="Engagement overview"
-                  description="Persisted engagement evidence and review signals."
                   data={dashboard.engagement_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="slate"
                 />
                 <ChartCard
                   title="Understanding overview"
-                  description="Persisted assessment-specific understanding signals."
                   data={dashboard.understanding_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="green"

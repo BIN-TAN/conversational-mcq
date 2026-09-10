@@ -28,6 +28,9 @@ assert.doesNotMatch(source, /next attempt/i);
 assert.match(source, /const canStartNew = assessment\.can_start && !canOpen;/);
 assert.doesNotMatch(source, />\s*Unavailable\s*</);
 assert.match(source, /Previous assessment/);
+assert.doesNotMatch(source, /\{assessment\.description\}/);
+assert.doesNotMatch(source, /\{assessment\.student_safe_availability_message\}/);
+assert.match(source, /New starts close on \$\{assessment\.close_at_course_time\}\./);
 
 console.log(JSON.stringify({
   status: "passed",

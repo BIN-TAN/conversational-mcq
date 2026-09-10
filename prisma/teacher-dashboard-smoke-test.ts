@@ -77,6 +77,16 @@ function assertDashboardSurface() {
   }
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
+  assertExcludes(
+    client,
+    "Persisted engagement evidence and review signals.",
+    "Teacher assessment dashboard client"
+  );
+  assertExcludes(
+    client,
+    "Persisted assessment-specific understanding signals.",
+    "Teacher assessment dashboard client"
+  );
 
   for (const expected of [
     "CANDIDATE_PATTERN_THRESHOLD = 3",
@@ -118,6 +128,17 @@ function assertDashboardSurface() {
   assertExcludes(contentHome, "PrimaryLink", "Assessment management page");
   assertExcludes(contentHome, "SecondaryLink", "Assessment management page");
   assertExcludes(contentHome, "Research integrity", "Assessment management page");
+  assertExcludes(
+    contentHome,
+    "Design and generate items from learning objectives, evidence requirements, and misconception examples.",
+    "Assessment management page"
+  );
+  assertExcludes(
+    contentHome,
+    "Manage existing mini tests, folders, release status, archives, and ordering.",
+    "Assessment management page"
+  );
+  assertExcludes(contentHome, "Paste a prepared item set.", "Assessment management page");
 
   for (const forbidden of [
     "JSON import",

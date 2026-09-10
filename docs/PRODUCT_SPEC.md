@@ -40,6 +40,8 @@ The assessment list and session shell should support explicit attempt lifecycle 
 
 The student assessment list omits tests that cannot currently be started and have no resumable or reviewable attempt. A closed or archived test may remain as a history-only entry when the student can review one of the three most recent terminal attempts; it must not display an unavailable action.
 
+Assessment-list cards use the assessment title, status badge, and available actions as their primary information. They do not repeat assessment descriptions or generic availability statements; a meaningful closing deadline may still be shown when it affects new starts.
+
 The first three-item package must not use:
 
 - Saved messages;

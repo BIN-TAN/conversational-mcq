@@ -16,9 +16,6 @@ export default function TeacherContentHomePage() {
         >
           <Plus className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">New mini test</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Design and generate items from learning objectives, evidence requirements, and misconception examples.
-          </p>
         </Link>
         <Link
           className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
@@ -26,9 +23,6 @@ export default function TeacherContentHomePage() {
         >
           <Library className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">Assessment library</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Manage existing mini tests, folders, release status, archives, and ordering.
-          </p>
         </Link>
         <Link
           className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
@@ -36,9 +30,6 @@ export default function TeacherContentHomePage() {
         >
           <FileJson className="h-5 w-5 text-accent" aria-hidden="true" />
           <h2 className="mt-4 text-lg font-semibold text-ink">JSON import</h2>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Paste a prepared item set.
-          </p>
         </Link>
       </section>
     </div>
