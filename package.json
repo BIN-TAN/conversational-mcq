@@ -164,6 +164,7 @@
     "student:teacher-mcq-diagnostic-assistant-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-smoke-test.ts",
     "student:teacher-mcq-diagnostic-assistant-live-smoke": "tsx prisma/teacher-mcq-diagnostic-assistant-live-smoke-test.ts",
     "student:teacher-item-design-smoke": "tsx prisma/teacher-evidence-centered-item-design-smoke-test.ts",
+    "student:teacher-item-design-starters-ux-smoke": "node scripts/item-design-starters-ux-smoke.mjs",
     "student:teacher-item-design-runtime-smoke": "tsx prisma/teacher-evidence-centered-item-design-runtime-smoke-test.ts",
     "student:teacher-item-design-material-upload-smoke": "tsx prisma/teacher-item-design-material-upload-smoke-test.ts",
     "student:teacher-dashboard-smoke": "tsx prisma/teacher-dashboard-smoke-test.ts",

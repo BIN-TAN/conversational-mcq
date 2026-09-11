@@ -178,6 +178,7 @@ function ItemDesignAssistantWorkspace({
   design,
   error,
   onAssistantInputChange,
+  onStarterSelect,
   onFilesAdd,
   onFileRemove,
   onOpenReview,
@@ -192,6 +193,7 @@ function ItemDesignAssistantWorkspace({
   design: DesignResponse;
   error: StructuredApiError | null;
   onAssistantInputChange: (value: string) => void;
+  onStarterSelect: (prompt: string) => void;
   onFilesAdd: (files: File[]) => void;
   onFileRemove: (index: number) => void;
   onOpenReview: () => void;
@@ -200,15 +202,34 @@ function ItemDesignAssistantWorkspace({
   transcriptEndRef: RefObject<HTMLDivElement | null>;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const evidenceCount = blueprint.objectives.reduce(
     (total, objective) => total + objective.evidence_requirements.filter(Boolean).length,
     0
   );
   const messages = design.assistant_thread.messages;
+  const reviewRequest = `Plan for ${blueprint.generation_settings.target_item_count} items with ${blueprint.generation_settings.option_count} options each unless we agree otherwise. Ask only essential questions, one at a time. Prepare the design for my review; do not generate items yet.`;
   const suggestions = [
-    "I will add course material",
-    "Help me refine the learning objectives",
-    "I have exemplar items students found difficult"
+    {
+      label: "Build from course materials",
+      icon: BookOpenCheck,
+      prompt: "Use the course material I attach or paste to propose a focused section or topic, learning objectives, the reasoning that would demonstrate understanding, and plausible misconception hypotheses. Link these proposals to the material and flag gaps instead of inventing source content. If no material is available, ask me for it first."
+    },
+    {
+      label: "Plan a topic-based test",
+      icon: MessageSquareText,
+      prompt: "Help me plan a mini test for one topic. First clarify the topic, student level, and scope if they are not already clear. Then propose measurable learning objectives, observable evidence, and a balanced mix of cognitive demands. Suggest how to distribute the items across objectives."
+    },
+    {
+      label: "Probe common misconceptions",
+      icon: Sparkles,
+      prompt: "Help me turn the misconceptions or student-language examples I provide into a mini-test design. Ask for the topic and examples if missing. For each hypothesis, identify the related objective and reasoning evidence that could distinguish it from a slip, guessing, or incomplete explanation. Treat misconceptions as hypotheses to investigate, not established facts about students."
+    },
+    {
+      label: "Improve existing questions",
+      icon: PencilLine,
+      prompt: "Review the exemplar questions I paste or attach. Ask for them if missing. Check alignment with the topic and objectives, ambiguous wording, answer-key defensibility, and whether distractors reveal distinct reasoning. Flag uncertain keys for my confirmation. Use the review to propose a design for revised or complementary items without unnecessary duplicates; a high wrong-answer rate alone does not establish a misconception."
+    }
   ];
 
   return (
@@ -235,17 +256,21 @@ function ItemDesignAssistantWorkspace({
             {messages.length === 0 ? (
               <div className="mx-auto max-w-xl py-2 text-center">
                 <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
-                <h3 className="mt-4 text-lg font-semibold text-ink">Start with the course material</h3>
-                <div className="mt-5 flex flex-wrap justify-center gap-2">
+                <h3 className="mt-4 text-lg font-semibold text-ink">Plan your mini test</h3>
+                <div className="mt-5 grid gap-2 sm:grid-cols-2">
                   {suggestions.map((suggestion) => (
                     <button
-                      className="rounded-md border border-line bg-white px-3 py-2 text-left text-sm font-medium text-ink transition hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60"
+                      className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-white px-3 py-3 text-left text-sm font-medium text-ink transition hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                       disabled={readOnly || busy !== null}
-                      key={suggestion}
-                      onClick={() => onAssistantInputChange(suggestion)}
+                      key={suggestion.label}
+                      onClick={() => {
+                        onStarterSelect(`${suggestion.prompt}\n\n${reviewRequest}`);
+                        requestAnimationFrame(() => messageInputRef.current?.focus());
+                      }}
                       type="button"
                     >
-                      {suggestion}
+                      <suggestion.icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                      <span>{suggestion.label}</span>
                     </button>
                   ))}
                 </div>
@@ -322,6 +347,8 @@ function ItemDesignAssistantWorkspace({
               maxLength={20000}
               onChange={(event) => onAssistantInputChange(event.target.value)}
               placeholder="Describe the topic, paste course material, list objectives, or add exemplar items..."
+              ref={messageInputRef}
+              rows={6}
               value={assistantInput}
             />
             <input
@@ -495,6 +522,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
+  const starterPrefixRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const isDirty = Boolean(blueprint && design && JSON.stringify(blueprint) !== JSON.stringify(design.blueprint));
   const { allowNavigation } = useUnsavedChanges(isDirty || Boolean(assistantInput.trim()) || assistantFiles.length > 0 || (busy !== null && busy !== "load"));
@@ -586,6 +614,23 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
     if (busy !== "assistant") setAssistantClientMessageId(null);
   }
 
+  function handleStarterSelect(prompt: string) {
+    if (busy !== null || !design?.assessment.is_editable) return;
+    // Replace only an untouched starter prefix, never teacher-written material.
+    const material = starterPrefixRef.current && assistantInput.startsWith(starterPrefixRef.current)
+      ? assistantInput.slice(starterPrefixRef.current.length)
+      : assistantInput;
+    const prefix = `${prompt}\n\n`;
+    const message = prefix + material;
+    if (message.length > 20000) {
+      setError({ code: "validation_failed", message: "There is not enough room to add this starter. Shorten the message first; your text and attachments have not changed." });
+      return;
+    }
+    setError(null);
+    starterPrefixRef.current = prefix;
+    handleAssistantInputChange(message);
+  }
+
   function handleAssistantFilesAdd(files: File[]) {
     if (files.length === 0) return;
     const next = [...assistantFiles, ...files];
@@ -667,6 +712,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
       setDesign(response);
       setBlueprint(response.blueprint);
       setAssistantInput("");
+      starterPrefixRef.current = "";
       setAssistantFiles([]);
       setAssistantClientMessageId(null);
     } catch (caught) {
@@ -720,6 +766,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
               design={design}
               error={error}
               onAssistantInputChange={handleAssistantInputChange}
+              onStarterSelect={handleStarterSelect}
               onFilesAdd={handleAssistantFilesAdd}
               onFileRemove={handleAssistantFileRemove}
               onOpenReview={() => setView("review")}
