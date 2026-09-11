@@ -250,7 +250,8 @@ const responsePackageSource = readFileSync(path.join(root, "src/lib/services/res
 
 assert.match(detailSource, /Design and generate/);
 assert.match(createSource, /Create and open assistant/);
-assert.match(createSource, /course\s+material/);
+assert.match(createSource, /auto_create_primary_topic: true/);
+assert.match(createSource, /useUnsavedChanges/);
 assert.doesNotMatch(createSource, /label="Diagnostic focus"/);
 assert.match(designSource, /Author with assistant/);
 assert.match(designSource, /Review design/);
@@ -263,7 +264,7 @@ assert.match(designSource, /Foundational: remembering, understanding, applying/)
 assert.match(designSource, /Analyzing/);
 assert.match(designSource, /Evaluating/);
 assert.match(designSource, /Creating/);
-assert.match(designSource, /Generated items remain draft candidates/);
+assert.match(designSource, /Save and generate drafts/);
 assert.match(assistantRouteSource, /respondToAssessmentItemDesignAssistant/);
 assert.match(reviewSource, /Review generated item drafts/);
 assert.match(reviewSource, /teacher-confirmed key/i);

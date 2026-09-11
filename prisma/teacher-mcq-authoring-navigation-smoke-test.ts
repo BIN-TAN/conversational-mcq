@@ -144,8 +144,9 @@ function assertTeacherNavigationSource() {
     "Assessment item list should expose separate teacher and student preview actions."
   );
   assert(
-    assessmentDetail.includes("required MCQ items added") &&
-      assessmentDetail.includes("Minimum item requirement met."),
+    assessmentDetail.includes("included MCQ") &&
+      assessmentDetail.includes("minimumRequiredItems") &&
+      assessmentDetail.includes("Add more included MCQ items before publishing."),
     "Assessment item list should show item-count readiness text."
   );
   assert(
@@ -155,8 +156,9 @@ function assertTeacherNavigationSource() {
 
   assert(
     assessmentCreate.includes("<Breadcrumbs") &&
-      assessmentCreate.includes("Save and open builder") &&
-      assessmentCreate.includes("Cancel and return to mini-test list"),
+      assessmentCreate.includes("Create and open assistant") &&
+      assessmentCreate.includes("confirmLeave()") &&
+      assessmentCreate.includes("Cancel"),
     "Create mini test page should use breadcrumb/save/cancel navigation."
   );
   assert(

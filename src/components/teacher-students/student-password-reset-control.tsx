@@ -1,5 +1,7 @@
 "use client";
 
+import { ModalDialog } from "@/components/ui/modal-dialog";
+
 import { Check, Clipboard, Download, KeyRound, Loader2, X } from "lucide-react";
 import { useState } from "react";
 import { errorFromUnknown, resetStudentPassword } from "./api";
@@ -96,12 +98,11 @@ export function StudentPasswordResetControl({
       </button>
 
       {open ? (
-        <div
-          aria-labelledby="reset-student-password-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4 py-6"
-          data-testid="reset-student-password-dialog"
-          role="dialog"
+        <ModalDialog
+          labelledBy="reset-student-password-title"
+          onClose={closeDialog}
+          busy={resetting}
+          testId="reset-student-password-dialog"
         >
           <div className="max-h-full w-full max-w-xl overflow-y-auto rounded-lg border border-line bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-4">
@@ -219,7 +220,7 @@ export function StudentPasswordResetControl({
               </div>
             )}
           </div>
-        </div>
+        </ModalDialog>
       ) : null}
     </>
   );

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ModalDialog } from "@/components/ui/modal-dialog";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -358,9 +359,11 @@ export function FormativeOpeningStatus({
 }
 
 function FormativeResponseWaitingStatus({
-  onReviewAnswers
+  onReviewAnswers,
+  messageSaved
 }: {
   onReviewAnswers?: () => void;
+  messageSaved: boolean;
 }) {
   const [stage, setStage] = useState<"preparing" | "saved" | "delayed">(
     "preparing"
@@ -383,7 +386,11 @@ function FormativeResponseWaitingStatus({
   }, []);
 
   const message =
-    stage === "preparing"
+    !messageSaved
+      ? stage === "delayed"
+        ? "Waiting for confirmation. You can review earlier messages while you wait."
+        : "Sending your message..."
+      : stage === "preparing"
       ? "Preparing a response..."
       : stage === "saved"
         ? "Still preparing a response. Your message is saved."
@@ -445,6 +452,7 @@ function FormativeConversationControls(input: {
     return (
       <FormativeResponseWaitingStatus
         onReviewAnswers={input.onReviewAnswers}
+        messageSaved={!input.isAwaitingTutorResponse && (response?.status === "pending" || response?.status === "retrying")}
       />
     );
   }
@@ -529,7 +537,7 @@ function FormativeConversationControls(input: {
                 if (event.key === "Backspace" || event.key === "Delete") {
                   input.onBackspace();
                 }
-                if (event.key === "Enter" && !event.shiftKey) {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
                   event.preventDefault();
                   input.onSend();
                 }
@@ -3742,12 +3750,11 @@ export function AssessmentSessionClient({
         </ChatTranscript>
       </div>
       {!readOnlyReview && endConversationDialogOpen ? (
-        <div
-          aria-labelledby="end-conversation-dialog-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4"
-          data-testid="end-conversation-dialog"
-          role="dialog"
+        <ModalDialog
+          labelledBy="end-conversation-dialog-title"
+          onClose={() => setEndConversationDialogOpen(false)}
+          busy={isBusy}
+          testId="end-conversation-dialog"
         >
           <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
             <h2
@@ -3783,15 +3790,14 @@ export function AssessmentSessionClient({
               </button>
             </div>
           </div>
-        </div>
+        </ModalDialog>
       ) : null}
       {!readOnlyReview && endAssessmentDialogOpen ? (
-        <div
-          aria-labelledby="end-assessment-dialog-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/35 px-4"
-          data-testid="end-assessment-dialog"
-          role="dialog"
+        <ModalDialog
+          labelledBy="end-assessment-dialog-title"
+          onClose={() => setEndAssessmentDialogOpen(false)}
+          busy={isBusy}
+          testId="end-assessment-dialog"
         >
           <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
             <h2 id="end-assessment-dialog-title" className="text-lg font-semibold text-ink">
@@ -3820,7 +3826,7 @@ export function AssessmentSessionClient({
               </button>
             </div>
           </div>
-        </div>
+        </ModalDialog>
       ) : null}
       {!readOnlyReview && currentItem ? (
         <p className="sr-only" aria-live="polite">

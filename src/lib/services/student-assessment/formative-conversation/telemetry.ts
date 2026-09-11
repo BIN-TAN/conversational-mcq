@@ -53,8 +53,8 @@ function asObject(value: Prisma.JsonValue | null): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-async function getConversationIdentity(conversationPublicId: string) {
-  const session = await prisma.formativeConversationSession.findUnique({
+async function getConversationIdentity(conversationPublicId: string, db: Prisma.TransactionClient = prisma) {
+  const session = await db.formativeConversationSession.findUnique({
     where: { conversation_public_id: conversationPublicId },
     select: {
       id: true,
@@ -72,8 +72,8 @@ async function getConversationIdentity(conversationPublicId: string) {
   return session;
 }
 
-async function allocateConversationLocalEventSequence(sessionId: string) {
-  const session = await prisma.formativeConversationSession.update({
+async function allocateConversationLocalEventSequence(sessionId: string, db: Prisma.TransactionClient = prisma) {
+  const session = await db.formativeConversationSession.update({
     where: { id: sessionId },
     data: {
       telemetry_event_sequence_counter: { increment: 1 }
@@ -99,11 +99,12 @@ async function allocateConversationLocalTurnSequence(sessionId: string) {
 }
 
 export async function recordFormativeConversationLifecycleEvent(
-  input: FormativeConversationLifecycleEventInput
+  input: FormativeConversationLifecycleEventInput,
+  db: Prisma.TransactionClient = prisma
 ) {
   const parsed = FormativeConversationLifecycleEventInputSchema.parse(input);
   assertObservableOnlyFormativeConversationTelemetry(parsed);
-  const session = await getConversationIdentity(parsed.conversation_public_id);
+  const session = await getConversationIdentity(parsed.conversation_public_id, db);
   const eventHash = hashValue({
     event_type: parsed.event_type,
     event_source: parsed.event_source,
@@ -117,7 +118,7 @@ export async function recordFormativeConversationLifecycleEvent(
     occurred_at: parsed.occurred_at.toISOString()
   });
   const existing =
-    await prisma.formativeConversationLifecycleEvent.findUnique({
+    await db.formativeConversationLifecycleEvent.findUnique({
       where: {
         formative_conversation_session_db_id_client_event_id: {
           formative_conversation_session_db_id: session.id,
@@ -136,7 +137,7 @@ export async function recordFormativeConversationLifecycleEvent(
   }
 
   if (parsed.agent_call_db_id) {
-    const agentCall = await prisma.agentCall.findUnique({
+    const agentCall = await db.agentCall.findUnique({
       where: { id: parsed.agent_call_db_id },
       select: {
         formative_conversation_session_db_id: true
@@ -154,8 +155,8 @@ export async function recordFormativeConversationLifecycleEvent(
 
   try {
     const conversationLocalEventSequenceIndex =
-      await allocateConversationLocalEventSequence(session.id);
-    const event = await prisma.formativeConversationLifecycleEvent.create({
+      await allocateConversationLocalEventSequence(session.id, db);
+    const event = await db.formativeConversationLifecycleEvent.create({
       data: {
         formative_conversation_session_db_id: session.id,
         conversation_local_event_sequence_index:
@@ -180,7 +181,7 @@ export async function recordFormativeConversationLifecycleEvent(
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      const event = await prisma.formativeConversationLifecycleEvent.findUnique({
+      const event = await db.formativeConversationLifecycleEvent.findUnique({
         where: {
           formative_conversation_session_db_id_client_event_id: {
             formative_conversation_session_db_id: session.id,

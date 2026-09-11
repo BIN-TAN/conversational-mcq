@@ -1,11 +1,12 @@
 "use client";
 
-import { type FormEvent, type RefObject, useCallback, useEffect, useRef, useState } from "react";
+import { type FormEvent, type ReactNode, type RefObject, useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   BookOpenCheck,
   CheckCircle2,
+  ChevronDown,
   FileText,
   MessageSquareText,
   Paperclip,
@@ -18,6 +19,8 @@ import {
   X
 } from "lucide-react";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
+import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { StructuredApiError } from "./types";
 import { Button, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
@@ -134,7 +137,37 @@ function localId(prefix: string) {
 }
 
 function lines(value: string) {
-  return value.split("\n").map((entry) => entry.trim()).filter(Boolean);
+  return value.split("\n");
+}
+
+function normalizeBlueprint(blueprint: Blueprint): Blueprint {
+  return {
+    ...blueprint,
+    objectives: blueprint.objectives.map((objective) => ({
+      ...objective,
+      evidence_requirements: objective.evidence_requirements.map((entry) => entry.trim()).filter(Boolean)
+    })),
+    misconception_hypotheses: blueprint.misconception_hypotheses.map((misconception) => ({
+      ...misconception,
+      student_language_examples: misconception.student_language_examples.map((entry) => entry.trim()).filter(Boolean)
+    }))
+  };
+}
+
+function DesignEntry({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
+  const [open, setOpen] = useState(!summary.trim());
+  return (
+    <details className="group rounded-md border border-line bg-white" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+        <span className="min-w-0">
+          <span className="block font-semibold text-ink">{title}</span>
+          {summary ? <span className="mt-1 block break-words text-sm text-muted">{summary}</span> : null}
+        </span>
+        <ChevronDown className="mt-1 h-4 w-4 shrink-0 transition group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="border-t border-line p-4">{children}</div>
+    </details>
+  );
 }
 
 function ItemDesignAssistantWorkspace({
@@ -143,6 +176,7 @@ function ItemDesignAssistantWorkspace({
   blueprint,
   busy,
   design,
+  error,
   onAssistantInputChange,
   onFilesAdd,
   onFileRemove,
@@ -156,6 +190,7 @@ function ItemDesignAssistantWorkspace({
   blueprint: Blueprint;
   busy: "load" | "save" | "assistant" | "generate" | null;
   design: DesignResponse;
+  error: StructuredApiError | null;
   onAssistantInputChange: (value: string) => void;
   onFilesAdd: (files: File[]) => void;
   onFileRemove: (index: number) => void;
@@ -178,8 +213,8 @@ function ItemDesignAssistantWorkspace({
 
   return (
     <section className="overflow-hidden rounded-md border border-line bg-white shadow-soft">
-      <div className="grid min-h-[640px] lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="flex min-h-[600px] min-w-0 flex-col lg:border-r lg:border-line">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="flex min-w-0 flex-col lg:border-r lg:border-line">
           <header className="border-b border-line px-5 py-4">
             <div className="flex items-center gap-3">
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-accent-soft text-accent">
@@ -194,18 +229,13 @@ function ItemDesignAssistantWorkspace({
 
           <div
             aria-live="polite"
-            className="flex-1 space-y-4 overflow-y-auto bg-[#F8FAF9] px-4 py-5 sm:px-6"
+            className="max-h-[55dvh] min-h-48 flex-1 space-y-4 overflow-y-auto bg-[#F8FAF9] px-4 py-5 sm:px-6"
             data-testid="item-design-assistant-transcript"
           >
             {messages.length === 0 ? (
-              <div className="mx-auto max-w-xl py-8 text-center">
+              <div className="mx-auto max-w-xl py-2 text-center">
                 <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
                 <h3 className="mt-4 text-lg font-semibold text-ink">Start with the course material</h3>
-                <p className="mt-2 text-sm leading-6 text-muted">
-                  Upload a PDF, Word file, or screenshot; paste an excerpt; or describe the section. The
-                  assistant will help turn it into objectives, observable evidence, and
-                  misconception hypotheses.
-                </p>
                 <div className="mt-5 flex flex-wrap justify-center gap-2">
                   {suggestions.map((suggestion) => (
                     <button
@@ -281,6 +311,7 @@ function ItemDesignAssistantWorkspace({
           </div>
 
           <form className="border-t border-line bg-white p-4" onSubmit={onSend}>
+            <ErrorPanel error={error} focusOnError />
             <label className="sr-only" htmlFor="item-design-assistant-message">
               Message the item-design assistant
             </label>
@@ -295,6 +326,7 @@ function ItemDesignAssistantWorkspace({
             />
             <input
               accept={ACCEPTED_ASSISTANT_FILES}
+              aria-label="Course material files"
               className="sr-only"
               disabled={readOnly || busy !== null}
               multiple
@@ -339,7 +371,7 @@ function ItemDesignAssistantWorkspace({
                   <Paperclip className="h-4 w-4" aria-hidden="true" />
                   Add PDF, Word, or images
                 </button>
-                <p className="text-xs leading-5 text-muted">Up to 5 files, 15 MB each.</p>
+                <p className="text-xs leading-5 text-muted">Up to 5 files, 15 MB each, 30 MB total.</p>
               </div>
               <div className="flex items-center justify-end gap-2">
                 <p className="hidden max-w-xs text-right text-xs leading-5 text-muted xl:block">
@@ -464,6 +496,8 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
+  const isDirty = Boolean(blueprint && design && JSON.stringify(blueprint) !== JSON.stringify(design.blueprint));
+  const { allowNavigation } = useUnsavedChanges(isDirty || Boolean(assistantInput.trim()) || assistantFiles.length > 0 || (busy !== null && busy !== "load"));
 
   const load = useCallback(async () => {
     setBusy("load");
@@ -485,10 +519,13 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
 
   useEffect(() => {
     if (view !== "assistant") return;
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    const transcript = transcriptEndRef.current?.parentElement;
+    if (transcript) transcript.scrollTop = transcript.scrollHeight;
   }, [busy, design?.assistant_thread.messages.length, view]);
 
   function updateBlueprint(updater: (current: Blueprint) => Blueprint) {
+    if (busy !== null) return;
+    setSuccess(null);
     setBlueprint((current) => current ? updater(current) : current);
   }
 
@@ -502,7 +539,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
         method: "PUT",
         body: JSON.stringify({
           expected_concept_unit_version: design.concept_unit_version,
-          blueprint
+          blueprint: normalizeBlueprint(blueprint)
         })
       }
     );
@@ -535,6 +572,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
           body: JSON.stringify({ expected_blueprint_hash: saved.blueprint_hash, mode: "live" })
         }
       );
+      allowNavigation();
       router.push(generated.review_url);
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -638,7 +676,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
     }
   }
 
-  const readOnly = !design?.assessment.is_editable;
+  const readOnly = !design?.assessment.is_editable || busy !== null;
 
   return (
     <div className="space-y-6">
@@ -656,42 +694,22 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
         }
       />
 
-      <ErrorPanel error={error} />
-      <SuccessPanel message={success} />
+      {!design ? <ErrorPanel error={error} focusOnError /> : null}
       {busy === "load" ? <LoadingRow label="Loading assessment design" /> : null}
 
       {blueprint && design ? (
         <>
-          <div
-            aria-label="Item-design workspace"
-            className="inline-flex w-full rounded-md border border-line bg-[#F5F7F6] p-1 sm:w-auto"
-            role="tablist"
-          >
-            <button
-              aria-selected={view === "assistant"}
-              className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition sm:flex-none ${
-                view === "assistant" ? "bg-white text-accent shadow-sm" : "text-muted hover:text-ink"
-              }`}
-              onClick={() => setView("assistant")}
-              role="tab"
-              type="button"
-            >
-              <MessageSquareText className="h-4 w-4" aria-hidden="true" />
-              Author with assistant
-            </button>
-            <button
-              aria-selected={view === "review"}
-              className={`inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition sm:flex-none ${
-                view === "review" ? "bg-white text-accent shadow-sm" : "text-muted hover:text-ink"
-              }`}
-              onClick={() => setView("review")}
-              role="tab"
-              type="button"
-            >
-              <FileText className="h-4 w-4" aria-hidden="true" />
-              Review design
-            </button>
-          </div>
+          <WorkspaceTabs
+            id="item-design"
+            label="Item-design workspace"
+            tabs={[
+              { id: "assistant", label: "Author with assistant", icon: <MessageSquareText className="h-4 w-4" aria-hidden="true" /> },
+              { id: "review", label: "Review design", icon: <FileText className="h-4 w-4" aria-hidden="true" /> }
+            ]}
+            value={view}
+            onChange={setView}
+          />
+          <div className="space-y-6" id="item-design-panel" role="tabpanel" aria-labelledby={`item-design-tab-${view}`} tabIndex={0}>
 
           {view === "assistant" ? (
             <ItemDesignAssistantWorkspace
@@ -700,6 +718,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
               blueprint={blueprint}
               busy={busy}
               design={design}
+              error={error}
               onAssistantInputChange={handleAssistantInputChange}
               onFilesAdd={handleAssistantFilesAdd}
               onFileRemove={handleAssistantFileRemove}
@@ -710,17 +729,6 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
             />
           ) : (
             <>
-          <section className="border-y border-line bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
-            <div className="flex gap-3">
-              <BookOpenCheck className="mt-0.5 h-5 w-5 shrink-0" aria-hidden="true" />
-              <p>
-                Review the section, objectives, evidence, misconception hypotheses, exemplars,
-                and draft settings. Generated items remain proposals until you edit them and
-                confirm every answer key.
-              </p>
-            </div>
-          </section>
-
           <section className="space-y-5 border-b border-line pb-7">
             <div>
               <h2 className="text-xl font-semibold text-ink">1. Section and learning goals</h2>
@@ -745,7 +753,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
 
             <div className="space-y-4">
               {blueprint.objectives.map((objective, index) => (
-                <article className="rounded-md border border-line p-4" key={objective.objective_id}>
+                <DesignEntry title={`Learning objective ${index + 1}`} summary={objective.statement} key={objective.objective_id}>
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="font-semibold text-ink">Learning objective {index + 1}</h3>
                     <Button
@@ -789,7 +797,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
                       />
                     </Field>
                   </div>
-                </article>
+                </DesignEntry>
               ))}
               <Button
                 disabled={readOnly || blueprint.objectives.length >= 12}
@@ -815,7 +823,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
               <p className="mt-1 text-sm leading-6 text-muted">These are hypotheses the items should probe, not labels automatically assigned to students.</p>
             </div>
             {blueprint.misconception_hypotheses.map((misconception, index) => (
-              <article className="rounded-md border border-line p-4" key={misconception.misconception_id}>
+              <DesignEntry title={`Misconception example ${index + 1}`} summary={misconception.statement} key={misconception.misconception_id}>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-semibold text-ink">Misconception example {index + 1}</h3>
                   <Button
@@ -886,7 +894,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
                     />
                   </Field>
                 </div>
-              </article>
+              </DesignEntry>
             ))}
             <Button
               disabled={readOnly || blueprint.misconception_hypotheses.length >= 20}
@@ -911,7 +919,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
               <p className="mt-1 text-sm leading-6 text-muted">Paste difficult prior items as design evidence. The assistant must not copy them verbatim.</p>
             </div>
             {blueprint.exemplar_items.map((exemplar, index) => (
-              <article className="rounded-md border border-line p-4" key={exemplar.exemplar_id}>
+              <DesignEntry title={`Exemplar ${index + 1}`} summary={exemplar.item_text} key={exemplar.exemplar_id}>
                 <div className="flex items-center justify-between gap-3">
                   <h3 className="font-semibold text-ink">Exemplar {index + 1}</h3>
                   <Button
@@ -940,7 +948,7 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
                     />
                   </Field>
                 </div>
-              </article>
+              </DesignEntry>
             ))}
             <Button
               disabled={readOnly || blueprint.exemplar_items.length >= 12}
@@ -1016,10 +1024,11 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
             </div>
           </section>
 
-          <section className="flex flex-col gap-3 border-t border-line pt-5 sm:flex-row sm:items-center sm:justify-between">
-            <p className="max-w-2xl text-sm leading-6 text-muted">
-              Generated items remain draft candidates. Nothing is added to the mini test until you review, confirm the key, and import it.
-            </p>
+          <section className="sticky bottom-0 z-10 space-y-3 border-t border-line bg-white p-4 shadow-soft" aria-label="Design actions">
+            <ErrorPanel error={error} focusOnError />
+            <SuccessPanel message={success} />
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="text-sm text-muted" role="status">{busy === "save" ? "Saving design..." : busy === "generate" ? "Generating drafts..." : isDirty ? "Unsaved changes" : "All design changes saved"}</p>
             <div className="flex flex-wrap gap-2">
               <Button disabled={readOnly || busy !== null} onClick={handleSave} type="button" variant="secondary">
                 <Save className="h-4 w-4" aria-hidden="true" /> {busy === "save" ? "Saving" : "Save design"}
@@ -1028,9 +1037,11 @@ export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: s
                 <Sparkles className="h-4 w-4" aria-hidden="true" /> {busy === "generate" ? "Generating drafts" : "Save and generate drafts"}
               </Button>
             </div>
+            </div>
           </section>
             </>
           )}
+          </div>
         </>
       ) : null}
     </div>

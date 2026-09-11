@@ -6295,131 +6295,141 @@ export async function ingestFrontendProcessEvents(input: {
   const parsed = validation.data;
   const events = "events" in parsed ? parsed.events : [parsed];
   const owned = await getOwnedSession(input);
-  const session = await prisma.assessmentSession.findUniqueOrThrow({
-    where: { id: owned.id },
-    select: {
-      id: true,
-      assessment_db_id: true,
-      current_concept_unit_db_id: true
-    }
-  });
-  const currentConceptUnitSession = session.current_concept_unit_db_id
-    ? await prisma.conceptUnitSession.findUnique({
-        where: {
-          assessment_session_db_id_concept_unit_db_id: {
-            assessment_session_db_id: session.id,
-            concept_unit_db_id: session.current_concept_unit_db_id
-          }
-        },
-        select: { id: true }
-      })
-    : null;
-  const created = [];
+  return prisma.$transaction(async (tx) => {
+    // Serialize acknowledgement deduplication and keep each batch atomic.
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`);
+    const session = await tx.assessmentSession.findUniqueOrThrow({
+      where: { id: owned.id },
+      select: {
+        id: true,
+        assessment_db_id: true,
+        current_concept_unit_db_id: true
+      }
+    });
+    const created = [];
 
-  for (const event of events) {
-    const serverReceivedAt = new Date();
-    const clockSource = event.client_occurred_at ? "frontend_client" : "server_received";
-    const payload = {
-      ...(event.payload ?? {}),
-      client_occurred_at: event.client_occurred_at?.toISOString(),
-      server_received_at: serverReceivedAt.toISOString(),
-      clock_source: clockSource,
-      timing_contract_version: TIMING_CONTRACT_VERSION,
-      timing_source_version: TIMING_SOURCE_VERSION,
-      timing_quality_status: event.client_occurred_at ? "client_timestamp_recorded" : "client_timestamp_missing"
-    };
-    const payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
+    for (const event of events) {
+      const item = event.item_public_id
+        ? await tx.item.findFirst({
+            where: {
+              item_public_id: event.item_public_id,
+              concept_unit: {
+                assessment_db_id: session.assessment_db_id,
+                concept_unit_public_id: event.concept_unit_public_id
+              }
+            },
+            select: { id: true, concept_unit_db_id: true }
+          })
+        : null;
+      if (event.item_public_id && !item) {
+        throw new StudentAssessmentServiceError("validation_failed", "The process event item does not belong to this assessment context.", 400);
+      }
+      const conceptUnitDbId = item?.concept_unit_db_id ?? session.current_concept_unit_db_id;
+      const eventConceptUnitSession = event.concept_unit_public_id || conceptUnitDbId
+        ? await tx.conceptUnitSession.findFirst({
+            where: {
+              assessment_session_db_id: session.id,
+              ...(event.concept_unit_public_id
+                ? { concept_unit: { concept_unit_public_id: event.concept_unit_public_id } }
+                : { concept_unit_db_id: conceptUnitDbId! })
+            },
+            select: { id: true }
+          })
+        : null;
+      if ((event.concept_unit_public_id || event.item_public_id) && !eventConceptUnitSession) {
+        throw new StudentAssessmentServiceError("validation_failed", "The process event topic has not been administered in this session.", 400);
+      }
+      const serverReceivedAt = new Date();
+      const clockSource = event.client_occurred_at ? "frontend_client" : "server_received";
+      const payload = {
+        ...(event.payload ?? {}),
+        client_occurred_at: event.client_occurred_at?.toISOString(),
+        server_received_at: serverReceivedAt.toISOString(),
+        clock_source: clockSource,
+        timing_contract_version: TIMING_CONTRACT_VERSION,
+        timing_source_version: TIMING_SOURCE_VERSION,
+        timing_quality_status: event.client_occurred_at ? "client_timestamp_recorded" : "client_timestamp_missing"
+      };
+      const payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");
 
-    if (payloadBytes > MAX_EVENT_PAYLOAD_BYTES) {
-      throw new StudentAssessmentServiceError(
-        "validation_failed",
-        "Process event payload is too large.",
-        400
-      );
-    }
-
-    if (displayAcknowledgementEventTypes.has(event.event_type)) {
-      const payloadRecord = payload as Record<string, unknown>;
-      const displayEventContractVersion =
-        typeof payloadRecord.display_event_contract_version === "string"
-          ? payloadRecord.display_event_contract_version
-          : null;
-      const contentId =
-        typeof payloadRecord.content_id === "string" && payloadRecord.content_id.trim()
-          ? payloadRecord.content_id.trim()
-          : null;
-
-      if (displayEventContractVersion !== DISPLAY_EVENT_CONTRACT_VERSION || !contentId) {
+      if (payloadBytes > MAX_EVENT_PAYLOAD_BYTES) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
-          "Display acknowledgement metadata is incomplete.",
+          "Process event payload is too large.",
           400
         );
       }
 
-      const existingAcknowledgement = await prisma.processEvent.findFirst({
-        where: {
-          assessment_session_db_id: session.id,
-          event_type: event.event_type,
-          event_source: "frontend",
-          payload: {
-            path: ["content_id"],
-            equals: contentId
-          }
-        },
-        select: { id: true }
-      });
+      if (displayAcknowledgementEventTypes.has(event.event_type)) {
+        const payloadRecord = payload as Record<string, unknown>;
+        const displayEventContractVersion =
+          typeof payloadRecord.display_event_contract_version === "string"
+            ? payloadRecord.display_event_contract_version
+            : null;
+        const contentId =
+          typeof payloadRecord.content_id === "string" && payloadRecord.content_id.trim()
+            ? payloadRecord.content_id.trim()
+            : null;
 
-      if (existingAcknowledgement) {
-        continue;
-      }
+        if (displayEventContractVersion !== DISPLAY_EVENT_CONTRACT_VERSION || !contentId) {
+          throw new StudentAssessmentServiceError(
+            "validation_failed",
+            "Display acknowledgement metadata is incomplete.",
+            400
+          );
+        }
 
-      if (event.event_type === "package_results_shown" && currentConceptUnitSession) {
-        await prisma.itemResponse.updateMany({
+        const existingAcknowledgement = await tx.processEvent.findFirst({
           where: {
-            concept_unit_session_db_id: currentConceptUnitSession.id,
-            answer_explanation_revealed: true,
-            student_display_acknowledged_at: null
+            assessment_session_db_id: session.id,
+            event_type: event.event_type,
+            event_source: "frontend",
+            payload: {
+              path: ["content_id"],
+              equals: contentId
+            }
           },
-          data: {
-            student_display_acknowledged_at: new Date()
-          }
+          select: { id: true }
         });
+
+        if (existingAcknowledgement) {
+          continue;
+        }
+
+        if (event.event_type === "package_results_shown" && eventConceptUnitSession) {
+          await tx.itemResponse.updateMany({
+            where: {
+              concept_unit_session_db_id: eventConceptUnitSession.id,
+              answer_explanation_revealed: true,
+              student_display_acknowledged_at: null
+            },
+            data: {
+              student_display_acknowledged_at: new Date()
+            }
+          });
+        }
       }
+
+      created.push(
+        await logProcessEvent({
+          assessment_session_db_id: session.id,
+          concept_unit_session_db_id: eventConceptUnitSession?.id,
+          item_db_id: item?.id,
+          event_type: event.event_type,
+          event_category: event.event_category,
+          event_source: "frontend",
+          visibility_duration_ms: event.visibility_duration_ms,
+          pause_duration_ms: event.pause_duration_ms,
+          payload,
+          occurred_at: event.client_occurred_at ?? serverReceivedAt
+        }, tx)
+      );
     }
 
-    let itemDbId: string | undefined;
-
-    if (event.item_public_id && session.current_concept_unit_db_id) {
-      const item = await prisma.item.findFirst({
-        where: {
-          item_public_id: event.item_public_id,
-          concept_unit_db_id: session.current_concept_unit_db_id
-        },
-        select: { id: true }
-      });
-      itemDbId = item?.id;
-    }
-
-    created.push(
-      await logProcessEvent({
-        assessment_session_db_id: session.id,
-        concept_unit_session_db_id: currentConceptUnitSession?.id,
-        item_db_id: itemDbId,
-        event_type: event.event_type,
-        event_category: event.event_category,
-        event_source: "frontend",
-        visibility_duration_ms: event.visibility_duration_ms,
-        pause_duration_ms: event.pause_duration_ms,
-        payload,
-        occurred_at: event.client_occurred_at ?? serverReceivedAt
-      })
-    );
-  }
-
-  return {
-    accepted_event_count: created.length
-  };
+    return {
+      accepted_event_count: created.length
+    };
+  });
 }
 
 export async function exitStudentAssessmentSession(input: {

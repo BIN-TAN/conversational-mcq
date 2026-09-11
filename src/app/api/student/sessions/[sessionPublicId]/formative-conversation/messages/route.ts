@@ -78,13 +78,14 @@ export async function POST(
         }
       );
     }
-    if (!owned.can_send && owned.status !== "ended") {
+    if (owned.status !== "active" && owned.status !== "ended") {
       throw new StudentAssessmentServiceError(
         "invalid_phase_for_action",
         "The learning conversation is not accepting messages.",
         409
       );
     }
+    // Reservation serializes new messages and permits exact replays of saved ones.
     const seed = await buildFormativeConversationRuntimeContextSeed({
       conversation_public_id: body.conversation_public_id,
       student_user_db_id: auth.user.user_db_id

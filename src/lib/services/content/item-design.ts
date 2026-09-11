@@ -371,7 +371,11 @@ export async function saveAssessmentItemDesign(input: {
   });
   const rules = record(conceptUnit.administration_rules);
   const updated = await prisma.conceptUnit.updateMany({
-    where: { id: conceptUnit.id, version: conceptUnit.version },
+    where: {
+      id: conceptUnit.id,
+      version: current.concept_unit_version,
+      assessment: { status: "draft", assessment_sessions: { none: {} } }
+    },
     data: {
       title: data.blueprint.section_topic,
       learning_objective: data.blueprint.objectives.map((objective) => objective.statement).join("\n"),
@@ -674,7 +678,8 @@ async function persistItemDesignAssistantExchange(input: {
   const updated = await prisma.conceptUnit.updateMany({
     where: {
       id: conceptUnit.id,
-      version: input.expected_concept_unit_version
+      version: input.expected_concept_unit_version,
+      assessment: { status: "draft", assessment_sessions: { none: {} } }
     },
     data: {
       title: nextBlueprint.section_topic,

@@ -441,7 +441,6 @@ function detailedSessionWhere(input: {
     assessment: { assessment_public_id: input.assessment_public_id },
     user: {
       role: "student",
-      account_status: "active",
       user_id: input.student_user_id
     },
     OR: authorizedSessionOr(input.teacher_user_db_id)

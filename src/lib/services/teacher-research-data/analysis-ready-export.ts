@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { parseCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -734,7 +734,6 @@ function sessionWhere(input: {
     assessment: { assessment_public_id: input.assessment_public_id },
     user: {
       role: "student",
-      account_status: "active",
       user_id: input.student_user_id
     },
     OR: authorizedSessionOr(input.teacher_user_db_id)
@@ -747,8 +746,8 @@ async function loadSessions(input: {
   student_user_id?: string;
   session_public_id?: string;
   include_incomplete_sessions?: boolean;
-}) {
-  return prisma.assessmentSession.findMany({
+}, db: Prisma.TransactionClient = prisma) {
+  return db.assessmentSession.findMany({
     where: sessionWhere(input),
     orderBy: [
       { assessment: { title: "asc" } },
@@ -760,17 +759,17 @@ async function loadSessions(input: {
   });
 }
 
-async function loadSupplementalRecords(sessionPublicIds: string[]) {
+async function loadSupplementalRecords(sessionPublicIds: string[], db: Prisma.TransactionClient = prisma) {
   const [activityAttempts, evidenceRecords, snapshots] = await Promise.all([
-    prisma.activityRuntimeAttempt.findMany({
+    db.activityRuntimeAttempt.findMany({
       where: { session_public_id: { in: sessionPublicIds } },
       orderBy: [{ created_at: "asc" }]
     }),
-    prisma.activityMisconceptionEvidenceRecord.findMany({
+    db.activityMisconceptionEvidenceRecord.findMany({
       where: { session_public_id: { in: sessionPublicIds } },
       orderBy: [{ created_at: "asc" }]
     }),
-    prisma.postActivityDiagnosticSnapshot.findMany({
+    db.postActivityDiagnosticSnapshot.findMany({
       where: { session_public_id: { in: sessionPublicIds } },
       orderBy: [{ created_at: "asc" }]
     })
@@ -2534,7 +2533,12 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     throw error;
   }
 
-  const sessions = await loadSessions(input);
+  // Freeze one database snapshot, then release it before CSV/ZIP serialization.
+  const { sessions, supplemental } = await prisma.$transaction(async (tx) => {
+    const sessions = await loadSessions(input, tx);
+    const supplemental = await loadSupplementalRecords(sessions.map((session) => session.session_public_id), tx);
+    return { sessions, supplemental };
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30_000 });
   if (sessions.length === 0) {
     throw new ContentServiceError(
       "no_session_data",
@@ -2544,7 +2548,6 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   }
 
   const source = sourceFor(input);
-  const supplemental = await loadSupplementalRecords(sessions.map((session) => session.session_public_id));
   const includeRestricted = input.include_restricted_fields === true;
   const files = [
     {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import {
   EventSourceSchema,
@@ -39,10 +40,10 @@ export type ProcessEventAggregation = {
   followup_turn_count: number;
 };
 
-export async function logProcessEvent(input: LogProcessEventInput) {
+export async function logProcessEvent(input: LogProcessEventInput, db: Prisma.TransactionClient = prisma) {
   const parsed = logProcessEventSchema.parse(input);
 
-  return prisma.processEvent.create({
+  return db.processEvent.create({
     data: {
       assessment_session_db_id: parsed.assessment_session_db_id,
       concept_unit_session_db_id: parsed.concept_unit_session_db_id,

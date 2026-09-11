@@ -2,7 +2,8 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, MessageSquareText, X } from "lucide-react";
+import { ArrowRight, X } from "lucide-react";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { AssessmentSummary, StructuredApiError } from "./types";
 import { Breadcrumbs, Button, ErrorPanel, Field, PageHeader } from "./ui";
@@ -20,20 +21,14 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const { confirmLeave, allowNavigation } = useUnsavedChanges(hasUnsavedChanges || isSubmitting);
 
   function markDirty() {
     setHasUnsavedChanges(true);
   }
 
   function cancel() {
-    if (hasUnsavedChanges) {
-      const confirmed = window.confirm("Discard unsaved changes and return to the mini-test list?");
-
-      if (!confirmed) {
-        return;
-      }
-    }
-
+    if (!confirmLeave()) return;
     router.push("/teacher/content/assessments");
   }
 
@@ -56,6 +51,8 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           close_at_course_time: closeAt || null
         })
       });
+      setHasUnsavedChanges(false);
+      allowNavigation();
       router.push(
         `/teacher/content/assessments/${data.assessment.assessment_public_id}/item-design`
       );
@@ -76,20 +73,10 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
       />
       <PageHeader title="New mini test" />
 
-      <ErrorPanel error={error} />
-
-      <section className="max-w-3xl border-y border-line bg-accent-soft px-5 py-4 text-sm leading-6 text-ink">
-        <div className="flex gap-3">
-          <MessageSquareText className="mt-0.5 h-5 w-5 shrink-0 text-accent" aria-hidden="true" />
-          <p>
-            Create the mini-test shell first. Next, work with the item-design assistant using course
-            material, learning objectives, evidence requirements, misconception examples, and
-            exemplar items.
-          </p>
-        </div>
-      </section>
+      <ErrorPanel error={error} focusOnError />
 
       <form className="max-w-3xl space-y-4 rounded-md border border-line bg-white p-5 shadow-soft" onSubmit={onSubmit}>
+        <fieldset className="min-w-0 space-y-4" disabled={isSubmitting}>
         <Field label="Assessment name">
           <input
             className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -112,7 +99,9 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
             value={folderLabel}
           />
         </Field>
-        <div className="grid gap-4 md:grid-cols-2">
+        <details>
+          <summary className="cursor-pointer text-sm font-semibold text-ink">Schedule (optional)</summary>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
           <Field label="Release date/time">
             <input
               className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -140,6 +129,7 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           Release and closing dates use {courseTimezone} course time and control when new students
           may start. Students who already started may continue after the closing date.
         </p>
+        </details>
         <div className="flex flex-wrap gap-2">
           <Button disabled={isSubmitting} type="submit">
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -147,9 +137,10 @@ export function AssessmentCreateClient({ courseTimezone }: { courseTimezone: str
           </Button>
           <Button disabled={isSubmitting} onClick={cancel} type="button" variant="secondary">
             <X className="h-4 w-4" aria-hidden="true" />
-            Cancel and return to mini-test list
+            Cancel
           </Button>
         </div>
+        </fieldset>
       </form>
     </div>
   );

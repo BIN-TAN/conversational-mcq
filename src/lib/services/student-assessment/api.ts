@@ -48,6 +48,9 @@ export function studentAssessmentRouteError(error: unknown): NextResponse {
   }
 
   if (error instanceof FormativeConversationFoundationError) {
+    if (error.code === "assistant_response_pending") {
+      return jsonApiError(error.code, error.message, 409);
+    }
     if (error.code === "conversation_not_found") {
       return jsonApiError(
         "not_found",

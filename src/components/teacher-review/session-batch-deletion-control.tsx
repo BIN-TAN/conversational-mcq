@@ -1,5 +1,7 @@
 "use client";
 
+import { ModalDialog } from "@/components/ui/modal-dialog";
+
 import { AlertTriangle, Loader2, Trash2, X } from "lucide-react";
 import { useState } from "react";
 import {
@@ -96,11 +98,10 @@ export function SessionBatchDeletionControl({
       </button>
 
       {open ? (
-        <div
-          aria-labelledby="batch-delete-sessions-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 px-4 py-6"
-          role="dialog"
+        <ModalDialog
+          labelledBy="batch-delete-sessions-title"
+          onClose={closeDialog}
+          busy={deleting}
         >
           <div className="max-h-full w-full max-w-2xl overflow-y-auto rounded-lg border border-line bg-white p-5 shadow-xl">
             <div className="flex items-start justify-between gap-4">
@@ -193,7 +194,7 @@ export function SessionBatchDeletionControl({
               </div>
             ) : null}
           </div>
-        </div>
+        </ModalDialog>
       ) : null}
     </>
   );

@@ -672,7 +672,6 @@ async function loadSessions(input: {
       },
       user: {
         role: "student",
-        account_status: "active",
         user_id: input.student_user_id
       },
       OR: authorizedSessionOr(input.teacher_user_db_id)
@@ -701,7 +700,6 @@ async function assertAssessment(input: {
             some: {
               user: {
                 role: "student",
-                account_status: "active",
                 created_by_teacher_user_id: input.teacher_user_db_id
               }
             }
@@ -724,7 +722,6 @@ async function assertStudent(input: { teacher_user_db_id: string; student_user_i
     where: {
       user_id: input.student_user_id,
       role: "student",
-      account_status: "active",
       OR: [
         { created_by_teacher_user_id: input.teacher_user_db_id },
         {
@@ -767,7 +764,6 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
               some: {
                 user: {
                   role: "student",
-                  account_status: "active",
                   created_by_teacher_user_id: input.teacher_user_db_id
                 }
               }
@@ -785,7 +781,6 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
     prisma.user.findMany({
       where: {
         role: "student",
-        account_status: "active",
         OR: [
           { created_by_teacher_user_id: input.teacher_user_db_id },
           {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BookOpen, Download, Loader2, RefreshCw } from "lucide-react";
+import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { errorFromUnknown, fetchExportJobs, fetchResearchExportReadiness } from "./api";
 import { EmptyPanel, ErrorPanel, formatDate, StatusPill } from "./ui";
 import type { ExportJob, ResearchExportReadiness, StructuredApiError } from "./types";
@@ -214,7 +215,7 @@ async function fetchDictionary(query: URLSearchParams): Promise<DataDictionaryRe
 function countPills(counts?: ExportAvailabilityCounts | null) {
   if (!counts) return null;
   const entries = [
-    ["students/sessions", counts.sessions],
+    ["sessions", counts.sessions],
     ["responses", counts.item_responses],
     ["events", counts.process_events],
     ["turns", counts.conversation_turns],
@@ -829,23 +830,11 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-6 [&_label]:min-w-0 [&_select]:min-w-0 [&_select]:w-full [&_input]:min-w-0">
       <ErrorPanel error={error} />
       <section className="rounded-lg border border-line bg-white p-4 shadow-soft">
-        <div className="flex flex-wrap gap-2" role="tablist" aria-label="Research data export sections">
-          {sections.map((section) => (
-            <button
-              className={[
-                "rounded-md px-3 py-2 text-sm font-semibold transition",
-                activeSection === section.id ? "bg-accent text-white" : "border border-line bg-white text-ink hover:border-accent"
-              ].join(" ")}
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              type="button"
-            >
-              {section.label}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <WorkspaceTabs id="research-exports" label="Research data export sections" tabs={sections} value={activeSection} onChange={setActiveSection} />
           <button
             className="ml-auto inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-sm font-semibold text-ink hover:border-accent"
             onClick={() => void refresh()}
@@ -866,6 +855,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         </section>
       ) : null}
 
+      <div className="min-w-0 space-y-6" id="research-exports-panel" role="tabpanel" aria-labelledby={`research-exports-tab-${activeSection}`} tabIndex={0}>
       {activeSection === "dataset" ? (
         <>
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
@@ -1186,6 +1176,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
           ) : null}
         </section>
       ) : null}
+      </div>
     </div>
   );
 }

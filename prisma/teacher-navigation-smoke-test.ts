@@ -165,7 +165,7 @@ function assertStudentAccountActionsRemainInPageContent() {
   assertIncludes(batchDeletion, "Delete selected", "Student batch deletion action");
   assertIncludes(
     batchDeletion,
-    'data-testid="batch-delete-students-dialog"',
+    'testId="batch-delete-students-dialog"',
     "Student batch deletion confirmation"
   );
   assertIncludes(

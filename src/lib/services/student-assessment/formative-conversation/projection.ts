@@ -267,26 +267,29 @@ export async function updateStudentFormativeConversationLifecycle(input: {
   ) {
     return getStudentFormativeConversationProjection(input);
   }
-  await prisma.formativeConversationSession.update({
-    where: { id: conversation.id },
-    data: {
-      ...next,
-      last_activity_at: now
-    }
-  });
-  await recordFormativeConversationLifecycleEvent({
-    conversation_public_id: conversation.conversation_public_id,
-    client_event_id: `conversation-lifecycle:${input.action}:${now.toISOString()}`,
-    event_type:
-      input.action === "pause"
-        ? "paused"
-        : input.action === "resume"
-          ? "resumed"
-          : "conversation_ended",
-    event_source: "backend",
-    observed_interval_duration_ms: null,
-    client_instance_id: null,
-    occurred_at: now
+  await prisma.$transaction(async (tx) => {
+    const changed = await tx.formativeConversationSession.updateMany({
+      where: { id: conversation.id, status: conversation.status },
+      data: {
+        ...next,
+        last_activity_at: now
+      }
+    });
+    if (changed.count !== 1) return;
+    await recordFormativeConversationLifecycleEvent({
+      conversation_public_id: conversation.conversation_public_id,
+      client_event_id: `conversation-lifecycle:${input.action}:${now.toISOString()}`,
+      event_type:
+        input.action === "pause"
+          ? "paused"
+          : input.action === "resume"
+            ? "resumed"
+            : "conversation_ended",
+      event_source: "backend",
+      observed_interval_duration_ms: null,
+      client_instance_id: null,
+      occurred_at: now
+    }, tx);
   });
   return getStudentFormativeConversationProjection(input);
 }

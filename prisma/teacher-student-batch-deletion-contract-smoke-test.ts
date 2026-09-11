@@ -61,7 +61,7 @@ assertIncludes(listClient, "toggleStudentSelection", "Row selection control");
 assertIncludes(deletionControl, "Delete selected", "Batch delete command");
 assertIncludes(
   deletionControl,
-  'data-testid="batch-delete-students-dialog"',
+  'testId="batch-delete-students-dialog"',
   "Accessible confirmation dialog"
 );
 assertIncludes(

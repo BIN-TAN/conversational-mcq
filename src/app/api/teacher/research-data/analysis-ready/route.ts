@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { jsonApiError } from "@/lib/http";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { generatePublicId } from "@/lib/services/ids";
 import { requireTeacherResearcher, contentRouteError } from "@/lib/services/content/api";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -171,7 +172,8 @@ async function createResearchExport(request: Request, teacherUserDbId: string) {
     return { ok: true as const, job: serializeResearchExportJob(completed), result };
   } catch (error) {
     const code = error instanceof ContentServiceError ? error.code : "research_export_generation_failed";
-    const message = error instanceof Error ? error.message : "Research export generation failed.";
+    const message = error instanceof ContentServiceError ? error.message : "Research export generation failed. Please retry or contact the course administrator.";
+    logProductionError(error, { safe_error_code: code, request_id: requestId });
     const failed = await prisma.exportJob.update({
       where: { id: job.id },
       data: {

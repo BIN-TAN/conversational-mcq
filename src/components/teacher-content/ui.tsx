@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
 import { AlertTriangle, CheckCircle, ChevronRight, Loader2 } from "lucide-react";
 import type { StructuredApiError } from "./types";
 
@@ -109,19 +109,26 @@ export function contentStateLabel(state: string) {
   return "draft editable";
 }
 
-export function ErrorPanel({ error }: { error?: StructuredApiError | null }) {
+export function ErrorPanel({ error, focusOnError = false }: { error?: StructuredApiError | null; focusOnError?: boolean }) {
+  const ref = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (error && focusOnError) ref.current?.focus();
+  }, [error, focusOnError]);
   if (!error) {
     return null;
   }
 
   return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900" ref={ref} role="alert" tabIndex={-1}>
       <div className="flex items-start gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <div className="min-w-0">
           <p className="font-semibold">{error.message}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
-          <ValidationDetails details={error.details} />
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs font-medium">Error details</summary>
+            <p className="mt-1 break-all text-xs text-red-700">{error.code}</p>
+            <ValidationDetails details={error.details} />
+          </details>
         </div>
       </div>
     </section>
@@ -201,7 +208,7 @@ export function SuccessPanel({ message }: { message?: string | null }) {
   }
 
   return (
-    <section className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900">
+    <section className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-900" role="status">
       <div className="flex items-center gap-2">
         <CheckCircle className="h-4 w-4" aria-hidden="true" />
         <p>{message}</p>

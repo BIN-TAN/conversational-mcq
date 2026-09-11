@@ -31,7 +31,7 @@ assertIncludes(list, "onReset={load}", "Student list reset refresh");
 assertIncludes(control, "Reset password", "Password reset control");
 assertIncludes(
   control,
-  'data-testid="reset-student-password-dialog"',
+  'testId="reset-student-password-dialog"',
   "Password reset dialog"
 );
 assertIncludes(

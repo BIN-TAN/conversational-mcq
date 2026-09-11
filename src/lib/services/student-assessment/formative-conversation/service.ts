@@ -31,6 +31,7 @@ export type FormativeConversationFoundationErrorCode =
   | "conversation_not_found"
   | "conversation_not_active"
   | "conversation_turn_limit_reached"
+  | "assistant_response_pending"
   | "idempotency_hash_mismatch";
 
 export class FormativeConversationFoundationError extends Error {
@@ -701,6 +702,40 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
             throw new FormativeConversationFoundationError(
               "conversation_not_active",
               "The formative conversation is not active."
+            );
+          }
+
+          // A different tab may have committed while this request waited for the lock.
+          const replay = await tx.formativeConversationMessageReceipt.findUnique({
+            where: {
+              formative_conversation_session_db_id_client_message_id: {
+                formative_conversation_session_db_id: session.session_id,
+                client_message_id: input.client_message_id
+              }
+            },
+            include: { student_turn: true, assistant_turn: true }
+          });
+          if (replay) {
+            if (replay.request_hash !== requestHash) {
+              throw new FormativeConversationFoundationError(
+                "idempotency_hash_mismatch",
+                "The client message ID was already used for different content."
+              );
+            }
+            return { receipt: replay, replayed: true };
+          }
+          const unresolvedResponse = await tx.formativeConversationMessageReceipt.findFirst({
+            where: {
+              formative_conversation_session_db_id: session.session_id,
+              student_turn_db_id: { not: null },
+              assistant_turn_db_id: null
+            },
+            select: { id: true }
+          });
+          if (unresolvedResponse) {
+            throw new FormativeConversationFoundationError(
+              "assistant_response_pending",
+              "Wait for the response to your saved message, or retry that response before sending another message."
             );
           }
 

@@ -3,6 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "classroom:audit": "node scripts/classroom-audit.mjs",
+    "classroom:ux-smoke": "node scripts/classroom-ux-smoke.mjs",
     "dev": "next dev",
     "build": "npm run app:build-info:write && next build",
     "start": "next start",
