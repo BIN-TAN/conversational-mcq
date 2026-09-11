@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { sendProcessEvents, type FrontendProcessEvent } from "./api";
+import { createProcessEventDelivery } from "./process-event-delivery";
 
 const LONG_PAUSE_MS = Number(process.env.NEXT_PUBLIC_LONG_PAUSE_MS ?? 120000);
 const INACTIVITY_MS = Number(process.env.NEXT_PUBLIC_INACTIVITY_MS ?? 300000);
@@ -11,6 +12,28 @@ export function useStudentProcessEvents(input: {
   currentItemPublicId?: string | null;
   enabled?: boolean;
 }) {
+  const deliveryRef = useRef<ReturnType<typeof createProcessEventDelivery> | null>(null);
+  const tabIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (input.enabled === false) return;
+    tabIdRef.current ??= crypto.randomUUID();
+    let storage: Storage | undefined;
+    try { storage = window.sessionStorage; } catch { /* In-memory delivery when storage is unavailable. */ }
+    const delivery = createProcessEventDelivery({
+      sessionId: input.sessionPublicId,
+      tabId: tabIdRef.current,
+      storage,
+      send: (events, keepalive) => sendProcessEvents(input.sessionPublicId, events, keepalive)
+    });
+    deliveryRef.current = delivery;
+    const retry = () => { void delivery.retry(); };
+    retry();
+    window.addEventListener("online", retry);
+    return () => {
+      window.removeEventListener("online", retry);
+      delivery.dispose();
+    };
+  }, [input.sessionPublicId, input.enabled]);
   const visibleSinceRef = useRef(Date.now());
   const focusedSinceRef = useRef(Date.now());
   const lastActivityRef = useRef(Date.now());
@@ -41,7 +64,7 @@ export function useStudentProcessEvents(input: {
     }
 
     function send(event: FrontendProcessEvent, useBeacon = false) {
-      void sendProcessEvents(input.sessionPublicId, [event], useBeacon).catch(() => undefined);
+      deliveryRef.current?.enqueue(event, useBeacon);
     }
 
     function textLengthBand(length: number) {

@@ -194,6 +194,8 @@ class ItemGenerationProvider implements LlmProvider {
       candidateCount,
       input.generation_chunk?.required_cognitive_demand_bands ?? ["foundational"]
     );
+    // Reproduce the reported provider metadata omission on the first chunk.
+    if (this.generationCallCount === 1) output.candidates.forEach((candidate) => { candidate.misconception_hypothesis_ids = []; });
     return {
       provider: "mock",
       client_request_id: request.client_request_id,
@@ -456,6 +458,8 @@ async function main() {
     assert(calls.length === 5, "Each chunk and recovery attempt should have a distinct persisted AgentCall.");
     assert(calls.filter((call) => call.call_status === "succeeded").length === 4, "Expected four successful generation chunks.");
     assert(calls.filter((call) => call.call_status === "failed").length === 1, "Expected one preserved failed generation call.");
+    assert(calls.some((call) => JSON.stringify(call.raw_output).includes('"misconception_hypothesis_ids":[]')),
+      "The original omitted provider index must remain preserved in the raw call evidence.");
 
     const assistantCalls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_design_assistant:${assessmentPublicId}:` } }

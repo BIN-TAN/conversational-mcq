@@ -389,9 +389,23 @@ export function validateGeneratedItemSet(input: {
   required_misconception_ids?: string[];
   required_cognitive_demand_bands?: ItemDesignCognitiveDemandBand[];
 }) {
-  const parsed = ItemGenerationOutputSchema.safeParse(
+  let parsed = ItemGenerationOutputSchema.safeParse(
     normalizeLegacyItemGenerationOutput(input.output)
   );
+  if (!parsed.success) return parsed;
+
+  // The item-level index includes all option-level links. This is metadata
+  // closure only: no new hypothesis, wording, or answer key is inferred.
+  parsed = ItemGenerationOutputSchema.safeParse({
+    ...parsed.data,
+    candidates: parsed.data.candidates.map((candidate) => ({
+      ...candidate,
+      misconception_hypothesis_ids: [...new Set([
+        ...candidate.misconception_hypothesis_ids,
+        ...candidate.options.flatMap((option) => option.linked_misconception_ids)
+      ])]
+    }))
+  });
   if (!parsed.success) return parsed;
 
   const objectiveIds = new Set(input.blueprint.objectives.map((objective) => objective.objective_id));

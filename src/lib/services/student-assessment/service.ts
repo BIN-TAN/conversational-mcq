@@ -289,6 +289,8 @@ const frontendEventTypes = [
 ] as const;
 const FrontendEventTypeSchema = z.enum(frontendEventTypes);
 const frontendEventSchema = z.object({
+  client_event_id: z.string().uuid().optional(),
+  browser_tab_id: z.string().uuid().optional(),
   event_type: FrontendEventTypeSchema,
   event_category: z.string().trim().min(1).max(80).default("student_process"),
   concept_unit_public_id: z.string().trim().min(1).optional(),
@@ -6309,6 +6311,17 @@ export async function ingestFrontendProcessEvents(input: {
     const created = [];
 
     for (const event of events) {
+      if (event.client_event_id) {
+        const existing = await tx.processEvent.findFirst({
+          where: {
+            assessment_session_db_id: session.id,
+            event_source: "frontend",
+            payload: { path: ["client_event_id"], equals: event.client_event_id }
+          },
+          select: { id: true }
+        });
+        if (existing) continue;
+      }
       const item = event.item_public_id
         ? await tx.item.findFirst({
             where: {
@@ -6343,6 +6356,8 @@ export async function ingestFrontendProcessEvents(input: {
       const clockSource = event.client_occurred_at ? "frontend_client" : "server_received";
       const payload = {
         ...(event.payload ?? {}),
+        client_event_id: event.client_event_id,
+        browser_tab_id: event.browser_tab_id,
         client_occurred_at: event.client_occurred_at?.toISOString(),
         server_received_at: serverReceivedAt.toISOString(),
         clock_source: clockSource,

@@ -1,9 +1,9 @@
 import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
 
-export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v1" as const;
+export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
-export const RESEARCH_DATA_DICTIONARY_VERSION = "research-data-dictionary-v2" as const;
+export const RESEARCH_DATA_DICTIONARY_VERSION = "research-data-dictionary-v3" as const;
 export const RESEARCH_DATA_DICTIONARY_SCHEMA_VERSION = "research-data-dictionary-v3" as const;
 
 export const RESEARCH_DATASET_TABLES = [
@@ -263,6 +263,16 @@ export const PROCESS_EVENTS_COLUMNS = [
   "payload_selected_option",
   "payload_confidence_rating",
   "payload_no_tempting_option",
+  "client_event_id",
+  "browser_tab_id",
+  "payload_key_count",
+  "payload_backspace_count",
+  "payload_enter_key_count",
+  "payload_pasted_text_length_band",
+  "payload_target_kind",
+  "payload_clipboard_type_count",
+  "payload_includes_plain_text",
+  "payload_delivery_gap_count",
   "duration_ms",
   "visibility_duration_ms",
   "visibility_interval_start_at",
@@ -378,6 +388,8 @@ export const ASSESSMENT_CONTENT_COLUMNS = [
   "option_b_text",
   "option_c_text",
   "option_d_text",
+  "option_e_text",
+  "option_f_text",
   "media_public_ids",
   "student_alt_text",
   "teacher_llm_media_description",
@@ -1388,7 +1400,7 @@ function measuredValueDefinition(table: string, variable: string) {
     session_active_interaction_time_ms: "Validated active interaction time in milliseconds; null when active-interaction instrumentation is insufficient.",
     session_idle_time_ms: "Recorded idle duration in milliseconds within active windows when explicit idle/pause instrumentation is available.",
     active_interaction_time_ms: "Deprecated compatibility field for session active interaction time; use session_active_interaction_time_ms.",
-    elapsed_session_time_ms: "Legacy elapsed session time in milliseconds from session start to completion or latest activity; use session_wall_clock_elapsed_ms for the timing-contract-v2 construct.",
+    elapsed_session_time_ms: "Legacy elapsed session time in milliseconds from session start to completion or latest activity; use session_wall_clock_elapsed_ms for the timing-contract-v3 construct.",
     total_idle_time_ms: "Total recorded idle duration in milliseconds across eligible idle or long-pause process events.",
     total_page_hidden_ms: "Total paired page-hidden duration in milliseconds from page_visibility_hidden/page_hidden to the next page_visibility_visible/page_visible event; window blur is not double-counted.",
     page_hidden_interval_count: "Number of valid paired page-hidden intervals.",
@@ -1409,7 +1421,7 @@ function measuredValueDefinition(table: string, variable: string) {
     confidence_response_time_ms: "Milliseconds between the confidence prompt and the accepted confidence selection.",
     tempting_option_response_time_ms: "Milliseconds between the tempting-option prompt and the accepted tempting-option response.",
     last_action_to_submission_ms: "Milliseconds between the latest accepted student action and item submission.",
-    item_elapsed_response_time_ms: "Milliseconds from item presentation to item submission under timing-contract-v2.",
+    item_elapsed_response_time_ms: "Milliseconds from item presentation to item submission under timing-contract-v3.",
     item_response_time_ms: "Deprecated legacy backend-finalized item-response duration. Historical values may start at response-row creation rather than item presentation.",
     timing_contract_version: "Version label for timing formulas used to derive the exported timing fields.",
     timing_source_version: "Version label for timing source extraction and event-pairing logic.",
@@ -1544,7 +1556,27 @@ function definition(table: string, variable: string) {
 }
 
 function collectionMethod(table: string, variable: string) {
+  const processSummaryFields: Record<string, string> = {
+    client_event_id: "client_event_id UUID, used for session-scoped idempotent delivery",
+    browser_tab_id: "browser_tab_id UUID identifying the originating browser document",
+    payload_key_count: "key_count aggregate (no raw keystrokes)",
+    payload_backspace_count: "backspace_count aggregate including Delete key",
+    payload_enter_key_count: "enter_key_count aggregate",
+    payload_pasted_text_length_band: "pasted_text_length_band: empty, 1_20, 21_100, 101_500, over_500; no pasted text",
+    payload_target_kind: "target_kind: textarea, input, contenteditable, other, unknown",
+    payload_clipboard_type_count: "clipboard_type_count, the number of advertised clipboard formats",
+    payload_includes_plain_text: "includes_plain_text boolean indicating text/plain format availability, not pasted content",
+    payload_delivery_gap_count: "delivery_gap_count, unacknowledged entries discarded by the bounded browser queue; some may already have reached the server"
+  };
+  if (table === "process_events" && processSummaryFields[variable]) {
+    return `Copied from ProcessEvent.payload.${processSummaryFields[variable]}; empty when absent or inapplicable. Historical delivery gaps cannot be reconstructed.`;
+  }
   const overrides: Record<string, string> = {
+    event_public_id: "SHA-256 of the namespaced persisted ProcessEvent.id; stable across exports and independent of event ordering. No raw database ID is exported.",
+    actual_initial_item_count: "Sum of each topic's recorded initial_item_count, falling back to response rows classified by administered role; no three-item cutoff.",
+    completed_initial_item_count: "Count submitted initial response rows using item role, not item order.",
+    confidence_selection_count: "Count confidence_selected events; use confidence_clicked then transfer_confidence_clicked only when the canonical stream is absent. Alias events are not added together.",
+    option_selection_count: "Count option_selected events; use option_clicked then transfer_answer_selected only when the canonical stream is absent. Alias events are not added together.",
     research_student_id:
       "Computed in researchStudentId() with versioned HMAC-SHA-256 over the canonical operational user identifier using RESEARCH_PSEUDONYMIZATION_KEY; raw usernames, emails, and key material are not written to research dataset files.",
     student_id:
@@ -1575,7 +1607,7 @@ function collectionMethod(table: string, variable: string) {
     time_to_first_option_selection_ms:
       "Calculated in itemResponseRows() as first_option_selected_at minus item_presented_at for the same administered item when both timestamps are available.",
     item_elapsed_response_time_ms:
-      "Calculated in itemResponseRows() as item_submitted_at minus item_presented_at under timing-contract-v2.",
+      "Calculated in itemResponseRows() as item_submitted_at minus item_presented_at under timing-contract-v3.",
     post_option_completion_time_ms:
       "Calculated in itemResponseRows() as item_submitted_at minus first_option_selected_at.",
     reasoning_elapsed_time_ms:
@@ -1594,7 +1626,7 @@ function collectionMethod(table: string, variable: string) {
     page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden and page_visibility_hidden events; window_blur is not treated as a page-hidden interval.",
     long_pause_count: "Calculated in sessionRows() by counting session-scoped long_pause process events.",
     idle_ratio: "Calculated in sessionRows() as total_idle_time_ms divided by elapsed_session_time_ms; null when the denominator is missing or zero.",
-    item_response_time_ms: "Read from legacy ItemResponse.item_response_time_ms for backward compatibility; use item_elapsed_response_time_ms for corrected timing-contract-v2 analysis.",
+    item_response_time_ms: "Read from legacy ItemResponse.item_response_time_ms for backward compatibility; use item_elapsed_response_time_ms for corrected timing-contract-v3 analysis.",
     total_page_hidden_ms:
       "Calculated in sessionRows() from paired page_visibility_hidden/page_hidden to page_visibility_visible/page_visible timestamp intervals, not from frontend cumulative duration payloads.",
     page_hidden_interval_count: "Calculated in sessionRows() from valid paired page-hidden intervals.",
@@ -1603,11 +1635,11 @@ function collectionMethod(table: string, variable: string) {
     session_resumable_active_window_ms:
       "Calculated in sessionRows() as the sum of attempt started/resumed to paused/ended/completed intervals.",
     session_visible_window_ms:
-      "Calculated in sessionRows() as session_resumable_active_window_ms minus valid paired page-hidden intervals.",
+      "Calculated as active lifecycle intervals minus their intersection with the union of paired hidden intervals; null for absent, incomplete, or multi-document visibility evidence.",
     session_active_interaction_time_ms:
-      "Left null unless validated active interaction intervals are available; timing-contract-v2 does not manufacture active time from elapsed time.",
+      "Left null unless validated active interaction intervals are available; timing-contract-v3 does not manufacture active time from elapsed time.",
     session_idle_time_ms:
-      "Calculated from explicit long_pause and inactivity_detected duration payloads when present.",
+      "Union of [event timestamp minus duration, event timestamp] idle intervals intersected with active lifecycle windows. Overlapping threshold signals count once; empty when absent.",
     prompt_to_student_action_latency_ms:
       "Calculated in conversationRows() on the preceding agent prompt turn as next student turn timestamp minus prompt turn timestamp.",
     assessment_specific_understanding_category:
@@ -1757,12 +1789,12 @@ function timingMetadata(variable: string, table: string) {
   const overrides: Record<string, Partial<typeof fallback>> = {
     active_interaction_time_ms: {
       construct: "deprecated_session_active_interaction_time_alias",
-      start: "not applicable for timing-contract-v2 unless active interaction intervals are available",
-      end: "not applicable for timing-contract-v2 unless active interaction intervals are available",
+      start: "not applicable for timing-contract-v3 unless active interaction intervals are available",
+      end: "not applicable for timing-contract-v3 unless active interaction intervals are available",
       formula: "deprecated compatibility alias; use session_active_interaction_time_ms",
       idle: "Null unless explicit active interaction intervals are available.",
       hidden: "Null unless explicit active interaction intervals are available.",
-      method: "Exported as a deprecated compatibility field; timing-contract-v2 does not manufacture active time from elapsed minus idle."
+      method: "Exported as a deprecated compatibility field; timing-contract-v3 does not manufacture active time from elapsed minus idle."
     },
     session_wall_clock_elapsed_ms: {
       construct: "session_wall_clock_elapsed_time",
@@ -1786,7 +1818,7 @@ function timingMetadata(variable: string, table: string) {
       construct: "session_visible_window_time",
       start: "session_resumable_active_window_ms",
       end: "paired page-hidden intervals",
-      formula: "session_resumable_active_window_ms minus total_page_hidden_ms",
+      formula: "duration of active lifecycle windows minus duration of their intersection with unioned hidden intervals",
       idle: "Includes idle visible time unless explicit idle variables are used separately.",
       hidden: "Excludes paired page-hidden intervals.",
       method: "Calculated by deriveSessionTiming() from active windows and paired visibility intervals."
@@ -1804,7 +1836,7 @@ function timingMetadata(variable: string, table: string) {
       construct: "session_recorded_idle_time",
       start: "long_pause or inactivity_detected event start",
       end: "event duration endpoint",
-      formula: "sum of explicit pause_duration_ms or duration_ms values for idle events",
+      formula: "duration of unioned idle intervals intersected with active lifecycle windows",
       idle: "This variable is the recorded idle duration.",
       hidden: "Page-hidden time is separate unless also explicitly recorded as idle.",
       method: "Calculated by deriveSessionTiming() from explicit idle event durations."
@@ -1822,7 +1854,7 @@ function timingMetadata(variable: string, table: string) {
       construct: "session_recorded_idle_time",
       start: "long_pause or inactivity_detected event start",
       end: "event payload pause duration endpoint",
-      formula: "sum of pause_duration_ms across idle events in the session",
+      formula: "session_idle_time_ms; union of overlapping idle observations within active windows",
       idle: "This variable is the recorded idle duration.",
       hidden: "Page-hidden intervals are separate unless also logged as idle events."
     },
@@ -1859,7 +1891,7 @@ function timingMetadata(variable: string, table: string) {
       formula: "persisted ItemResponse.item_response_time_ms; historical values may not start at item presentation",
       idle: "Includes idle periods unless adjusted by separate active-time fields.",
       hidden: "Includes page-hidden periods unless adjusted by separate focus/visibility fields.",
-      method: "Read from the legacy item_responses column for backward compatibility; use item_elapsed_response_time_ms for timing-contract-v2."
+      method: "Read from the legacy item_responses column for backward compatibility; use item_elapsed_response_time_ms for timing-contract-v3."
     },
     item_elapsed_response_time_ms: {
       construct: "item_elapsed_response_time",
@@ -2020,7 +2052,7 @@ function timingMetadata(variable: string, table: string) {
       end: "frontend event payload endpoint, if known",
       formula: "raw visibility_duration_ms event field when provided; may be cumulative in historical data",
       hidden: "Do not use as the canonical page-hidden interval without event-pair validation.",
-      method: "Read from the raw ProcessEvent.visibility_duration_ms field for audit only."
+      method: "Copied from ProcessEvent.visibility_duration_ms as a raw browser duration for audit, not summed as measured hidden time."
     },
     visibility_interval_duration_ms: {
       construct: "paired_page_hidden_interval_duration",

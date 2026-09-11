@@ -22,6 +22,8 @@ import {
 } from "@/lib/student-assessment-ui/types";
 
 export type FrontendProcessEvent = {
+  client_event_id?: string;
+  browser_tab_id?: string;
   event_type:
     | "page_hidden"
     | "page_visible"
@@ -800,16 +802,17 @@ export function sendProcessEvents(
   const body = JSON.stringify({ events });
   const path = `/api/student/sessions/${sessionPublicId}/events`;
 
-  if (useBeacon && typeof navigator !== "undefined" && "sendBeacon" in navigator) {
-    const blob = new Blob([body], { type: "application/json" });
-    navigator.sendBeacon(path, blob);
-    return Promise.resolve();
-  }
-
+  // A beacon acceptance is not a server acknowledgement. Keepalive fetch lets
+  // the delivery queue retain unacknowledged events across reloads.
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   return fetch(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body,
-    keepalive: true
-  }).then(() => undefined);
+    signal: controller.signal,
+    keepalive: useBeacon
+  }).then((response) => {
+    if (!response.ok) throw new Error(`process_event_delivery_failed:${response.status}`);
+  }).finally(() => clearTimeout(timeout));
 }

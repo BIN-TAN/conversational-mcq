@@ -259,7 +259,16 @@ Do not label students as cheating, dishonest, or confirmed GenAI users based on 
 
 ## Timing Contract
 
-The current analysis contract is `timing-contract-v2`.
+The current analysis contract is `timing-contract-v3`, exported in
+`research-dataset-v2`. Earlier v2 timing values remain historical artifacts;
+re-exporting applies the explicitly versioned corrected derivations.
+
+Idle time is the union of observed idle intervals intersected with active
+lifecycle windows, not the sum of cumulative threshold durations. Visible time
+subtracts only hidden intervals intersecting active windows. Missing, incomplete,
+or multi-document visibility evidence yields an unavailable visible estimate.
+Browser process delivery uses bounded acknowledged retries with stable event
+IDs; see `RESEARCH_DATA_FIXES_2026-09-11.md` for storage and loss limitations.
 
 Item timing must be derived from explicit event endpoints:
 
@@ -493,8 +502,9 @@ the authoritative start/end events. Core formulas include:
 
 - `elapsed_session_time_ms`: `completed_at` or `last_activity_at` minus
   `started_at`.
-- `active_interaction_time_ms`: elapsed session time minus recorded idle time
-  when idle instrumentation is available.
+- `active_interaction_time_ms`: null until validated active-interaction
+  intervals are instrumented. Elapsed time minus idle observations is not a
+  measurement of active interaction.
 - `time_to_first_action_ms`: `first_student_action_at` minus the exported
   `item_presented_at` timestamp when both are available.
 - `time_to_first_option_selection_ms`: `first_option_selected_at` minus the
@@ -1263,7 +1273,8 @@ ID, turn number, student/tutor message fields under the research privacy policy,
 evidence update, remaining issue, evidence sufficiency, topic-boundary redirect,
 next action, progression selection, and model/prompt/schema/fallback metadata.
 They must not duplicate the full student-facing narrative across multiple
-tables and must keep `timing-contract-v2` fields unchanged.
+tables. Historical `timing-contract-v2` artifacts remain unchanged; corrected
+derivations are explicitly labeled v3 in new exports.
 
 ## Formative Turn Orchestration Records
 

@@ -1,5 +1,5 @@
-export const TIMING_CONTRACT_VERSION = "timing-contract-v2" as const;
-export const TIMING_SOURCE_VERSION = "student-assessment-timing-source-v2" as const;
+export const TIMING_CONTRACT_VERSION = "timing-contract-v3" as const;
+export const TIMING_SOURCE_VERSION = "student-assessment-timing-source-v3" as const;
 
 export type TimingQualityStatus =
   | "valid"
@@ -53,6 +53,7 @@ export type DerivedItemTiming = {
 };
 
 export type VisibilityInterval = {
+  browser_tab_id?: string | null;
   start_at: Date;
   end_at: Date | null;
   duration_ms: number | null;
@@ -233,7 +234,16 @@ export function deriveItemTiming(input: {
   const confidence_response_time_ms = diffMs(confidence_prompted_at, confidence_selected_at);
   const tempting_option_response_time_ms = diffMs(tempting_option_prompted_at, tempting_option_submitted_at);
   const last_action_to_submission_ms = diffMs(last_student_action_at, item_submitted_at);
-  const reasoning_active_typing_time_ms = payloadNumber(typingSummary?.payload, ["active_typing_time_ms"]);
+  const typingDurations = events.filter((event) => {
+    if (event.event_type !== "typing_activity_summary") return false;
+    const at = eventTimestamp(event);
+    return at && (!reasoning_prompted_at || at >= reasoning_prompted_at) &&
+      (!reasoning_submitted_at || at <= reasoning_submitted_at);
+  }).map((event) => payloadNumber(event.payload, ["active_typing_time_ms"]));
+  const typingTotal = sumDurations(typingDurations);
+  const reasoning_active_typing_time_ms = typingDurations.some((value) => value === null || value < 0) ||
+    (typingTotal !== null && reasoning_elapsed_time_ms !== null && typingTotal > reasoning_elapsed_time_ms)
+    ? null : typingTotal;
   const reasoning_input_elapsed_time_ms = payloadNumber(typingSummary?.payload, [
     "reasoning_input_elapsed_time_ms",
     "typing_duration_ms"
@@ -295,6 +305,14 @@ export function deriveItemTiming(input: {
 }
 
 export function deriveVisibilityIntervals(events: TimingEventLike[]): VisibilityInterval[] {
+  const documents = new Map<string, TimingEventLike[]>();
+  for (const event of events) {
+    const id = String(recordValue(event.payload).browser_tab_id ?? "legacy");
+    const group = documents.get(id) ?? [];
+    group.push(event);
+    documents.set(id, group);
+  }
+  if (documents.size > 1) return [...documents.values()].flatMap(deriveVisibilityIntervals);
   const sorted = [...events].sort((a, b) => {
     const left = eventTimestamp(a)?.getTime() ?? 0;
     const right = eventTimestamp(b)?.getTime() ?? 0;
@@ -350,12 +368,34 @@ export function deriveVisibilityIntervals(events: TimingEventLike[]): Visibility
     });
   }
 
-  return intervals;
+  const tabId = recordValue(events[0]?.payload).browser_tab_id;
+  return intervals.map((interval) => ({ ...interval, browser_tab_id: typeof tabId === "string" ? tabId : null }));
 }
 
 function sumDurations(values: Array<number | null>): number | null {
   const numeric = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
   return numeric.length ? numeric.reduce((total, value) => total + value, 0) : null;
+}
+
+type Interval = [number, number];
+
+function unionIntervals(intervals: Interval[]): Interval[] {
+  const result: Interval[] = [];
+  for (const [start, end] of intervals.filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b) && b >= a).sort((a, b) => a[0] - b[0])) {
+    const last = result[result.length - 1];
+    if (last && start <= last[1]) last[1] = Math.max(last[1], end);
+    else result.push([start, end]);
+  }
+  return result;
+}
+
+function intersectIntervals(left: Interval[], right: Interval[]) {
+  return unionIntervals(left.flatMap(([a, b]) => right.flatMap(([c, d]): Interval[] =>
+    Math.min(b, d) >= Math.max(a, c) ? [[Math.max(a, c), Math.min(b, d)]] : [])));
+}
+
+function intervalDuration(intervals: Interval[]) {
+  return unionIntervals(intervals).reduce((total, [start, end]) => total + end - start, 0);
 }
 
 export function deriveSessionTiming(input: {
@@ -384,6 +424,7 @@ export function deriveSessionTiming(input: {
   for (const event of events) {
     const timestamp = eventTimestamp(event);
     if (!timestamp) continue;
+    if ((start && timestamp < start) || (end && timestamp > end)) continue;
     if (["attempt_started", "session_started", "attempt_resumed", "session_resumed"].includes(event.event_type)) {
       if (!activeStart) activeStart = timestamp;
     }
@@ -399,26 +440,39 @@ export function deriveSessionTiming(input: {
   if (activeStart && end && end >= activeStart) {
     activeIntervals.push({ start: activeStart, end });
   }
-  const activeDurations = activeIntervals.map((interval) => diffMs(interval.start, interval.end));
-  const session_resumable_active_window_ms = sumDurations(activeDurations) ?? session_wall_clock_elapsed_ms;
+  const bounds: Interval[] = start && end && end >= start ? [[start.getTime(), end.getTime()]] : [];
+  const active = intersectIntervals(activeIntervals.map((interval) => [interval.start.getTime(), interval.end.getTime()]), bounds);
+  const session_resumable_active_window_ms = bounds.length ? intervalDuration(active) : null;
   const visibility_intervals = deriveVisibilityIntervals(events);
-  const total_page_hidden_ms = sumDurations(visibility_intervals.map((interval) => interval.duration_ms));
+  const hidden = intersectIntervals(visibility_intervals.flatMap((interval): Interval[] =>
+    interval.quality_status === "valid" && interval.end_at ? [[interval.start_at.getTime(), interval.end_at.getTime()]] : []), bounds);
+  const tabIds = new Set(events.filter((event) => [...HIDDEN_TYPES, ...VISIBLE_TYPES].some((type) => type === event.event_type))
+    .map((event) => String(recordValue(event.payload).browser_tab_id ?? "legacy")));
+  const visibilityAvailable = visibility_intervals.some((interval) => interval.quality_status === "valid") && tabIds.size <= 1;
+  const total_page_hidden_ms = visibilityAvailable ? intervalDuration(hidden) : null;
   const session_visible_window_ms =
-    session_resumable_active_window_ms === null
+    session_resumable_active_window_ms === null || !visibilityAvailable || visibility_intervals.some((interval) => interval.quality_status !== "valid")
       ? null
-      : Math.max(0, session_resumable_active_window_ms - (total_page_hidden_ms ?? 0));
+      : session_resumable_active_window_ms - intervalDuration(intersectIntervals(active, hidden));
   const idleEvents = events.filter((event) => ["long_pause", "inactivity_detected"].includes(event.event_type));
-  const session_idle_time_ms = sumDurations(
-    idleEvents.map((event) => event.pause_duration_ms ?? payloadNumber(event.payload, ["pause_duration_ms", "duration_ms"]))
-  );
+  const idle = idleEvents.flatMap((event): Interval[] => {
+    const at = eventTimestamp(event)?.getTime();
+    const duration = event.pause_duration_ms ?? payloadNumber(event.payload, ["pause_duration_ms", "duration_ms"]);
+    return at !== undefined && duration !== null && Number.isFinite(duration) && duration >= 0 ? [[at - duration, at]] : [];
+  });
+  const session_idle_time_ms = bounds.length && idle.length ? intervalDuration(intersectIntervals(idle, active)) : null;
   const session_active_interaction_time_ms = null;
   const limitations: string[] = [];
   pushMissing(limitations, !start, "session_start_missing");
   pushMissing(limitations, !end, "session_end_or_latest_activity_missing");
+  pushMissing(limitations, !visibilityAvailable, "visibility_instrumentation_insufficient");
+  pushMissing(limitations, tabIds.size > 1, "multiple_browser_documents_visibility_ambiguous");
+  pushMissing(limitations, visibilityAvailable, "visibility_estimated_between_observed_events_not_attention");
   pushMissing(limitations, visibility_intervals.some((interval) => interval.quality_status !== "valid"), "visibility_interval_pairing_incomplete");
   pushMissing(limitations, session_active_interaction_time_ms === null, "active_interaction_interval_instrumentation_unavailable");
   const timing_quality_status = mergeQuality([
     qualityForRequiredDiff(start ?? null, end ?? null, session_wall_clock_elapsed_ms),
+    !visibilityAvailable ? "instrumentation_insufficient" : "valid",
     visibility_intervals.some((interval) => interval.quality_status === "invalid_order")
       ? "invalid_order"
       : visibility_intervals.some((interval) => interval.quality_status !== "valid")
@@ -435,7 +489,7 @@ export function deriveSessionTiming(input: {
     total_page_hidden_ms,
     page_hidden_interval_count: visibility_intervals.filter((interval) => interval.quality_status === "valid").length,
     page_hidden_timing_quality_status:
-      visibility_intervals.length === 0
+      visibility_intervals.length === 0 || tabIds.size > 1
         ? "partial"
         : visibility_intervals.every((interval) => interval.quality_status === "valid")
           ? "valid"

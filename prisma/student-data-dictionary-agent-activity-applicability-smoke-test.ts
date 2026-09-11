@@ -23,7 +23,7 @@ function main() {
   assert(activityPrompt.applicable_record_types.includes("formative_activity"), "activity_prompt should apply to formative_activity.");
   assert(!activityPrompt.applicable_record_types.includes("agent_call"), "activity_prompt should not apply to agent_call.");
   assert(activityPrompt.source_nature === "persisted_llm_interpretation", "activity_prompt should be generated/persisted activity content, not system configuration.");
-  assert(activityPrompt.collection_or_generation_method.includes("does not copy raw activity packets"), "activity_prompt should document current null/reserved behavior.");
+  assert(activityPrompt.collection_or_generation_method.includes("safe_activity_prompt"), "activity_prompt must document its safe persisted projection, not claim the field is always null.");
 
   assert(row("agent_activity_records.agent_name").applicable_record_types === "agent_call", "agent_name should apply to agent_call.");
   assert(row("agent_activity_records.model").applicable_record_types === "agent_call", "model should apply to agent_call.");

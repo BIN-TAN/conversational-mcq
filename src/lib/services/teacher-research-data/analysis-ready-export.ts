@@ -129,6 +129,8 @@ const analysisSessionSelect = {
               item_order: true,
               item_stem: true,
               options: true,
+              administration_rules: true,
+              included_in_published_set: true,
               correct_option: true,
               distractor_rationales: true,
               expected_reasoning_patterns: true,
@@ -812,8 +814,36 @@ function packageEvidenceByItem(session: AnalysisSession) {
     .flatMap((conceptUnitSession) => conceptUnitSession.response_packages)
     .filter((responsePackage) => responsePackage.package_type === "initial_concept_unit_response_package")
     .sort((left, right) => right.created_at.getTime() - left.created_at.getTime());
-  const itemEvidence = asArray(asRecord(packages[0]?.payload).item_responses).map(asRecord);
-  return new Map(itemEvidence.map((entry) => [String(entry.item_public_id ?? ""), entry]));
+  const evidence = new Map<string, Record<string, unknown>>();
+  for (const entry of packages.flatMap((row) => asArray(asRecord(row.payload).item_responses).map(asRecord))) {
+    const id = String(entry.item_public_id ?? "");
+    if (id && !evidence.has(id)) evidence.set(id, entry);
+  }
+  return evidence;
+}
+
+function isInitialResponse(response: AnalysisSession["concept_unit_sessions"][number]["item_responses"][number]) {
+  const snapshot = itemSnapshotRecord(response);
+  const role = snapshot.item_role ?? asRecord(snapshot.administration_rules ?? response.item.administration_rules).item_role;
+  return role !== "transfer" || response.item.included_in_published_set;
+}
+
+function initialItemCount(session: AnalysisSession) {
+  return session.concept_unit_sessions.reduce((total, concept) => {
+    const counts = session.process_events.filter((event) => event.concept_unit_session_db_id === concept.id)
+      .map((event) => payloadNumber(event.payload, ["initial_item_count"])).filter((value): value is number => value !== null && value >= 0);
+    return total + Math.max(0, ...counts, concept.item_responses.filter(isInitialResponse).length);
+  }, 0);
+}
+
+function canonicalActionCount(events: AnalysisSession["process_events"], types: string[]) {
+  // Backend aliases describe the same action; use the canonical stream, with
+  // older naming variants only as a fallback when that stream is absent.
+  for (const type of types) {
+    const count = countEvents(events, [type]);
+    if (count) return count;
+  }
+  return 0;
 }
 
 function mediaPublicIds(response: AnalysisSession["concept_unit_sessions"][number]["item_responses"][number]) {
@@ -961,12 +991,8 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
   return sessions.map((session) => {
     const responses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
     const sessionEvents = session.process_events;
-    const initialResponses = responses.filter((response) => response.item.item_order <= 3);
+    const initialResponses = responses.filter(isInitialResponse);
     const longPauseEvents = session.process_events.filter((event) => event.event_type === "long_pause");
-    const idleEvents = session.process_events.filter((event) =>
-      ["long_pause", "inactivity_detected"].includes(event.event_type)
-    );
-    const totalIdle = sumEventDuration(idleEvents, "pause_duration_ms");
     const elapsed = diff(ms(session.started_at ?? session.created_at), ms(session.completed_at ?? session.last_activity_at ?? session.updated_at));
     const sessionTiming = deriveSessionTiming({
       session_started_at: session.started_at ?? session.created_at,
@@ -976,6 +1002,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       events: session.process_events
     });
     const activeTime = sessionTiming.session_active_interaction_time_ms;
+    const totalIdle = sessionTiming.session_idle_time_ms;
     const profile = latestProfile(session);
     const profileV2 = evidenceProfileV2(profile);
     const nextInteraction = evidenceNextInteractionV2(profile);
@@ -1111,7 +1138,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         payloadString(attemptStartedEvent?.payload, ["attempt_policy_version"]) ??
         "assessment-attempt-policy-v1",
       teacher_override_metadata: jsonString(teacherOverrideMetadata),
-      actual_initial_item_count: initialResponses.length,
+      actual_initial_item_count: initialItemCount(session),
       completed_initial_item_count: initialResponses.filter((response) => response.item_submitted_at).length,
       current_item_index: responses.length ? Math.max(...responses.map((response) => response.item.item_order)) : null,
       session_completion_status: session.status,
@@ -1289,11 +1316,11 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           timing_limitations: timingLimitationsText(timing.timing_limitations),
           derived_at: source.export_generated_at,
           instrumentation_complete: timing.instrumentation_complete,
-          option_selection_count: countEvents(itemEvents, ["option_clicked", "option_selected", "transfer_answer_selected"]),
+          option_selection_count: canonicalActionCount(itemEvents, ["option_selected", "option_clicked", "transfer_answer_selected"]),
           option_revision_count: countEvents(itemEvents, ["answer_changed"]),
           reasoning_submission_count: countEvents(itemEvents, ["reasoning_submitted", "transfer_reasoning_submitted"]),
           reasoning_revision_count: countEvents(itemEvents, ["reasoning_revised", "reasoning_edited"]),
-          confidence_selection_count: countEvents(itemEvents, ["confidence_clicked", "confidence_selected", "transfer_confidence_clicked"]),
+          confidence_selection_count: canonicalActionCount(itemEvents, ["confidence_selected", "confidence_clicked", "transfer_confidence_clicked"]),
           confidence_revision_count: countEvents(itemEvents, ["confidence_changed"]),
           navigation_event_count: countEvents(itemEvents, ["navigation_event"]),
           page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden"]),
@@ -1385,22 +1412,24 @@ function processEventRows(sessions: AnalysisSession[]) {
     {
       const visibilityIntervals = deriveVisibilityIntervals(session.process_events);
       const visibilityByStart = new Map(
-        visibilityIntervals.map((interval) => [interval.start_at.getTime(), interval])
+        visibilityIntervals.map((interval) => [`${interval.browser_tab_id ?? "legacy"}:${interval.start_at.getTime()}`, interval])
       );
       return session.process_events.map((event, index) => {
       const payload = asRecord(event.payload);
+      const response = session.concept_unit_sessions.flatMap((entry) => entry.item_responses)
+        .find((entry) => entry.item.item_public_id === event.item?.item_public_id);
       const duration = event.pause_duration_ms ?? event.visibility_duration_ms ?? payloadNumber(payload, ["duration_ms"]);
       const timestamp = eventTimestamp(event);
-      const visibilityInterval = timestamp ? visibilityByStart.get(timestamp.getTime()) : undefined;
+      const visibilityInterval = timestamp ? visibilityByStart.get(`${payload.browser_tab_id ?? "legacy"}:${timestamp.getTime()}`) : undefined;
       return {
-        event_public_id: `${session.session_public_id}:event:${index + 1}`,
+        event_public_id: `event_${sha({ namespace: "research-process-event-v2", id: event.id })}`,
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
         assessment_snapshot_public_id: assessmentSnapshotId(session),
         item_public_id: event.item?.item_public_id ?? null,
-        item_snapshot_public_id: event.item ? `${event.item.item_public_id}:event` : null,
+        item_snapshot_public_id: response ? itemSnapshotId(response) : null,
         event_sequence_index: index + 1,
         event_type: event.event_type,
         event_category: event.event_category,
@@ -1412,18 +1441,28 @@ function processEventRows(sessions: AnalysisSession[]) {
         server_received_at: payloadString(payload, ["server_received_at"]),
         persisted_at: iso(event.created_at),
         clock_source: payloadString(payload, ["clock_source"]) ?? (event.event_source === "frontend" ? "server_received" : "backend"),
-        timing_contract_version: payloadString(payload, ["timing_contract_version"]) ?? TIMING_CONTRACT_VERSION,
-        timing_source_version: payloadString(payload, ["timing_source_version"]) ?? TIMING_SOURCE_VERSION,
+        timing_contract_version: payloadString(payload, ["timing_contract_version"]) ?? "legacy_unversioned",
+        timing_source_version: payloadString(payload, ["timing_source_version"]) ?? "legacy_unversioned",
         timing_quality_status: payloadString(payload, ["timing_quality_status"]),
         item_position: event.item?.item_order ?? null,
-        actual_total_item_count: session.concept_unit_sessions.flatMap((entry) => entry.item_responses).length,
+        actual_total_item_count: initialItemCount(session) + session.concept_unit_sessions.flatMap((entry) => entry.item_responses).filter((entry) => !isInitialResponse(entry)).length,
         payload_source: payloadString(payload, ["source"]),
         payload_action_status: payloadString(payload, ["action_status", "status"]),
         payload_prompt_type: payloadString(payload, ["prompt_type", "message_type"]),
         payload_text_length: payloadNumber(payload, ["text_length", "message_length", "reasoning_length"]),
         payload_selected_option: payloadString(payload, ["selected_option", "option", "answer"]),
         payload_confidence_rating: payloadString(payload, ["confidence_rating", "confidence"]),
-        payload_no_tempting_option: payload.no_tempting_option === true,
+        payload_no_tempting_option: payloadBoolean(payload, ["no_tempting_option"]),
+        client_event_id: payloadString(payload, ["client_event_id"]),
+        browser_tab_id: payloadString(payload, ["browser_tab_id"]),
+        payload_key_count: payloadNumber(payload, ["key_count"]),
+        payload_backspace_count: payloadNumber(payload, ["backspace_count"]),
+        payload_enter_key_count: payloadNumber(payload, ["enter_key_count"]),
+        payload_pasted_text_length_band: payloadString(payload, ["pasted_text_length_band"]),
+        payload_target_kind: payloadString(payload, ["target_kind"]),
+        payload_clipboard_type_count: payloadNumber(payload, ["clipboard_type_count"]),
+        payload_includes_plain_text: payloadBoolean(payload, ["includes_plain_text"]),
+        payload_delivery_gap_count: payloadNumber(payload, ["delivery_gap_count"]),
         duration_ms: duration,
         visibility_duration_ms: event.visibility_duration_ms,
         visibility_interval_start_at: iso(visibilityInterval?.start_at ?? null),
@@ -1431,7 +1470,7 @@ function processEventRows(sessions: AnalysisSession[]) {
         visibility_interval_duration_ms: visibilityInterval?.duration_ms ?? null,
         visibility_interval_quality_status: visibilityInterval?.quality_status ?? null,
         pause_duration_ms: event.pause_duration_ms,
-        limitation_code: "raw_payload_excluded"
+        limitation_code: event.item && !response ? "raw_payload_excluded|item_snapshot_unavailable" : "raw_payload_excluded"
       } satisfies CsvRow;
     })
     }
@@ -1725,6 +1764,8 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
           option_b_text: options.get("B") ?? null,
           option_c_text: options.get("C") ?? null,
           option_d_text: options.get("D") ?? null,
+          option_e_text: options.get("E") ?? null,
+          option_f_text: options.get("F") ?? null,
           media_public_ids: mediaPublicIds(response),
           student_alt_text: media.map((asset) => asset.student_alt_text ?? asset.alt_text_or_description).filter(Boolean).join("; "),
           snapshot_created_at: iso(response.created_at)
@@ -2534,10 +2575,11 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   }
 
   // Freeze one database snapshot, then release it before CSV/ZIP serialization.
-  const { sessions, supplemental } = await prisma.$transaction(async (tx) => {
+  const { sessions, supplemental, snapshotAt } = await prisma.$transaction(async (tx) => {
+    const [snapshot] = await tx.$queryRaw<Array<{ snapshot_at: Date }>>`SELECT transaction_timestamp() AS snapshot_at`;
     const sessions = await loadSessions(input, tx);
     const supplemental = await loadSupplementalRecords(sessions.map((session) => session.session_public_id), tx);
-    return { sessions, supplemental };
+    return { sessions, supplemental, snapshotAt: snapshot.snapshot_at.toISOString() };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30_000 });
   if (sessions.length === 0) {
     throw new ContentServiceError(
@@ -2642,6 +2684,46 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: sessionDiagnosticManifest(source, sessions, supplemental)
     });
   }
+  files.push({ path: "README.txt", data: [
+    "Research dataset v2",
+    "Join session_public_id to sessions.csv. Join item snapshots using both assessment_snapshot_public_id and item_snapshot_public_id.",
+    "event_public_id is stable across exports; event_sequence_index is export ordering, not a permanent identity.",
+    "Empty CSV cells denote unavailable or inapplicable values, not measured zero or false. Formula-leading text is prefixed with an apostrophe for spreadsheet safety.",
+    "Timing v3 unions overlapping idle intervals and intersects visibility with active lifecycle windows. Visible time is an estimate, not attention or active learning.",
+    "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
+    "Browser events are best effort: delivery gaps, absent visibility, multiple documents, and unrecovered browser closure limit inference. Absence is not nonoccurrence.",
+    "No consent or withdrawal decision is inferred. Apply the approved study cohort before analysis. Free text may contain identifying information and requires review.",
+    "Correct answers and teacher-only fields are included only when restricted_fields_included is true in the manifest.",
+    "The manifest lists every other ZIP entry. SHA-256 values cover UTF-8 entry bytes; the manifest excludes its own hash to avoid recursion."
+  ].join("\n") + "\n" });
+  const manifest = {
+    schema_version: "research-dataset-manifest-v1",
+    export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
+    export_run_public_id: source.export_run_public_id,
+    export_generated_at: source.export_generated_at,
+    app_commit_sha: source.app_commit_sha,
+    database_snapshot_at: snapshotAt,
+    isolation_level: "RepeatableRead",
+    snapshot_policy: "Rows visible in one database transaction; late-arriving events appear in a later export.",
+    scope: input.scope,
+    include_incomplete_sessions: input.include_incomplete_sessions !== false,
+    restricted_fields_included: includeRestricted,
+    pseudonymization: {
+      version: researchPseudonymizationMetadata().research_pseudonym_version,
+      method: researchPseudonymizationMetadata().pseudonymization_method
+    },
+    timing_contract_version: TIMING_CONTRACT_VERSION,
+    timing_source_version: TIMING_SOURCE_VERSION,
+    omitted_fields: includeRestricted ? ["raw_provider_payloads", "raw_process_payloads"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
+    entries: files.map((file) => ({
+      path: file.path,
+      sha256: createHash("sha256").update(file.data, "utf8").digest("hex"),
+      bytes: Buffer.byteLength(file.data, "utf8"),
+      rows: file.path.endsWith(".csv") ? serializedFileRecordCount(file) : null
+    }))
+  };
+  if (new Set(files.map((file) => file.path)).size !== files.length) throw new Error("duplicate_research_export_entry");
+  files.push({ path: "research_manifest.json", data: JSON.stringify(manifest, null, 2) });
   assertAnalysisReadySafety(files, includeRestricted);
 
   const suffix =

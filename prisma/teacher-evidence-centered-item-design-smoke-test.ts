@@ -81,6 +81,22 @@ const validOutput = {
 };
 
 assert.equal(validateGeneratedItemSet({ blueprint, output: validOutput }).success, true);
+const missingIndex = structuredClone(validOutput);
+missingIndex.candidates.forEach((entry) => { entry.misconception_hypothesis_ids = []; });
+const originalMissingIndex = JSON.stringify(missingIndex);
+const closedIndex = validateGeneratedItemSet({ blueprint, output: missingIndex });
+assert(closedIndex.success, "Option references must populate the redundant item-level misconception index.");
+assert.deepEqual(closedIndex.data.candidates.map((entry) => entry.misconception_hypothesis_ids),
+  validOutput.candidates.map((entry) => entry.misconception_hypothesis_ids));
+assert.equal(JSON.stringify(missingIndex), originalMissingIndex, "Original provider output must not be mutated.");
+assert.deepEqual(closedIndex.data.candidates.map((entry) => [entry.stem, entry.options, entry.proposed_correct_option]),
+  validOutput.candidates.map((entry) => [entry.stem, entry.options, entry.proposed_correct_option]));
+const unknownLink = structuredClone(missingIndex);
+unknownLink.candidates[0].options[0].linked_misconception_ids = ["unknown_hypothesis"];
+assert.equal(validateGeneratedItemSet({ blueprint, output: unknownLink }).success, false, "Unknown references must remain blocked.");
+const invalidKey = structuredClone(missingIndex);
+invalidKey.candidates[0].proposed_correct_option = "E";
+assert.equal(validateGeneratedItemSet({ blueprint, output: invalidKey }).success, false, "Metadata closure must not bypass answer-key validation.");
 assert.equal(
   validateGeneratedItemSet({
     blueprint,
