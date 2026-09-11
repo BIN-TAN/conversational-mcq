@@ -296,6 +296,7 @@ export type McqImportCandidate = {
 };
 
 export type McqImportBatch = {
+  updated_at?: string;
   batch_public_id: string;
   source_type: string;
   source_file_name: string | null;

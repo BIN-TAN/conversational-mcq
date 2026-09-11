@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { parse as parseCsv } from "csv-parse/sync";
 import * as XLSX from "xlsx";
+import { readBoundedOfficeArchive } from "./office-archive";
 import { z } from "zod";
 import {
   assertNoProhibitedProviderInput,
@@ -392,6 +393,7 @@ const CandidateCommitUpdateSchema = z
 
 const SuggestDiagnosticInputSchema = z
   .object({
+    expected_updated_at: z.string().datetime().optional(),
     candidate_public_ids: z.array(z.string()).optional(),
     candidate_updates: z.array(CandidateCommitUpdateSchema).default([]),
     mode: z.enum(["mock", "live"]).default("live")
@@ -400,6 +402,7 @@ const SuggestDiagnosticInputSchema = z
 
 const SuggestFormattingInputSchema = z
   .object({
+    expected_updated_at: z.string().datetime().optional(),
     candidate_public_ids: z.array(z.string()).optional(),
     candidate_updates: z.array(CandidateCommitUpdateSchema).default([]),
     mode: z.enum(["mock", "live"]).default("live")
@@ -408,6 +411,7 @@ const SuggestFormattingInputSchema = z
 
 const CommitImportInputSchema = z
   .object({
+    expected_updated_at: z.string().datetime().optional(),
     candidate_updates: z.array(CandidateCommitUpdateSchema).default([]),
     selected_candidate_public_ids: z.array(z.string()).optional()
   })
@@ -740,10 +744,10 @@ function parseCsvRows(text: string): RowRecord[] {
   return rows;
 }
 
-function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): {
+async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Promise<{
   rows: RowRecord[];
   warnings: string[];
-} {
+}> {
   if (sourceFileName && /\.xlsm$/i.test(sourceFileName)) {
     throw new ContentServiceError(
       "validation_failed",
@@ -753,9 +757,14 @@ function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): {
     );
   }
 
+  const archive = await readBoundedOfficeArchive(bytes);
+  if (!archive.file("xl/workbook.xml")) {
+    throw new ContentServiceError("validation_failed", "A standard XLSX workbook is required.", 400);
+  }
+  const checkedBytes = await archive.generateAsync({ type: "nodebuffer" });
   let workbook: XLSX.WorkBook;
   try {
-    workbook = XLSX.read(bytes, { type: "buffer", bookVBA: true, cellFormula: false });
+    workbook = XLSX.read(checkedBytes, { type: "buffer", bookVBA: true, cellFormula: false, sheetRows: MCQ_IMPORT_MAX_ROWS + 2 });
   } catch {
     throw new ContentServiceError(
       "validation_failed",
@@ -773,9 +782,6 @@ function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): {
     );
   }
 
-  const sheetName = workbook.SheetNames[0];
-  if (!sheetName) return { rows: [], warnings: ["xlsx_no_visible_sheet_found"] };
-
   const warnings: string[] = [];
   const sheetMetadata = workbook.Workbook?.Sheets ?? [];
   const hiddenSheets = sheetMetadata
@@ -785,7 +791,15 @@ function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): {
     warnings.push(`hidden_sheets_ignored:${hiddenSheets.slice(0, 5).join(",")}`);
   }
 
-  const rows = XLSX.utils.sheet_to_json<RowRecord>(workbook.Sheets[sheetName], {
+  const sheetName = workbook.SheetNames.find((name, index) => Number(sheetMetadata[index]?.Hidden ?? 0) === 0);
+  if (!sheetName) return { rows: [], warnings: [...warnings, "xlsx_no_visible_sheet_found"] };
+  const sheet = workbook.Sheets[sheetName];
+  const range = XLSX.utils.decode_range(sheet["!fullref"] ?? sheet["!ref"] ?? "A1");
+  if (range.e.r - range.s.r > MCQ_IMPORT_MAX_ROWS || range.e.c > 100) {
+    throw new ContentServiceError("validation_failed", "XLSX worksheet exceeds the safe row or column limit.", 400);
+  }
+
+  const rows = XLSX.utils.sheet_to_json<RowRecord>(sheet, {
     defval: "",
     raw: false
   });
@@ -1256,7 +1270,7 @@ async function parseCandidates(input: z.infer<typeof McqImportPreviewInputSchema
         { max_file_bytes: MCQ_IMPORT_MAX_FILE_BYTES }
       );
     }
-    const parsed = parseXlsxRows(bytes, input.source_file_name);
+    const parsed = await parseXlsxRows(bytes, input.source_file_name);
     return {
       sourceChecksum: sha256(bytes),
       drafts: parsed.rows.map((row, index) => draftFromRow(row, index, mapping)),
@@ -1381,6 +1395,7 @@ function serializeBatch(batch: {
   import_summary?: unknown;
   created_at: Date;
   committed_at: Date | null;
+  updated_at: Date;
 }) {
   const payload = CandidatesPayloadSchema.parse(batch.candidates_payload);
   return {
@@ -1400,6 +1415,7 @@ function serializeBatch(batch: {
     suggestion_payload: batch.suggestion_payload ?? null,
     import_summary: batch.import_summary ?? null,
     created_at: batch.created_at.toISOString(),
+    updated_at: batch.updated_at.toISOString(),
     committed_at: batch.committed_at?.toISOString() ?? null
   };
 }
@@ -1475,6 +1491,36 @@ export async function getMcqItemImportBatch(input: {
   return {
     batch: serializeBatch(await getTeacherOwnedBatch(input))
   };
+}
+
+function reviewConflict(): never {
+  throw new ContentServiceError("conflict", "This review changed in another request. Reload before saving again.", 409, { reason: "review_changed" });
+}
+
+function assertReviewVersion(batch: { updated_at: Date }, expected?: string) {
+  if (expected && batch.updated_at.toISOString() !== expected) reviewConflict();
+}
+
+async function persistReviewBatch(batch: Awaited<ReturnType<typeof getTeacherOwnedBatch>>, data: Prisma.McqItemImportBatchUpdateManyMutationInput) {
+  const result = await prisma.mcqItemImportBatch.updateMany({
+    where: { id: batch.id, updated_at: batch.updated_at },
+    data: { ...data, updated_at: new Date(Math.max(Date.now(), batch.updated_at.getTime() + 1)) }
+  });
+  if (result.count !== 1) reviewConflict();
+  return prisma.mcqItemImportBatch.findUniqueOrThrow({ where: { id: batch.id } });
+}
+
+export async function saveMcqItemImportReview(input: {
+  teacher_user_db_id: string; assessment_public_id: string; batch_public_id: string; data: unknown;
+}) {
+  const data = CommitImportInputSchema.parse(input.data);
+  const batch = await getTeacherOwnedBatch(input);
+  assertReviewVersion(batch, data.expected_updated_at);
+  await assertAssessmentEditable(input);
+  const candidates = selectedCandidates(CandidatesPayloadSchema.parse(batch.candidates_payload).candidates, data);
+  return { batch: serializeBatch(await persistReviewBatch(batch, {
+    candidates_payload: toPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates })
+  })) };
 }
 
 export async function createGeneratedMcqReviewBatch(input: {
@@ -2841,6 +2887,8 @@ export async function suggestMcqFormattingInformation(input: {
   }
 
   const batch = await getTeacherOwnedBatch(input);
+  assertReviewVersion(batch, data.expected_updated_at);
+  await assertAssessmentEditable(input);
   const assessment = await prisma.assessment.findFirstOrThrow({
     where: {
       assessment_public_id: input.assessment_public_id,
@@ -2857,6 +2905,9 @@ export async function suggestMcqFormattingInformation(input: {
   );
   const selected = new Set(data.candidate_public_ids ?? updatedCandidates.map((candidate) => candidate.candidate_public_id));
   const selectedCount = updatedCandidates.filter((candidate) => selected.has(candidate.candidate_public_id)).length;
+  if (!selectedCount || updatedCandidates.some((candidate) => selected.has(candidate.candidate_public_id) && candidate.imported_item_public_id)) {
+    throw new ContentServiceError("validation_failed", "Select only items that have not been added to the mini test.", 400);
+  }
   if (selectedCount > FORMATTING_ASSISTANT_MAX_BATCH_SIZE) {
     throw new ContentServiceError(
       "validation_failed",
@@ -2929,6 +2980,7 @@ export async function suggestMcqFormattingInformation(input: {
       nextCandidates.push({
         ...candidate,
         formatting_suggestion: suggestion,
+        formatting_decisions: {},
         formatting_status: "suggested",
         formatting_error: null,
         formatting_metadata: {
@@ -2971,6 +3023,7 @@ export async function suggestMcqFormattingInformation(input: {
       nextCandidates.push({
         ...candidate,
         formatting_suggestion: result.suggestion,
+        formatting_decisions: {},
         formatting_status: "suggested",
         formatting_error: null,
         formatting_metadata: result.metadata,
@@ -3009,13 +3062,10 @@ export async function suggestMcqFormattingInformation(input: {
     formatting_created_at: new Date().toISOString()
   };
 
-  const updated = await prisma.mcqItemImportBatch.update({
-    where: { id: batch.id },
-    data: {
+  const updated = await persistReviewBatch(batch, {
       llm_suggestion_count: batch.llm_suggestion_count + suggestionCount,
       candidates_payload: toPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates: nextCandidates }),
       suggestion_payload: toPrismaJson(suggestionPayload)
-    }
   });
 
   return { batch: serializeBatch(updated) };
@@ -3037,6 +3087,8 @@ export async function suggestMcqDiagnosticInformation(input: {
   }
 
   const batch = await getTeacherOwnedBatch(input);
+  assertReviewVersion(batch, data.expected_updated_at);
+  await assertAssessmentEditable(input);
   const assessment = await prisma.assessment.findFirstOrThrow({
     where: {
       assessment_public_id: input.assessment_public_id,
@@ -3053,6 +3105,9 @@ export async function suggestMcqDiagnosticInformation(input: {
   );
   const selected = new Set(data.candidate_public_ids ?? updatedCandidates.map((candidate) => candidate.candidate_public_id));
   const selectedCount = updatedCandidates.filter((candidate) => selected.has(candidate.candidate_public_id)).length;
+  if (!selectedCount || updatedCandidates.some((candidate) => selected.has(candidate.candidate_public_id) && candidate.imported_item_public_id)) {
+    throw new ContentServiceError("validation_failed", "Select only items that have not been added to the mini test.", 400);
+  }
   if (selectedCount > DIAGNOSTIC_ASSISTANT_MAX_BATCH_SIZE) {
     throw new ContentServiceError(
       "validation_failed",
@@ -3130,6 +3185,7 @@ export async function suggestMcqDiagnosticInformation(input: {
         ...candidate,
         suggestion,
         suggestion_status: "pending_teacher_review",
+        suggestion_decisions: {},
         suggestion_error: null,
         suggestion_metadata: {
           agent_name: DIAGNOSTIC_ASSISTANT_AGENT_NAME,
@@ -3181,6 +3237,7 @@ export async function suggestMcqDiagnosticInformation(input: {
         ...candidate,
         suggestion: result.suggestion,
         suggestion_status: "pending_teacher_review",
+        suggestion_decisions: {},
         suggestion_error: null,
         suggestion_metadata: result.metadata,
         llm_suggested_key: result.suggestion.mode === "suggest_key"
@@ -3215,13 +3272,10 @@ export async function suggestMcqDiagnosticInformation(input: {
     created_at: new Date().toISOString()
   };
 
-  const updated = await prisma.mcqItemImportBatch.update({
-    where: { id: batch.id },
-    data: {
+  const updated = await persistReviewBatch(batch, {
       llm_suggestion_count: batch.llm_suggestion_count + suggestionCount,
       candidates_payload: toPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates: nextCandidates }),
       suggestion_payload: toPrismaJson(suggestionPayload)
-    }
   });
 
   return { batch: serializeBatch(updated) };
@@ -3231,6 +3285,7 @@ function applyCandidateUpdate(
   candidate: McqImportCandidate,
   update: z.infer<typeof CandidateCommitUpdateSchema>
 ): McqImportCandidate {
+  if (candidate.imported_item_public_id || candidate.status === "imported") return candidate;
   return {
     ...candidate,
     import_selected: update.import_selected ?? candidate.import_selected,
@@ -3393,6 +3448,7 @@ function selectedCandidates(
 
   return candidates
     .map((candidate) => {
+      if (candidate.imported_item_public_id || candidate.status === "imported") return candidate;
       const updated = updatesById.has(candidate.candidate_public_id)
         ? applyCandidateUpdate(candidate, updatesById.get(candidate.candidate_public_id)!)
         : candidate;
@@ -3400,8 +3456,7 @@ function selectedCandidates(
         ? { ...updated, import_selected: explicitSelected.has(updated.candidate_public_id) }
         : updated;
     })
-    .map(applyAcceptedFormattingFields)
-    .map(applyAcceptedSuggestionFields);
+    .map((candidate) => candidate.imported_item_public_id ? candidate : applyAcceptedSuggestionFields(applyAcceptedFormattingFields(candidate)));
 }
 
 function candidateCanImport(candidate: McqImportCandidate) {
@@ -3465,6 +3520,7 @@ export async function commitMcqItemImport(input: {
 }) {
   const data = CommitImportInputSchema.parse(input.data);
   const batch = await getTeacherOwnedBatch(input);
+  assertReviewVersion(batch, data.expected_updated_at);
   await assertAssessmentEditable(input);
   const conceptUnit = await ensureMiniTestPrimaryConceptUnit(input);
   const conceptUnitRecord = await prisma.conceptUnit.findUniqueOrThrow({
@@ -3473,7 +3529,7 @@ export async function commitMcqItemImport(input: {
   });
   const payload = CandidatesPayloadSchema.parse(batch.candidates_payload);
   const candidates = selectedCandidates(payload.candidates, data);
-  const toImport = candidates.filter((candidate) => candidate.import_selected && candidateCanImport(candidate));
+  const toImport = candidates.filter((candidate) => !candidate.imported_item_public_id && candidate.import_selected && candidateCanImport(candidate));
   const rejectedCount = candidates.filter((candidate) => !candidate.import_selected).length;
   const existingLast = await prisma.item.findFirst({
     where: { concept_unit_db_id: conceptUnitRecord.id },
@@ -3484,6 +3540,12 @@ export async function commitMcqItemImport(input: {
   const importedItemPublicIds: string[] = [];
 
   await prisma.$transaction(async (tx) => {
+    // Atomically claim this review revision before creating any items.
+    const claimed = await tx.mcqItemImportBatch.updateMany({
+      where: { id: batch.id, updated_at: batch.updated_at },
+      data: { updated_at: new Date(Math.max(Date.now(), batch.updated_at.getTime() + 1)) }
+    });
+    if (claimed.count !== 1) reviewConflict();
     for (const candidate of toImport) {
       const administrationRules = buildItemAdministrationRulesFromTeacherMetadata({
         administration_rules: importProvenanceRules(candidate, batch),
@@ -3523,12 +3585,13 @@ export async function commitMcqItemImport(input: {
       where: { id: batch.id },
       data: {
         status: "committed",
-        imported_count: importedItemPublicIds.length,
+        updated_at: new Date(Math.max(Date.now(), batch.updated_at.getTime() + 1)),
+        imported_count: candidates.filter((candidate) => candidate.imported_item_public_id).length,
         rejected_count: rejectedCount,
         committed_at: new Date(),
         candidates_payload: toPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates }),
         import_summary: toPrismaJson({
-          imported_item_public_ids: importedItemPublicIds,
+          imported_item_public_ids: candidates.flatMap((candidate) => candidate.imported_item_public_id ? [candidate.imported_item_public_id] : []),
           blocked_candidate_public_ids: candidates
             .filter((candidate) => candidate.import_selected && !candidateCanImport(candidate))
             .map((candidate) => candidate.candidate_public_id),

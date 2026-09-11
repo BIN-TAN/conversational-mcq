@@ -1,7 +1,11 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
-import { CheckCircle, FileDown, FileUp, RefreshCw, Sparkles, Upload } from "lucide-react";
+import { CheckCircle, FileDown, FileUp, RefreshCw, Sparkles, Upload, Save, X, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { ModalDialog } from "@/components/ui/modal-dialog";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
+import { applyNoteSuggestion, blankNoteSuggestions, isImported, needsNotes, noteFields } from "./mcq-review";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   McqImportBatch,
@@ -113,12 +117,30 @@ export function McqImportClient({
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [savedCandidates, setSavedCandidates] = useState("");
+  const [reviewNotes, setReviewNotes] = useState(false);
+  const [checkedNotes, setCheckedNotes] = useState<string[]>([]);
+  const dirty = Boolean(batch && savedCandidates && JSON.stringify(batch.candidates) !== savedCandidates);
+  useUnsavedChanges(dirty || Boolean(busyAction && busyAction !== "reload"));
+  function receiveBatch(next: McqImportBatch) {
+    setBatch(next);
+    setSavedCandidates(JSON.stringify(next.candidates));
+  }
 
   const selectedCount = useMemo(
-    () => batch?.candidates.filter((candidate) => candidate.import_selected).length ?? 0,
+    () => batch?.candidates.filter((candidate) => candidate.import_selected && !isImported(candidate)).length ?? 0,
     [batch]
   );
   const generatedBatch = batch?.source_type === "generated_evidence_blueprint";
+  const selected = batch?.candidates.filter((candidate) => candidate.import_selected && !isImported(candidate)) ?? [];
+  const noteTargets = selected.filter(needsNotes);
+  const pendingNotes = selected.flatMap((candidate) => blankNoteSuggestions(candidate).map((note) => ({
+    ...note, candidateId: candidate.candidate_public_id,
+    item: candidate.item_label || candidate.stem,
+    id: `${candidate.candidate_public_id}:${note.suggestion}`
+  })));
+  const missingKeys = selected.filter((candidate) => !candidate.options.some((option) => option.label === candidate.teacher_confirmed_key)).length;
+  const importedCount = batch?.candidates.filter(isImported).length ?? 0;
 
   useEffect(() => {
     if (!initialBatchPublicId) return;
@@ -127,7 +149,7 @@ export function McqImportClient({
     void apiRequest<McqImportBatchResponse>(
       `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${initialBatchPublicId}`
     ).then((data) => {
-      if (active) setBatch(data.batch);
+      if (active) receiveBatch(data.batch);
     }).catch((caught) => {
       if (active) setError(errorFromUnknown(caught));
     }).finally(() => {
@@ -158,13 +180,29 @@ export function McqImportClient({
     candidatePublicId: string,
     updater: (candidate: McqImportCandidate) => McqImportCandidate
   ) {
+    if (busyAction) return;
     setBatch((previous) =>
       previous
         ? {
             ...previous,
             candidates: previous.candidates.map((candidate) =>
-              candidate.candidate_public_id === candidatePublicId
-                ? updater(candidate)
+              candidate.candidate_public_id === candidatePublicId && !isImported(candidate)
+                ? (() => {
+                    const next = updater(candidate);
+                    for (const { field, suggestion } of noteFields) {
+                      const decision = candidate.suggestion_decisions?.[suggestion]?.decision;
+                      if (next[field] !== candidate[field] && (decision === "accept" || decision === "edit_accept")) {
+                        next.suggestion_decisions = { ...next.suggestion_decisions, [suggestion]: next[field]?.trim()
+                          ? { decision: "edit_accept", edited_value: next[field] }
+                          : { decision: "leave_blank" } };
+                      }
+                    }
+                    if (next.stem !== candidate.stem || JSON.stringify(next.options) !== JSON.stringify(candidate.options)) {
+                      next.teacher_confirmed_key = null;
+                      if (next.formatting_decisions === candidate.formatting_decisions) next.formatting_decisions = {};
+                    }
+                    return next;
+                  })()
                 : candidate
             )
           }
@@ -195,7 +233,7 @@ export function McqImportClient({
         }
       );
 
-      setBatch(data.batch);
+      receiveBatch(data.batch);
       setSuccess(`Preview created with ${data.batch.candidate_count} candidates.`);
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -206,13 +244,14 @@ export function McqImportClient({
 
   async function reloadBatch() {
     if (!batch) return;
+    if (dirty && !window.confirm("Discard unsaved review changes and reload?")) return;
     setBusyAction("reload");
     setError(null);
     try {
       const data = await apiRequest<McqImportBatchResponse>(
         `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${batch.batch_public_id}`
       );
-      setBatch(data.batch);
+      receiveBatch(data.batch);
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
@@ -221,7 +260,7 @@ export function McqImportClient({
   }
 
   async function suggestForSelected() {
-    if (!batch) return;
+    if (!batch || busyAction || noteTargets.length === 0 || noteTargets.length > 10) return;
     setBusyAction("suggest");
     setError(null);
     setSuccess(null);
@@ -232,14 +271,14 @@ export function McqImportClient({
           method: "POST",
           body: JSON.stringify({
             mode: "live",
-            candidate_public_ids: batch.candidates
-              .filter((candidate) => candidate.import_selected)
+            expected_updated_at: batch.updated_at,
+            candidate_public_ids: noteTargets
               .map((candidate) => candidate.candidate_public_id),
             candidate_updates: batch.candidates.map(candidateUpdatePayload)
           })
         }
       );
-      setBatch(data.batch);
+      receiveBatch(data.batch);
       const failed = data.batch.candidates.filter((candidate) => candidate.suggestion_status === "failed").length;
       setSuccess(
         failed > 0
@@ -254,7 +293,7 @@ export function McqImportClient({
   }
 
   async function formatSelected() {
-    if (!batch) return;
+    if (!batch || busyAction || selectedCount === 0 || selectedCount > 8) return;
     setBusyAction("format");
     setError(null);
     setSuccess(null);
@@ -265,14 +304,14 @@ export function McqImportClient({
           method: "POST",
           body: JSON.stringify({
             mode: "live",
-            candidate_public_ids: batch.candidates
-              .filter((candidate) => candidate.import_selected)
+            expected_updated_at: batch.updated_at,
+            candidate_public_ids: selected
               .map((candidate) => candidate.candidate_public_id),
             candidate_updates: batch.candidates.map(candidateUpdatePayload)
           })
         }
       );
-      setBatch(data.batch);
+      receiveBatch(data.batch);
       const failed = data.batch.candidates.filter((candidate) => candidate.formatting_status === "failed").length;
       setSuccess(
         failed > 0
@@ -292,31 +331,32 @@ export function McqImportClient({
         ? {
             ...previous,
             candidates: previous.candidates.map((candidate) => {
-              if (!candidate.import_selected || !candidate.suggestion) return candidate;
-
-              const decisions = { ...(candidate.suggestion_decisions ?? {}) };
-              for (const field of [
-                "suggested_target_reasoning_note",
-                "suggested_strong_reasoning_should_mention",
-                "suggested_plain_language_distractor_notes"
-              ]) {
-                if (
-                  suggestionText(candidate, field) &&
-                  !currentValueForSuggestionField(candidate, field)
-                ) {
-                  decisions[field] = { decision: "accept" };
-                }
-              }
-
-              return { ...candidate, suggestion_decisions: decisions };
+              return pendingNotes.filter((note) => note.candidateId === candidate.candidate_public_id && checkedNotes.includes(note.id))
+                .reduce((entry, note) => applyNoteSuggestion(entry, note.suggestion, note.value), candidate);
             })
           }
         : previous
     );
+    setReviewNotes(false);
+    setSuccess("Selected notes applied. Review changes, then save or add the drafts.");
+  }
+
+  async function saveReview() {
+    if (!batch || busyAction) return;
+    setBusyAction("save"); setError(null); setSuccess(null);
+    try {
+      const data = await apiRequest<McqImportBatchResponse>(
+        `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${batch.batch_public_id}`,
+        { method: "PUT", body: JSON.stringify({ expected_updated_at: batch.updated_at, candidate_updates: batch.candidates.map(candidateUpdatePayload) }) }
+      );
+      receiveBatch(data.batch);
+      setSuccess("Review saved.");
+    } catch (caught) { setError(errorFromUnknown(caught)); }
+    finally { setBusyAction(null); }
   }
 
   async function commitImport() {
-    if (!batch) return;
+    if (!batch || busyAction || !selectedCount || missingKeys) return;
     setBusyAction("commit");
     setError(null);
     setSuccess(null);
@@ -326,14 +366,14 @@ export function McqImportClient({
         {
           method: "POST",
           body: JSON.stringify({
-            selected_candidate_public_ids: batch.candidates
-              .filter((candidate) => candidate.import_selected)
+            selected_candidate_public_ids: selected
               .map((candidate) => candidate.candidate_public_id),
+            expected_updated_at: batch.updated_at,
             candidate_updates: batch.candidates.map(candidateUpdatePayload)
           })
         }
       );
-      setBatch(data.batch);
+      receiveBatch(data.batch);
       setSuccess(
         `Imported ${data.imported_count} draft MCQ item${data.imported_count === 1 ? "" : "s"}. ${data.blocked_count} selected candidate${data.blocked_count === 1 ? "" : "s"} blocked.`
       );
@@ -368,10 +408,10 @@ export function McqImportClient({
         }
       />
 
-      <ErrorPanel error={error} />
+      <ErrorPanel error={error} focusOnError />
       <SuccessPanel message={success} />
 
-      {!generatedBatch ? <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
+      {!generatedBatch && !initialBatchPublicId ? <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
         <div className="grid gap-4 md:grid-cols-[220px_minmax(0,1fr)]">
           <Field label="Source type">
             <select
@@ -440,55 +480,60 @@ export function McqImportClient({
             Missing fields remain blank. Import creates draft items only.
           </p>
         </div>
-      </form> : (
-        <section className="border-y border-line bg-emerald-50 px-5 py-4 text-sm leading-6 text-emerald-950">
-          These are AI-generated draft candidates from your saved assessment design. Review the wording and distractors, confirm every answer key, and deselect any item you do not want before importing drafts.
-        </section>
-      )}
+      </form> : null}
 
       {batch ? (
-        <section className="space-y-4 rounded-lg border border-line bg-white p-5 shadow-soft">
-          <div className="flex flex-col gap-3 border-b border-line pb-4 md:flex-row md:items-center md:justify-between">
+        <section className="space-y-4 min-w-0">
+          <div className="space-y-4 border-y border-line py-4">
             <div>
               <h2 className="text-xl font-semibold text-ink">{generatedBatch ? "Draft review" : "Import preview"}</h2>
               <p className="mt-1 text-sm text-muted">
-                {batch.candidate_count} candidates. {selectedCount} selected. Batch {batch.batch_public_id}.
+                {batch.candidate_count} {batch.candidate_count === 1 ? "item" : "items"} · {selectedCount} selected · {importedCount} added{dirty ? " · Unsaved changes" : ""}
               </p>
-              <p className="mt-2 max-w-3xl text-xs leading-5 text-muted">
-                Formatting and diagnostic suggestions run only after their buttons are selected. Up to 8 selected items may be sent per formatting request and up to 10 per diagnostic request.
-                Formatting proposals preserve source wording and require teacher confirmation.
-                Diagnostic suggestions may suggest unofficial keys, target reasoning, strong reasoning, distractor notes,
-                ambiguity warnings, and recall-only warnings. Teacher review is required before any suggestion is used.
-              </p>
+              {missingKeys > 0 ? <p className="mt-2 text-sm text-amber-800">{missingKeys} selected answer {missingKeys === 1 ? "key needs" : "keys need"} confirmation.</p> : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button disabled={busyAction === "reload"} onClick={reloadBatch} type="button" variant="secondary">
+              <Button disabled={Boolean(busyAction)} onClick={reloadBatch} type="button" variant="secondary" title="Reload saved review">
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 Reload
               </Button>
-              <Button disabled={selectedCount === 0 || busyAction === "suggest"} onClick={suggestForSelected} type="button" variant="secondary">
+              <span title={noteTargets.length > 10 ? "Select at most 10 items with missing notes." : "AI proposes target reasoning, strong-reasoning evidence and distractor notes for empty fields. Existing notes are kept."}>
+              <Button disabled={!noteTargets.length || noteTargets.length > 10 || Boolean(busyAction)} onClick={suggestForSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Suggest missing diagnostic information
+                Suggest missing notes ({noteTargets.length})
               </Button>
-              <Button disabled={selectedCount === 0 || busyAction === "format"} onClick={formatSelected} type="button" variant="secondary">
+              </span>
+              {!generatedBatch ? <span title={selectedCount > 8 ? "Select at most 8 items for formatting." : "AI separates imported question text, options and source keys without rewriting the wording."}>
+              <Button disabled={selectedCount === 0 || selectedCount > 8 || Boolean(busyAction)} onClick={formatSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
-                Help resolve formatting
+                Repair imported layout
               </Button>
-              <Button disabled={selectedCount === 0} onClick={acceptSelectedBlankSuggestions} type="button" variant="secondary">
-                Accept selected blank suggestions
+              </span> : null}
+              {pendingNotes.length > 0 ? <Button disabled={Boolean(busyAction)} onClick={() => { setCheckedNotes(pendingNotes.map((note) => note.id)); setReviewNotes(true); }} type="button" variant="secondary">
+                <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                Review suggested notes ({pendingNotes.length})
+              </Button> : null}
+              <Button disabled={!dirty || Boolean(busyAction)} onClick={saveReview} type="button" variant="secondary">
+                <Save className="h-4 w-4" aria-hidden="true" />Save review
               </Button>
-              <Button disabled={selectedCount === 0 || busyAction === "commit"} onClick={commitImport} type="button">
+              <Button disabled={selectedCount === 0 || missingKeys > 0 || Boolean(busyAction)} onClick={commitImport} type="button">
                 <FileUp className="h-4 w-4" aria-hidden="true" />
-                Import selected drafts
+                Add selected drafts ({selectedCount})
               </Button>
             </div>
+            {busyAction ? <p role="status" className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{busyAction === "suggest" ? "Preparing suggested notes…" : busyAction === "format" ? "Reviewing imported layout…" : "Saving or loading review…"}</p> : null}
           </div>
 
           <div className="space-y-4">
             {batch.candidates.map((candidate) => {
               const suggestion = suggestionRecord(candidate);
+              if (isImported(candidate)) return <article key={candidate.candidate_public_id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-white p-4">
+                <div className="min-w-0 flex-1"><p className="break-words font-semibold">{candidate.item_label || candidate.stem}</p><p className="text-sm text-muted">Added to mini test</p></div>
+                <Link className="font-semibold text-accent underline" href={candidate.imported_item_public_id ? `/teacher/content/items/${candidate.imported_item_public_id}` : `/teacher/content/assessments/${assessmentPublicId}`}>Open item</Link>
+              </article>;
               return (
-                <article className="rounded-lg border border-line p-4" key={candidate.candidate_public_id}>
+                <article className="rounded-lg border border-line bg-white p-4" key={candidate.candidate_public_id}>
+                  <fieldset disabled={Boolean(busyAction)} className="min-w-0">
                   <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                     <div className="space-y-2">
                       <div className="flex flex-wrap items-center gap-2">
@@ -503,14 +548,14 @@ export function McqImportClient({
                             }
                             type="checkbox"
                           />
-                          Import
+                          Select item
                         </label>
                         <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${statusTone(candidate.status)}`}>
                           {candidate.status.replaceAll("_", " ")}
                         </span>
                         <span className="text-xs text-muted">{candidate.source_location}</span>
                         <span className="text-xs text-muted">
-                          confidence {Math.round(candidate.parsing_confidence * 100)}%
+                          {!generatedBatch ? `Parse confidence ${Math.round(candidate.parsing_confidence * 100)}%` : null}
                         </span>
                       </div>
                       {candidate.issue_flags.length > 0 ? (
@@ -526,7 +571,7 @@ export function McqImportClient({
                         </ul>
                       ) : null}
                     </div>
-                    <StatusBadge status={candidate.imported_item_public_id ? "draft" : "draft"} />
+                    <StatusBadge status="draft" />
                   </div>
 
                   {Object.keys(formattingRecord(candidate)).length > 0 ? (
@@ -717,12 +762,23 @@ export function McqImportClient({
                       </div>
                     ) : null}
                   </div>
+                  </fieldset>
                 </article>
               );
             })}
           </div>
         </section>
       ) : null}
+      {reviewNotes ? <ModalDialog labelledBy="review-notes-title" onClose={() => setReviewNotes(false)}>
+        <div className="my-auto flex max-h-[85dvh] w-full max-w-2xl flex-col rounded-lg border border-line bg-white p-5">
+          <div className="flex items-center justify-between gap-3"><h2 id="review-notes-title" className="text-xl font-semibold">Review suggested notes</h2><Button variant="secondary" onClick={() => setReviewNotes(false)} aria-label="Close note review" title="Close"><X className="h-4 w-4" /></Button></div>
+          <div className="my-4 overflow-y-auto divide-y divide-line">{pendingNotes.map((note) => <label key={note.id} className="flex items-start gap-3 py-4 text-sm">
+            <input type="checkbox" className="mt-1" checked={checkedNotes.includes(note.id)} onChange={(event) => setCheckedNotes((previous) => event.target.checked ? [...previous, note.id] : previous.filter((id) => id !== note.id))} />
+            <span className="min-w-0 break-words"><span className="block font-semibold">{note.item}</span><span className="block text-muted">{note.label}</span><span className="mt-2 block whitespace-pre-wrap">{note.value}</span></span>
+          </label>)}</div>
+          <div className="flex flex-wrap justify-end gap-2"><Button variant="secondary" onClick={() => setReviewNotes(false)}>Cancel</Button><Button disabled={!checkedNotes.length} onClick={acceptSelectedBlankSuggestions}><CheckCircle className="h-4 w-4" />Apply {checkedNotes.length} {checkedNotes.length === 1 ? "note" : "notes"}</Button></div>
+        </div>
+      </ModalDialog> : null}
     </div>
   );
 }
@@ -880,9 +936,16 @@ function SuggestionReview({
   const currentValue = currentValueForSuggestionField(candidate, field);
 
   if (!suggestion) return null;
+  if (decision === "accept" || decision === "edit_accept") return (
+    <details className="border-l-2 border-emerald-300 pl-3 text-sm text-emerald-900">
+      <summary className="cursor-pointer font-semibold">{label}: Applied</summary>
+      <p className="mt-2 whitespace-pre-wrap">{suggestion}</p>
+    </details>
+  );
 
   function setDecision(nextDecision: string, edited?: string | null) {
-    onUpdate(candidate.candidate_public_id, (entry) => ({
+    onUpdate(candidate.candidate_public_id, (entry) => nextDecision === "accept" || nextDecision === "edit_accept"
+      ? applyNoteSuggestion(entry, field, edited ?? suggestion ?? "") : ({
       ...entry,
       suggestion_decisions: {
         ...(entry.suggestion_decisions ?? {}),
@@ -912,6 +975,7 @@ function SuggestionReview({
       </p>
       <p className="mt-1 leading-6">{suggestion}</p>
       <textarea
+        aria-label={`${label} edit`}
         className="mt-3 min-h-20 w-full rounded-md border border-blue-200 bg-white px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
         onChange={(event) => setEditedValue(event.target.value)}
         value={editedValue}
@@ -927,7 +991,7 @@ function SuggestionReview({
           Reject
         </Button>
         <Button onClick={() => setDecision("leave_blank")} type="button" variant={decision === "leave_blank" ? "primary" : "secondary"}>
-          Leave blank
+          Keep current note
         </Button>
       </div>
     </div>

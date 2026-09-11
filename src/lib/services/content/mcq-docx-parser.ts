@@ -2,6 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import mammoth from "mammoth";
 import { ContentServiceError } from "./errors";
+import { readBoundedOfficeArchive } from "./office-archive";
 
 export type DocxTextBlock =
   | {
@@ -36,8 +37,6 @@ export type DocxExtraction = {
 };
 
 const DOCX_PARSER_VERSION = "docx-structured-parser-v1";
-const DOCX_MAX_UNCOMPRESSED_BYTES = 12_000_000;
-const DOCX_MAX_COMPRESSION_RATIO = 80;
 const parser = new XMLParser({
   ignoreAttributes: false,
   removeNSPrefix: true,
@@ -191,22 +190,6 @@ function topLevelWordBlocks(documentXml: string) {
   return blocks;
 }
 
-function rejectUnsafeZipEntry(name: string) {
-  if (name.startsWith("/") || name.includes("..") || /^[a-zA-Z]:/.test(name)) {
-    throw new ContentServiceError(
-      "validation_failed",
-      "DOCX package contains an unsafe path. No import batch was created.",
-      400,
-      { unsafe_docx_path: true }
-    );
-  }
-}
-
-function zipEntryUncompressedSize(entry: JSZip.JSZipObject) {
-  const internal = entry as JSZip.JSZipObject & { _data?: { uncompressedSize?: number } };
-  return typeof internal._data?.uncompressedSize === "number" ? internal._data.uncompressedSize : 0;
-}
-
 async function readZipText(zip: JSZip, path: string) {
   const file = zip.file(path);
   return file ? file.async("text") : null;
@@ -227,45 +210,13 @@ export async function extractDocxForMcqImport(input: {
 
   let zip: JSZip;
   try {
-    zip = await JSZip.loadAsync(input.bytes, { checkCRC32: false });
-  } catch {
+    zip = await readBoundedOfficeArchive(input.bytes);
+  } catch (error) {
+    if (error instanceof ContentServiceError) throw error;
     throw new ContentServiceError(
       "validation_failed",
       "DOCX file could not be parsed as a Word ZIP package. No import batch was created.",
       400
-    );
-  }
-
-  let uncompressedBytes = 0;
-  for (const entry of Object.values(zip.files)) {
-    rejectUnsafeZipEntry(entry.name);
-    if (!entry.dir) {
-      uncompressedBytes += zipEntryUncompressedSize(entry);
-    }
-  }
-  if (uncompressedBytes > DOCX_MAX_UNCOMPRESSED_BYTES) {
-    throw new ContentServiceError(
-      "validation_failed",
-      "DOCX file expands beyond the safe import limit.",
-      400,
-      { max_uncompressed_bytes: DOCX_MAX_UNCOMPRESSED_BYTES }
-    );
-  }
-  if (uncompressedBytes > 0 && uncompressedBytes / Math.max(input.bytes.length, 1) > DOCX_MAX_COMPRESSION_RATIO) {
-    throw new ContentServiceError(
-      "validation_failed",
-      "DOCX file compression ratio exceeds the safe import limit.",
-      400,
-      { max_compression_ratio: DOCX_MAX_COMPRESSION_RATIO }
-    );
-  }
-
-  if (zip.file(/vbaProject\.bin$/i).length > 0) {
-    throw new ContentServiceError(
-      "validation_failed",
-      "Macro-enabled Word documents are not supported for MCQ import.",
-      400,
-      { unsupported_file_type: "macro_docx" }
     );
   }
 
@@ -290,7 +241,7 @@ export async function extractDocxForMcqImport(input: {
 
   let rawText = "";
   try {
-    rawText = (await mammoth.extractRawText({ buffer: input.bytes })).value;
+    rawText = (await mammoth.extractRawText({ buffer: await zip.generateAsync({ type: "nodebuffer" }) })).value;
   } catch {
     throw new ContentServiceError(
       "validation_failed",

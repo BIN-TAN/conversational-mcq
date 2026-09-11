@@ -8,6 +8,7 @@ assert(["localhost", "127.0.0.1"].includes(database.hostname), "local_database_r
 assert(database.pathname.startsWith("/conversational_mcq_classroom_audit_"), "disposable_audit_database_required");
 
 const files = [
+  "dependency-security-smoke-test.ts",
   "classroom-data-integrity-smoke-test.ts",
   "student-formative-conversation-foundation-smoke-test.ts",
   "student-initial-admin-smoke-test.ts",
@@ -32,6 +33,12 @@ const files = [
   "teacher-evidence-centered-item-design-smoke-test.ts",
   "teacher-evidence-centered-item-design-runtime-smoke-test.ts",
   "teacher-item-design-material-upload-smoke-test.ts",
+  "teacher-mcq-import-smoke-test.ts",
+  "teacher-mcq-review-ui-smoke-test.ts",
+  "teacher-mcq-formatting-assistant-smoke-test.ts",
+  "teacher-mcq-diagnostic-assistant-smoke-test.ts",
+  "teacher-mcq-docx-import-smoke-test.ts",
+  "roster-import-smoke-test.ts",
   "teacher-student-password-reset-ui-smoke-test.ts",
   "teacher-student-batch-deletion-contract-smoke-test.ts",
   "teacher-batch-cleanup-contract-smoke-test.ts",
@@ -50,7 +57,9 @@ const files = [
   "formative-conversation-v17-transition-runtime-smoke-test.ts",
   "student-teacher-bulk-export-smoke-test.ts",
   "student-teacher-readable-transcript-smoke-test.ts",
-  "student-selected-session-export-smoke-test.ts"
+  "student-selected-session-export-smoke-test.ts",
+  "research-process-delivery-smoke-test.ts",
+  "research-data-quality-audit.ts"
 ];
 
 const env = {

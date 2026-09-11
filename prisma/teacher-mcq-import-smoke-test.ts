@@ -5,6 +5,9 @@ import { hashSecret } from "../src/lib/password";
 import { createAssessment } from "../src/lib/services/content/assessments";
 import {
   commitMcqItemImport,
+  getMcqItemImportBatch,
+  saveMcqItemImportReview,
+  suggestMcqDiagnosticInformation,
   previewMcqItemImport
 } from "../src/lib/services/content/mcq-import";
 import { getItemDetail } from "../src/lib/services/content/items";
@@ -67,9 +70,9 @@ function xlsxBase64WithHiddenSheet(rows: Array<Record<string, string>>) {
   const workbook = XLSX.utils.book_new();
   const sheet = XLSX.utils.json_to_sheet(rows);
   const hidden = XLSX.utils.json_to_sheet([{ ignored: "hidden row" }]);
-  XLSX.utils.book_append_sheet(workbook, sheet, "Items");
   XLSX.utils.book_append_sheet(workbook, hidden, "Hidden");
-  workbook.Workbook = { Sheets: [{ name: "Items", Hidden: 0 }, { name: "Hidden", Hidden: 1 }] };
+  XLSX.utils.book_append_sheet(workbook, sheet, "Items");
+  workbook.Workbook = { Sheets: [{ name: "Hidden", Hidden: 1 }, { name: "Items", Hidden: 0 }] };
   return Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer" })).toString("base64");
 }
 
@@ -224,6 +227,28 @@ async function main() {
     });
     assert(mapped.batch.candidates[0]?.stem === "Mapped stem?", "Column mapping stem failed.");
     assert(mapped.batch.candidates[0]?.imported_key === "B", "Column mapping key failed.");
+    const reviewScope = { teacher_user_db_id: teacher.id, assessment_public_id: assessment.assessment_public_id, batch_public_id: mapped.batch.batch_public_id };
+    const saved = await saveMcqItemImportReview({ ...reviewScope, data: {
+      expected_updated_at: mapped.batch.updated_at,
+      candidate_updates: [{ candidate_public_id: mapped.batch.candidates[0].candidate_public_id, target_reasoning_note: "Teacher-reviewed reasoning", teacher_confirmed_key: "B" }]
+    } });
+    assert(saved.batch.candidates[0].target_reasoning_note === "Teacher-reviewed reasoning", "Review notes must save before importing.");
+    assert(saved.batch.imported_count === 0, "Saving review must not import items.");
+    await saveMcqItemImportReview({ ...reviewScope, data: { expected_updated_at: mapped.batch.updated_at } }).then(
+      () => { throw new Error("Stale review was accepted"); },
+      (error) => assert(error.code === "conflict" && error.details.reason === "review_changed", "Stale saves must fail closed.")
+    );
+    const concurrent = await Promise.allSettled([1, 2].map(() => commitMcqItemImport({ ...reviewScope, data: { expected_updated_at: saved.batch.updated_at } })));
+    assert(concurrent.filter((result) => result.status === "fulfilled").length === 1, "Only one concurrent import can claim a review revision.");
+    const importedReview = await getMcqItemImportBatch(reviewScope);
+    const repeated = await commitMcqItemImport({ ...reviewScope, data: {} });
+    assert(repeated.imported_count === 0 && repeated.batch.imported_count === 1, "Repeated import must not duplicate items or reset cumulative count.");
+    const unchanged = await saveMcqItemImportReview({ ...reviewScope, data: { candidate_updates: [{ candidate_public_id: mapped.batch.candidates[0].candidate_public_id, stem: "Must not change added item" }] } });
+    assert(unchanged.batch.candidates[0].stem === importedReview.batch.candidates[0].stem, "Added items must be immutable in import review.");
+    await suggestMcqDiagnosticInformation({ ...reviewScope, data: { mode: "live", candidate_public_ids: [mapped.batch.candidates[0].candidate_public_id] } }).then(
+      () => { throw new Error("Added item reached suggestion provider"); },
+      (error) => assert(error.code === "validation_failed", "Added items must be rejected before provider configuration.")
+    );
 
     const xlsx = await previewMcqItemImport({
       teacher_user_db_id: teacher.id,
@@ -268,6 +293,22 @@ async function main() {
       hiddenSheet.batch.source_file_name === "phase31q-hidden.xlsx",
       "Stored source filename should be basename-only."
     );
+    assert(hiddenSheet.batch.candidates[0]?.stem === "Hidden sheet warning item?", "The first hidden sheet must not be imported.");
+
+    const batchScope = { assessment: { assessment_public_id: assessment.assessment_public_id } };
+    const batchCount = await prisma.mcqItemImportBatch.count({ where: batchScope });
+    await previewMcqItemImport({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessment.assessment_public_id,
+      data: {
+        source_type: "xlsx",
+        source_file_name: "oversized.xlsx",
+        file_base64: xlsxBase64(Array.from({ length: 501 }, (_, index) => ({ stem: `Item ${index}`, option_a: "A", option_b: "B", key: "A" })))
+      }
+    }).then(() => { throw new Error("Oversized sheet was accepted"); }, (error) => {
+      assert(error.code === "validation_failed", "Oversized workbook must fail with a typed validation error.");
+    });
+    assert(await prisma.mcqItemImportBatch.count({ where: batchScope }) === batchCount, "Rejected workbook must not persist a partial batch.");
 
     await previewMcqItemImport({
       teacher_user_db_id: teacher.id,
@@ -368,6 +409,7 @@ async function main() {
 
     const items = await prisma.item.findMany({
       where: {
+        item_public_id: { in: committed.imported_item_public_ids },
         concept_unit: { assessment: { assessment_public_id: assessment.assessment_public_id } }
       },
       orderBy: { item_order: "asc" },
