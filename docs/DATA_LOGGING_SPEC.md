@@ -1044,6 +1044,19 @@ removed by the batch action.
 
 ## MCQ Import Provenance
 
+Teachers may batch-delete explicitly selected items only from an owned draft
+mini test with no student attempts or item-linked evidence. Preview and deletion
+bind the current selection and content with a fingerprint and an exact
+count-specific confirmation. Deletion is atomic; current publication pointers
+are invalidated, while historical import batches and verification runs remain
+unchanged. Deleted candidates remain marked as previously imported and cannot
+be reimported from that batch. Surviving item IDs, content, and order values are
+preserved. A `teacher_delete_unused_items` lifecycle audit records the teacher,
+assessment and deleted item identifiers, counts, timestamp, and fingerprint,
+without copying item text, keys, or student evidence. Media metadata cascades;
+external files and previously downloaded copies are not removed.
+
+
 Phase 31Q/31R adds teacher MCQ import provenance for bulk authoring. Import preview
 batches are stored in `mcq_item_import_batches`, keyed by a public batch ID and
 linked to the selected assessment and uploading teacher. The table stores safe

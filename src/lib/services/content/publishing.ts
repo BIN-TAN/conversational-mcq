@@ -1,4 +1,4 @@
-import type { Item } from "@prisma/client";
+import { Prisma, type Item } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { serializeAssessment, serializeConceptUnit } from "./serializers";
 import { ContentServiceError, type ContentValidationIssue, validationIssue } from "./errors";
@@ -37,6 +37,17 @@ type PublishableItem = Pick<
   | "administration_rules"
   | "status"
 >;
+
+async function lockUnchangedPublicationSource(tx: Prisma.TransactionClient, expected: { id: string; updated_at: Date }) {
+  await tx.$queryRaw(Prisma.sql`SELECT id FROM assessments WHERE id = ${expected.id}::uuid FOR UPDATE`);
+  const current = await tx.assessment.findUnique({ where: { id: expected.id }, select: { updated_at: true, _count: { select: { assessment_sessions: true } } } });
+  if (current && current._count.assessment_sessions > 0) {
+    throw new ContentServiceError("content_locked_after_student_session", "Student attempts already exist. Create a corrected version before changing this content.", 409);
+  }
+  if (!current || current.updated_at.getTime() !== expected.updated_at.getTime()) {
+    throw new ContentServiceError("conflict", "The mini test changed during publication. Refresh and review its items before publishing again.", 409);
+  }
+}
 
 function isBlank(value: string | null | undefined): boolean {
   return !value || value.trim().length === 0;
@@ -198,7 +209,7 @@ export async function publishConceptUnit(input: {
   concept_unit_public_id: string;
   confirm_publish_without_current_verification?: boolean;
 }) {
-  await assertConceptUnitCanPublish(input);
+  const source = await assertConceptUnitCanPublish(input);
   const validation = await validateConceptUnitPublishable(input);
 
   if (
@@ -247,28 +258,29 @@ export async function publishConceptUnit(input: {
     );
   }
 
-  await prisma.$transaction([
-    prisma.item.updateMany({
+  await prisma.$transaction(async (tx) => {
+    await lockUnchangedPublicationSource(tx, source.assessment);
+    await tx.item.updateMany({
       where: {
         concept_unit_db_id: conceptUnit.id,
         status: { not: "archived" },
         included_in_published_set: true
       },
       data: { status: "published" }
-    }),
-    prisma.item.updateMany({
+    });
+    await tx.item.updateMany({
       where: {
         concept_unit_db_id: conceptUnit.id,
         status: { not: "archived" },
         included_in_published_set: false
       },
       data: { status: "draft" }
-    }),
-    prisma.conceptUnit.update({
+    });
+    await tx.conceptUnit.update({
       where: { id: conceptUnit.id },
       data: { status: "published" }
-    })
-  ]);
+    });
+  });
 
   const published = await prisma.conceptUnit.findUniqueOrThrow({
     where: { id: conceptUnit.id },
@@ -352,6 +364,7 @@ export async function publishAssessment(input: {
   }
 
   const published = await prisma.$transaction(async (tx) => {
+    await lockUnchangedPublicationSource(tx, assessmentWithConceptUnits);
     for (const result of conceptUnitResults) {
       const conceptUnit = await tx.conceptUnit.findFirstOrThrow({
         where: {

@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, CheckCircle, Download, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
+import { ItemBatchDeletionControl } from "./item-batch-deletion-control";
+import { MAX_ITEM_BATCH_DELETION, type ItemDeletionResult } from "@/lib/services/content/item-deletion-contract";
 import type {
   AssessmentDeletionMode,
   AssessmentDeletionPreview,
@@ -80,6 +82,7 @@ export function AssessmentDetailClient({
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
   const [isCreatingRevision, setIsCreatingRevision] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
 
   const loadAssessment = useCallback(async () => {
     setIsLoading(true);
@@ -90,6 +93,7 @@ export function AssessmentDetailClient({
         `/api/teacher/assessments/${assessmentPublicId}`
       );
       setAssessment(data.assessment);
+      setSelectedItemIds([]);
       setTitle(data.assessment.title);
       setDiagnosticFocus(data.assessment.diagnostic_focus ?? data.assessment.description ?? "");
       setFolderLabel(data.assessment.folder_label ?? "");
@@ -101,6 +105,19 @@ export function AssessmentDetailClient({
       setIsLoading(false);
     }
   }, [assessmentPublicId]);
+
+  function handleItemsDeleted(result: ItemDeletionResult) {
+    setSelectedItemIds([]);
+    setAssessment((previous) => previous ? {
+      ...previous,
+      mini_test_items: previous.mini_test_items?.filter((item) => !result.deleted_item_public_ids.includes(item.item_public_id))
+    } : previous);
+    setSuccess(`Deleted ${result.deleted_item_public_ids.length} items.`);
+    // Refresh counts without replacing unsaved title, organization, or date fields.
+    void apiRequest<AssessmentDetailResponse>(`/api/teacher/assessments/${assessmentPublicId}`)
+      .then((data) => setAssessment(data.assessment))
+      .catch(() => setError({ code: "refresh_failed", message: "Items were deleted, but the updated mini test could not be loaded. Refresh the page before continuing." }));
+  }
 
   useEffect(() => {
     void loadAssessment();
@@ -623,6 +640,24 @@ export function AssessmentDetailClient({
                 </div>
               </div>
 
+              {isDraftEditable && miniTestItems.length > 0 ? (
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-line pb-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <label className="flex items-center gap-2 text-sm font-medium">
+                      <input type="checkbox" className="h-4 w-4 accent-accent"
+                        aria-label="Select all items"
+                        checked={selectedItemIds.length === Math.min(miniTestItems.length, MAX_ITEM_BATCH_DELETION) && selectedItemIds.length > 0}
+                        ref={(element) => { if (element) element.indeterminate = selectedItemIds.length > 0 && selectedItemIds.length < Math.min(miniTestItems.length, MAX_ITEM_BATCH_DELETION); }}
+                        onChange={(event) => setSelectedItemIds(event.target.checked ? miniTestItems.slice(0, MAX_ITEM_BATCH_DELETION).map((item) => item.item_public_id) : [])} />
+                      {miniTestItems.length > MAX_ITEM_BATCH_DELETION ? `Select first ${MAX_ITEM_BATCH_DELETION}` : "Select all"}
+                    </label>
+                    <span role="status" className="text-sm text-muted">{selectedItemIds.length} selected</span>
+                    {selectedItemIds.length > 0 ? <Button type="button" variant="secondary" onClick={() => setSelectedItemIds([])}>Clear selection</Button> : null}
+                  </div>
+                  <ItemBatchDeletionControl assessmentPublicId={assessmentPublicId} itemPublicIds={selectedItemIds}
+                    disabled={isSubmitting || isAvailabilitySubmitting || Boolean(busyAction)} onDeleted={handleItemsDeleted} />
+                </div>
+              ) : null}
               {miniTestItems.length === 0 ? (
                 <p className="mt-5 text-sm text-muted">No MCQ items yet.</p>
               ) : (
@@ -630,7 +665,7 @@ export function AssessmentDetailClient({
                   {miniTestItems.map((item) => (
                     <article className="rounded-lg border border-line p-4" key={item.item_public_id}>
                       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
+                        <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <StatusBadge status={item.status} />
                             {item.content_state ? <ContentStateBadge state={item.content_state} /> : null}
@@ -641,6 +676,10 @@ export function AssessmentDetailClient({
                             </span>
                           </div>
                           <h3 className="mt-3 font-semibold text-ink">
+                            {isDraftEditable ? <input type="checkbox" aria-label={`Select item ${item.item_order}`}
+                              className="mr-3 h-4 w-4 accent-accent" checked={selectedItemIds.includes(item.item_public_id)}
+                              disabled={selectedItemIds.length >= MAX_ITEM_BATCH_DELETION && !selectedItemIds.includes(item.item_public_id)}
+                              onChange={(event) => setSelectedItemIds((previous) => event.target.checked ? [...previous, item.item_public_id] : previous.filter((id) => id !== item.item_public_id))} /> : null}
                             Item {item.item_order}
                           </h3>
                           <p className="mt-1 line-clamp-3 text-sm leading-6 text-muted">{item.item_stem}</p>
