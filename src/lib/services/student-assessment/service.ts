@@ -37,6 +37,10 @@ import {
 } from "@/lib/services/student-assessment/attempt-lifecycle";
 import { recentReviewableAttempts } from "@/lib/services/student-assessment/attempt-history";
 import {
+  canStartAssessmentFromCatalog,
+  studentAssessmentCatalogWhere
+} from "@/lib/services/student-assessment/catalog-access";
+import {
   createCommittedLifecycleOperation,
   markLifecycleOperationPostCommitWarning,
   safePostCommitFailureCode,
@@ -1820,10 +1824,13 @@ async function getOwnedSession(input: { student_user_db_id: string; session_publ
   return session;
 }
 
-async function assertActiveStudentAccount(studentUserDbId: string) {
-  const user = await prisma.user.findUnique({
+async function assertActiveStudentAccount(
+  studentUserDbId: string,
+  db: Pick<Prisma.TransactionClient, "user"> = prisma
+) {
+  const user = await db.user.findUnique({
     where: { id: studentUserDbId },
-    select: { role: true, account_status: true }
+    select: { role: true, account_status: true, created_by_teacher_user_id: true }
   });
 
   if (!user || user.role !== "student" || user.account_status !== "active") {
@@ -1833,6 +1840,8 @@ async function assertActiveStudentAccount(studentUserDbId: string) {
       403
     );
   }
+
+  return user;
 }
 
 async function withActionIdempotency<T extends Record<string, unknown>>(
@@ -1901,7 +1910,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 }
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
-  await assertActiveStudentAccount(input.student_user_db_id);
+  const student = await assertActiveStudentAccount(input.student_user_db_id);
   const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus().catch((error) => ({
     ready: false,
     reason_codes: ["llm_runtime_status_unavailable"],
@@ -1909,11 +1918,15 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
     error
   }));
   const assessments = await prisma.assessment.findMany({
-    where: { status: { in: ["published", "archived"] } },
+    where: studentAssessmentCatalogWhere({
+      student_user_db_id: input.student_user_db_id,
+      student_teacher_db_id: student.created_by_teacher_user_id
+    }),
     orderBy: [{ created_at: "desc" }],
     select: {
       id: true,
       assessment_public_id: true,
+      created_by_user_db_id: true,
       title: true,
       description: true,
       status: true,
@@ -1961,6 +1974,14 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       has_valid_content: hasValidContent,
       existing_session: existingSession
     });
+    const catalogStartAllowed = canStartAssessmentFromCatalog({
+      student_teacher_db_id: student.created_by_teacher_user_id,
+      assessment_creator_db_id: assessment.created_by_user_db_id,
+      assessment_public_id: assessment.assessment_public_id
+    });
+    const availabilityState = catalogStartAllowed
+      ? computed.availability_state
+      : "closed_to_new_starts";
     const manualReviewNewStartBlocked =
       assessment.workflow_mode === "manual_review" &&
       !existingSession &&
@@ -1973,21 +1994,24 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       resumable_attempt_present: Boolean(existingSession),
       student_may_end_attempt: Boolean(existingSession),
       student_ended_attempt_counts_toward_limit: true,
-      completed_attempts_permit_new_attempt: true,
-      start_window_state: computed.availability_state,
+      completed_attempts_permit_new_attempt: catalogStartAllowed,
+      start_window_state: availabilityState,
       resume_window_state: existingSession ? "resume_allowed_for_existing_attempt" : "no_resumable_attempt",
       teacher_override_state: "not_applicable"
     };
     const studentSafeAvailabilityMessage = existingSession
       ? "A resumable attempt already exists. Resume or end it before starting another attempt."
-      : !tutorRuntimeStatus.ready
-        ? ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE
-        : manualReviewNewStartBlocked
-          ? "This assessment is not available for student starts yet."
-          : computed.student_safe_availability_message;
+      : !catalogStartAllowed
+        ? "This assessment is closed to new starts. Your previous attempts remain available."
+        : !tutorRuntimeStatus.ready
+          ? ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE
+          : manualReviewNewStartBlocked
+            ? "This assessment is not available for student starts yet."
+            : computed.student_safe_availability_message;
     const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
     const canStart =
       computed.can_start_new_session &&
+      catalogStartAllowed &&
       !manualReviewNewStartBlocked &&
       !tutorRuntimeBlocksOpen;
     const canResume = Boolean(
@@ -2002,7 +2026,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
 
     availability.push({
       ...serializeStudentAssessment(assessment),
-      availability_state: computed.availability_state,
+      availability_state: availabilityState,
       release_at_course_time: computed.release_at_course_time,
       close_at_course_time: computed.close_at_course_time,
       course_timezone: computed.course_timezone,
@@ -2011,7 +2035,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
         ? "completed"
         : existingSession
           ? "resume_available"
-          : computed.availability_state,
+          : availabilityState,
       existing_session_public_id: existingSession?.session_public_id ?? null,
       existing_session_status: existingSession?.status ?? null,
       existing_session_lifecycle_version: existingLifecycle?.lifecycle_version ?? null,
@@ -2057,11 +2081,13 @@ export async function startOrResumeStudentAssessmentSession(
     try {
       const result = await prisma.$transaction(
         async (tx) => {
+          const student = await assertActiveStudentAccount(input.student_user_db_id, tx);
           const assessment = await tx.assessment.findUnique({
             where: { assessment_public_id: input.assessment_public_id },
             select: {
               id: true,
               assessment_public_id: true,
+              created_by_user_db_id: true,
               title: true,
               description: true,
               status: true,
@@ -2336,6 +2362,18 @@ export async function startOrResumeStudentAssessmentSession(
               session_public_id: resultingSession.session_public_id,
               command_result: commandResult
             };
+          }
+
+          if (!canStartAssessmentFromCatalog({
+            student_teacher_db_id: student.created_by_teacher_user_id,
+            assessment_creator_db_id: assessment.created_by_user_db_id,
+            assessment_public_id: assessment.assessment_public_id
+          })) {
+            throw new StudentAssessmentServiceError(
+              "assessment_not_available",
+              "This assessment is not available for new starts. Please refresh the assessment list.",
+              403
+            );
           }
 
           const tutorRuntimeStatus = executionPlan.adapter === "deterministic_mock_safe"

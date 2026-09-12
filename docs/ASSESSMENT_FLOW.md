@@ -20,6 +20,16 @@ The empty authoring conversation offers editable starter requests for course mat
 
 Published content with no student attempts may be returned to draft. After a student attempt starts, the administered mini-test version remains permanently read-only. If the teacher identifies an error, **Create corrected version** makes a linked draft copy with new public IDs and preserves the prior content hash and correction reason. The teacher edits and reviews that draft through the normal authoring controls. Publishing it archives the preceding version for new starts in the same database transaction. Existing attempts continue and remain reviewable against their original assessment and item records.
 
+## Student Catalog Membership
+
+For students created or imported by a teacher, new starts are limited to assessments owned by that teacher, matching the teacher's assessment library. Publication, scheduling, content validity, and runtime-readiness checks still apply. The list and direct start endpoint enforce the same membership rule; knowing an assessment public ID does not bypass it.
+
+The reserved legacy fixture `assessment_mvp_irt_theta_invariance` is not a default classroom assignment. New starts require a student explicitly associated with its owning teacher. The local demo seed associates its synthetic student with its synthetic teacher. No production ownership, publication state, or historical evidence is rewritten by this rule. Teacher-created tests with the same title are ordinary assessments, not filtered by title.
+
+Existing attempts remain resumable or reviewable under the existing lifecycle rules even when their assessment is outside the student's current catalog. Such assessments never offer a new attempt. Records, content snapshots, response evidence, and the three-attempt review limit are preserved.
+
+Compatibility: older student accounts without `created_by_teacher_user_id` keep the existing single-course catalog, excluding the reserved demo. This is not multi-course authorization; any future multi-teacher enrollment model must explicitly assign those legacy accounts rather than treating account creation as course enrollment.
+
 ## Initial Item Administration
 
 Current teacher-authored mini tests administer the complete included item set for the section. The validated set size is three to twelve items; six to nine is the recommended authoring starting point. The fixed three-item language below documents the original MVP fixture rather than a requirement that every misconception receive exactly three items. The student UI shows `Item X of N` and the number remaining.

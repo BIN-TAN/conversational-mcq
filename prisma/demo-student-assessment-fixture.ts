@@ -5,8 +5,9 @@ import {
   mergeProvisionalDiagnosticMetadata
 } from "../src/lib/services/student-assessment/provisional-item-diagnostic-metadata";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
+import { LEGACY_IRT_DEMO_ASSESSMENT_ID } from "../src/lib/services/student-assessment/catalog-access";
 
-export const demoAssessmentPublicId = "assessment_mvp_irt_theta_invariance";
+export const demoAssessmentPublicId = LEGACY_IRT_DEMO_ASSESSMENT_ID;
 export const demoConceptUnitPublicId = "concept_mvp_irt_theta_invariance";
 export const demoItemPublicIds = [
   "item_mvp_irt_theta_invariance_anchor",
@@ -229,6 +230,7 @@ export async function ensureDemoUsers(prisma: PrismaClient) {
     update: {
       role: "student",
       user_id_normalized: normalizeUserId(studentUserId),
+      created_by_teacher_user_id: teacher.id,
       password_hash: null,
       access_code_hash: studentAccessCodeHash
     },
@@ -236,6 +238,7 @@ export async function ensureDemoUsers(prisma: PrismaClient) {
       user_id: studentUserId,
       user_id_normalized: normalizeUserId(studentUserId),
       role: "student",
+      created_by_teacher_user_id: teacher.id,
       access_code_hash: studentAccessCodeHash
     }
   });
