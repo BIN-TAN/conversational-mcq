@@ -278,6 +278,32 @@ try {
     assert(await student.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await student.screenshot({ path: join(output, "student-history-mobile.png") });
   });
+  for (const width of [1440, 390]) {
+    await check(`ended attempt opened without review link remains read-only at ${width}px`, async () => {
+      const ctx = await context(fixture.historyStudent, { width, height: 900 });
+      const page = await ctx.newPage();
+      await page.route(`${base}/api/student/sessions/${fixture.historySession}/state`, async route => {
+        const response = await route.fetch();
+        const state = await response.json();
+        const now = new Date().toISOString();
+        await route.fulfill({ json: { ...state, formative_conversation: {
+          conversation_public_id: "synthetic-stale-conversation", status: "active",
+          started_at: now, last_activity_at: now, paused_at: null, completed_at: null,
+          opening_status: "preparing", can_retry_opening: true, can_send: true,
+          can_pause: true, can_resume: true, can_end: true, message_max_chars: 5000,
+          assistant_response: { receipt_public_id: "pending-when-ended", status: "pending", retry_count: 0, can_retry: true }, transcript: []
+        } } });
+      });
+      await page.goto(`${base}/student/assessment/${fixture.historySession}`, { waitUntil: "networkidle" });
+      await page.getByText("Past attempt review", { exact: true }).waitFor();
+      assert.equal(await page.locator("textarea,input:not([type=hidden])").count(), 0);
+      assert.equal(await page.getByTestId("formative-conversation-response-pending").count(), 0);
+      assert.equal(await page.getByRole("button", { name: "End conversation", exact: true }).count(), 0);
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+      await page.screenshot({ path: join(output, `ended-direct-${width}.png`) });
+      await ctx.close();
+    });
+  }
   assert.deepEqual(blockedExternal, []);
   assert.deepEqual(unexpectedWrites, []);
 } catch (error) {

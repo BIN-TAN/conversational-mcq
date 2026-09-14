@@ -1,9 +1,11 @@
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { AssessmentPhaseSchema, type AssessmentPhase } from "../domain/enums";
 import { generatePublicId } from "./ids";
 import { logProcessEvent } from "./process-events";
 import { validatePhaseTransition } from "./phase-transitions";
+import { resolveCanonicalAttemptLifecycle } from "./student-assessment/attempt-lifecycle";
 
 const stateSelect = {
   id: true,
@@ -98,12 +100,31 @@ export async function updateAssessmentSessionPhase(
   input: z.input<typeof updateAssessmentSessionPhaseSchema>
 ) {
   const parsed = updateAssessmentSessionPhaseSchema.parse(input);
-  const session = await prisma.assessmentSession.findUniqueOrThrow({
+  return prisma.$transaction((tx) => updateAssessmentSessionPhaseInTransaction(tx, parsed));
+}
+
+async function updateAssessmentSessionPhaseInTransaction(
+  tx: Prisma.TransactionClient,
+  parsed: z.output<typeof updateAssessmentSessionPhaseSchema>
+) {
+  await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${parsed.assessment_session_db_id}::uuid FOR UPDATE`;
+  const session = await tx.assessmentSession.findUniqueOrThrow({
     where: { id: parsed.assessment_session_db_id },
     select: stateSelect
   });
   const fromPhase = AssessmentPhaseSchema.parse(session.current_phase);
   const transition = validatePhaseTransition(fromPhase, parsed.to_phase);
+  const lifecycle = resolveCanonicalAttemptLifecycle(session);
+  if (lifecycle.terminal || session.status === "paused") {
+    return {
+      updated: session,
+      transition: {
+        allowed: fromPhase === parsed.to_phase,
+        reason: "Paused and terminal attempts cannot be advanced by background phase updates."
+      },
+      changed: false
+    };
+  }
   const now = new Date();
   const transitionPayload = {
     ...(parsed.payload ?? {}),
@@ -114,7 +135,7 @@ export async function updateAssessmentSessionPhase(
   };
 
   if (fromPhase === parsed.to_phase) {
-    const updated = await prisma.assessmentSession.update({
+    const updated = await tx.assessmentSession.update({
       where: { id: session.id },
       data: { last_activity_at: now },
       select: stateSelect
@@ -124,7 +145,7 @@ export async function updateAssessmentSessionPhase(
   }
 
   if (!transition.allowed) {
-    await prisma.assessmentSession.update({
+    await tx.assessmentSession.update({
       where: { id: session.id },
       data: { last_activity_at: now }
     });
@@ -135,7 +156,7 @@ export async function updateAssessmentSessionPhase(
       event_source: parsed.event_source,
       payload: transitionPayload,
       occurred_at: now
-    });
+    }, tx);
 
     return { updated: session, transition, changed: false };
   }
@@ -147,7 +168,7 @@ export async function updateAssessmentSessionPhase(
     event_source: parsed.event_source,
     payload: { phase: fromPhase },
     occurred_at: now
-  });
+  }, tx);
   await logProcessEvent({
     assessment_session_db_id: session.id,
     event_type: "transition_validated",
@@ -155,9 +176,9 @@ export async function updateAssessmentSessionPhase(
     event_source: parsed.event_source,
     payload: transitionPayload,
     occurred_at: now
-  });
+  }, tx);
 
-  const updated = await prisma.assessmentSession.update({
+  const updated = await tx.assessmentSession.update({
     where: { id: session.id },
     data: {
       current_phase: parsed.to_phase,
@@ -183,7 +204,7 @@ export async function updateAssessmentSessionPhase(
     event_source: parsed.event_source,
     payload: { phase: parsed.to_phase },
     occurred_at: now
-  });
+  }, tx);
 
   return { updated, transition, changed: true };
 }
@@ -192,38 +213,40 @@ export async function markSessionNeedsReview(input: {
   assessment_session_db_id: string;
   reason: string;
 }) {
-  const result = await updateAssessmentSessionPhase({
-    assessment_session_db_id: input.assessment_session_db_id,
-    to_phase: "needs_review",
-    reason: input.reason,
-    payload: { needs_review_reason: input.reason }
+  return prisma.$transaction(async (tx) => {
+    const result = await updateAssessmentSessionPhaseInTransaction(tx, updateAssessmentSessionPhaseSchema.parse({
+      assessment_session_db_id: input.assessment_session_db_id,
+      to_phase: "needs_review",
+      reason: input.reason,
+      payload: { needs_review_reason: input.reason }
+    }));
+
+    if (!result.transition.allowed || resolveCanonicalAttemptLifecycle(result.updated).terminal || result.updated.status === "paused") {
+      return result;
+    }
+
+    const updated = await tx.assessmentSession.update({
+      where: { id: input.assessment_session_db_id },
+      data: {
+        status: "needs_review",
+        needs_review: true,
+        needs_review_reason: input.reason,
+        last_activity_at: new Date()
+      },
+      select: stateSelect
+    });
+
+    await logProcessEvent({
+      assessment_session_db_id: input.assessment_session_db_id,
+      event_type: "session_marked_needs_review",
+      event_category: "session",
+      event_source: "backend",
+      payload: { reason: input.reason },
+      occurred_at: new Date()
+    }, tx);
+
+    return { ...result, updated };
   });
-
-  if (!result.transition.allowed) {
-    return result;
-  }
-
-  const updated = await prisma.assessmentSession.update({
-    where: { id: input.assessment_session_db_id },
-    data: {
-      status: "needs_review",
-      needs_review: true,
-      needs_review_reason: input.reason,
-      last_activity_at: new Date()
-    },
-    select: stateSelect
-  });
-
-  await logProcessEvent({
-    assessment_session_db_id: input.assessment_session_db_id,
-    event_type: "session_marked_needs_review",
-    event_category: "session",
-    event_source: "backend",
-    payload: { reason: input.reason },
-    occurred_at: new Date()
-  });
-
-  return { ...result, updated };
 }
 
 export async function markSessionExited(input: { assessment_session_db_id: string; reason?: string }) {

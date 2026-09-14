@@ -704,7 +704,7 @@ export type SessionDataAuditResponse = {
   response_evidence_summary: {
     latest_initial_package_available: boolean;
     latest_initial_package_summary: unknown;
-    response_package_evidence_complete_for_initial_three: boolean;
+    response_package_evidence_complete_for_included_items: boolean | null;
     answer_choices_present: boolean;
     reasoning_present: boolean;
     confidence_present: boolean;

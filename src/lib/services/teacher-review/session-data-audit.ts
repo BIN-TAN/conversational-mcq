@@ -14,7 +14,7 @@ import { TeacherReviewServiceError } from "./errors";
 import { asArray, asRecord, assertNoInternalIds, serializeDate } from "./serializers";
 
 export const SESSION_DATA_COMPLETENESS_REVIEW_VERSION =
-  "session-data-completeness-review-v1" as const;
+  "session-data-completeness-review-v2" as const;
 
 const PROCESS_CONTEXT_BOUNDARY =
   "Process data are evidence-quality context. They should not be used alone to infer misconception, ability, cheating, or misconduct.";
@@ -24,15 +24,16 @@ const expectedInitialAdministrationEvents = [
   "agent_message_shown",
   "item_presented",
   "option_clicked",
-  "answer_changed",
-  "reasoning_started",
   "reasoning_submitted",
   "confidence_clicked",
   "tempting_option_submitted",
-  "tempting_option_reason_submitted",
   "item_completed",
   "package_review_opened",
   "package_submitted"
+] as const;
+
+const conditionalInitialAdministrationEvents = [
+  "answer_changed", "reasoning_started", "tempting_option_reason_submitted"
 ] as const;
 
 const focusVisibilityEventTypes = [
@@ -100,12 +101,30 @@ function countInitialTemptingEvidence(conversationTurns: Array<{ structured_payl
   return conversationTurns.filter((turn) => isTemptingPayload(turn.structured_payload)).length;
 }
 
-function summarizeResponsePackagePayload(payload: unknown) {
+export function summarizeResponsePackagePayload(payload: unknown) {
   const record = asRecord(payload);
   const itemResponses = asArray(record.item_responses).map(asRecord);
   const includedItems = asArray(record.included_items).map(asRecord);
+  const expectedIds = includedItems.map(publicIdFromResponsePayload);
+  const expectedItemsKnown = includedItems.length > 0 && expectedIds.every(isNonEmptyString) &&
+    new Set(expectedIds).size === includedItems.length;
+  const evidenceComplete = expectedItemsKnown
+    ? (record.initial_item_count == null || record.initial_item_count === includedItems.length) &&
+      expectedIds.every((id) => {
+        const matches = itemResponses.filter((response) => publicIdFromResponsePayload(response) === id);
+        if (matches.length !== 1) return false;
+        const response = matches[0];
+        return (isNonEmptyString(response.selected_answer_final) || isNonEmptyString(response.selected_option)) &&
+          (isNonEmptyString(response.reasoning_text_final) || isNonEmptyString(response.reasoning_text)) &&
+          (isNonEmptyString(response.confidence_final) || isNonEmptyString(response.confidence_rating)) &&
+          (response.no_tempting_option === true ||
+            (isNonEmptyString(response.tempting_option) && isNonEmptyString(response.tempting_option_reason)));
+      })
+    : null;
 
   return {
+    expected_initial_item_count: expectedItemsKnown ? includedItems.length : null,
+    evidence_complete_for_included_items: evidenceComplete,
     item_response_count: itemResponses.length,
     included_item_count: includedItems.length,
     item_public_ids: itemResponses.map(publicIdFromResponsePayload).filter(Boolean),
@@ -270,6 +289,15 @@ export async function buildTeacherSessionDataAudit(input: {
   const session = await prisma.assessmentSession.findUnique({
     where: { session_public_id: sessionPublicId },
     include: {
+      process_events: {
+        orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
+        select: {
+          event_type: true, event_category: true, event_source: true,
+          item_db_id: true, visibility_duration_ms: true, pause_duration_ms: true,
+          occurred_at: true, created_at: true,
+          concept_unit_session: { select: { concept_unit: { select: { concept_unit_public_id: true } } } }
+        }
+      },
       user: {
         select: {
           user_id: true,
@@ -317,19 +345,6 @@ export async function buildTeacherSessionDataAudit(input: {
               created_at: true
             }
           },
-          process_events: {
-            orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
-            select: {
-              event_type: true,
-              event_category: true,
-              event_source: true,
-              item_db_id: true,
-              visibility_duration_ms: true,
-              pause_duration_ms: true,
-              occurred_at: true,
-              created_at: true
-            }
-          },
           response_packages: {
             orderBy: [{ created_at: "asc" }]
           }
@@ -354,12 +369,10 @@ export async function buildTeacherSessionDataAudit(input: {
   const allConversationTurns = session.concept_unit_sessions.flatMap((conceptUnitSession) =>
     conceptUnitSession.conversation_turns
   );
-  const allProcessEvents = session.concept_unit_sessions.flatMap((conceptUnitSession) =>
-    conceptUnitSession.process_events.map((event) => ({
-      ...event,
-      concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id
-    }))
-  );
+  const allProcessEvents = session.process_events.map((event) => ({
+    ...event,
+    concept_unit_public_id: event.concept_unit_session?.concept_unit.concept_unit_public_id ?? null
+  }));
   const allResponsePackages = session.concept_unit_sessions.flatMap((conceptUnitSession) =>
     conceptUnitSession.response_packages.map((responsePackage) => ({
       ...responsePackage,
@@ -379,7 +392,14 @@ export async function buildTeacherSessionDataAudit(input: {
 
   const eventCounts = countBy(allProcessEvents.map((event) => event.event_type));
   const observedEventTypes = Object.keys(eventCounts).sort();
-  const missingExpectedEventTypes = expectedInitialAdministrationEvents.filter(
+  const expectedEvents = expectedInitialAdministrationEvents.filter((eventType) => {
+    if (eventType === "session_started") return true;
+    if (eventType === "option_clicked") return allItemResponses.some((response) => Boolean(response.selected_option));
+    if (eventType === "reasoning_submitted") return allItemResponses.some((response) => isNonEmptyString(response.reasoning_text));
+    if (eventType === "confidence_clicked") return allItemResponses.some((response) => Boolean(response.confidence_rating));
+    return Boolean(latestInitialPackage);
+  });
+  const missingExpectedEventTypes = expectedEvents.filter(
     (eventType) => (eventCounts[eventType] ?? 0) === 0
   );
   const firstEvent = allProcessEvents[0] ?? null;
@@ -483,7 +503,8 @@ export async function buildTeacherSessionDataAudit(input: {
     process_event_count: allProcessEvents.length,
     observed_event_type_count: observedEventTypes.length,
     observed_event_counts: eventCounts,
-    expected_initial_administration_event_types: [...expectedInitialAdministrationEvents],
+    expected_initial_administration_event_types: expectedEvents,
+    conditional_initial_administration_event_types: [...conditionalInitialAdministrationEvents],
     missing_expected_initial_event_types: missingExpectedEventTypes,
     supported_process_event_type_count: processEventTypes.length,
     item_scoped_event_count: allProcessEvents.filter((event) => Boolean(event.item_db_id)).length,
@@ -509,8 +530,8 @@ export async function buildTeacherSessionDataAudit(input: {
   const responseEvidenceSummary = {
     latest_initial_package_available: Boolean(latestInitialPackage),
     latest_initial_package_summary: latestPackageSummary,
-    response_package_evidence_complete_for_initial_three:
-      Boolean(latestPackageSummary && latestPackageSummary.item_response_count >= 3),
+    response_package_evidence_complete_for_included_items:
+      latestPackageSummary?.evidence_complete_for_included_items ?? null,
     answer_choices_present: (latestPackageSummary?.answer_choice_count ?? 0) > 0,
     reasoning_present: (latestPackageSummary?.reasoning_count ?? 0) > 0,
     confidence_present: (latestPackageSummary?.confidence_count ?? 0) > 0,

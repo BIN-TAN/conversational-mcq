@@ -442,11 +442,14 @@ function FormativeConversationControls(input: {
   onSend: () => void;
 }) {
   const { conversation } = input;
+  if (!["active", "paused"].includes(conversation.status)) {
+    return <p role="status" className="text-sm text-muted" data-testid="formative-conversation-ended">This conversation has ended. Your messages are saved.</p>;
+  }
   const response = conversation.assistant_response;
   const responseIsPending =
-    input.isAwaitingTutorResponse ||
+    conversation.status === "active" && (input.isAwaitingTutorResponse ||
     response?.status === "pending" ||
-    response?.status === "retrying";
+    response?.status === "retrying");
 
   if (responseIsPending) {
     return (
@@ -2406,7 +2409,7 @@ function activeItemPrompt(input: {
 export function AssessmentSessionClient({
   assessmentPublicId,
   initialSessionPublicId,
-  readOnlyReview = false,
+  readOnlyReview: requestedReadOnlyReview = false,
   sessionPublicId
 }: {
   assessmentPublicId?: string;
@@ -2417,6 +2420,7 @@ export function AssessmentSessionClient({
   const router = useRouter();
   const resolvedInitialSessionPublicId = initialSessionPublicId ?? sessionPublicId;
   const [state, setState] = useState<StudentSessionState | null>(null);
+  const readOnlyReview = requestedReadOnlyReview || state?.attempt_lifecycle?.terminal === true;
   const [activityRuntime, setActivityRuntime] = useState<StudentActivityRuntimeProjection | null>(null);
   const [transcript, setTranscript] = useState<StudentTranscriptEntry[]>([]);
   const [review, setReview] = useState<StudentReviewResponse | null>(null);

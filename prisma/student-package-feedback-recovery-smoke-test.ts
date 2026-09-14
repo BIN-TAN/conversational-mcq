@@ -100,11 +100,15 @@ async function counts(sessionPublicId: string) {
 }
 
 async function preparePackageReview(prefix: string) {
-  await ensureDemoStudentAssessment(prisma);
+  const assessment = await ensureDemoStudentAssessment(prisma);
   const student = await createSmokeStudent({
     prisma,
     prefix,
     accessCode: `${prefix}_access`
+  });
+  await prisma.user.update({
+    where: { id: student.id },
+    data: { created_by_teacher_user_id: assessment.created_by_user_db_id }
   });
   const sessionPublicIds: string[] = [];
 

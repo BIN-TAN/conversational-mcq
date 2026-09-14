@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { lockConversationAttempt, attemptAllowsConversation } from "./attempt-boundary";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import {
@@ -312,9 +313,15 @@ export async function recordFormativeConversationV18ProfileTransitionRecommendat
         mutation_may_have_occurred: true,
         execute: () =>
           prisma.$transaction(async (tx) => {
+            await lockConversationAttempt(tx, input.conversation_public_id);
+            const parent = await tx.assessmentSession.findUniqueOrThrow({ where: { id: session.assessment_session_db_id } });
+            if (!attemptAllowsConversation(parent)) {
+              throw new FormativeConversationProfileTransitionError("profile_transition_stale", "The attempt is no longer active.");
+            }
             const claimed = await tx.formativeConversationSession.updateMany({
               where: {
                 id: session.id,
+                status: "active",
                 current_student_profile_db_id:
                   session.current_student_profile_db_id,
                 concurrency_version: session.concurrency_version

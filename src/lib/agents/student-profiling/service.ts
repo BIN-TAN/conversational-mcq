@@ -7,6 +7,7 @@ import {
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
+import { LlmUsageGuardBlockedReason } from "@/lib/llm/usage/usage-guard";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
@@ -226,6 +227,16 @@ function deterministicInitialProfileFallback(built: BuiltStudentProfilingInput) 
         item_public_id: null
       }
     ]
+  };
+}
+
+export function profilingGuardDiagnostics(result: { status: string } | OperationalAgentExecutionResult<unknown>) {
+  if (result.status !== "blocked_by_operational_guard" || !("blocking_reasons" in result)) return null;
+  const usage = LlmUsageGuardBlockedReason.safeParse(result.readiness_snapshot.usage_guard_reason);
+  return {
+    reason: result.reason,
+    blocking_reasons: result.blocking_reasons,
+    usage_guard_reason: usage.success ? usage.data : null
   };
 }
 
@@ -609,8 +620,9 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
           result_status: result.status,
           agent_call_id:
             "agent_call_id" in result ? result.agent_call_id : null,
+          operational_guard: profilingGuardDiagnostics(result),
           reason:
-            result.status === "blocked_by_usage_limit"
+            result.status === "blocked_by_usage_limit" || result.status === "blocked_by_operational_guard"
               ? result.reason
               : result.status === "invalid_output"
                 ? result.validation_error
@@ -626,6 +638,7 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
     }
 
     const fallbackOutput = deterministicInitialProfileFallback(built);
+    const guardDiagnostics = profilingGuardDiagnostics(result);
     await persistOperationalEffectiveResult({
       agent_call_db_id: "agent_call_id" in result ? result.agent_call_id : null,
       agent_name: "student_profiling_agent",
@@ -646,9 +659,15 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
       effective_actions: {
         profile_type: "initial",
         may_update_profile_pointer: true,
-        fallback_derived: true
+        fallback_derived: true,
+        operational_guard: guardDiagnostics
       },
-      warnings: fallbackOutput.warnings
+      warnings: [
+        ...fallbackOutput.warnings,
+        ...(guardDiagnostics?.blocking_reasons.map((reason) => `Operational profiling blocked: ${reason}.`) ?? []),
+        ...(guardDiagnostics?.usage_guard_reason
+          ? [`Profiling usage limit: ${guardDiagnostics.usage_guard_reason}.`] : [])
+      ]
     });
 
     const fallbackProfile = await persistInitialStudentProfile({

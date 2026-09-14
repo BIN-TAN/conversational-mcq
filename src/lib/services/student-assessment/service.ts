@@ -8,6 +8,7 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { recordFormativeConversationLifecycleEvent } from "./formative-conversation/telemetry";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
 import { getServerEnv } from "@/lib/env";
 import {
@@ -2989,7 +2990,7 @@ export async function getStudentSessionState(input: {
     ? await getChatNativeRoundState(phaseFiveFormativeRound.id)
     : null;
 
-  if (effectivePhase === "session_completed") {
+  if (resolveCanonicalAttemptLifecycle(session).terminal) {
     assessmentState = "SESSION_COMPLETE";
     nextStep = "session_completed";
   } else if (effectivePhase === "followup_stopped" && transferItem && currentItem) {
@@ -3203,7 +3204,7 @@ export async function getStudentSessionState(input: {
         session_public_id: input.session_public_id
       })
     : null;
-  if (formativeConversation) {
+  if (formativeConversation && !resolveCanonicalAttemptLifecycle(session).terminal) {
     assessmentState = "FORMATIVE_ACTIVITY";
     nextStep = "formative_conversation";
   }
@@ -3216,7 +3217,7 @@ export async function getStudentSessionState(input: {
         })
     : null;
   const canonicalRuntimeState =
-    formativeConversation
+    formativeConversation && !resolveCanonicalAttemptLifecycle(session).terminal
       ? FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE
       : assessmentState === "FORMATIVE_ACTIVITY" &&
           activityRuntime?.activity_attempt_public_id
@@ -6583,6 +6584,23 @@ export async function exitStudentAssessmentSession(input: {
   const stateBeforeExit = await getStudentSessionState(input);
   const now = new Date();
   const commandResult = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`;
+    const session = await tx.assessmentSession.findUniqueOrThrow({ where: { id: owned.id } });
+    const lifecycle = resolveCanonicalAttemptLifecycle(session);
+    if (lifecycle.terminal || lifecycle.canonical_status === "paused") {
+      return createCommittedLifecycleOperation(tx, {
+        command_type: "pause_attempt", actor_type: "student",
+        target_session_public_id: session.session_public_id, prior_lifecycle: lifecycle,
+        resulting_lifecycle: lifecycle, resulting_session_public_id: session.session_public_id,
+        resulting_attempt_number: session.attempt_number, assessment_session_db_id: session.id,
+        mutation_committed: false, already_satisfied: true, recovered: true,
+        canonical_destination: "assessment_list",
+        safe_response_code: lifecycle.terminal ? "already_ended" : "already_paused"
+      });
+    }
+    if (!lifecycle.can_pause) {
+      throw new StudentAssessmentServiceError("attempt_not_pauseable", "This attempt is no longer available to pause.", 409);
+    }
     const updated = await tx.assessmentSession.update({
       where: { id: session.id },
       data: {
@@ -6661,8 +6679,8 @@ export async function exitStudentAssessmentSession(input: {
   });
 
   return {
-    exit_status: "paused",
-    can_resume: true,
+    exit_status: commandResult.safe_response_code,
+    can_resume: commandResult.canonical_status === "paused",
     lifecycle_version: lifecycle.lifecycle_version,
     command_result: commandResult
   };
@@ -6674,24 +6692,25 @@ export async function endStudentAssessmentAttempt(input: {
   reason?: string | null;
 }) {
   const owned = await getOwnedSession(input);
-  const session = await prisma.assessmentSession.findUniqueOrThrow({
-    where: { id: owned.id },
-    select: {
-      id: true,
-      session_public_id: true,
-      attempt_number: true,
-      current_phase: true,
-      status: true,
-      completed_at: true,
-      resume_phase: true,
-      resume_context: true,
-      updated_at: true
-    }
-  });
+  return prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`;
+    const session = await tx.assessmentSession.findUniqueOrThrow({
+      where: { id: owned.id },
+      select: {
+        id: true,
+        session_public_id: true,
+        attempt_number: true,
+        current_phase: true,
+        status: true,
+        completed_at: true,
+        resume_phase: true,
+        resume_context: true,
+        updated_at: true
+      }
+    });
 
-  const lifecycle = resolveCanonicalAttemptLifecycle(session);
-  if (lifecycle.canonical_status === "completed") {
-    const commandResult = await prisma.$transaction(async (tx) => {
+    const lifecycle = resolveCanonicalAttemptLifecycle(session);
+    if (lifecycle.canonical_status === "completed") {
       const existingRecoveryEventCount = await tx.processEvent.count({
         where: {
           assessment_session_db_id: session.id,
@@ -6719,7 +6738,7 @@ export async function endStudentAssessmentAttempt(input: {
         });
       }
 
-      return createCommittedLifecycleOperation(tx, {
+      const commandResult = await createCommittedLifecycleOperation(tx, {
         command_type: "end_attempt",
         actor_type: "student",
         target_session_public_id: session.session_public_id,
@@ -6734,19 +6753,17 @@ export async function endStudentAssessmentAttempt(input: {
         canonical_destination: "assessment_list",
         safe_response_code: "already_completed"
       });
-    });
 
-    return {
-      end_status: "already_completed",
-      can_resume: false,
-      terminal_status: "completed",
-      lifecycle_version: lifecycle.lifecycle_version,
-      command_result: commandResult
-    };
-  }
+      return {
+        end_status: "already_completed",
+        can_resume: false,
+        terminal_status: "completed",
+        lifecycle_version: lifecycle.lifecycle_version,
+        command_result: commandResult
+      };
+    }
 
-  if (lifecycle.canonical_status === "ended_by_student") {
-    const commandResult = await prisma.$transaction(async (tx) => {
+    if (lifecycle.canonical_status === "ended_by_student") {
       const existingRecoveryEventCount = await tx.processEvent.count({
         where: {
           assessment_session_db_id: session.id,
@@ -6774,7 +6791,7 @@ export async function endStudentAssessmentAttempt(input: {
         });
       }
 
-      return createCommittedLifecycleOperation(tx, {
+      const commandResult = await createCommittedLifecycleOperation(tx, {
         command_type: "end_attempt",
         actor_type: "student",
         target_session_public_id: session.session_public_id,
@@ -6789,38 +6806,36 @@ export async function endStudentAssessmentAttempt(input: {
         canonical_destination: "assessment_list",
         safe_response_code: "already_ended"
       });
-    });
 
-    return {
-      end_status: "already_ended",
-      can_resume: false,
-      terminal_status: "ended_by_student",
-      lifecycle_version: lifecycle.lifecycle_version,
-      command_result: commandResult
-    };
-  }
+      return {
+        end_status: "already_ended",
+        can_resume: false,
+        terminal_status: "ended_by_student",
+        lifecycle_version: lifecycle.lifecycle_version,
+        command_result: commandResult
+      };
+    }
 
-  if (!lifecycle.can_end) {
-    throw new StudentAssessmentServiceError(
-      lifecycle.blocking_reason === "attempt_needs_review"
-        ? "attempt_needs_review"
-        : lifecycle.blocking_reason === "attempt_state_inconsistent"
-          ? "attempt_state_inconsistent"
-          : "attempt_not_endable",
-      "This attempt cannot be ended in its current state.",
-      409,
-      {
-        canonical_status: lifecycle.canonical_status,
-        consistency_issues: lifecycle.consistency_issues,
-        lifecycle_version: lifecycle.lifecycle_version
-      }
-    );
-  }
+    if (!lifecycle.can_end) {
+      throw new StudentAssessmentServiceError(
+        lifecycle.blocking_reason === "attempt_needs_review"
+          ? "attempt_needs_review"
+          : lifecycle.blocking_reason === "attempt_state_inconsistent"
+            ? "attempt_state_inconsistent"
+            : "attempt_not_endable",
+        "This attempt cannot be ended in its current state.",
+        409,
+        {
+          canonical_status: lifecycle.canonical_status,
+          consistency_issues: lifecycle.consistency_issues,
+          lifecycle_version: lifecycle.lifecycle_version
+        }
+      );
+    }
 
-  const now = new Date();
-  const reason = input.reason?.trim() || "student_requested_end";
+    const now = new Date();
+    const reason = input.reason?.trim() || "student_requested_end";
 
-  const commandResult = await prisma.$transaction(async (tx) => {
     await txLogProcessEvent(tx, {
       assessment_session_db_id: session.id,
       event_type: "attempt_end_requested",
@@ -6863,6 +6878,27 @@ export async function endStudentAssessmentAttempt(input: {
       }
     });
 
+    const conversations = await tx.formativeConversationSession.findMany({
+      where: { assessment_session_db_id: session.id, status: { in: ["active", "paused"] } },
+      select: { id: true, conversation_public_id: true }
+    });
+    for (const conversation of conversations) {
+      await tx.formativeConversationSession.update({
+        where: { id: conversation.id },
+        data: {
+          status: "ended", ended_at: now, paused_at: null,
+          lifecycle_reason: "student_ended_attempt", last_activity_at: now,
+          concurrency_version: { increment: 1 }
+        }
+      });
+      await recordFormativeConversationLifecycleEvent({
+        conversation_public_id: conversation.conversation_public_id,
+        client_event_id: `attempt-ended:${session.session_public_id}`,
+        event_type: "conversation_ended", event_source: "backend",
+        observed_interval_duration_ms: null, client_instance_id: null, occurred_at: now
+      }, tx);
+    }
+
     await txLogProcessEvent(tx, {
       assessment_session_db_id: session.id,
       event_type: "attempt_ended_by_student",
@@ -6900,7 +6936,7 @@ export async function endStudentAssessmentAttempt(input: {
       occurred_at: now
     });
 
-    return createCommittedLifecycleOperation(tx, {
+    const commandResult = await createCommittedLifecycleOperation(tx, {
       command_type: "end_attempt",
       actor_type: "student",
       target_session_public_id: session.session_public_id,
@@ -6915,15 +6951,15 @@ export async function endStudentAssessmentAttempt(input: {
       canonical_destination: "assessment_list",
       safe_response_code: "ended_by_student"
     });
-  });
 
-  return {
-    end_status: "ended_by_student",
-    can_resume: false,
-    terminal_status: "ended_by_student",
-    lifecycle_version: lifecycle.lifecycle_version,
-    command_result: commandResult
-  };
+    return {
+      end_status: "ended_by_student",
+      can_resume: false,
+      terminal_status: "ended_by_student",
+      lifecycle_version: updated.updated_at.toISOString(),
+      command_result: commandResult
+    };
+  }, { maxWait: 5_000, timeout: 20_000 });
 }
 
 export async function getStudentReviewResponses(input: {

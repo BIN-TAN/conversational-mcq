@@ -514,17 +514,29 @@ export function exitSession(sessionPublicId: string) {
   );
 }
 
-export function endAssessmentAttempt(sessionPublicId: string) {
-  return post(
-    `/api/student/sessions/${sessionPublicId}/end`,
-    {},
-    (value) =>
-      value as {
-        end_status: string;
-        can_resume: boolean;
-        terminal_status: string;
-      }
-  );
+export async function endAssessmentAttempt(sessionPublicId: string) {
+  try {
+    return await post(
+      `/api/student/sessions/${sessionPublicId}/end`,
+      {},
+      (value) =>
+        value as {
+          end_status: string;
+          can_resume: boolean;
+          terminal_status: string;
+        }
+    );
+  } catch (error) {
+    // A lost response does not imply a failed mutation. Reconcile with a read only.
+    const state = await fetchSessionState(sessionPublicId).catch(() => null);
+    if (state?.attempt_lifecycle?.terminal) {
+      return {
+        end_status: "already_ended", can_resume: false,
+        terminal_status: state.attempt_lifecycle.canonical_status
+      };
+    }
+    throw error;
+  }
 }
 
 export function sendFollowupMessage(input: {

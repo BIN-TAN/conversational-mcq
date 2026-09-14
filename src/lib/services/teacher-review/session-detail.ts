@@ -4,6 +4,7 @@ import {
   parseCanonicalMisconceptionClaimCatalog
 } from "@/lib/domain/misconception-claim-identity";
 import { prisma } from "@/lib/db";
+import { resolveCanonicalAttemptLifecycle } from "../student-assessment/attempt-lifecycle";
 import { serializeFormativeDecisionForTeacher } from "@/lib/agents/formative-planning/serializers";
 import { serializeFollowupRoundForTeacher } from "@/lib/agents/followup/serializers";
 import { serializeFollowupUpdateCycleForTeacher } from "@/lib/agents/followup-updates/service";
@@ -592,13 +593,15 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
             .concept_unit_public_id,
         concept_unit_title:
           conversation.concept_unit_session.concept_unit.title,
-        status: conversation.status,
+        status: resolveCanonicalAttemptLifecycle(session).terminal && ["active", "paused"].includes(conversation.status)
+          ? "ended" as const : conversation.status,
         student_formative_turn_count: studentFormativeTurnCount,
         max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
         final_allowed_turn:
           studentFormativeTurnCount ===
           FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
         another_student_turn_available:
+          resolveCanonicalAttemptLifecycle(session).canonical_status === "active" &&
           conversation.status === "active" &&
           studentFormativeTurnCount <
             FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,

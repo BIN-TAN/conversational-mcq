@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma, type AssessmentPhase } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
 import {
   parseCanonicalMisconceptionClaimCatalog
 } from "@/lib/domain/misconception-claim-identity";
@@ -460,6 +461,11 @@ export async function createOrGetTrustedFormativeConversationSessionInTransactio
   tx: Prisma.TransactionClient,
   input: CreateFormativeConversationSessionInput
 ) {
+  await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${input.assessment_session_db_id}::uuid FOR UPDATE`;
+  const parent = await tx.assessmentSession.findUniqueOrThrow({ where: { id: input.assessment_session_db_id } });
+  if (!attemptAllowsConversation(parent)) {
+    throw new FormativeConversationFoundationError("conversation_not_active", "The attempt is no longer active.");
+  }
   const existing = await tx.formativeConversationSession.findUnique({
     where: { concept_unit_session_db_id: input.concept_unit_session_db_id }
   });
@@ -600,6 +606,7 @@ async function getConversationPhase(
   status: string;
   phase: AssessmentPhase;
 }> {
+  await lockConversationAttempt(transaction, conversationPublicId);
   const session = await transaction.formativeConversationSession.findUnique({
     where: { conversation_public_id: conversationPublicId },
     select: {
@@ -607,7 +614,7 @@ async function getConversationPhase(
       assessment_session_db_id: true,
       concept_unit_session_db_id: true,
       status: true,
-      assessment_session: { select: { current_phase: true } }
+      assessment_session: { select: { current_phase: true, status: true, completed_at: true, resume_phase: true, resume_context: true } }
     }
   });
 
@@ -617,7 +624,8 @@ async function getConversationPhase(
       "The formative conversation does not exist."
     );
   }
-  if (options.require_active !== false && session.status !== "active") {
+  const active = session.status === "active" && attemptAllowsConversation(session.assessment_session);
+  if (options.require_active !== false && !active) {
     throw new FormativeConversationFoundationError(
       "conversation_not_active",
       "The formative conversation is not active."
@@ -628,7 +636,7 @@ async function getConversationPhase(
     session_id: session.id,
     assessment_session_db_id: session.assessment_session_db_id,
     concept_unit_session_db_id: session.concept_unit_session_db_id,
-    status: session.status,
+    status: active ? session.status : "inactive",
     phase: session.assessment_session.current_phase
   };
 }
@@ -990,7 +998,8 @@ export async function recordFormativeConversationOpeningFailure(input: {
   return prisma.$transaction(async (tx) => {
     const session = await getConversationPhase(
       tx,
-      input.conversation_public_id
+      input.conversation_public_id,
+      { require_active: false }
     );
     const receipt =
       await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
@@ -1137,9 +1146,11 @@ export async function recordFormativeConversationAssistantResponseFailure(input:
   failed_at: Date;
 }) {
   return prisma.$transaction(async (tx) => {
+    // Settle an existing request even after pause/end; this cannot create a reply.
     const session = await getConversationPhase(
       tx,
-      input.conversation_public_id
+      input.conversation_public_id,
+      { require_active: false }
     );
     const receipt =
       await tx.formativeConversationMessageReceipt.findUniqueOrThrow({
@@ -1403,6 +1414,7 @@ export async function persistFormativeConversationLifecycleHandoff(input: {
     `lifecycle-handoff:${input.conversation_public_id}:${input.client_message_id}`;
   const persist = () =>
     prisma.$transaction(async (tx) => {
+      await lockConversationAttempt(tx, input.conversation_public_id);
       const session = await tx.formativeConversationSession.findUniqueOrThrow({
         where: { conversation_public_id: input.conversation_public_id },
         select: {
@@ -1434,6 +1446,7 @@ export async function persistFormativeConversationLifecycleHandoff(input: {
       if (!receipt.student_turn) {
         throw new Error("formative_conversation_lifecycle_handoff_student_turn_missing");
       }
+      await getConversationPhase(tx, input.conversation_public_id);
       if (session.status !== "active") {
         throw new FormativeConversationFoundationError(
           "conversation_not_active",
@@ -1619,6 +1632,7 @@ export async function closeFormativeConversationAtStudentTurnLimit(input: {
 }) {
   const now = new Date();
   return prisma.$transaction(async (tx) => {
+    await lockConversationAttempt(tx, input.conversation_public_id);
     const session = await tx.formativeConversationSession.findUniqueOrThrow({
       where: { conversation_public_id: input.conversation_public_id },
       select: { id: true, status: true }
@@ -1637,6 +1651,7 @@ export async function closeFormativeConversationAtStudentTurnLimit(input: {
     if (existingEvent) {
       return { event: existingEvent, replayed: true };
     }
+    await getConversationPhase(tx, input.conversation_public_id);
     if (session.status !== "active") {
       throw new FormativeConversationFoundationError(
         "conversation_not_active",

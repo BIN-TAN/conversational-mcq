@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
+import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "./opening-contract";
 import {
   FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
@@ -83,6 +85,7 @@ export async function getStudentFormativeConversationProjection(input: {
       }
     },
     include: {
+      assessment_session: true,
       conversation_turns: {
         where: {
           actor_type: { in: ["student", "agent"] },
@@ -102,6 +105,10 @@ export async function getStudentFormativeConversationProjection(input: {
   if (!conversation) {
     return null;
   }
+  const attempt = resolveCanonicalAttemptLifecycle(conversation.assessment_session);
+  const attemptActive = attemptAllowsConversation(conversation.assessment_session);
+  const projectedStatus = attempt.terminal && ["active", "paused"].includes(conversation.status)
+    ? "ended" as const : conversation.status;
   const openingReceipt =
     conversation.message_receipts.find(
       (receipt) =>
@@ -131,6 +138,7 @@ export async function getStudentFormativeConversationProjection(input: {
           : "unavailable";
   const openingReady = openingStatus === "ready";
   const canRetryOpening =
+    attemptActive &&
     conversation.status === "active" &&
     openingStatus === "retry_available";
   const responseReceipts =
@@ -162,12 +170,13 @@ export async function getStudentFormativeConversationProjection(input: {
     studentFormativeTurnCount
   );
   const anotherStudentTurnAvailable =
+    attemptActive &&
     conversation.status === "active" &&
     lifecycle.another_student_turn_available;
 
   return {
     conversation_public_id: conversation.conversation_public_id,
-    status: conversation.status,
+    status: projectedStatus,
     started_at: conversation.started_at.toISOString(),
     last_activity_at: conversation.last_activity_at.toISOString(),
     paused_at: conversation.paused_at?.toISOString() ?? null,
@@ -175,13 +184,14 @@ export async function getStudentFormativeConversationProjection(input: {
     opening_status: openingStatus,
     can_retry_opening: canRetryOpening,
     can_send:
+      attemptActive &&
       conversation.status === "active" &&
       openingReady &&
       !incompleteResponse &&
       anotherStudentTurnAvailable,
-    can_pause: conversation.status === "active",
-    can_resume: conversation.status === "paused",
-    can_end: ["active", "paused"].includes(conversation.status),
+    can_pause: attemptActive && conversation.status === "active",
+    can_resume: attemptActive && conversation.status === "paused",
+    can_end: attemptActive && ["active", "paused"].includes(conversation.status),
     message_max_chars: 5_000,
     student_formative_turn_count: studentFormativeTurnCount,
     current_student_turn_index: studentFormativeTurnCount,
@@ -206,6 +216,7 @@ export async function getStudentFormativeConversationProjection(input: {
           retry_count:
             incompleteResponse.assistant_response_retry_count,
           can_retry:
+            attemptActive &&
             conversation.status === "active" &&
             incompleteResponse.assistant_response_status === "failed"
         }
@@ -268,10 +279,16 @@ export async function updateStudentFormativeConversationLifecycle(input: {
     return getStudentFormativeConversationProjection(input);
   }
   await prisma.$transaction(async (tx) => {
+    await lockConversationAttempt(tx, conversation.conversation_public_id);
+    const parent = await tx.assessmentSession.findFirstOrThrow({
+      where: { session_public_id: input.session_public_id, user_db_id: input.student_user_db_id }
+    });
+    if (!attemptAllowsConversation(parent)) return;
     const changed = await tx.formativeConversationSession.updateMany({
       where: { id: conversation.id, status: conversation.status },
       data: {
         ...next,
+        concurrency_version: { increment: 1 },
         last_activity_at: now
       }
     });
