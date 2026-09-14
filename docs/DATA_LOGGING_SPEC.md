@@ -2,6 +2,16 @@
 
 ## Goal
 
+Teacher JSON/workbook import inspection creates no classroom or research records.
+Preparation stores draft assessments, primary topics and import-review batches
+only. Workbook batches retain the source SHA-256, parser version, sheet/row
+locations, full non-item reference-sheet text and warnings. Candidate provenance
+retains original item rows and unambiguously linked guide rows. Guide learning
+objectives and optional follow-up evidence remain teacher source notes, not
+observed student evidence or active conversation rules. Existing student-safe
+serialization remains authoritative. Normal reviewed item materialization copies
+source mappings into item import provenance without changing historical data.
+
 The platform should collect conversation, response, process, and LLM evidence needed to support formative assessment research while keeping the database normalized and answer-key protection intact.
 
 Use the existing repository tables and services as the baseline where possible. Do not assume schema changes are required yet.

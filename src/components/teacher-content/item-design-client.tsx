@@ -511,14 +511,14 @@ function ItemDesignAssistantWorkspace({
   );
 }
 
-export function ItemDesignClient({ assessmentPublicId }: { assessmentPublicId: string }) {
+export function ItemDesignClient({ assessmentPublicId, initialView = "assistant" }: { assessmentPublicId: string; initialView?: "assistant" | "review" }) {
   const router = useRouter();
   const [design, setDesign] = useState<DesignResponse | null>(null);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | null>("load");
-  const [view, setView] = useState<"assistant" | "review">("assistant");
+  const [view, setView] = useState<"assistant" | "review">(initialView);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);

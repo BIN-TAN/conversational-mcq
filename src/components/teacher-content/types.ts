@@ -57,6 +57,7 @@ export type AssessmentSummary = ContentGovernanceFields & {
 export type AssessmentDetail = AssessmentSummary & {
   concept_units: ConceptUnitSummary[];
   mini_test_items?: ItemDetail[];
+  import_reviews?: Array<{ batch_public_id: string; source_file_name: string | null; candidate_count: number; imported_count: number }>;
 };
 
 export type ConceptUnitSummary = ContentGovernanceFields & {

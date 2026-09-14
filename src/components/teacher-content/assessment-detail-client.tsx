@@ -22,6 +22,7 @@ import {
   LoadingRow,
   PageHeader,
   PrimaryLink,
+  SecondaryLink,
   StatusBadge,
   SuccessPanel,
   formatDate
@@ -670,6 +671,13 @@ export function AssessmentDetailClient({
                     disabled={isSubmitting || isAvailabilitySubmitting || Boolean(busyAction)} onDeleted={handleItemsDeleted} />
                 </div>
               ) : null}
+              {isDraftEditable && assessment.import_reviews?.length ? <div className="mt-4 space-y-3 border-b border-line pb-4">
+                <h3 className="font-semibold">Import reviews</h3>
+                {assessment.import_reviews.map(review => <div className="flex flex-wrap items-center justify-between gap-3" key={review.batch_public_id}>
+                  <span className="min-w-0 break-all text-sm">{review.source_file_name || "Pasted items"} · {review.imported_count} / {review.candidate_count} added</span>
+                  <SecondaryLink href={`${importItemsHref}?batch=${encodeURIComponent(review.batch_public_id)}`}>Open item review</SecondaryLink>
+                </div>)}
+              </div> : null}
               {miniTestItems.length === 0 ? (
                 <p className="mt-5 text-sm text-muted">No MCQ items yet.</p>
               ) : (

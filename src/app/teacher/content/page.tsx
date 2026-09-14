@@ -23,7 +23,7 @@ export default function TeacherContentHomePage() {
         href="/teacher/content/import-json"
       >
         <FileJson className="h-5 w-5 text-accent" aria-hidden="true" />
-        <h2 className="mt-4 text-lg font-semibold text-ink">JSON import</h2>
+        <h2 className="mt-4 text-lg font-semibold text-ink">Import items</h2>
       </Link>
     </section>
   );

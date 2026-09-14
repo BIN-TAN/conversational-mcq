@@ -1,162 +1,131 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import Link from "next/link";
-import { Upload } from "lucide-react";
+import { FormEvent, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ArrowRight, FileDown, FileJson, Upload } from "lucide-react";
+import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
+import { MINI_TEST_JSON_MAX_BYTES, MINI_TEST_JSON_SAMPLE_URL, parseMiniTestJson } from "@/lib/services/content/mini-test-json-contract";
 import { apiRequest, errorFromUnknown } from "./api";
-import type { ImportResult, StructuredApiError } from "./types";
-import { Button, ErrorPanel, PageHeader, SuccessPanel } from "./ui";
-
-const sampleImport = {
-  assessment: {
-    title: "Demo assessment",
-    description: "Optional description",
-    diagnostic_focus: "Plain-English diagnostic focus for teacher interpretation.",
-    folder_label: "Week 1"
-  },
-  concept_units: [
-    {
-      title: "Topic title",
-      learning_objective: "Learning objective",
-      related_concept_description: "Related concept description",
-      administration_rules: {
-        initial_administration: "no_feedback"
-      },
-      items: [
-        {
-          item_stem: "Question text",
-          options: [
-            { label: "A", text: "Option A" },
-            { label: "B", text: "Option B" },
-            { label: "C", text: "Option C" }
-          ],
-          correct_option: "A",
-          distractor_rationales: {
-            B: "Why B may indicate partial understanding",
-            C: "Why C may indicate a misconception"
-          },
-          expected_reasoning_patterns: ["Expected correct reasoning pattern"],
-          possible_misconception_indicators: ["Possible misconception indicator"],
-          administration_rules: {}
-        }
-      ]
-    }
-  ]
-};
+import type { StructuredApiError } from "./types";
+import { Button, ErrorPanel, PageHeader } from "./ui";
+import { WorkbookImportClient } from "./workbook-import-client";
 
 export function ImportJsonClient() {
-  const [jsonText, setJsonText] = useState(JSON.stringify(sampleImport, null, 2));
+  const router = useRouter();
+  const [mode, setMode] = useState<"json" | "excel">("json");
+  const fileInput = useRef<HTMLInputElement>(null);
+  const [jsonText, setJsonText] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [result, setResult] = useState<ImportResult | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const { allowNavigation } = useUnsavedChanges(Boolean(jsonText) && !submitted);
+  const parsed = useMemo(() => {
+    if (!jsonText.trim()) return { document: null, message: null };
+    try { return { document: parseMiniTestJson(jsonText), message: null }; }
+    catch (caught) { return { document: null, message: caught instanceof Error ? caught.message : "Invalid JSON." }; }
+  }, [jsonText]);
+  const document = parsed.document;
+
+  function canReplace() {
+    return !jsonText.trim() || window.confirm("Replace the current JSON? Unsaved edits will be lost.");
+  }
+
+  async function loadSample() {
+    if (!canReplace()) return;
+    setBusy(true); setError(null);
+    try {
+      const response = await fetch(MINI_TEST_JSON_SAMPLE_URL);
+      if (!response.ok) throw new Error("The sample could not be loaded. Please try again.");
+      setJsonText(await response.text()); setFileName("mini-test-import.json");
+    } catch (caught) { setError(errorFromUnknown(caught)); }
+    finally { setBusy(false); }
+  }
+
+  async function loadFile(file: File | undefined) {
+    if (!file) return;
+    if (!canReplace()) return;
+    setBusy(true); setError(null);
+    try {
+      if (!file.name.toLowerCase().endsWith(".json")) throw new Error("Choose a .json file.");
+      if (file.size > MINI_TEST_JSON_MAX_BYTES) throw new Error("The JSON file must be 2 MB or smaller.");
+      setJsonText(await file.text()); setFileName(file.name);
+    } catch (caught) { setError(errorFromUnknown(caught)); }
+    finally { setBusy(false); }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setSuccess(null);
-    setResult(null);
-
-    let parsed: unknown;
+    if (!document || busy) return;
+    setError(null); setBusy(true);
     try {
-      parsed = JSON.parse(jsonText);
-    } catch (caught) {
-      setError({
-        code: "validation_failed",
-        message: caught instanceof Error ? caught.message : "JSON could not be parsed."
-      });
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const data = await apiRequest<ImportResult>("/api/teacher/content/import-json", {
-        method: "POST",
-        body: JSON.stringify(parsed)
-      });
-      setResult(data);
-      setSuccess("Import completed.");
-    } catch (caught) {
-      setError(errorFromUnknown(caught));
-    } finally {
-      setIsSubmitting(false);
-    }
+      const result = await apiRequest<{ review_url: string }>(
+        `/api/teacher/content/import-json/preview${fileName ? `?filename=${encodeURIComponent(fileName)}` : ""}`,
+        { method: "POST", body: jsonText }
+      );
+      setSubmitted(true); allowNavigation(); router.push(result.review_url);
+    } catch (caught) { setError(errorFromUnknown(caught)); setBusy(false); }
   }
 
   return (
     <div className="space-y-6">
-      <PageHeader title="JSON import" />
-
+      <PageHeader title="Import items" actions={mode === "json" ?
+        <a className="inline-flex items-center justify-center gap-2 rounded-md border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:bg-surface" download="mini-test-import.json" href={MINI_TEST_JSON_SAMPLE_URL}>
+          <FileDown className="h-4 w-4" aria-hidden="true" />Download sample JSON
+        </a>
+      : undefined} />
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Import format">
+        <Button variant={mode === "json" ? "primary" : "secondary"} aria-pressed={mode === "json"} onClick={() => setMode("json")}>JSON</Button>
+        <Button variant={mode === "excel" ? "primary" : "secondary"} aria-pressed={mode === "excel"} onClick={() => setMode("excel")}>Excel workbook</Button>
+      </div>
+      <div hidden={mode !== "excel"}><WorkbookImportClient /></div>
+      <div hidden={mode !== "json"}>
       <ErrorPanel error={error} />
-      <SuccessPanel message={success} />
-
-      <form className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]" onSubmit={onSubmit}>
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            Import JSON
-            <textarea
-              className="min-h-[560px] rounded-md border border-line px-3 py-2 font-mono text-sm outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-              onChange={(event) => setJsonText(event.target.value)}
-              value={jsonText}
-            />
+      <form className="space-y-6" onSubmit={onSubmit}>
+        <div className="flex flex-wrap items-center gap-3">
+          <input ref={fileInput} type="file" accept=".json,application/json" className="hidden" disabled={busy} aria-label="JSON file"
+            onChange={event => { void loadFile(event.target.files?.[0]); event.target.value = ""; }} />
+          <Button type="button" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>
+            <Upload className="h-4 w-4" aria-hidden="true" />Upload JSON
+          </Button>
+          <Button type="button" variant="secondary" disabled={busy} onClick={() => void loadSample()}>
+            <FileJson className="h-4 w-4" aria-hidden="true" />Use sample
+          </Button>
+          <span className="min-w-0 break-all text-sm text-muted">{fileName ?? "JSON files up to 2 MB"}</span>
+        </div>
+        <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
+          <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-ink">
+            Mini-test JSON
+            <textarea className="min-h-[440px] w-full rounded-md border border-line bg-white px-3 py-2 font-mono text-sm outline-none focus:border-accent focus:ring-2 focus:ring-accent-soft"
+              value={jsonText} disabled={busy} spellCheck={false} placeholder="Paste mini-test JSON..."
+              onChange={event => { setJsonText(event.target.value); setError(null); }}
+              aria-invalid={Boolean(parsed.message)} aria-describedby={parsed.message ? "json-validation" : undefined} />
           </label>
-          <div className="mt-4">
-            <Button disabled={isSubmitting} type="submit">
-              <Upload className="h-4 w-4" aria-hidden="true" />
-              {isSubmitting ? "Importing" : "Import JSON"}
-            </Button>
-          </div>
-        </section>
-
-        <aside className="space-y-4">
-          <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
-            Provide either `assessment` for a new assessment or `assessment_public_id` to add
-            topics under an existing assessment.
-          </section>
-          <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <h2 className="font-semibold text-ink">Sample file</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">
-              A copy of this template is also documented in `docs/sample-concept-unit-import.json`.
-            </p>
-          </section>
-        </aside>
+          <aside className="min-w-0 space-y-5 border-t border-line pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0" aria-label="Import summary" aria-live="polite">
+            <h2 className="text-lg font-semibold text-ink">Mini-test summary</h2>
+            {document ? <>
+              <div><h3 className="break-words font-semibold text-ink">{document.assessment.title}</h3><p className="mt-1 text-sm text-muted">{document.assessment.folder_label || "Unfiled"}</p></div>
+              <dl className="grid grid-cols-2 gap-3 text-sm">
+                <dt>Items to review</dt><dd className="text-right font-semibold">{document.items.length}</dd>
+                <dt>Supplied keys</dt><dd className="text-right font-semibold">{document.items.filter(item => item.key).length} / {document.items.length}</dd>
+                <dt>Objectives</dt><dd className="text-right font-semibold">{document.design?.objectives.length ?? 0}</dd>
+                <dt>Evidence requirements</dt><dd className="text-right font-semibold">{document.design?.objectives.reduce((count, item) => count + item.evidence_requirements.length, 0) ?? 0}</dd>
+                <dt>Misconception hypotheses</dt><dd className="text-right font-semibold">{document.design?.misconception_hypotheses.length ?? 0}</dd>
+              </dl>
+              {document.design ? <div className="space-y-2 border-t border-line pt-4 text-sm"><h3 className="font-semibold">{document.design.section_topic}</h3>
+                <ul className="list-disc space-y-2 pl-5">{document.design.objectives.map(objective => <li key={objective.objective_id}>{objective.statement}</li>)}</ul>
+              </div> : <p className="text-sm text-muted">No assessment design supplied.</p>}
+              <p className="text-sm text-muted">Draft only. Answer keys require your confirmation before items are added.</p>
+              {document.items.length > 12 ? <p className="text-sm text-amber-800">Select 3-12 items for this mini test during review.</p> : null}
+            </> : <p className="text-sm text-muted">{jsonText.trim() ? "Fix the JSON validation errors to continue." : "No file selected."}</p>}
+          </aside>
+        </div>
+        {parsed.message ? <p id="json-validation" role="alert" className="whitespace-pre-wrap break-words border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-800">{parsed.message}</p> : null}
+        <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
+          <Button disabled={!document || busy} type="submit"><ArrowRight className="h-4 w-4" aria-hidden="true" />{busy ? "Preparing review..." : "Continue to item review"}</Button>
+        </div>
       </form>
-
-      {result ? (
-        <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
-          <h2 className="text-xl font-semibold text-ink">Created public IDs</h2>
-          <div className="mt-4 space-y-4 text-sm">
-            <div>
-              <p className="text-muted">Assessment</p>
-              <Link
-                className="font-mono text-accent underline underline-offset-4"
-                href={`/teacher/content/assessments/${result.assessment.assessment_public_id}`}
-              >
-                {result.assessment.assessment_public_id}
-              </Link>
-            </div>
-            {result.concept_units.map((conceptUnit) => (
-              <div className="rounded-lg border border-line p-4" key={conceptUnit.concept_unit_public_id}>
-                <p className="font-semibold text-ink">{conceptUnit.title}</p>
-                <Link
-                  className="mt-2 inline-block font-mono text-accent underline underline-offset-4"
-                  href={`/teacher/content/concept-units/${conceptUnit.concept_unit_public_id}`}
-                >
-                  {conceptUnit.concept_unit_public_id}
-                </Link>
-                <ul className="mt-3 grid gap-2 md:grid-cols-2">
-                  {conceptUnit.items.map((item) => (
-                    <li className="font-mono text-xs text-muted" key={item.item_public_id}>
-                      {item.item_public_id}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+      </div>
     </div>
   );
 }

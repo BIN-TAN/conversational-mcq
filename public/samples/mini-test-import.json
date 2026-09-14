@@ -1,0 +1,96 @@
+{
+  "schema_version": "mini-test-import-v1",
+  "assessment": {
+    "title": "Interpreting measurement evidence",
+    "diagnostic_focus": "Distinguish score consistency, measurement uncertainty, and evidence supporting a particular score interpretation.",
+    "folder_label": "Week 1"
+  },
+  "design": {
+    "schema_version": "evidence-centered-item-design-v1",
+    "section_topic": "Reliability, uncertainty, and validity",
+    "section_summary": "Interpret measurement statistics without treating them as definitive proof of validity or exact individual scores.",
+    "objectives": [
+      {
+        "objective_id": "interpret_evidence",
+        "statement": "Evaluate what measurement evidence does and does not support in context.",
+        "evidence_requirements": [
+          "Explain why internal consistency alone does not establish validity.",
+          "Recognize uncertainty in individual scores.",
+          "Identify the need for evidence when a test is used for a new purpose."
+        ]
+      }
+    ],
+    "misconception_hypotheses": [
+      {
+        "misconception_id": "reliability_proves_validity",
+        "statement": "High reliability is sufficient to establish validity for any use.",
+        "linked_objective_ids": ["interpret_evidence"],
+        "student_language_examples": ["A reliable test must be valid."],
+        "why_plausible": "Students may conflate consistency with the meaning or appropriateness of a score interpretation."
+      }
+    ],
+    "exemplar_items": [],
+    "generation_settings": {
+      "target_item_count": 3,
+      "option_count": 4,
+      "difficulty_mix": ["foundational", "analyzing", "evaluating"],
+      "context_notes": "Treat distractor choices as hypotheses requiring reasoning evidence, not diagnoses."
+    }
+  },
+  "items": [
+    {
+      "item_label": "Internal consistency",
+      "stem": "A scale has high internal consistency in a sample. Which conclusion is best supported by that result alone?",
+      "options": [
+        { "label": "A", "text": "The scale is valid for every intended use." },
+        { "label": "B", "text": "The item scores show consistency, but validity requires further evidence." },
+        { "label": "C", "text": "Every student's observed score is exact." },
+        { "label": "D", "text": "The scale must have the same reliability in every population." }
+      ],
+      "key": "B",
+      "target_reasoning_note": "Distinguish score consistency from validity of an interpretation.",
+      "strong_reasoning_should_mention": "Internal consistency alone does not establish what scores mean or whether a particular use is justified.",
+      "distractor_diagnostic_notes": "A may suggest conflating reliability with validity; C may suggest overlooking uncertainty; D may suggest treating reliability as population-independent. Check the student's reasoning before interpreting a choice.",
+      "objective_ids": ["interpret_evidence"],
+      "misconception_hypothesis_ids": ["reliability_proves_validity"],
+      "cognitive_demand": "analyze",
+      "source_reference": "Teacher-editable sample, item 1"
+    },
+    {
+      "item_label": "Score uncertainty",
+      "stem": "What does the standard error of measurement help describe?",
+      "options": [
+        { "label": "A", "text": "Whether every item measures the intended construct." },
+        { "label": "B", "text": "The exact true score of each student." },
+        { "label": "C", "text": "Measurement uncertainty associated with a score." },
+        { "label": "D", "text": "Whether a test is appropriate for any population." }
+      ],
+      "key": "C",
+      "target_reasoning_note": "Recognize that observed scores involve measurement uncertainty.",
+      "strong_reasoning_should_mention": "SEM concerns uncertainty, not exact knowledge of an individual's true score.",
+      "distractor_diagnostic_notes": "B may indicate an exact-score interpretation. A and D may indicate confusion with validity. A selected distractor alone is insufficient evidence of a misconception.",
+      "objective_ids": ["interpret_evidence"],
+      "misconception_hypothesis_ids": [],
+      "cognitive_demand": "understand",
+      "source_reference": "Teacher-editable sample, item 2"
+    },
+    {
+      "item_label": "New test use",
+      "stem": "A test developed for course placement is proposed for professional certification. What is the most defensible next step?",
+      "options": [
+        { "label": "A", "text": "Evaluate evidence supporting the proposed certification interpretation and use." },
+        { "label": "B", "text": "Approve the new use if internal consistency is high." },
+        { "label": "C", "text": "Assume placement evidence automatically supports certification." },
+        { "label": "D", "text": "Reject every test originally developed for a different purpose." }
+      ],
+      "key": "A",
+      "target_reasoning_note": "Evaluate whether evidence is sufficient for a proposed new use.",
+      "strong_reasoning_should_mention": "Evidence must support the proposed interpretation, population, and use; transfer should not be assumed or categorically ruled out.",
+      "distractor_diagnostic_notes": "B or C may suggest overgeneralizing existing evidence. D may reflect overcaution rather than the target misconception. Seek justification and consider alternative explanations.",
+      "objective_ids": ["interpret_evidence"],
+      "misconception_hypothesis_ids": ["reliability_proves_validity"],
+      "cognitive_demand": "evaluate",
+      "source_reference": "Teacher-editable sample, item 3"
+    }
+  ]
+}

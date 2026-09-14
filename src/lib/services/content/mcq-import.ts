@@ -30,6 +30,7 @@ import {
 } from "./mcq-docx-parser";
 import { ensureMiniTestPrimaryConceptUnit } from "./assessments";
 import { ContentServiceError } from "./errors";
+import { parseMiniTestJson } from "./mini-test-json-contract";
 import { assertAssessmentEditable } from "./governance";
 import { replaceItemMediaAssets } from "./items";
 import {
@@ -793,6 +794,9 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
 
   const sheetName = workbook.SheetNames.find((name, index) => Number(sheetMetadata[index]?.Hidden ?? 0) === 0);
   if (!sheetName) return { rows: [], warnings: [...warnings, "xlsx_no_visible_sheet_found"] };
+  if (workbook.SheetNames.filter((_, index) => Number(sheetMetadata[index]?.Hidden ?? 0) === 0).length > 1) {
+    throw new ContentServiceError("validation_failed", "This workbook has multiple visible sheets. Use Assessment management > Import items > Excel workbook to review each sheet as a separate mini test.", 400);
+  }
   const sheet = workbook.Sheets[sheetName];
   const range = XLSX.utils.decode_range(sheet["!fullref"] ?? sheet["!ref"] ?? "A1");
   if (range.e.r - range.s.r > MCQ_IMPORT_MAX_ROWS || range.e.c > 100) {
@@ -1046,8 +1050,41 @@ function optionsFromUnknown(value: unknown) {
 }
 
 function parseProjectJsonItems(text: string): CandidateDraft[] {
-  const parsed = JSON.parse(text) as unknown;
+  const parsed = JSON.parse(text.replace(/^\uFEFF/, "")) as unknown;
   const root = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+  if ("schema_version" in root) {
+    let document;
+    try { document = parseMiniTestJson(text); }
+    catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "Invalid mini-test JSON.", 400); }
+    const blueprintHash = document.design ? sha256(stableJson(document.design)) : null;
+    return document.items.map((item, index) => {
+      // Apply the same URL and media boundaries as manually authored items, without fetching URLs.
+      normalizeItemMediaAssetInputs(item.media_assets);
+      return {
+        item_label: item.item_label ?? null,
+        stem: item.stem,
+        options: item.options,
+        imported_key: item.key ?? null,
+        target_reasoning_note: item.target_reasoning_note ?? null,
+        strong_reasoning_should_mention: item.strong_reasoning_should_mention ?? null,
+        distractor_diagnostic_notes: item.distractor_diagnostic_notes ?? null,
+        media_assets: item.media_assets,
+        original_source_text: stableJson((root.items as unknown[])[index]),
+        source_location: `items[${index}]`,
+        source_line_range: null,
+        source_metadata: {
+          schema_version: document.schema_version,
+          blueprint_hash: blueprintHash,
+          objective_ids: item.objective_ids,
+          misconception_hypothesis_ids: item.misconception_hypothesis_ids,
+          cognitive_demand: item.cognitive_demand ?? null,
+          source_reference: item.source_reference ?? null
+        },
+        parsing_confidence: 1,
+        issue_flags: item.key ? [] : ["key_missing"]
+      };
+    });
+  }
   const conceptUnits = Array.isArray(root.concept_units) ? root.concept_units : [];
   const rawItems =
     conceptUnits.length > 0
@@ -1153,8 +1190,8 @@ function candidateFromDraft(draft: CandidateDraft, index: number): McqImportCand
   };
 }
 
-async function existingItemSignatures(teacherUserDbId: string, assessmentDbId: string) {
-  const items = await prisma.item.findMany({
+async function existingItemSignatures(teacherUserDbId: string, assessmentDbId: string, db: Prisma.TransactionClient = prisma) {
+  const items = await db.item.findMany({
     where: {
       concept_unit: {
         assessment: {
@@ -1197,7 +1234,8 @@ async function existingItemSignatures(teacherUserDbId: string, assessmentDbId: s
 
 async function applyDuplicateWarnings(
   candidates: McqImportCandidate[],
-  input: { teacher_user_db_id: string; assessment_db_id: string }
+  input: { teacher_user_db_id: string; assessment_db_id: string },
+  db: Prisma.TransactionClient = prisma
 ) {
   const batchBySignature = new Map<string, McqImportCandidate[]>();
   for (const candidate of candidates) {
@@ -1222,7 +1260,7 @@ async function applyDuplicateWarnings(
     }
   }
 
-  const existing = await existingItemSignatures(input.teacher_user_db_id, input.assessment_db_id);
+  const existing = await existingItemSignatures(input.teacher_user_db_id, input.assessment_db_id, db);
   for (const candidate of candidates) {
     const signature = candidateSignature(candidate);
     const stemHash = stemSignature(candidate.stem);
@@ -1427,18 +1465,46 @@ export async function previewMcqItemImport(input: {
 }) {
   const data = McqImportPreviewInputSchema.parse(input.data);
   const assessment = await assertAssessmentEditable(input);
+  const batch = await createMcqImportReviewBatch({
+    teacher_user_db_id: input.teacher_user_db_id,
+    assessment_db_id: assessment.id,
+    data
+  });
+  return {
+    batch: serializeBatch(batch),
+    supported_sources: [...importSourceTypes],
+    template_url: `/api/teacher/assessments/${encodeURIComponent(input.assessment_public_id)}/mcq-import/template`
+  };
+}
+
+// The caller owns the editable-assessment check; accepting a transaction lets a new
+// assessment and its review batch be created together without orphan drafts.
+export async function createMcqImportReviewBatch(input: {
+  teacher_user_db_id: string;
+  assessment_db_id: string;
+  data: z.infer<typeof McqImportPreviewInputSchema>;
+  source_context?: Record<string, unknown>;
+  candidate_contexts?: Array<{ source_location: string; original_source_text: string; source_metadata: Record<string, unknown> }>;
+}, db: Prisma.TransactionClient = prisma) {
+  const data = McqImportPreviewInputSchema.parse(input.data);
   const parsed = await parseCandidates(data);
-  const candidates = parsed.drafts.map(candidateFromDraft);
+  if (input.candidate_contexts && input.candidate_contexts.length !== parsed.drafts.length) {
+    throw new ContentServiceError("validation_failed", "Workbook source mapping does not match the imported items.", 400);
+  }
+  const candidates = parsed.drafts.map((draft, index) => candidateFromDraft({ ...draft,
+    ...(input.candidate_contexts?.[index] ?? {}),
+    source_metadata: { ...draft.source_metadata, ...input.candidate_contexts?.[index]?.source_metadata }
+  }, index));
   await applyDuplicateWarnings(candidates, {
     teacher_user_db_id: input.teacher_user_db_id,
-    assessment_db_id: assessment.id
-  });
+    assessment_db_id: input.assessment_db_id
+  }, db);
   const summary = validationSummary(candidates, parsed.sourceWarnings);
   const batchPublicId = generatePublicId("mcq_import_batch");
-  const batch = await prisma.mcqItemImportBatch.create({
+  return db.mcqItemImportBatch.create({
     data: {
       batch_public_id: batchPublicId,
-      assessment_db_id: assessment.id,
+      assessment_db_id: input.assessment_db_id,
       uploaded_by_user_db_id: input.teacher_user_db_id,
       source_type: data.source_type,
       source_file_name: safeFileName(data.source_file_name),
@@ -1447,18 +1513,10 @@ export async function previewMcqItemImport(input: {
       candidate_count: candidates.length,
       key_missing_count: candidates.filter((candidate) => candidate.issue_flags.includes("key_missing")).length,
       duplicate_count: candidates.filter((candidate) => candidate.issue_flags.includes("possible_duplicate")).length,
-      validation_summary: toRequiredPrismaJson(summary),
+      validation_summary: toRequiredPrismaJson({ ...summary, ...(input.source_context ? { source_context: input.source_context } : {}) }),
       candidates_payload: toRequiredPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates })
     }
   });
-
-  return {
-    batch: serializeBatch(batch),
-    supported_sources: [...importSourceTypes],
-    template_url: `/api/teacher/assessments/${encodeURIComponent(
-      input.assessment_public_id
-    )}/mcq-import/template`
-  };
 }
 
 async function getTeacherOwnedBatch(input: {
@@ -3529,6 +3587,12 @@ export async function commitMcqItemImport(input: {
   });
   const payload = CandidatesPayloadSchema.parse(batch.candidates_payload);
   const candidates = selectedCandidates(payload.candidates, data);
+  const sourceContext = z.object({ source_context: z.object({ require_confirmed_keys: z.literal(true) }) }).safeParse(batch.validation_summary);
+  if (sourceContext.success && candidates.some(candidate =>
+    !candidate.imported_item_public_id && candidate.import_selected &&
+    (!candidate.teacher_confirmed_key || !candidate.options.some(option => option.label === candidate.teacher_confirmed_key)))) {
+    throw new ContentServiceError("validation_failed", "Confirm an answer key for every selected item before adding these drafts.", 400);
+  }
   const toImport = candidates.filter((candidate) => !candidate.imported_item_public_id && candidate.import_selected && candidateCanImport(candidate));
   const rejectedCount = candidates.filter((candidate) => !candidate.import_selected).length;
   const existingLast = await prisma.item.findFirst({

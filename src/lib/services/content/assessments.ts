@@ -500,6 +500,10 @@ export async function getAssessmentDetail(input: {
       created_by_user_db_id: input.teacher_user_db_id
     },
     include: {
+      mcq_item_import_batches: {
+        orderBy: { created_at: "desc" }, take: 20,
+        select: { batch_public_id: true, source_file_name: true, candidate_count: true, imported_count: true }
+      },
       _count: { select: { concept_units: true, assessment_sessions: true } },
       concept_units: {
         orderBy: [{ order_index: "asc" }, { created_at: "asc" }],
@@ -537,6 +541,7 @@ export async function getAssessmentDetail(input: {
       superseded_by_assessment_public_id: successor?.assessment_public_id ?? null
     }),
     concept_units: assessment.concept_units.map(serializeConceptUnit),
+    import_reviews: assessment.mcq_item_import_batches,
     mini_test_items: assessment.concept_units
       .flatMap((conceptUnit) => conceptUnit.items)
       .map(serializeItem)

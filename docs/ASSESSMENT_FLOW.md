@@ -15,6 +15,15 @@ Phase 30a reframes the purpose of the flow as distractor-informed misconception 
 
 ## Teacher Authoring Flow
 
+**Import items** is the alternative entry for existing JSON or Excel item sets.
+JSON stages one draft mini test; Excel inspection shows every visible item sheet
+and reference sheet before teachers select which tests to prepare. Selected
+sheets create separate draft tests and review batches atomically, with no LLM
+call. Each test requires normal item review and key confirmation. Reference
+guides remain teacher source material and cannot change student instructions or
+phase boundaries. Teachers can resume a saved batch from its mini-test detail
+page. See `MINI_TEST_JSON_IMPORT.md` for formats, limits and provenance.
+
 Teacher-created mini tests use this evidence-centered sequence:
 
 `NEW MINI TEST -> AUTHORING CONVERSATION -> BLUEPRINT REVIEW -> DRAFT GENERATION -> ITEM REVIEW AND KEY CONFIRMATION -> DRAFT MINI TEST`

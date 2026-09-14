@@ -5,6 +5,8 @@ import { CheckCircle, FileDown, FileUp, RefreshCw, Sparkles, Upload, Save, X, Lo
 import Link from "next/link";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
+import { MINI_TEST_JSON_SAMPLE_URL } from "@/lib/services/content/mini-test-json-contract";
+import { WorkbookGuides, WorkbookItemGuide, readWorkbookGuides } from "./workbook-guide";
 import { applyNoteSuggestion, blankNoteSuggestions, isImported, needsNotes, noteFields } from "./mcq-review";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
@@ -21,6 +23,7 @@ import {
   Field,
   PageHeader,
   PrimaryLink,
+  SecondaryLink,
   StatusBadge,
   SuccessPanel
 } from "./ui";
@@ -391,15 +394,19 @@ export function McqImportClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={generatedBatch ? "Review generated item drafts" : "Import MCQ items"}
+        title={generatedBatch ? "Review generated item drafts" : initialBatchPublicId ? "Review imported items" : "Import MCQ items"}
         actions={
           <>
+            {batch?.source_type === "project_json" ? <SecondaryLink href={`/teacher/content/assessments/${assessmentPublicId}/item-design?view=review`}>
+              Review design
+            </SecondaryLink> : null}
             <a
               className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent"
-              href={`/api/teacher/assessments/${assessmentPublicId}/mcq-import/template`}
+              href={batch?.source_type === "project_json" ? MINI_TEST_JSON_SAMPLE_URL : `/api/teacher/assessments/${assessmentPublicId}/mcq-import/template`}
+              download={batch?.source_type === "project_json" ? "mini-test-import.json" : undefined}
             >
               <FileDown className="h-4 w-4" aria-hidden="true" />
-              CSV template
+              {batch?.source_type === "project_json" ? "JSON template" : "CSV template"}
             </a>
             <PrimaryLink href={`/teacher/content/assessments/${assessmentPublicId}`}>
               Return to mini test
@@ -409,6 +416,7 @@ export function McqImportClient({
       />
 
       <ErrorPanel error={error} focusOnError />
+      {batch ? <WorkbookGuides guides={readWorkbookGuides(batch.validation_summary)} /> : null}
       <SuccessPanel message={success} />
 
       {!generatedBatch && !initialBatchPublicId ? <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
@@ -573,6 +581,7 @@ export function McqImportClient({
                     </div>
                     <StatusBadge status="draft" />
                   </div>
+                  <WorkbookItemGuide metadata={candidate.source_metadata} />
 
                   {Object.keys(formattingRecord(candidate)).length > 0 ? (
                     <FormattingReview candidate={candidate} onUpdate={updateCandidate} />
