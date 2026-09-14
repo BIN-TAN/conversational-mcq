@@ -1,5 +1,12 @@
 # Assessment Flow Specification
 
+## Teacher Whole-Test Preview
+
+- Assessment details include **Preview whole test**, a read-only view of saved items in topic/item order, with full wording, options, and active media.
+- Included, non-archived items in non-archived topics are shown by default. **All saved items** also shows excluded and archived content, marked as not included. Draft and archived assessments remain previewable.
+- Answer keys are hidden initially and can be shown explicitly by the teacher. Closing and reopening the preview hides them again; unsaved detail-page edits are preserved.
+- Preview uses the existing authenticated, owner-scoped teacher detail response. It creates no attempt, response, process event, or provider call and changes no publication or content state.
+
 ## Core Principle
 
 The student assessment should be chat-native. The platform should present the assessment as a conversation while the application controls the state machine, allowed actions, persistence, and answer-key protection.

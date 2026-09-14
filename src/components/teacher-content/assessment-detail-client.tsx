@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Archive, CheckCircle, Download, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import { ItemBatchDeletionControl } from "./item-batch-deletion-control";
+import { AssessmentPreviewControl } from "./assessment-preview";
 import { MAX_ITEM_BATCH_DELETION, type ItemDeletionResult } from "@/lib/services/content/item-deletion-contract";
 import type {
   AssessmentDeletionMode,
@@ -375,6 +376,7 @@ export function AssessmentDetailClient({
         title={assessment?.title ?? "Assessment detail"}
         actions={
           <>
+            {assessment ? <AssessmentPreviewControl assessment={assessment} disabled={isLoading} /> : null}
             {isDraftEditable ? (
               <PrimaryLink href={designItemsHref}>
                 <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />

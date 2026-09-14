@@ -22,6 +22,7 @@
     "db:smoke": "tsx prisma/smoke-test.ts",
     "db:service-smoke": "tsx prisma/service-smoke-test.ts",
     "content:smoke": "tsx prisma/content-smoke-test.ts",
+    "content:assessment-preview-ux-smoke": "node scripts/assessment-preview-ux-smoke.mjs",
     "content:governance-smoke": "tsx prisma/content-governance-smoke-test.ts",
     "content:item-deletion-smoke": "node --import ./scripts/classroom-audit-network-guard.mjs --import tsx prisma/item-batch-deletion-smoke-test.ts",
     "content:item-deletion-ux-smoke": "node scripts/item-batch-deletion-ux-smoke.mjs",
