@@ -3,10 +3,9 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Archive, CheckCircle, Download, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { Archive, CheckCircle, Download, Eye, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
 import { ItemBatchDeletionControl } from "./item-batch-deletion-control";
-import { AssessmentPreviewControl } from "./assessment-preview";
 import { MAX_ITEM_BATCH_DELETION, type ItemDeletionResult } from "@/lib/services/content/item-deletion-contract";
 import type {
   AssessmentDeletionMode,
@@ -376,7 +375,18 @@ export function AssessmentDetailClient({
         title={assessment?.title ?? "Assessment detail"}
         actions={
           <>
-            {assessment ? <AssessmentPreviewControl assessment={assessment} disabled={isLoading} /> : null}
+            {assessment ? (
+              <Link
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent"
+                href={`/teacher/content/assessments/${encodeURIComponent(assessmentPublicId)}/preview`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open test preview in a new tab"
+              >
+                <Eye aria-hidden="true" className="h-4 w-4" />
+                Preview the test
+              </Link>
+            ) : null}
             {isDraftEditable ? (
               <PrimaryLink href={designItemsHref}>
                 <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />

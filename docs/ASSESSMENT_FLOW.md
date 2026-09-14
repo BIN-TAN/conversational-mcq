@@ -1,10 +1,10 @@
 # Assessment Flow Specification
 
-## Teacher Whole-Test Preview
+## Teacher Test Preview
 
-- Assessment details include **Preview whole test**, a read-only view of saved items in topic/item order, with full wording, options, and active media.
+- Assessment details include **Preview the test**, which opens `/teacher/content/assessments/[assessmentPublicId]/preview` in a new tab. This standalone, read-only page uses normal document scrolling and a **Return to mini test** link, with full saved wording, options, and active media in topic/item order.
 - Included, non-archived items in non-archived topics are shown by default. **All saved items** also shows excluded and archived content, marked as not included. Draft and archived assessments remain previewable.
-- Answer keys are hidden initially and can be shown explicitly by the teacher. Closing and reopening the preview hides them again; unsaved detail-page edits are preserved.
+- Answer keys are hidden initially and can be shown explicitly by the teacher. Reloading or opening a new preview hides them again; the original detail tab and its unsaved edits remain untouched.
 - Preview uses the existing authenticated, owner-scoped teacher detail response. It creates no attempt, response, process event, or provider call and changes no publication or content state.
 
 ## Core Principle

@@ -124,76 +124,91 @@ try {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   context.setDefaultTimeout(15000);
   await context.addCookies([{ name: "cmcq_session", value: session(users[0]), url: base, httpOnly: true, sameSite: "Lax" }]);
-  let override, detailReads = 0;
-  await context.route("**/*", route => {
+  let override, failureStatus, detailReads = 0;
+  const readOnlyRoute = route => {
     const request = route.request(), url = new URL(request.url());
     if (url.origin !== base) { external.push(url.origin); return route.abort(); }
     if (!["GET", "HEAD"].includes(request.method())) { mutations.push(url.pathname); return route.abort(); }
     if (url.pathname === api) {
       detailReads++;
+      if (failureStatus) return route.fulfill({ status: failureStatus, json: { error: { code: "preview_unavailable", message: "Test preview could not be loaded." } } });
       if (override) return route.fulfill({ json: override });
     }
     return route.continue();
-  });
-  const page = await context.newPage();
-  page.on("pageerror", error => pageErrors.push(error.message));
+  };
+  await context.route("**/*", readOnlyRoute);
+  context.on("page", tab => tab.on("pageerror", error => pageErrors.push(error.message)));
+  const detailPage = await context.newPage();
   const url = base + `/teacher/content/assessments/${assessment.assessment_public_id}`;
-  await page.goto(url, { waitUntil: "networkidle" });
-  const trigger = page.getByRole("button", { name: "Preview whole test", exact: true });
+  const previewUrl = url + "/preview";
+  await detailPage.goto(url, { waitUntil: "networkidle" });
+  const trigger = detailPage.getByRole("link", { name: "Preview the test", exact: true });
+  assert.equal(await trigger.getAttribute("href"), new URL(previewUrl).pathname);
+  assert.equal(await trigger.getAttribute("target"), "_blank");
+  assert((await trigger.getAttribute("rel")).includes("noopener"));
+  const opened = detailPage.waitForEvent("popup");
   await trigger.click();
-  const modal = page.getByRole("dialog", { name: "Whole-test preview", exact: true });
-  await modal.waitFor();
-  assert.equal(await modal.getByRole("article").count(), 5);
+  const page = await opened;
+  await page.waitForLoadState("networkidle");
+  assert.equal(page.url(), previewUrl);
+  assert.equal(detailPage.url(), url);
+  await page.getByRole("heading", { name: "Preview the test", exact: true, level: 1 }).waitFor();
+  assert.equal(await page.getByRole("dialog").count(), 0);
+  const preview = page.getByTestId("assessment-preview");
+  await preview.waitFor();
+  assert.equal(await preview.getByRole("article").count(), 5);
   for (const [index, stem] of stems.entries()) {
-    assert((await modal.getByRole("article").nth(index).innerText()).includes(stem));
-    assert.equal(await modal.getByRole("list", { name: `Options for item ${index + 1}`, exact: true }).getByRole("listitem").count(), 4);
+    assert((await preview.getByRole("article").nth(index).innerText()).includes(stem));
+    assert.equal(await preview.getByRole("list", { name: `Options for item ${index + 1}`, exact: true }).getByRole("listitem").count(), 4);
   }
-  assert.equal(await modal.getByTestId("preview-answer-key").count(), 0);
-  assert(!(await modal.innerText()).includes("PRIVATE_"));
-  const image = modal.getByRole("img", { name: "Synthetic course figure", exact: true });
+  assert.equal(await preview.getByTestId("preview-answer-key").count(), 0);
+  assert(!(await preview.innerText()).includes("PRIVATE_"));
+  const image = preview.getByRole("img", { name: "Synthetic course figure", exact: true });
   await image.evaluate(el => el.decode());
   assert(await image.evaluate(el => el.naturalWidth > 0));
-  assert.equal(await modal.getByRole("img", { name: "Inactive figure" }).count(), 0);
-  assert.equal(await modal.getByRole("listitem").filter({ hasText: "Option C:" }).first().getByRole("link", { name: "Course reference" }).count(), 1);
-  checks.push("five complete items, sequential numbering and multi-topic order; active stem/option media; keys and internal notes hidden");
+  assert.equal(await preview.getByRole("img", { name: "Inactive figure" }).count(), 0);
+  assert.equal(await preview.getByRole("listitem").filter({ hasText: "Option C:" }).first().getByRole("link", { name: "Course reference" }).count(), 1);
+  checks.push("renamed link opens a standalone page, not a dialog; five complete ordered items, active media and hidden keys/internal notes");
 
-  await modal.getByLabel("Show answer keys", { exact: true }).check();
-  assert.equal(await modal.getByTestId("preview-answer-key").count(), 5);
-  assert((await modal.getByTestId("preview-answer-key").allTextContents()).every(text => text === "Answer key: B"));
-  await modal.getByRole("combobox", { name: "Items", exact: true }).selectOption("all");
-  assert.equal(await modal.getByRole("article").count(), 8);
-  assert.equal(await modal.getByText("Not included", { exact: true }).count(), 3);
-  await page.keyboard.press("Escape");
-  assert.equal(await modal.count(), 0);
-  assert(await trigger.evaluate(el => el === document.activeElement));
-  await trigger.click();
-  assert.equal(await modal.getByTestId("preview-answer-key").count(), 0);
-  assert.equal(await modal.getByRole("article").count(), 5);
-  checks.push("explicit key toggle, excluded/archived item and topic labels; Escape restores focus and reopening resets options");
+  await preview.getByLabel("Show answer keys", { exact: true }).check();
+  assert.equal(await preview.getByTestId("preview-answer-key").count(), 5);
+  assert((await preview.getByTestId("preview-answer-key").allTextContents()).every(text => text === "Answer key: B"));
+  await preview.getByRole("combobox", { name: "Items", exact: true }).selectOption("all");
+  assert.equal(await preview.getByRole("article").count(), 8);
+  assert.equal(await preview.getByText("Not included", { exact: true }).count(), 3);
+  assert.equal(detailReads, 2, "only the detail page and standalone preview fetch data, not the key/filter controls");
+  await page.reload({ waitUntil: "networkidle" });
+  assert.equal(await preview.getByTestId("preview-answer-key").count(), 0);
+  assert.equal(await preview.getByRole("article").count(), 5);
+  checks.push("explicit key toggle and excluded/archived labels; direct page reload resets keys and filters");
 
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 900 });
-    assert(await modal.evaluate(el => el.scrollWidth <= el.clientWidth), `modal overflow ${width}`);
-    const close = modal.getByRole("button", { name: "Close whole-test preview" });
-    const box = await close.boundingBox();
-    assert(box.x >= 0 && box.x + box.width <= width && box.y >= 0 && box.y + box.height <= 900);
-    await modal.getByRole("article").last().scrollIntoViewIfNeeded();
-    assert(await modal.getByRole("article").last().isVisible());
-    await modal.getByTestId("assessment-preview-items").evaluate(el => { el.scrollTop = 0; });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `page overflow ${width}`);
+    assert(await preview.getByTestId("assessment-preview-items").evaluate(el => {
+      for (let node = el; node && node !== document.body; node = node.parentElement) {
+        if (["auto", "scroll"].includes(getComputedStyle(node).overflowY)) return false;
+      }
+      return true;
+    }), "preview must use document scrolling, not a nested scroll container");
+    await preview.getByRole("article").last().scrollIntoViewIfNeeded();
+    assert(await page.evaluate(() => window.scrollY > 0));
+    const lastItem = await preview.getByRole("article").last().boundingBox();
+    assert(lastItem.y < 900 && lastItem.y + lastItem.height > 0);
+    await page.getByRole("link", { name: "Return to mini test", exact: true }).scrollIntoViewIfNeeded();
+    const back = await page.getByRole("link", { name: "Return to mini test", exact: true }).boundingBox();
+    assert(back.x >= 0 && back.x + back.width <= width);
+    await page.evaluate(() => window.scrollTo(0, 0));
     await page.screenshot({ path: join(output, `preview-${width}.png`) });
   }
-  await modal.getByRole("button", { name: "Close whole-test preview" }).focus();
-  // Native dialogs can yield focus to browser chrome, but never to the inert page.
-  for (let i = 0; i < 8; i++) {
-    await page.keyboard.press("Shift+Tab");
-    assert(await modal.evaluate(el => document.activeElement === document.body || el.contains(document.activeElement)), "background must remain inert");
-  }
-  await trigger.evaluate(el => el.focus());
-  assert(!(await trigger.evaluate(el => el === document.activeElement)), "background trigger cannot receive focus while modal is open");
-  await modal.getByRole("button", { name: "Close whole-test preview" }).focus();
-  await page.keyboard.press("Escape");
-  assert.equal(detailReads, 1, "opening, filtering and keys must not fetch more assessment data");
-  checks.push("desktop/mobile scroll, controls and modal focus containment; no additional data reads for preview");
+  await page.getByRole("link", { name: "Return to mini test", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.waitForURL(url);
+  await page.getByLabel("Assessment name", { exact: true }).waitFor();
+  await page.goto(previewUrl, { waitUntil: "networkidle" });
+  assert.equal(await preview.getByRole("article").count(), 5);
+  checks.push("320/390/768/1440px layouts, normal document scrolling, keyboard-accessible return link and direct preview URL");
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   for (const status of ["draft", "archived", "locked"]) {
@@ -203,16 +218,23 @@ try {
     override.assessment.is_content_locked = status === "locked";
     override.assessment.has_student_sessions = status === "locked";
     await page.reload({ waitUntil: "networkidle" });
-    if (status === "draft") await page.getByLabel("Assessment name", { exact: true }).fill("Unsaved teacher edit");
-    await trigger.click();
-    assert.equal(await modal.getByRole("article").count(), 5);
-    await modal.getByRole("button", { name: "Close whole-test preview" }).click();
-    if (status === "draft") assert.equal(await page.getByLabel("Assessment name", { exact: true }).inputValue(), "Unsaved teacher edit");
+    assert.equal(await preview.getByRole("article").count(), 5);
+    if (status === "draft") {
+      await detailPage.reload({ waitUntil: "networkidle" });
+      await detailPage.getByLabel("Assessment name", { exact: true }).fill("Unsaved teacher edit");
+      const newPreview = detailPage.waitForEvent("popup");
+      await trigger.click();
+      const tab = await newPreview;
+      await tab.waitForLoadState("networkidle");
+      assert.equal(await tab.getByRole("article").count(), 5);
+      assert.equal(await tab.getByTestId("preview-answer-key").count(), 0);
+      assert.equal(await detailPage.getByLabel("Assessment name", { exact: true }).inputValue(), "Unsaved teacher edit");
+      await tab.close();
+    }
   }
   override.assessment.mini_test_items = [];
   await page.reload({ waitUntil: "networkidle" });
-  await trigger.click();
-  await modal.getByText("No items have been added yet.", { exact: true }).waitFor();
+  await preview.getByText("No items have been added yet.", { exact: true }).waitFor();
   checks.push("draft, locked and archived views; unsaved edits preserved; empty test handled without errors");
   override = structuredClone(data);
   const incomplete = override.assessment.mini_test_items[0];
@@ -223,20 +245,41 @@ try {
   incomplete.media_assets[0].url = "javascript:alert('unsafe')";
   override.assessment.mini_test_items = [incomplete];
   await page.reload({ waitUntil: "networkidle" });
-  await trigger.click();
-  await modal.getByText("No answer options yet.", { exact: true }).waitFor();
-  await modal.getByText("Media unavailable", { exact: true }).waitFor();
-  await modal.getByLabel("Show answer keys", { exact: true }).check();
-  assert.equal(await modal.getByTestId("preview-answer-key").innerText(), "Answer key: Not set");
+  await preview.getByText("No answer options yet.", { exact: true }).waitFor();
+  await preview.getByText("Media unavailable", { exact: true }).waitFor();
+  await preview.getByLabel("Show answer keys", { exact: true }).check();
+  assert.equal(await preview.getByTestId("preview-answer-key").innerText(), "Answer key: Not set");
   await page.setViewportSize({ width: 320, height: 700 });
-  assert(await modal.getByRole("article").evaluate(el => el.scrollWidth <= el.clientWidth));
+  assert(await preview.getByRole("article").evaluate(el => el.scrollWidth <= el.clientWidth));
   incomplete.included_in_published_set = false;
   await page.reload({ waitUntil: "networkidle" });
-  await trigger.click();
-  await modal.getByText("No included items.", { exact: true }).waitFor();
-  await modal.getByRole("combobox", { name: "Items", exact: true }).selectOption("all");
-  assert.equal(await modal.getByRole("article").count(), 1);
+  await preview.getByText("No included items.", { exact: true }).waitFor();
+  await preview.getByRole("combobox", { name: "Items", exact: true }).selectOption("all");
+  assert.equal(await preview.getByRole("article").count(), 1);
   checks.push("incomplete drafts, long text, unsafe media URLs and excluded-only tests handled safely");
+  failureStatus = 503;
+  await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("alert").filter({ hasText: "Test preview could not be loaded." }).waitFor();
+  assert.equal(await preview.count(), 0);
+  failureStatus = undefined;
+  override = undefined;
+  await page.getByRole("button", { name: "Try again", exact: true }).click();
+  await preview.waitFor();
+  assert.equal(await preview.getByRole("article").count(), 5);
+  assert.equal(await preview.getByTestId("preview-answer-key").count(), 0);
+  for (const user of [null, users[1], users[2]]) {
+    const restricted = await browser.newContext();
+    await restricted.route("**/*", readOnlyRoute);
+    if (user) await restricted.addCookies([{ name: "cmcq_session", value: session(user), url: base, httpOnly: true, sameSite: "Lax" }]);
+    const tab = await restricted.newPage();
+    await tab.goto(previewUrl, { waitUntil: "networkidle" });
+    if (user === users[1]) await tab.locator("section[role='alert']").waitFor();
+    else assert.equal(new URL(tab.url()).pathname, user ? "/student/assessment" : "/student/login");
+    assert.equal(await tab.getByTestId("assessment-preview").count(), 0);
+    assert(!(await tab.locator("body").innerText()).includes(stems[0]));
+    await restricted.close();
+  }
+  checks.push("failed reads expose no stale content and support retry; anonymous/student/other-teacher direct page access is protected");
   assert.deepEqual(mutations, []);
   assert.deepEqual(external, []);
   assert.deepEqual(pageErrors, []);
