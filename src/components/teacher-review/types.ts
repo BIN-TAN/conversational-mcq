@@ -415,6 +415,7 @@ export type RunPlanningResponse = {
 export type TeacherFollowupRound = {
   round_index: number;
   status: string;
+  recorded_status?: string;
   started_at: string | null;
   completed_at: string | null;
   updated_student_profile_present: boolean;

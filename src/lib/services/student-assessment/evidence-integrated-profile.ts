@@ -816,11 +816,15 @@ function evidenceSufficiencyFor(items: ItemEvidenceV2[]): EvidenceSufficiencyV2 
 }
 
 function studentStatusForUnderstanding(value: AssessmentSpecificUnderstanding) {
-  return value === "foundational_knowledge_gap"
-    ? "Needs more work"
-    : value === "indeterminate_due_to_insufficient_evidence"
-      ? "Still developing"
-      : "Mostly understood";
+  const labels = {
+    strong_well_supported_understanding: "Mostly understood",
+    sound_understanding: "Mostly understood",
+    partial_understanding: "Still developing",
+    specific_misconception: "Needs more work",
+    foundational_knowledge_gap: "Needs more work",
+    indeterminate_due_to_insufficient_evidence: "Still developing"
+  } as const satisfies Record<AssessmentSpecificUnderstanding, string>;
+  return labels[value];
 }
 
 function studentFacingUnderstandingExplanation(input: {
@@ -1943,15 +1947,10 @@ export function studentSafeProjectionFromEvidenceProfile(
   profile: EvidenceIntegratedProfileV2,
   updatedAt: string
 ) {
-  const legacyStatus =
-    profile.assessment_specific_understanding.value === "foundational_knowledge_gap"
-      ? "Needs more work"
-      : profile.assessment_specific_understanding.value === "indeterminate_due_to_insufficient_evidence"
-        ? "Still developing"
-        : "Mostly understood";
+  const legacyStatus = studentStatusForUnderstanding(profile.assessment_specific_understanding.value);
 
   return {
-    status: legacyStatus as "Mostly understood" | "Still developing" | "Needs more work",
+    status: legacyStatus,
     explanation: profile.student_safe_summary.boundary_statement,
     next_focus: profile.student_safe_summary.next_focus,
     updated_at: updatedAt,

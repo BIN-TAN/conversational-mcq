@@ -4,6 +4,7 @@ import path from "node:path";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
 import type { AgentName } from "@/lib/agents/names";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import {
@@ -1353,6 +1354,7 @@ async function executeProfileIntegrationRepairAttempt(input: {
   });
 
   try {
+    await assertAgentCallUsageAllowed(agentCall.id);
     const providerResult = await input.provider.executeStructured({
       agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
       model_config: input.model_config,
@@ -1465,6 +1467,13 @@ async function executeProfileIntegrationRepairAttempt(input: {
       blocked_reason: "profile_integration_repair_provider_failed"
     };
   } catch (error) {
+    if (error instanceof LlmUsageBlockedError) {
+      return {
+        status: "configuration_blocked", agent_call_id: agentCall.id,
+        fallback_packet: buildConservativeIntegrationFallback(input.agent_input, error.reason),
+        validation_issues: [], blocked_reason: error.reason
+      };
+    }
     const fallbackPacket = buildConservativeIntegrationFallback(
       input.agent_input,
       "profile_integration_repair_provider_exception"
@@ -1534,6 +1543,7 @@ async function executeProfileIntegrationAgentWithProvider(input: {
   });
 
   try {
+    await assertAgentCallUsageAllowed(agentCall.id);
     const providerResult = await input.provider.executeStructured({
       agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
       model_config: input.model_config,
@@ -1658,6 +1668,13 @@ async function executeProfileIntegrationAgentWithProvider(input: {
       blocked_reason: "profile_integration_provider_failed"
     };
   } catch (error) {
+    if (error instanceof LlmUsageBlockedError) {
+      return {
+        status: "configuration_blocked", agent_call_id: agentCall.id,
+        fallback_packet: buildConservativeIntegrationFallback(input.agent_input, error.reason),
+        validation_issues: [], blocked_reason: error.reason
+      };
+    }
     const fallbackPacket = buildConservativeIntegrationFallback(
       input.agent_input,
       "profile_integration_provider_exception"

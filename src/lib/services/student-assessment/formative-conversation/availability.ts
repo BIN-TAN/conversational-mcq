@@ -12,7 +12,9 @@ export class FormativeConversationUnavailableError extends Error {
     public readonly reason_code: string,
     public readonly retryable = true
   ) {
-    super(FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE);
+    super(reason_code.endsWith("_limit_exceeded")
+      ? "Learning support has reached its usage allowance. Your responses are saved. Please contact your teacher."
+      : FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE);
     this.name = "FormativeConversationUnavailableError";
   }
 }

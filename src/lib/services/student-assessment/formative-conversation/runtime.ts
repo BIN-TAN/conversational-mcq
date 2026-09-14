@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import { prisma } from "@/lib/db";
+import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION,
@@ -28,7 +29,7 @@ import {
   type FormativeConversationV18R2AgentInput,
   type FormativeConversationV18R2AgentOutput
 } from "./agent-contract-v18r2";
-import { formativeConversationUnavailableFromConfiguration } from "./availability";
+import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./availability";
 import { validateFormativeConversationV18CandidateAcceptance } from "./candidate-validation-v18";
 import {
   FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
@@ -764,6 +765,7 @@ async function executeOrResumeAgentCall(input: {
 
   let execution: z.infer<typeof FormativeConversationAgentExecutionSchema>;
   try {
+    await assertAgentCallUsageAllowed(started.agent_call.id);
     execution = FormativeConversationAgentExecutionSchema.parse(
       await executeFormativeConversationProviderOutsidePersistence({
         execute: () =>
@@ -787,6 +789,9 @@ async function executeOrResumeAgentCall(input: {
       })
     );
   } catch (error) {
+    if (error instanceof LlmUsageBlockedError) {
+      throw new FormativeConversationUnavailableError(error.reason);
+    }
     if (
       error instanceof FormativeConversationV18ExecutionError ||
       error instanceof FormativeConversationV18R2ExecutionError

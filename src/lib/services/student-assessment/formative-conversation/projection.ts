@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { studentTurnId } from "../student-turn-id";
 import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "./opening-contract";
@@ -40,7 +41,7 @@ function turnProjection(turn: {
       ? (turn.structured_payload as Record<string, unknown>)
       : {};
   return {
-    turn_id: turn.id,
+    turn_id: studentTurnId(turn.id),
     sequence_index: turn.sequence_index,
     actor: turn.actor_type === "student" ? ("student" as const) : ("tutor" as const),
     message_text: turn.message_text ?? "",

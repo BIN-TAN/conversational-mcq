@@ -39,6 +39,7 @@ export type LlmUsageSnapshot = {
 export type LlmUsageSnapshotInput = {
   agent_name: LiveModelRoleType;
   assessment_session_db_id?: string | null;
+  exclude_agent_call_db_id?: string;
   now?: Date;
 };
 
@@ -152,6 +153,7 @@ export async function getLlmUsageSnapshot(input: LlmUsageSnapshotInput): Promise
   const assessmentSessionId = input.assessment_session_db_id ?? null;
   const dayWhere = {
     provider: "openai",
+    ...(input.exclude_agent_call_db_id ? { id: { not: input.exclude_agent_call_db_id } } : {}),
     created_at: {
       gte: window.start,
       lt: window.end
@@ -182,6 +184,7 @@ export async function getLlmUsageSnapshot(input: LlmUsageSnapshotInput): Promise
   const sessionRows = session
     ? await usageRows({
         provider: "openai",
+        ...(input.exclude_agent_call_db_id ? { id: { not: input.exclude_agent_call_db_id } } : {}),
         assessment_session_db_id: session.id
       })
     : null;

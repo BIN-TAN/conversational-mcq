@@ -16,7 +16,7 @@ globalThis.fetch = async () => { networkCalls++; throw new Error("no_network_all
 async function main() {
   const foundation = await import("../src/lib/services/student-assessment/formative-conversation/service");
   const projection = await import("../src/lib/services/student-assessment/formative-conversation/projection");
-  const { endStudentAssessmentAttempt, exitStudentAssessmentSession, getStudentSessionState } = await import("../src/lib/services/student-assessment/service");
+  const { endStudentAssessmentAttempt, exitStudentAssessmentSession, getStudentSessionState, getStudentSafeTranscript } = await import("../src/lib/services/student-assessment/service");
   const { buildTeacherSessionDataAudit, summarizeResponsePackagePayload } = await import("../src/lib/services/teacher-review/session-data-audit");
   const { prisma } = await import("../src/lib/db");
   const { updateAssessmentSessionPhase, markSessionNeedsReview } = await import("../src/lib/services/session-state");
@@ -77,6 +77,13 @@ async function main() {
     const saved = await foundation.reserveAndPersistFormativeConversationStudentMessage({
       conversation_public_id: conversation.conversation_public_id, client_message_id: "saved-message", message_text: "My saved reasoning."
     });
+    const generalTranscript = await getStudentSafeTranscript(owner);
+    const formativeTranscript = await projection.getStudentFormativeConversationProjection(owner);
+    const generalTurn = generalTranscript.transcript.find((turn) => turn.message_text === "My saved reasoning.");
+    const formativeTurn = formativeTranscript?.transcript.find((turn) => turn.message_text === "My saved reasoning.");
+    assert(generalTurn && formativeTurn);
+    assert.equal(generalTurn.turn_id, formativeTurn.turn_id, "Both student views must deduplicate the same stored message.");
+    assert.notEqual(formativeTurn.turn_id, saved.receipt.student_turn_db_id, "Student views must not expose raw database turn IDs.");
     await foundation.reserveFormativeConversationOpening(conversation.conversation_public_id);
     await exitStudentAssessmentSession(owner);
     await foundation.recordFormativeConversationOpeningFailure({ conversation_public_id: conversation.conversation_public_id, failure_code: "synthetic_paused_failure", retryable: true });
@@ -164,6 +171,14 @@ async function main() {
     await db.formativeConversationSession.update({ where: { id: conversation.id }, data: { status: "paused" } });
     await assertBlocked();
     assert.equal((await db.formativeConversationSession.findUniqueOrThrow({ where: { id: conversation.id } })).status, "paused");
+    await db.conceptUnitSession.update({ where: { id: fixture.conceptUnitSession.id }, data: { followup_status: "active" } });
+    const { getTeacherReviewSessionDetail } = await import("../src/lib/services/teacher-review/session-detail");
+    const teacherDetail = await getTeacherReviewSessionDetail(fixture.session.session_public_id);
+    assert(teacherDetail);
+    const teacherConcept = teacherDetail.concept_unit_sessions[0];
+    assert.equal(teacherConcept.followup_status, "ended");
+    for (const key of ["can_run_profiling", "can_run_planning", "can_start_followup", "can_run_followup_update"] as const) assert.equal(teacherConcept[key], false);
+    assert.equal((await db.conceptUnitSession.findUniqueOrThrow({ where: { id: fixture.conceptUnitSession.id } })).followup_status, "active", "Teacher presentation must not rewrite historical records.");
 
     const handoff = await db.conversationTurn.create({ data: {
       assessment_session_db_id: fixture.session.id,

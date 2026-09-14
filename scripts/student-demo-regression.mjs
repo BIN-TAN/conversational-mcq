@@ -19,6 +19,8 @@ const env = {
 };
 const tests = [
   "student-demo-recovery-smoke-test.ts",
+  "student-evidence-integrated-profile-smoke-test.ts",
+  "student-agent-usage-admission-smoke-test.ts",
   "service-smoke-test.ts",
   "student-formative-conversation-foundation-smoke-test.ts",
   "student-attempt-lifecycle-smoke-test.ts",

@@ -2,6 +2,8 @@ import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
+import { FormativeConversationUnavailableError } from "./formative-conversation/availability";
 import { FormativeValueSchema } from "@/lib/domain/enums";
 import {
   getLlmRuntimeConfig,
@@ -2564,6 +2566,12 @@ async function callProviderOrMock(input: {
   }
 
   assertNoProhibitedProviderInput(input.provider_input);
+  try {
+    await assertAgentCallUsageAllowed(agentCall.id);
+  } catch (error) {
+    if (error instanceof LlmUsageBlockedError) throw new FormativeConversationUnavailableError(error.reason);
+    throw error;
+  }
   const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
   modelConfig = modelConfig ?? resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
   const providerResult = await provider.executeStructured({

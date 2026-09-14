@@ -808,6 +808,7 @@ export function FormativeConversationEvidenceSection({
               }))
           );
         const outcomesByEvidenceTurn = new Map<number, string[]>();
+        const messageNumbers = new Map(conversation.timeline.map((turn, index) => [turn.sequence_index, index + 1]));
         for (const transition of conversation.profile_evolution) {
           const outcome = transition.learning_outcome
             ? formativeOutcomeLabel(transition.learning_outcome)
@@ -992,7 +993,7 @@ export function FormativeConversationEvidenceSection({
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-semibold uppercase tracking-wide text-accent">
                             {turn.actor === "student" ? "Student" : "Tutor"} ·
-                            Turn {turn.sequence_index}
+                            Message {messageNumbers.get(turn.sequence_index)}
                           </span>
                           {evidenceOutcomes.map((outcome) => (
                             <span
@@ -1063,7 +1064,9 @@ export function FormativeConversationEvidenceSection({
                   <p className="mt-1 text-sm leading-6 text-ink">
                     {latestTransition?.evidence_interpretation ||
                       latestTransition?.learning_observations[0] ||
-                      "No validated learning change yet. Evidence collection continues."}
+                      (conversation.status === "active"
+                        ? "No validated learning change yet. Evidence collection continues."
+                        : "No validated learning change was recorded.")}
                   </p>
                 </div>
                 <div>
@@ -1082,7 +1085,7 @@ export function FormativeConversationEvidenceSection({
                     <p className="mt-1 text-sm leading-6 text-ink">
                       {latestTransition
                         ? "No remaining misconception evidence is recorded in the latest validated profile."
-                        : "No validated learning change yet. Evidence collection continues."}
+                        : "Insufficient evidence to establish a validated learning change."}
                     </p>
                   )}
                 </div>
@@ -1183,7 +1186,7 @@ export function FormativeConversationEvidenceSection({
                                   {turn.actor === "student"
                                     ? "Student"
                                     : "Tutor"}{" "}
-                                  · Turn {turn.sequence_index}:
+                                  · Message {messageNumbers.get(turn.sequence_index) ?? "(earlier evidence)"}:
                                 </span>{" "}
                                 {turn.message_text}
                               </blockquote>
@@ -1196,8 +1199,9 @@ export function FormativeConversationEvidenceSection({
                 </ol>
               ) : (
                 <p className="mt-2 text-sm text-muted">
-                  No validated profile change yet. The conversation can
-                  continue while evidence is insufficient.
+                  {conversation.status === "active"
+                    ? "No validated profile change yet. The conversation can continue while evidence is insufficient."
+                    : "No validated profile change was recorded."}
                 </p>
               )}
             </section>
@@ -2363,6 +2367,9 @@ function FollowupRoundDetails({ round }: { round: TeacherFollowupRound }) {
       <div className="grid gap-3 md:grid-cols-4">
         <Fact labelText="Round" value={round.round_index} />
         <Fact labelText="Status" value={<StatusPill value={round.status} />} />
+        {round.recorded_status && round.recorded_status !== round.status ? (
+          <Fact labelText="Historical round status" value={label(round.recorded_status)} />
+        ) : null}
         <Fact labelText="Started" value={formatDate(round.started_at)} />
         <Fact labelText="Completed" value={formatDate(round.completed_at)} />
       </div>
@@ -2738,9 +2745,6 @@ function FutureAgentSection({
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
             <h3 className="text-lg font-semibold text-ink">Follow-up conversation</h3>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              Follow-up remains open-ended. Meaningful new evidence can queue a staged profile and planning update before the next round opens.
-            </p>
           </div>
           <StatusPill value={counts.followup_round_count > 0 ? "rounds_available" : "followup_not_started"} />
         </div>

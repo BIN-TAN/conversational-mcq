@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { studentTurnId } from "./student-turn-id";
 import {
   Prisma,
   type AssessmentPhase,
@@ -7357,7 +7358,7 @@ export async function getStudentSafeTranscript(input: {
       const currentResponse = responseKey ? responseByTurnKey.get(responseKey) ?? null : null;
 
       return {
-        turn_id: `turn_${createHash("sha256").update(turn.id).digest("hex").slice(0, 20)}`,
+        turn_id: studentTurnId(turn.id),
         actor: turn.actor_type === "student" ? "student" : "assistant",
         message_text: studentTranscriptMessage({
           ...turn,

@@ -36,6 +36,7 @@ export type LlmUsageGuardResult =
 export type LlmUsageGuardInput = {
   agent_name: LiveModelRole;
   assessment_session_db_id?: string | null;
+  exclude_agent_call_db_id?: string;
   model_configured?: boolean;
   now?: Date;
 };
@@ -64,6 +65,7 @@ export async function checkLlmLiveCallReadiness(input: LlmUsageGuardInput): Prom
   const usageSnapshot = await getLlmUsageSnapshot({
     agent_name: agentName,
     assessment_session_db_id: input.assessment_session_db_id ?? null,
+    exclude_agent_call_db_id: input.exclude_agent_call_db_id,
     now: input.now
   });
   const retryAfter = usageSnapshot.window_end;

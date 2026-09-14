@@ -814,23 +814,27 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       initial_completed_at: serializeDate(conceptUnitSession.initial_completed_at),
       followup_started_at: serializeDate(conceptUnitSession.followup_started_at),
       followup_completed_at: serializeDate(conceptUnitSession.followup_completed_at),
-      followup_status: conceptUnitSession.followup_status,
+      followup_status: resolveCanonicalAttemptLifecycle(session).terminal && conceptUnitSession.followup_status === "active"
+        ? "ended" : conceptUnitSession.followup_status,
       followup_round_count: conceptUnitSession.followup_round_count,
       item_response_count: conceptUnitSession._count.item_responses,
       response_package_count: conceptUnitSession._count.response_packages,
       can_run_profiling:
+        !resolveCanonicalAttemptLifecycle(session).terminal &&
         developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "profiling_pending" &&
         Boolean(conceptUnitSession.initial_completed_at) &&
         !conceptUnitSession.latest_student_profile,
       can_run_planning:
+        !resolveCanonicalAttemptLifecycle(session).terminal &&
         developmentControlsEnabled &&
         manualReview &&
         ["profiling_completed", "planning_pending"].includes(session.current_phase) &&
         Boolean(conceptUnitSession.latest_student_profile) &&
         !conceptUnitSession.latest_formative_decision,
       can_start_followup:
+        !resolveCanonicalAttemptLifecycle(session).terminal &&
         developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "planning_completed" &&
@@ -838,6 +842,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         Boolean(conceptUnitSession.latest_formative_decision) &&
         !conceptUnitSession.followup_rounds.some((round) => round.status === "active"),
       can_run_followup_update:
+        !resolveCanonicalAttemptLifecycle(session).terminal &&
         developmentControlsEnabled &&
         manualReview &&
         session.current_phase === "followup_active" &&
@@ -859,7 +864,12 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       latest_formative_decision: conceptUnitSession.latest_formative_decision
         ? serializeFormativeDecisionForTeacher(conceptUnitSession.latest_formative_decision)
         : null,
-      followup_rounds: conceptUnitSession.followup_rounds.map(serializeFollowupRoundForTeacher),
+      followup_rounds: conceptUnitSession.followup_rounds.map((round) => ({
+        ...serializeFollowupRoundForTeacher(round),
+        recorded_status: round.status,
+        status: resolveCanonicalAttemptLifecycle(session).terminal && round.status === "active"
+          ? "ended" : round.status
+      })),
       followup_update_cycles: conceptUnitSession.followup_update_cycles.map(
         serializeFollowupUpdateCycleForTeacher
       ),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import {
   buildEvidenceIntegratedProfileBundle,
   packageResultsForStudent,
+  studentSafeProjectionFromEvidenceProfile,
   validateEvidenceProfileCoherence,
   validatePackageFeedbackSpecificity,
   validateSingleActionState
@@ -326,6 +327,19 @@ function assertValidatorsRejectBrokenArtifacts() {
   const bundle = buildEvidenceIntegratedProfileBundle({
     response_package_payload: fixturePackage()
   });
+  const expectedLabels = {
+    strong_well_supported_understanding: "Mostly understood",
+    sound_understanding: "Mostly understood",
+    partial_understanding: "Still developing",
+    specific_misconception: "Needs more work",
+    foundational_knowledge_gap: "Needs more work",
+    indeterminate_due_to_insufficient_evidence: "Still developing"
+  } as const;
+  for (const [value, expected] of Object.entries(expectedLabels)) {
+    const profile = structuredClone(bundle.profile);
+    profile.assessment_specific_understanding.value = value as keyof typeof expectedLabels;
+    assert.equal(studentSafeProjectionFromEvidenceProfile(profile, new Date().toISOString()).status, expected);
+  }
   const brokenFeedback = {
     ...bundle.feedback,
     evidence_references: [],
