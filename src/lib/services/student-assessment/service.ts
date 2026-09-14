@@ -7009,6 +7009,7 @@ export async function getStudentReviewResponses(input: {
     (conceptUnitSession?.item_responses ?? []).map((response) => [response.item_db_id, response])
   );
   const locked =
+    isTerminalAssessmentSession(session) ||
     Boolean(conceptUnitSession?.initial_completed_at) ||
     session.current_phase === "initial_concept_unit_completed" ||
     session.current_phase === "profiling_pending" ||

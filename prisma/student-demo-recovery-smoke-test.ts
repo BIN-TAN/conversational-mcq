@@ -16,7 +16,7 @@ globalThis.fetch = async () => { networkCalls++; throw new Error("no_network_all
 async function main() {
   const foundation = await import("../src/lib/services/student-assessment/formative-conversation/service");
   const projection = await import("../src/lib/services/student-assessment/formative-conversation/projection");
-  const { endStudentAssessmentAttempt, exitStudentAssessmentSession, getStudentSessionState, getStudentSafeTranscript } = await import("../src/lib/services/student-assessment/service");
+  const { endStudentAssessmentAttempt, exitStudentAssessmentSession, getStudentSessionState, getStudentSafeTranscript, getStudentReviewResponses, recordSelectedOption } = await import("../src/lib/services/student-assessment/service");
   const { buildTeacherSessionDataAudit, summarizeResponsePackagePayload } = await import("../src/lib/services/teacher-review/session-data-audit");
   const { prisma } = await import("../src/lib/db");
   const { updateAssessmentSessionPhase, markSessionNeedsReview } = await import("../src/lib/services/session-state");
@@ -33,6 +33,16 @@ async function main() {
     assert.equal(summary(responses, []).evidence_complete_for_included_items, null);
     assert.equal(summary(responses, [includedItems[0], includedItems[0]]).evidence_complete_for_included_items, null);
     const fixture = await createResponseCollectionFixture({ prisma: db, prefix, responseCollectionMode: "deterministic" });
+    const partial = await createResponseCollectionFixture({ prisma: db, prefix: `${prefix}_partial`, responseCollectionMode: "deterministic" });
+    const partialOwner = { student_user_db_id: partial.student.id, session_public_id: partial.session.session_public_id };
+    const editableReview = await getStudentReviewResponses(partialOwner);
+    assert.equal(editableReview.locked, false);
+    assert(editableReview.items.some((item) => item.can_edit));
+    await endStudentAssessmentAttempt(partialOwner);
+    const endedReview = await getStudentReviewResponses(partialOwner);
+    assert.equal(endedReview.locked, true, "Ending before package submission must still lock review.");
+    assert(endedReview.items.every((item) => !item.can_edit));
+    await assert.rejects(recordSelectedOption({ ...partialOwner, item_public_id: editableReview.items[0].item_public_id, data: { selected_option: "A" } }), { code: "invalid_phase_for_action" });
     const owner = { student_user_db_id: fixture.student.id, session_public_id: fixture.session.session_public_id };
     await db.conceptUnitSession.update({ where: { id: fixture.conceptUnitSession.id }, data: { initial_completed_at: new Date() } });
     await db.assessmentSession.update({ where: { id: fixture.session.id }, data: { current_phase: "profiling_pending" } });

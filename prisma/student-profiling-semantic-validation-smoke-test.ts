@@ -199,7 +199,108 @@ function expectInvalid(input: {
 }
 
 function main() {
+  const underconfidentItems = items(["correct", "correct", "correct", "correct", "correct"])
+    .map((item) => ({ ...item, confidence_rating: "low" as const }));
+  const underconfidentOutput = profileOutput({
+    itemFixtures: underconfidentItems,
+    overrides: {
+      ability_profile: "mostly_correct_understanding",
+      ability_pattern_flags: ["confidence_reasoning_mismatch"],
+      confidence_alignment: "underconfident",
+      integrated_diagnostic_profile: "underconfident_but_reasoning_supported",
+      evidence_sufficiency: "strong",
+      misconception_indicators: [],
+      integrated_profile_rationale: "Correct explanations support understanding despite low confidence. Novel transfer remains untested.",
+      reasoning_quality_summary: "Accurate reasoning supports each answer; confidence is lower than the explanation quality suggests."
+    }
+  });
+  expectValid({
+    caseId: "live_demo_underconfidence_mismatch_regression",
+    providerInput: profileInput({ initial: underconfidentItems }),
+    output: underconfidentOutput,
+    classification: "mixed_resolved"
+  });
+  for (const [caseId, changes] of Object.entries({
+    unresolved_correctness_mismatch: { ability_pattern_flags: ["confidence_reasoning_mismatch", "correctness_reasoning_mismatch"] },
+    wrong_confidence_direction: { confidence_alignment: "overconfident" },
+    limited_evidence: { evidence_sufficiency: "limited" },
+    unsupported_understanding: { ability_profile: "partial_understanding" }
+  })) {
+    expectInvalid({
+      caseId,
+      providerInput: profileInput({ initial: underconfidentItems }),
+      output: { ...underconfidentOutput, ...changes } as ProfileOutput,
+      issueFragment: "Structured mixed evidence requires"
+    });
+  }
+  const mixedUnderconfidentItems = structuredClone(underconfidentItems);
+  mixedUnderconfidentItems[0].correctness = "incorrect";
+  const mixedUnderconfidentOutput = structuredClone(underconfidentOutput);
+  mixedUnderconfidentOutput.item_level_evidence[0].correctness = "incorrect";
+  expectInvalid({
+    caseId: "underconfidence_does_not_resolve_mixed_correctness",
+    providerInput: profileInput({ initial: mixedUnderconfidentItems }),
+    output: mixedUnderconfidentOutput,
+    issueFragment: "Structured mixed evidence requires"
+  });
+  expectInvalid({
+    caseId: "underconfidence_requires_observed_low_confidence",
+    providerInput: profileInput({ initial: underconfidentItems.map((item) => ({ ...item, confidence_rating: "high" })) }),
+    output: underconfidentOutput,
+    issueFragment: "Structured mixed evidence requires"
+  });
+  const ungroundedUnderconfidence = structuredClone(underconfidentOutput);
+  ungroundedUnderconfidence.item_level_evidence = ungroundedUnderconfidence.item_level_evidence.map((item) => ({
+    ...item, item_public_id: `invented_${item.item_public_id}`
+  }));
+  expectInvalid({
+    caseId: "underconfidence_requires_grounded_item_evidence",
+    providerInput: profileInput({ initial: underconfidentItems }),
+    output: ungroundedUnderconfidence,
+    issueFragment: "references unprovided item"
+  });
+
   const fragmentedItems = items(["correct", "incorrect", "incorrect"]);
+  const independenceItems = items(["correct", "correct", "correct", "correct", "correct", "correct"]);
+  const independenceOutput = profileOutput({
+    itemFixtures: independenceItems,
+    overrides: {
+      ability_profile: "mostly_correct_understanding",
+      ability_pattern_flags: ["correctness_reasoning_mismatch"],
+      integrated_diagnostic_profile: "correct_but_independence_uncertain",
+      independence_interpretability: "independent_understanding_uncertain",
+      misconception_indicators: [],
+      integrated_profile_rationale: "Observed final explanations are correct, including a revised answer. Process evidence limits independence inference without establishing its cause.",
+      reasoning_quality_summary: "Final explanations support the selected answers; novel transfer remains untested."
+    }
+  });
+  expectValid({
+    caseId: "live_demo_revised_answer_with_independence_uncertainty",
+    providerInput: profileInput({ initial: independenceItems }),
+    output: independenceOutput,
+    classification: "mixed_resolved"
+  });
+  expectInvalid({
+    caseId: "independence_uncertainty_must_remain_explicit",
+    providerInput: profileInput({ initial: independenceItems }),
+    output: { ...independenceOutput, independence_interpretability: "independent_understanding_likely" },
+    issueFragment: "Structured mixed evidence requires"
+  });
+  const noProcessInput = profileInput({ initial: independenceItems });
+  noProcessInput.initial_response_package = { payload: { item_responses: independenceItems } };
+  expectInvalid({
+    caseId: "independence_mismatch_requires_process_context",
+    providerInput: noProcessInput,
+    output: independenceOutput,
+    issueFragment: "Structured mixed evidence requires"
+  });
+  expectInvalid({
+    caseId: "independence_uncertainty_does_not_resolve_confidence_conflict",
+    providerInput: profileInput({ initial: independenceItems }),
+    output: { ...independenceOutput, ability_pattern_flags: ["correctness_reasoning_mismatch", "confidence_reasoning_mismatch"] },
+    issueFragment: "Structured mixed evidence requires"
+  });
+
   const fragmented = expectValid({
     caseId: "fragmented_inconsistent_offline_replay",
     providerInput: profileInput({ initial: fragmentedItems }),

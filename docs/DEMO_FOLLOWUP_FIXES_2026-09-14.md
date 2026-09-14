@@ -22,10 +22,20 @@ teaching prompts, answer keys, schemas, and approval/activation artifacts are un
   formative planning now check the common usage admission guard before provider
   dispatch. A reserved call does not count against itself, while other pending calls
   do. Blocked calls retain the exact usage reason and no provider response ID.
+- The repeat demos exposed two profiling-validation false positives: an explicitly
+  supported underconfidence interpretation, and correct final explanations with
+  explicitly uncertain independence. A single corresponding mismatch can now be
+  interpreted by those existing profile types when grounded response evidence is
+  present. Mixed correctness, additional unexplained conflicts, ungrounded evidence,
+  insufficient support, and unsupported certainty retain their validation gates.
+  This is a consistency correction, not a score-based mastery rule or new profile type.
+- Ending an attempt before submitting its initial package now also locks the review
+  projection. Previously, mutations were rejected by the terminal-state guard but
+  the review endpoint incorrectly advertised `can_edit=true`.
 
 ## Verification
 
-- `node scripts/student-demo-regression.mjs`: 22/22 focused checks passed against a
+- `node scripts/student-demo-regression.mjs`: 23/23 focused checks passed against a
   disposable local audit database, with external network/provider requests blocked.
 - `npm run typecheck`: passed.
 - `npm run lint`: passed with five pre-existing unused-variable warnings in historical
@@ -58,3 +68,9 @@ run. Test only the authorized synthetic test_01 account. Preserve request/respon
 evidence and distinguish live validated profiles from conservative fallback profiles.
 API scenario timing is not genuine student typing, attention, or dwell-time evidence.
 Ten sequential scenarios are not a multi-student load test.
+
+The repeat pass retained failed attempts, including rejected profiling outputs and a
+gateway 520 response whose answer and reasoning had already been saved. Corrections
+are tested in fresh attempts after deployment; these do not replace the original
+results. Production profile payload export was not performed after a security check
+blocked it; synthetic regression fixtures cover the observed structured failure cases.

@@ -39,6 +39,7 @@ type GroundedItemEvidence = {
   correctness: "correct" | "incorrect" | null;
   reasoning_present: boolean;
   confidence_present: boolean;
+  confidence_rating: string | null;
 };
 
 function jsonRecord(value: unknown): JsonRecord | null {
@@ -102,7 +103,8 @@ function packageItemEvidence(value: unknown): GroundedItemEvidence[] {
       correctness:
         normalizedCorrectness(response.correctness) ?? existing?.correctness ?? null,
       reasoning_present: Boolean(reasoningText) || existing?.reasoning_present === true,
-      confidence_present: Boolean(confidence) || existing?.confidence_present === true
+      confidence_present: Boolean(confidence) || existing?.confidence_present === true,
+      confidence_rating: confidence ?? existing?.confidence_rating ?? null
     });
   };
 
@@ -295,7 +297,36 @@ export function assessStudentProfileEvidenceConsistency(input: {
       )
       .map((evidence) => evidence.evidence_id)
   ]);
-  const dominantInterpretationSupported = outputSupportsDominantInterpretation(
+  const groundedReasonedCorrectItems = currentItems.filter((item) =>
+    item.correctness === "correct" &&
+    item.reasoning_present &&
+    input.output.item_level_evidence.some((evidence) =>
+      evidence.item_public_id === item.item_public_id &&
+      evidence.correctness === "correct" &&
+      Boolean(evidence.reasoning_quality?.trim())
+    )
+  );
+  // These profiles explain a mismatch while retaining its uncertainty. They do
+  // not resolve mixed correctness or additional, unexplained conflict signals.
+  const groundedResolvedMismatch =
+    structuredConflictSignals.length === 1 &&
+    input.output.ability_profile === "mostly_correct_understanding" &&
+    ["adequate", "strong"].includes(input.output.evidence_sufficiency) &&
+    groundedReasonedCorrectItems.length > 0 &&
+    ((structuredConflictSignals[0] === "confidence_reasoning_mismatch" &&
+      input.output.integrated_diagnostic_profile === "underconfident_but_reasoning_supported" &&
+      input.output.confidence_alignment === "underconfident" &&
+      groundedReasonedCorrectItems.some((item) =>
+        item.confidence_rating === "low" &&
+        input.output.item_level_evidence.some((evidence) =>
+          evidence.item_public_id === item.item_public_id && evidence.confidence_rating === "low"
+        )
+      )) ||
+      (structuredConflictSignals[0] === "correctness_reasoning_mismatch" &&
+        input.output.integrated_diagnostic_profile === "correct_but_independence_uncertain" &&
+        input.output.independence_interpretability === "independent_understanding_uncertain" &&
+        packageHasProcessEvidence(input.providerInput?.initial_response_package)));
+  const dominantInterpretationSupported = groundedResolvedMismatch || outputSupportsDominantInterpretation(
     input.output,
     groundedItemReferences,
     groundedMisconceptionReferences
