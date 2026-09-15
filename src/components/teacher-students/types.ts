@@ -179,6 +179,7 @@ export type StudentBatchDeletionSummary = StudentBatchDeletionPreview & {
 };
 
 export type RosterPreview = {
+  pending_password_reset_rows: number;
   batch_public_id: string;
   source_file_name: string | null;
   total_rows: number;

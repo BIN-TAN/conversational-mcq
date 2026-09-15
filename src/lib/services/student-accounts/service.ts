@@ -14,6 +14,7 @@ import {
   parseDisplayName,
   parseStudentEmail,
   parseStudentPassword,
+  parseStudentTemporaryPassword,
   parseUserId,
   studentEmailValidationError,
   userIdValidationError
@@ -46,7 +47,9 @@ const rosterPreviewSchema = z.object({
 }).strict();
 
 const rosterCommitSchema = z.object({
-  apply_display_name_updates: z.boolean().default(false)
+  apply_display_name_updates: z.boolean().default(false),
+  shared_temporary_password: z.unknown().optional(),
+  replace_pending_passwords: z.boolean().default(false)
 }).strict();
 
 export const studentListQuerySchema = z.object({
@@ -75,6 +78,8 @@ type RosterNormalizedRow = {
   email: string | null;
   existing_display_name?: string | null;
   existing_email?: string | null;
+  pending_password_reset_eligible?: boolean;
+  existing_auth_version?: number;
   row_status: RosterRowStatus;
   validation_errors: Array<{ code: string; message: string; column?: string }>;
 };
@@ -91,6 +96,7 @@ function publicRosterRow(row: RosterNormalizedRow) {
     email: row.email,
     existing_display_name: row.existing_display_name ?? null,
     existing_email: row.existing_email ?? null,
+    pending_password_reset_eligible: row.pending_password_reset_eligible ?? false,
     row_status: row.row_status,
     validation_errors: row.validation_errors
   };
@@ -123,12 +129,11 @@ function csvRecords(csvText: string): Array<{ record: Record<string, string>; ro
         Object.values(entry.record).some((value) => String(value ?? "").trim().length > 0)
       )
       .map((entry) => ({ record: entry.record, rowNumber: entry.info.lines }));
-  } catch (error) {
+  } catch {
     throw new StudentAccountServiceError(
       "csv_parse_failed",
       "Roster CSV could not be parsed.",
-      400,
-      { message: error instanceof Error ? error.message : String(error) }
+      400
     );
   }
 }
@@ -209,7 +214,7 @@ async function buildTemporaryCredential(input: {
   accessCodeGenerator?: AccessCodeGenerator;
 }) {
   if (input.temporary_password !== undefined && input.temporary_password !== null) {
-    const temporaryPassword = parseStudentPassword(input.temporary_password, input.user_id);
+    const temporaryPassword = parseStudentTemporaryPassword(input.temporary_password, input.user_id);
 
     return {
       temporary_password: temporaryPassword,
@@ -686,7 +691,8 @@ export async function changeStudentPassword(input: {
       account_status: true,
       password_hash: true,
       access_code_hash: true,
-      must_change_password: true
+      must_change_password: true,
+      auth_version: true
     }
   });
 
@@ -705,6 +711,14 @@ export async function changeStudentPassword(input: {
     throw new StudentAccountServiceError(
       "password_confirmation_mismatch",
       "New password and confirmation do not match.",
+      400
+    );
+  }
+
+  if (await verifySecret(newPassword, student.access_code_hash)) {
+    throw new StudentAccountServiceError(
+      "temporary_password_reused",
+      "Choose a private password different from your temporary password.",
       400
     );
   }
@@ -734,8 +748,8 @@ export async function changeStudentPassword(input: {
   const now = new Date();
   const passwordHash = await hashSecret(newPassword);
   const updated = await prisma.$transaction(async (tx) => {
-    const result = await tx.user.update({
-      where: { id: student.id },
+    const changed = await tx.user.updateMany({
+      where: { id: student.id, auth_version: student.auth_version, account_status: "active" },
       data: {
         password_hash: passwordHash,
         access_code_hash: null,
@@ -745,6 +759,10 @@ export async function changeStudentPassword(input: {
         auth_version: { increment: 1 }
       }
     });
+    if (changed.count !== 1) {
+      throw new StudentAccountServiceError("credentials_changed", "Your login details changed. Please sign in again.", 409);
+    }
+    const result = await tx.user.findUniqueOrThrow({ where: { id: student.id } });
 
     await createAccountEvent(tx, {
       student_user_db_id: student.id,
@@ -841,7 +859,9 @@ export async function previewRosterImport(input: {
   const users = candidateIds.length
     ? await prisma.user.findMany({
         where: { user_id_normalized: { in: candidateIds } },
-        select: { id: true, user_id: true, user_id_normalized: true, display_name: true, email: true, role: true }
+        select: { id: true, user_id: true, user_id_normalized: true, display_name: true, email: true, role: true,
+          created_by_teacher_user_id: true, account_status: true, must_change_password: true,
+          password_hash: true, password_changed_at: true, last_login_at: true, auth_version: true }
       })
     : [];
   const usersByNormalizedId = new Map(users.map((user) => [user.user_id_normalized, user]));
@@ -854,8 +874,6 @@ export async function previewRosterImport(input: {
     if (!existing) {
       continue;
     }
-    row.existing_display_name = existing.display_name;
-    row.existing_email = existing.email;
     if (existing.role !== "student") {
       row.row_status = "role_conflict";
       row.validation_errors.push({
@@ -865,6 +883,18 @@ export async function previewRosterImport(input: {
       });
       continue;
     }
+
+    if (existing.created_by_teacher_user_id !== input.teacher_user_db_id) {
+      row.row_status = "invalid";
+      row.validation_errors.push({ code: "account_not_owned", column: "user_id",
+        message: "This account is not managed by this teacher." });
+      continue;
+    }
+    row.existing_display_name = existing.display_name;
+    row.existing_email = existing.email;
+    row.existing_auth_version = existing.auth_version;
+    row.pending_password_reset_eligible = existing.account_status === "active" && existing.must_change_password &&
+      existing.password_hash === null && existing.password_changed_at === null && existing.last_login_at === null;
 
     row.row_status =
       (existing.display_name ?? null) === (row.display_name ?? null) &&
@@ -902,6 +932,7 @@ export async function previewRosterImport(input: {
     batch_public_id: batch.batch_public_id,
     source_file_name: batch.source_file_name,
     ...summary,
+    pending_password_reset_rows: rows.filter(row => row.pending_password_reset_eligible).length,
     preview_rows: previewRows,
     validation_errors: validationErrors
   };
@@ -914,8 +945,15 @@ export async function commitRosterImport(input: {
   accessCodeGenerator?: AccessCodeGenerator;
 }) {
   const commitOptions = rosterCommitSchema.parse(input.data ?? {});
+  const sharedPassword = commitOptions.shared_temporary_password === undefined
+    ? undefined : parseStudentTemporaryPassword(commitOptions.shared_temporary_password);
+  if (commitOptions.replace_pending_passwords && sharedPassword === undefined) {
+    throw new StudentAccountServiceError("shared_password_required", "Enter a shared temporary password before replacing unused passwords.", 400);
+  }
 
   return prisma.$transaction(async (tx) => {
+    // Serialize repeated commits so a retry cannot issue new credentials twice.
+    await tx.$queryRaw`SELECT id FROM roster_import_batches WHERE batch_public_id = ${input.batch_public_id} FOR UPDATE`;
     const batch = await tx.rosterImportBatch.findUnique({
       where: { batch_public_id: input.batch_public_id }
     });
@@ -936,6 +974,8 @@ export async function commitRosterImport(input: {
         status: batch.status,
         committed_new_students: batch.committed_new_students,
         committed_display_name_updates: batch.committed_display_name_updates,
+        replaced_pending_passwords: 0,
+        skipped_password_user_ids: [],
         already_committed: true,
         one_time_credentials: [],
         credential_csv: "",
@@ -954,9 +994,14 @@ export async function commitRosterImport(input: {
     const rows = rosterRowsFromBatch(batch.normalized_preview_payload);
     let committedNewStudents = 0;
     let committedDisplayNameUpdates = 0;
+    let replacedPendingPasswords = 0;
+    const skippedPasswordUserIds: string[] = [];
     const credentials: OneTimeCredential[] = [];
 
     for (const row of rows) {
+      if (sharedPassword !== undefined && ["new_student", "existing_unchanged", "display_name_change"].includes(row.row_status)) {
+        parseStudentTemporaryPassword(sharedPassword, row.user_id);
+      }
       if (row.row_status === "new_student") {
         const existing = await tx.user.findUnique({
           where: { user_id_normalized: row.user_id_normalized },
@@ -966,7 +1011,8 @@ export async function commitRosterImport(input: {
           continue;
         }
 
-        const credential = await generateHashedAccessCode(input.accessCodeGenerator);
+        const credential = await buildTemporaryCredential({ user_id: row.user_id,
+          temporary_password: sharedPassword, accessCodeGenerator: input.accessCodeGenerator });
         const created = await tx.user.create({
           data: {
             id: crypto.randomUUID(),
@@ -979,7 +1025,7 @@ export async function commitRosterImport(input: {
             auth_version: 1,
             must_change_password: true,
             password_hash: null,
-            access_code_hash: credential.access_code_hash,
+            access_code_hash: credential.temporary_password_hash,
             credential_updated_at: new Date(),
             credential_reset_at: new Date(),
             created_by_teacher_user_id: input.teacher_user_db_id
@@ -993,24 +1039,52 @@ export async function commitRosterImport(input: {
           metadata: {
             user_id: created.user_id,
             display_name: created.display_name,
-            email_present: Boolean(created.email)
+            email_present: Boolean(created.email),
+            temporary_password_mode: sharedPassword === undefined ? "individual" : "shared"
           }
         });
         credentials.push(credentialRecord({
           user_id: created.user_id,
           display_name: created.display_name,
           email: created.email,
-          temporary_password: credential.access_code
+          temporary_password: credential.temporary_password
         }));
         committedNewStudents += 1;
+      }
+
+      if (commitOptions.replace_pending_passwords && ["existing_unchanged", "display_name_change"].includes(row.row_status)) {
+        const existing = await tx.user.findUnique({ where: { user_id_normalized: row.user_id_normalized } });
+        if (existing && row.pending_password_reset_eligible && existing.auth_version === row.existing_auth_version &&
+          existing.created_by_teacher_user_id === input.teacher_user_db_id && existing.role === "student" &&
+          existing.account_status === "active" && existing.must_change_password && existing.password_hash === null &&
+          existing.password_changed_at === null && existing.last_login_at === null) {
+          const credential = await buildTemporaryCredential({ user_id: existing.user_id, temporary_password: sharedPassword });
+          const now = new Date();
+          const updated = await tx.user.updateMany({
+            where: { id: existing.id, auth_version: existing.auth_version, created_by_teacher_user_id: input.teacher_user_db_id,
+              role: "student", account_status: "active", must_change_password: true, password_hash: null,
+              password_changed_at: null, last_login_at: null },
+            data: { access_code_hash: credential.temporary_password_hash, auth_version: { increment: 1 },
+              credential_updated_at: now, credential_reset_at: now }
+          });
+          if (updated.count === 1) {
+            await createAccountEvent(tx, { student_user_db_id: existing.id, performed_by_user_db_id: input.teacher_user_db_id,
+              roster_import_batch_db_id: batch.id, event_type: "teacher_student_password_reset",
+              metadata: { user_id: existing.user_id, temporary_password_mode: "shared", pending_roster_reissue: true } });
+            const updateProfile = row.row_status === "display_name_change" && commitOptions.apply_display_name_updates;
+            credentials.push(credentialRecord({ user_id: existing.user_id, display_name: updateProfile ? row.display_name : existing.display_name,
+              email: updateProfile ? row.email : existing.email, temporary_password: credential.temporary_password }));
+            replacedPendingPasswords += 1;
+          } else skippedPasswordUserIds.push(row.user_id);
+        } else skippedPasswordUserIds.push(row.user_id);
       }
 
       if (row.row_status === "display_name_change" && commitOptions.apply_display_name_updates) {
         const existing = await tx.user.findUnique({
           where: { user_id_normalized: row.user_id_normalized },
-          select: { id: true, role: true, display_name: true, email: true }
+          select: { id: true, role: true, display_name: true, email: true, created_by_teacher_user_id: true }
         });
-        if (!existing || existing.role !== "student") {
+        if (!existing || existing.role !== "student" || existing.created_by_teacher_user_id !== input.teacher_user_db_id) {
           continue;
         }
         await tx.user.update({
@@ -1048,10 +1122,12 @@ export async function commitRosterImport(input: {
       status: updated.status,
       committed_new_students: updated.committed_new_students,
       committed_display_name_updates: updated.committed_display_name_updates,
+      replaced_pending_passwords: replacedPendingPasswords,
+      skipped_password_user_ids: skippedPasswordUserIds,
       already_committed: false,
       ...serializeCredentialResult(credentials)
     };
-  });
+  }, { timeout: 60000 });
 }
 
 export async function listRosterImportBatches() {

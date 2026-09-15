@@ -95,9 +95,10 @@ const obviousPasswordValues = new Set([
   "qwertyui"
 ]);
 
-export const studentPasswordSchema = z
+function passwordSchema(minimumLength: number) {
+  return z
   .string()
-  .min(8, "Password must be at least 8 characters.")
+  .min(minimumLength, `Password must be at least ${minimumLength} characters.`)
   .max(200, "Password must be 200 characters or fewer.")
   .superRefine((value, context) => {
     if (value.trim() !== value) {
@@ -121,6 +122,10 @@ export const studentPasswordSchema = z
       });
     }
   });
+}
+
+export const studentPasswordSchema = passwordSchema(8);
+export const studentTemporaryPasswordSchema = passwordSchema(7);
 
 export function parseUserId(value: unknown) {
   return userIdSchema.parse(value);
@@ -145,7 +150,15 @@ export function parseStudentEmail(value: unknown) {
 }
 
 export function parseStudentPassword(value: unknown, userId?: string) {
-  const parsed = studentPasswordSchema.parse(value);
+  return parsePassword(value, userId, studentPasswordSchema);
+}
+
+export function parseStudentTemporaryPassword(value: unknown, userId?: string) {
+  return parsePassword(value, userId, studentTemporaryPasswordSchema);
+}
+
+function parsePassword(value: unknown, userId: string | undefined, schema: typeof studentPasswordSchema) {
+  const parsed = schema.parse(value);
 
   if (userId && parsed.toLocaleLowerCase("en-US") === normalizeUserId(userId)) {
     throw new z.ZodError([

@@ -328,12 +328,13 @@ Every derived timing export should include timing contract/source version, quali
 
 ## Privacy and Safety
 
-Student login invitations use a separate `student_login_invitations` delivery
-ledger, excluded from research datasets and assessment process events. It records
-delivery status, sender/recipient, teacher/student references, credential-version
-key, keyed message digest and timestamps. Plaintext passwords, credential CSVs,
-email bodies and Google authorization credentials are never persisted in the
-application database or logs. See `STUDENT_LOGIN_INVITATIONS.md`.
+In-app student login emails are retired. The historical `student_login_invitations`
+ledger remains intact for audit/rollback and is excluded from research datasets.
+Roster imports retain normalized identity fields, validation results and account
+audit events; they never persist the uploaded credential CSV or its extra password
+columns. Shared-password reissues record mode, actor, student, batch and timestamp,
+not plaintext credentials. Existing sessions, attempts and research events remain
+unchanged. See `STUDENT_LOGIN_INVITATIONS.md`.
 
 Logging must not store:
 

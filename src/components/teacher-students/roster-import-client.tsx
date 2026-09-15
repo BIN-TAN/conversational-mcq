@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Download, RefreshCw, Upload } from "lucide-react";
+import { Download, Eye, EyeOff, RefreshCw, Upload } from "lucide-react";
 import {
   commitRoster,
   errorFromUnknown,
@@ -46,6 +46,11 @@ export function RosterImportClient() {
   const [credentials, setCredentials] = useState<CredentialResponse | null>(null);
   const [batches, setBatches] = useState<RosterImportBatch[]>([]);
   const [applyDisplayNameUpdates, setApplyDisplayNameUpdates] = useState(false);
+  const [passwordMode, setPasswordMode] = useState("individual");
+  const [sharedPassword, setSharedPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [replacePendingPasswords, setReplacePendingPasswords] = useState(false);
+  const [commitSummary, setCommitSummary] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -66,8 +71,21 @@ export function RosterImportClient() {
       return;
     }
 
-    setSourceFileName(file.name);
-    setCsvText(await file.text());
+    setLoading(true);
+    invalidatePreview();
+    try {
+      setSourceFileName(file.name);
+      setCsvText(await file.text());
+    } catch {
+      setError(errorFromUnknown(new Error("Unable to read this CSV. Please try again.")));
+    } finally { setLoading(false); }
+  }
+
+  function invalidatePreview() {
+    setPreview(null);
+    setCredentials(null);
+    setCommitSummary(null);
+    setReplacePendingPasswords(false);
   }
 
   async function runPreview() {
@@ -75,6 +93,8 @@ export function RosterImportClient() {
     setError(null);
     setPreview(null);
     setCredentials(null);
+    setCommitSummary(null);
+    setReplacePendingPasswords(false);
 
     try {
       setPreview(await previewRoster({ csv_text: csvText, source_file_name: sourceFileName }));
@@ -87,7 +107,7 @@ export function RosterImportClient() {
   }
 
   async function runCommit() {
-    if (!preview) {
+    if (!preview || loading || commitSummary) {
       return;
     }
 
@@ -96,12 +116,18 @@ export function RosterImportClient() {
     setCredentials(null);
 
     try {
-      const result = await commitRoster(preview.batch_public_id, applyDisplayNameUpdates);
+      const result = await commitRoster(preview.batch_public_id, applyDisplayNameUpdates,
+        passwordMode === "shared" ? { shared_temporary_password: sharedPassword, replace_pending_passwords: replacePendingPasswords } : {});
       setCredentials({
         one_time_credentials: result.one_time_credentials,
         credential_csv: result.credential_csv,
         credential_warning: result.credential_warning
       });
+      setSharedPassword("");
+      setShowPassword(false);
+      setCommitSummary(result.already_committed ? "This roster was already imported. No passwords were changed again." :
+        `${result.committed_new_students} accounts created. ${result.replaced_pending_passwords} unused temporary passwords replaced. ${result.committed_display_name_updates} profiles updated.` +
+        (result.skipped_password_user_ids.length ? ` Passwords left unchanged: ${result.skipped_password_user_ids.join(", ")}.` : ""));
       await refreshBatches();
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
@@ -117,7 +143,7 @@ export function RosterImportClient() {
             ["Total rows", preview.total_rows],
             ["New students", preview.new_student_rows],
             ["Existing unchanged", preview.existing_unchanged_rows],
-            ["Display-name changes", preview.display_name_change_rows],
+            ["Profile changes", preview.display_name_change_rows],
             ["Invalid rows", preview.invalid_rows],
             ["Duplicate rows", preview.duplicate_rows],
             ["Role conflicts", preview.role_conflict_rows]
@@ -139,6 +165,7 @@ export function RosterImportClient() {
             Upload CSV
             <input
               accept=".csv,text/csv"
+              disabled={loading}
               className="rounded-md border border-line bg-white px-3 py-2 text-sm"
               onChange={(event) => void loadFile(event.target.files?.[0])}
               type="file"
@@ -148,7 +175,8 @@ export function RosterImportClient() {
             Source file name
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
-              onChange={(event) => setSourceFileName(event.target.value)}
+              disabled={loading}
+              onChange={(event) => { invalidatePreview(); setSourceFileName(event.target.value); }}
               value={sourceFileName}
             />
           </label>
@@ -156,8 +184,10 @@ export function RosterImportClient() {
         <label className="mt-4 flex flex-col gap-2 text-sm font-medium text-ink">
           Paste CSV
           <textarea
+            aria-label="Paste CSV"
             className="min-h-56 rounded-md border border-line p-3 font-mono text-sm"
-            onChange={(event) => setCsvText(event.target.value)}
+            disabled={loading}
+            onChange={(event) => { invalidatePreview(); setCsvText(event.target.value); }}
             value={csvText}
           />
         </label>
@@ -195,20 +225,54 @@ export function RosterImportClient() {
             <label className="flex items-start gap-2 rounded-lg border border-line p-3 text-sm">
               <input
                 checked={applyDisplayNameUpdates}
+                disabled={loading || Boolean(commitSummary)}
                 onChange={(event) => setApplyDisplayNameUpdates(event.target.checked)}
                 type="checkbox"
               />
               <span>
-                <span className="font-semibold text-ink">Apply display-name updates</span>
-                <span className="mt-1 block text-muted">
-                  Existing students keep their access codes. Only display names change.
-                </span>
+                <span className="font-semibold text-ink">Update names and email addresses</span>
               </span>
             </label>
           </div>
           <div className="grid gap-3 md:grid-cols-4">
             {previewCounts.map(([label, value]) => numberCard(String(label), Number(value)))}
           </div>
+          <fieldset className="space-y-4 border-y border-line py-5" disabled={loading || Boolean(commitSummary)}>
+            <legend className="font-semibold text-ink">Temporary passwords</legend>
+            <label className="flex max-w-lg flex-col gap-2 text-sm font-medium text-ink">
+              Password assignment
+              <select className="h-11 w-full rounded-md border border-line bg-white px-3" value={passwordMode}
+                onChange={(event) => { setPasswordMode(event.target.value); setReplacePendingPasswords(false); setSharedPassword(""); setShowPassword(false); }}>
+                <option value="individual">Individual temporary passwords</option>
+                <option value="shared">Shared temporary password</option>
+              </select>
+            </label>
+            {passwordMode === "shared" ? <>
+              <label className="flex max-w-lg flex-col gap-2 text-sm font-medium text-ink">
+                Shared temporary password
+                <span className="flex gap-2">
+                  <input className="min-w-0 flex-1 rounded-md border border-line px-3 py-2" autoComplete="new-password"
+                    aria-label="Shared temporary password"
+                    type={showPassword ? "text" : "password"} minLength={7} maxLength={200}
+                    value={sharedPassword} onChange={(event) => setSharedPassword(event.target.value)} />
+                  <button type="button" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-line"
+                    aria-label={showPassword ? "Hide temporary password" : "Show temporary password"}
+                    title={showPassword ? "Hide temporary password" : "Show temporary password"} onClick={() => setShowPassword(!showPassword)}>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </span>
+              </label>
+              <p className="text-sm text-muted">At least 7 characters. Students must choose a different private password of at least 8 characters at first login.</p>
+              <p className="text-sm text-amber-900">Anyone who knows a shared password and another student&apos;s username could sign in before that student changes it.</p>
+              <label className="flex items-start gap-2 text-sm text-ink">
+                <input className="mt-1" type="checkbox" checked={replacePendingPasswords}
+                  disabled={!preview.pending_password_reset_rows} onChange={(event) => setReplacePendingPasswords(event.target.checked)} />
+                <span>Replace unused temporary passwords for {preview.pending_password_reset_rows ?? 0} existing accounts in this roster.
+                  <span className="mt-1 block text-muted">Old temporary passwords will stop working. Accounts that have signed in or changed their password are excluded.</span>
+                </span>
+              </label>
+            </> : null}
+          </fieldset>
           <div className="overflow-x-auto rounded-lg border border-line">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
@@ -247,14 +311,16 @@ export function RosterImportClient() {
           </div>
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-[#176350] disabled:opacity-50"
-            disabled={loading}
+            disabled={loading || Boolean(commitSummary) || (passwordMode === "shared" && sharedPassword.length < 7)}
             onClick={() => void runCommit()}
             type="button"
           >
-            Commit valid rows
+            {commitSummary ? "Imported" : "Import valid rows"}
           </button>
         </section>
       ) : null}
+
+      {commitSummary ? <p role="status" className="rounded-md border border-line bg-white p-4 text-ink">{commitSummary}</p> : null}
 
       {credentials ? (
         <CredentialResult

@@ -20,11 +20,13 @@ The LLM can be involved throughout the chat, but only inside application-governe
 
 ## Student Experience
 
-Teachers can prepare individual login emails from **Student accounts**, using a
-shared editable template and a one-time credential CSV. Only active, owned student
-accounts with matching pending credentials are eligible. Gmail connection and
-explicit reviewed-recipient approval are separate steps; nothing is sent on
-upload or preview. See `STUDENT_LOGIN_INVITATIONS.md` for setup and data boundaries.
+Teachers import rosters from **Student accounts**, choosing individually generated
+temporary passwords or one shared temporary password for that import. Replacing
+existing unused temporary passwords requires a separate opt-in and is restricted
+to owned, active accounts that have never signed in or changed their password.
+Students must choose a different private password before accessing assessments.
+Teachers distribute login details themselves; in-app email sending is retired.
+See `STUDENT_LOGIN_INVITATIONS.md` for credential and data boundaries.
 
 Each mini-test allows three optional chances, not three scheduled checkpoints.
 A successfully created attempt consumes a chance; pause/resume, page reload,

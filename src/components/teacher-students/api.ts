@@ -167,18 +167,21 @@ export function previewRoster(input: { csv_text: string; source_file_name?: stri
   });
 }
 
-export function commitRoster(batchPublicId: string, applyDisplayNameUpdates: boolean) {
+export function commitRoster(batchPublicId: string, applyDisplayNameUpdates: boolean,
+  passwordOptions: { shared_temporary_password?: string; replace_pending_passwords?: boolean } = {}) {
   return apiRequest<
     {
       batch_public_id: string;
       status: string;
       committed_new_students: number;
       committed_display_name_updates: number;
+      replaced_pending_passwords: number;
+      skipped_password_user_ids: string[];
       already_committed: boolean;
     } & CredentialResponse
   >(`/api/teacher/students/import/${batchPublicId}/commit`, {
     method: "POST",
-    body: JSON.stringify({ apply_display_name_updates: applyDisplayNameUpdates })
+    body: JSON.stringify({ apply_display_name_updates: applyDisplayNameUpdates, ...passwordOptions })
   });
 }
 

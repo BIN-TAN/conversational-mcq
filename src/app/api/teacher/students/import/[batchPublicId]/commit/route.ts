@@ -33,10 +33,10 @@ export async function POST(request: Request, context: RouteContext) {
     const result = await commitRosterImport({
       teacher_user_db_id: auth.user.user_db_id,
       batch_public_id: params.batchPublicId,
-      data: await request.json().catch(() => ({}))
+      data: await request.json()
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return studentAccountRouteError(error);
   }

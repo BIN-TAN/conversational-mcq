@@ -118,9 +118,7 @@ async function main() {
     assert(alphaUser.account_status === "active", "New student should be active.");
     assert(alphaUser.access_code_hash !== codes[0], "Plaintext code must not be stored as the hash.");
     assert(
-      commit.one_time_credentials.some((credential) =>
-        verifySecret(credential.temporary_access_code, alphaUser.access_code_hash)
-      ),
+      await verifySecret(commit.one_time_credentials.find((credential) => credential.user_id === alpha)!.temporary_access_code, alphaUser.access_code_hash),
       "A returned plaintext code should verify against the stored hash."
     );
 
