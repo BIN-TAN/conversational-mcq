@@ -45,6 +45,15 @@ const mixedRevisions = buildProcessDataSummary({ ...base, events: [
   event("option_selected", 6, { item_public_id: "legacy-item", payload: { revision: true } })
 ] });
 assert.equal(mixedRevisions.core.revision_fields.answers, 2, "Count legacy items without duplicating canonical revision aliases");
+const lifecycle = buildProcessDataSummary({ ...base, events: [
+  event("attempt_paused", 10), event("session_paused", 10),
+  event("attempt_resumed", 20), event("session_resumed", 20),
+  event("session_paused", 30), event("session_resumed", 40)
+] });
+assert.equal(lifecycle.core.assessment_pause_count, 2, "Collapse aliases without dropping unmatched legacy operations");
+assert.equal(lifecycle.core.assessment_resume_count, 2);
+assert.equal(lifecycle.timeline.filter((entry) => entry.action === "Assessment paused").length, 2);
+assert.equal(lifecycle.timeline.filter((entry) => entry.action === "Assessment resumed").length, 2);
 const csvData = { ...result, timeline: [...result.timeline, { at: null, action: "Review", category: "Assessment activity", context: '=HYPERLINK("https://example.invalid")\nTopic, one', duration_ms: null }] };
 const csvRows = parse<Record<string, string>>(processDataTimelineCsv(csvData, "session-one"), { columns: true, bom: true });
 assert.equal(csvRows.length, csvData.timeline.length, "Download includes all pages and categories");

@@ -106,7 +106,16 @@ export function buildProcessDataSummary(input: {
   const typingEvents = input.events.filter((event) => event.event_type === "typing_activity_summary");
   const entries = input.events.filter((event) => event.event_type === "navigation_event" && record(event.payload).reason === "assessment_view_entered").length;
   const changes = countResponseRevisionEvents(input.events);
-  const timeline = input.events.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
+  const aliases: Record<string, string> = { session_paused: "attempt_paused", session_resumed: "attempt_resumed" };
+  const lifecycleKey = (event: ProcessDataEvent, type = event.event_type) => {
+    const at = event.occurred_at ?? event.created_at;
+    return at ? `${type}:${new Date(at).getTime()}` : null;
+  };
+  const canonicalLifecycle = new Set(input.events.filter((event) => ["attempt_paused", "attempt_resumed"].includes(event.event_type)).map((event) => lifecycleKey(event)).filter(Boolean));
+  // Legacy and canonical records can describe the same operation. Collapse only
+  // matched timestamps in the readable view; retain unmatched historical events.
+  const readableEvents = input.events.filter((event) => !aliases[event.event_type] || !canonicalLifecycle.has(lifecycleKey(event, aliases[event.event_type])));
+  const timeline = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
     (event.event_type === "confidence_selected" && record(event.payload).revised === true)).map((event) => {
     const at = event.occurred_at ?? event.created_at;
     return {
@@ -148,8 +157,8 @@ export function buildProcessDataSummary(input: {
       matched_return_count: observed ? timing.page_hidden_interval_count : null,
       idle_interval_count: observed ? count("long_pause") : null,
       extended_idle_interval_count: observed ? count("inactivity_detected") : null,
-      assessment_pause_count: count("attempt_paused") || count("session_paused"),
-      assessment_resume_count: count("attempt_resumed") || count("session_resumed"),
+      assessment_pause_count: readableEvents.filter((event) => ["attempt_paused", "session_paused"].includes(event.event_type)).length,
+      assessment_resume_count: readableEvents.filter((event) => ["attempt_resumed", "session_resumed"].includes(event.event_type)).length,
       recorded_response_revision_count: input.items.reduce((sum, item) => sum + item.revision_count, 0),
       revision_fields: changes,
       page_reload_count: observed ? count("refresh_recovery") : null,
