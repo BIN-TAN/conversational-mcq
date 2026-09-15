@@ -20,6 +20,12 @@ The LLM can be involved throughout the chat, but only inside application-governe
 
 ## Student Experience
 
+Teachers can prepare individual login emails from **Student accounts**, using a
+shared editable template and a one-time credential CSV. Only active, owned student
+accounts with matching pending credentials are eligible. Gmail connection and
+explicit reviewed-recipient approval are separate steps; nothing is sent on
+upload or preview. See `STUDENT_LOGIN_INVITATIONS.md` for setup and data boundaries.
+
 Each mini-test allows three optional chances, not three scheduled checkpoints.
 A successfully created attempt consumes a chance; pause/resume, page reload,
 submission retries and AI retries do not. Corrected versions share the allowance.

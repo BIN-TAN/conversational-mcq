@@ -21,7 +21,8 @@ async function productionSchemaReady() {
     "account_security_tokens",
     "account_security_rate_limits",
     "account_security_events",
-    "assessment_attempt_chances"
+    "assessment_attempt_chances",
+    "student_login_invitations"
   ];
   const [userColumns, securityTables] = await Promise.all([
     prisma.$queryRaw<Array<{ column_name: string }>>`
@@ -35,7 +36,7 @@ async function productionSchemaReady() {
       SELECT table_name
       FROM information_schema.tables
       WHERE table_schema = 'public'
-        AND table_name IN ('account_security_tokens', 'account_security_rate_limits', 'account_security_events', 'assessment_attempt_chances')
+        AND table_name IN ('account_security_tokens', 'account_security_rate_limits', 'account_security_events', 'assessment_attempt_chances', 'student_login_invitations')
     `
   ]);
   const existingColumns = new Set(userColumns.map((column) => column.column_name));

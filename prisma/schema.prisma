@@ -514,12 +514,36 @@ model User {
   account_security_tokens                   AccountSecurityToken[]        @relation("AccountSecurityTokens")
   account_security_events                   AccountSecurityEvent[]        @relation("AccountSecurityEvents")
   performed_account_security_events         AccountSecurityEvent[]        @relation("AccountSecurityEventPerformer")
+  login_invitations_received                StudentLoginInvitation[]      @relation("LoginInvitationStudent")
+  login_invitations_sent                    StudentLoginInvitation[]      @relation("LoginInvitationTeacher")
 
   @@index([email])
   @@index([email_normalized])
   @@index([pending_email_normalized])
   @@index([created_by_teacher_user_id])
   @@map("users")
+}
+
+model StudentLoginInvitation {
+  id                  String   @id @default(uuid()) @db.Uuid
+  delivery_key        String   @unique
+  student_db_id       String   @db.Uuid
+  teacher_db_id       String   @db.Uuid
+  recipient_email     String
+  sender_email        String
+  message_digest      String
+  status              String
+  attempt_count       Int      @default(1)
+  provider_message_id String?
+  failure_code        String?
+  created_at          DateTime @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime @updatedAt @db.Timestamptz(6)
+
+  student User @relation("LoginInvitationStudent", fields: [student_db_id], references: [id], onDelete: Cascade)
+  teacher User @relation("LoginInvitationTeacher", fields: [teacher_db_id], references: [id], onDelete: Cascade)
+
+  @@index([teacher_db_id, created_at])
+  @@map("student_login_invitations")
 }
 
 model AccountSecurityToken {
