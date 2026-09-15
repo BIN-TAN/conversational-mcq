@@ -40,6 +40,30 @@ async function main() {
   assert.equal(recovered.pendingCount(), 0);
   recovered.dispose();
 
+  let acknowledge!: () => void;
+  const sent: Array<{ ids: string[]; keepalive: boolean }> = [];
+  const closing = createProcessEventDelivery({ sessionId: "closing", tabId: randomUUID(), storage,
+    send: async (events, keepalive) => {
+      sent.push({ ids: events.map(e => e.client_event_id!), keepalive });
+      if (sent.length === 1) await new Promise<void>(resolve => { acknowledge = resolve; });
+    } });
+  closing.enqueue({ event_type: "window_focus" });
+  closing.enqueue({ event_type: "typing_activity_summary", payload: { key_count: 6 } }, true);
+  const finishing = closing.finish();
+  acknowledge();
+  await finishing;
+  assert.equal(sent.length, 2, "Closing must drain summaries queued behind an in-flight request.");
+  assert.equal(sent[1].keepalive, true);
+  assert.equal(new Set(sent.flatMap(s => s.ids)).size, 2);
+  assert.equal(closing.pendingCount(), 0);
+  let failedFinishAttempts = 0;
+  const offlineClose = createProcessEventDelivery({ sessionId: "offline-close", tabId: randomUUID(), storage,
+    send: async () => { failedFinishAttempts += 1; throw Error("offline"); } });
+  offlineClose.enqueue({ event_type: "window_focus" });
+  await offlineClose.finish();
+  assert.equal(failedFinishAttempts, 1, "Closing does not launch background retry loops.");
+  assert.equal(offlineClose.pendingCount(), 1, "Unacknowledged events remain available for reload recovery.");
+
   const at = (n: number) => new Date(1_800_000_000_000 + n * 1000);
   const timing = deriveSessionTiming({ session_started_at: at(0), session_completed_at: at(400), events: [
     { event_type: "attempt_paused", occurred_at: at(100) },

@@ -1234,6 +1234,9 @@ function PackageReviewMessage({
           })}
         </div>
       ) : null}
+      <p className="mt-4 text-sm leading-6 text-muted" data-testid="initial-preparation-expectation">
+        After you finish this review, preparing your initial feedback may take about a minute or longer.
+      </p>
       <button
         className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
         data-testid="continue-to-feedback"
@@ -3657,6 +3660,11 @@ export function AssessmentSessionClient({
             ? "Your responses are saved. Preparation is paused."
             : "Your responses are saved. Preparing your learning conversation..."}
       </p>
+      {preparationPending ? (
+        <p className="mt-2 text-sm leading-6 text-muted" data-testid="initial-preparation-wait-notice">
+          Preparing your initial feedback may take about a minute or longer. You can review your responses while you wait.
+        </p>
+      ) : null}
       {preparationConnectionLost && preparationPending ? (
         <p className="mt-2 text-sm text-muted">Connection interrupted. Checking progress again shortly.</p>
       ) : null}

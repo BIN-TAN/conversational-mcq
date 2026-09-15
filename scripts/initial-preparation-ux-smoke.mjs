@@ -89,12 +89,16 @@ try {
   pass("progress endpoint requires authentication");
   await page.goto(base + path);
   await page.getByTestId("continue-to-feedback").waitFor();
+  assert((await page.getByTestId("initial-preparation-expectation").innerText()).includes("preparing your initial feedback may take about a minute or longer"));
+  assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
   const submission = page.waitForResponse((response) => response.url().endsWith("/complete-initial"));
   const started = Date.now();
   await page.getByTestId("continue-to-feedback").click();
   assert.equal((await submission).status(), 202);
   console.log(`http_submission_acknowledgement_ms=${Date.now() - started}`);
   await page.getByTestId("initial-preparation-status").waitFor();
+  assert.equal(await page.getByTestId("initial-preparation-wait-notice").innerText(), "Preparing your initial feedback may take about a minute or longer. You can review your responses while you wait.");
+  pass("longer preparation is explained before submission and during waiting without a completion-time guarantee");
   await page.waitForFunction(() => !document.querySelector('[data-testid="end-attempt"]')?.disabled);
   assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: fixture.session.id } }), 0);
   assert.equal(await page.getByTestId("end-attempt").isEnabled(), true);
@@ -131,6 +135,7 @@ try {
   const job = await db.workflowJob.findFirstOrThrow({ where: { assessment_session_db_id: fixture.session.id } });
   await db.workflowJob.update({ where: { id: job.id }, data: { status: "failed", attempt_count: 3, last_error_category: "preparation_failed" } });
   await page.getByTestId("retry-initial-preparation").waitFor();
+  assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
   const retry = page.waitForResponse((response) => response.url().endsWith("/complete-initial"));
   await page.getByTestId("retry-initial-preparation").click();
   assert.equal((await retry).status(), 202);
@@ -145,6 +150,7 @@ try {
   } });
   const worker = child(["--import", "tsx", "prisma/initial-preparation-worker.ts"]);
   await page.getByTestId("initial-preparation-status").waitFor({ state: "hidden", timeout: 90_000 });
+  assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
   const response = await context.request.get(`${base}${api}/state`);
   const state = await response.json();
   assert.equal(state.preparation.status, "ready", worker.output.slice(-3000));
@@ -154,6 +160,38 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: join(output, "ready-desktop.png"), fullPage: true });
   pass("validated opening appears automatically after the independent worker finishes");
+  const draft = "synthetic unsent draft";
+  const composer = page.getByTestId("formative-conversation-input");
+  await composer.pressSequentially(draft);
+  await composer.press("Backspace");
+  // A synthetic paste stimulus checks aggregate capture, not clipboard content storage.
+  await composer.evaluate(element => {
+    const clipboard = new DataTransfer();
+    clipboard.setData("text/plain", "synthetic clipboard content");
+    element.dispatchEvent(new ClipboardEvent("paste", { bubbles: true, clipboardData: clipboard }));
+  });
+  await page.reload();
+  await page.getByTestId("formative-conversation-input").waitFor();
+  for (let attempt = 0; attempt < 20; attempt++) {
+    if (await db.processEvent.count({ where: { assessment_session_db_id: fixture.session.id, event_type: "typing_activity_summary" } })) break;
+    await page.waitForTimeout(100);
+  }
+  const captured = await db.processEvent.findMany({ where: { assessment_session_db_id: fixture.session.id } });
+  const typing = captured.find(event => event.event_type === "typing_activity_summary" && event.payload?.key_count === draft.length + 1);
+  assert.equal(typing?.payload.backspace_count, 1);
+  assert(captured.some(event => event.event_type === "paste_detected" && event.payload?.pasted_text_length_band === "21_100"));
+  assert(!JSON.stringify(captured).includes(draft));
+  assert(!JSON.stringify(captured).includes("synthetic clipboard content"));
+  const ids = captured.map(event => event.payload?.client_event_id).filter(Boolean);
+  assert.equal(new Set(ids).size, ids.length);
+  const { buildAnalysisReadyResearchDataBundle } = require("../src/lib/services/teacher-research-data/analysis-ready-export.ts");
+  const bundle = await buildAnalysisReadyResearchDataBundle({ teacher_user_db_id: fixture.teacher.id, scope: "selected_session", session_public_id: sessionId, include_incomplete_sessions: true });
+  const { parse } = require("csv-parse/sync");
+  const exportedEvents = parse(bundle.files.find(file => file.path === "process_events.csv").data, { columns: true, skip_empty_lines: true });
+  assert(exportedEvents.some(event => event.event_type === "typing_activity_summary" && event.payload_key_count === String(draft.length + 1) && event.payload_backspace_count === "1"));
+  assert(exportedEvents.some(event => event.event_type === "paste_detected" && event.payload_pasted_text_length_band === "21_100"));
+  assert(!bundle.files.some(file => file.data.includes(draft) || file.data.includes("synthetic clipboard content")));
+  pass("real browser typing and synthetic paste aggregates survive reload, database capture, and research CSV export without raw input text");
   await stop(worker); await stop(server);
   const supervised = child(["scripts/start-app.mjs", "start", "-H", "127.0.0.1", "-p", String(port)]);
   await ready(supervised);

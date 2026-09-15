@@ -1495,6 +1495,7 @@
     "workflow:worker-smoke": "tsx prisma/workflow-worker-smoke-test.ts",
     "student:initial-preparation-smoke": "tsx prisma/initial-preparation-smoke-test.ts",
     "student:initial-preparation-ux-smoke": "node --import tsx scripts/initial-preparation-ux-smoke.mjs",
+    "student:process-browser-smoke": "node scripts/student-process-browser-smoke.mjs",
     "workflow:worker": "tsx prisma/workflow-worker.ts",
     "workflow:drain-once": "tsx prisma/workflow-drain-once.ts",
     "e2e:production-like:preflight": "tsx prisma/e2e-db.ts preflight",

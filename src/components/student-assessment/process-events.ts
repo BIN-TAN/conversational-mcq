@@ -14,6 +14,8 @@ export function useStudentProcessEvents(input: {
 }) {
   const deliveryRef = useRef<ReturnType<typeof createProcessEventDelivery> | null>(null);
   const tabIdRef = useRef<string | null>(null);
+  const flushTypingRef = useRef<((keepalive: boolean) => void) | null>(null);
+  const reloadReportedRef = useRef(new Set<string>());
   useEffect(() => {
     if (input.enabled === false) return;
     tabIdRef.current ??= crypto.randomUUID();
@@ -31,7 +33,9 @@ export function useStudentProcessEvents(input: {
     window.addEventListener("online", retry);
     return () => {
       window.removeEventListener("online", retry);
-      delivery.dispose();
+      // React cleans up this effect before the listener effect below.
+      flushTypingRef.current?.(true);
+      void delivery.finish();
     };
   }, [input.sessionPublicId, input.enabled]);
   const visibleSinceRef = useRef(Date.now());
@@ -56,6 +60,7 @@ export function useStudentProcessEvents(input: {
       return;
     }
 
+    const delivery = deliveryRef.current;
     function eventBase(): Pick<FrontendProcessEvent, "item_public_id" | "client_occurred_at"> {
       return {
         item_public_id: input.currentItemPublicId ?? undefined,
@@ -64,7 +69,7 @@ export function useStudentProcessEvents(input: {
     }
 
     function send(event: FrontendProcessEvent, useBeacon = false) {
-      deliveryRef.current?.enqueue(event, useBeacon);
+      delivery?.enqueue(event, useBeacon);
     }
 
     function textLengthBand(length: number) {
@@ -111,11 +116,13 @@ export function useStudentProcessEvents(input: {
       };
     }
 
+    flushTypingRef.current = flushTypingSummary;
     const navigation = performance.getEntriesByType("navigation")[0] as
       | PerformanceNavigationTiming
       | undefined;
 
-    if (navigation?.type === "reload") {
+    if (navigation?.type === "reload" && !reloadReportedRef.current.has(input.sessionPublicId)) {
+      reloadReportedRef.current.add(input.sessionPublicId);
       send({
         ...eventBase(),
         event_type: "refresh_recovery",
@@ -255,6 +262,7 @@ export function useStudentProcessEvents(input: {
 
     return () => {
       flushTypingSummary(true);
+      if (flushTypingRef.current === flushTypingSummary) flushTypingRef.current = null;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("paste", handlePaste);

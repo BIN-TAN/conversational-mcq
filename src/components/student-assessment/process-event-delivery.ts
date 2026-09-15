@@ -26,6 +26,7 @@ export function createProcessEventDelivery(input: {
   let gaps = 0;
   let attempts = 0;
   let disposed = false;
+  let finishing = false;
   let flight: Promise<void> | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
@@ -89,7 +90,7 @@ export function createProcessEventDelivery(input: {
       } finally {
         flight = null;
         persist();
-        if (!disposed && (pending.length || gaps) && attempts < MAX_ATTEMPTS) {
+        if (!disposed && !finishing && (pending.length || gaps) && attempts < MAX_ATTEMPTS) {
           timer = setTimeout(() => { timer = null; void flush(); }, attempts ? 1000 * 2 ** attempts : 0);
         }
       }
@@ -110,6 +111,16 @@ export function createProcessEventDelivery(input: {
       timer = null;
       attempts = 0;
       return flush();
+    },
+    async finish() {
+      // Drain trailing summaries after an in-flight acknowledgement, but do
+      // not keep retrying after the page has stopped collecting events.
+      finishing = true;
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (flight) await flight;
+      while (!disposed && (pending.length || gaps) && attempts === 0) await flush(true);
+      disposed = true;
+      persist();
     },
     dispose() {
       disposed = true;
