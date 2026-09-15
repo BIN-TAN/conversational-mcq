@@ -2,6 +2,20 @@
 
 ## Goal
 
+The three-chance policy adds an `assessment_attempt_chances` ledger. It records
+the session, student, assessment family, original attempt number, policy version
+and creation time; technical restorations add teacher, timestamp and reason.
+This small allowance record survives session deletion and is removed on student
+account deletion. Existing records are backfilled as `legacy_unlimited`; none of
+their responses or historical attempt numbers are overwritten.
+
+Attempt comparisons derive from each topic's earliest sealed initial response
+package, never from later mutable responses. Research exports add attempt,
+submission-item, paired-change and class-summary tables plus a dictionary and
+snapshot/calculation metadata. Standard exports omit correctness-derived fields;
+restricted exports include them under the existing confirmation/access rules.
+See `ATTEMPT_COMPARISONS.md` for denominators, exclusions and interpretation.
+
 Teacher JSON/workbook import inspection creates no classroom or research records.
 Preparation stores draft assessments, primary topics and import-review batches
 only. Workbook batches retain the source SHA-256, parser version, sheet/row

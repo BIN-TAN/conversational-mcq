@@ -4,6 +4,7 @@ import { jsonApiError, requireRoleApi } from "@/lib/http";
 import { getServerEnv } from "@/lib/env";
 import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { TeacherReviewServiceError } from "./errors";
+import { StudentAssessmentServiceError } from "@/lib/services/student-assessment/errors";
 
 export async function requireTeacherReview() {
   return requireRoleApi("teacher_researcher");
@@ -26,7 +27,7 @@ export function requireDevelopmentActiveSessionControls() {
 }
 
 export function teacherReviewRouteError(error: unknown): NextResponse {
-  if (error instanceof TeacherReviewServiceError) {
+  if (error instanceof TeacherReviewServiceError || error instanceof StudentAssessmentServiceError) {
     return jsonApiError(error.code, error.message, error.status, error.details);
   }
 

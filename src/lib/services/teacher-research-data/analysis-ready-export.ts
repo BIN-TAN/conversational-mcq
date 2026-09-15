@@ -1,4 +1,6 @@
 import { createHash } from "node:crypto";
+import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
+import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
@@ -100,6 +102,8 @@ const analysisSessionSelect = {
   assessment: {
     select: {
       assessment_public_id: true,
+      revision_family_public_id: true,
+      concept_units: { where: { items: { some: { included_in_published_set: true } } }, select: { id: true } },
       title: true,
       description: true,
       diagnostic_focus: true,
@@ -2581,11 +2585,16 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   }
 
   // Freeze one database snapshot, then release it before CSV/ZIP serialization.
-  const { sessions, supplemental, snapshotAt } = await prisma.$transaction(async (tx) => {
+  const { sessions, supplemental, snapshotAt, attemptObservations } = await prisma.$transaction(async (tx) => {
     const [snapshot] = await tx.$queryRaw<Array<{ snapshot_at: Date }>>`SELECT transaction_timestamp() AS snapshot_at`;
     const sessions = await loadSessions(input, tx);
     const supplemental = await loadSupplementalRecords(sessions.map((session) => session.session_public_id), tx);
-    return { sessions, supplemental, snapshotAt: snapshot.snapshot_at.toISOString() };
+    const chances = await tx.assessmentAttemptChance.findMany({
+      where: { session_public_id: { in: sessions.map(session => session.session_public_id) } },
+      select: { session_public_id: true, policy_version: true, waived_at: true }
+    });
+    const attemptObservations = observeAttempts(sessions, chances);
+    return { sessions, supplemental, attemptObservations, snapshotAt: snapshot.snapshot_at.toISOString() };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30_000 });
   if (sessions.length === 0) {
     throw new ContentServiceError(
@@ -2598,6 +2607,8 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   const source = sourceFor(input);
   const includeRestricted = input.include_restricted_fields === true;
   const files = [
+    ...attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
+      pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope }),
     {
       path: "sessions.csv",
       data: csv(SESSIONS_COLUMNS, sessionRows(source, sessions, supplemental))

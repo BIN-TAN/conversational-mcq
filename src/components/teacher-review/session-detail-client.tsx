@@ -1,4 +1,5 @@
 "use client";
+import { RestoreAttemptChance } from "./restore-attempt-chance";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
@@ -1394,6 +1395,7 @@ export function Overview({
             This attempt is already terminal and cannot be closed again.
           </p>
         ) : null}
+        <RestoreAttemptChance sessionPublicId={detail.session.session_public_id} />
         {attemptAction?.error ? (
           <div className="mt-4">
             <ErrorState error={attemptAction.error} />

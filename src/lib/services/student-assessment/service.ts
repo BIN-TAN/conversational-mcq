@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { ASSESSMENT_ATTEMPT_POLICY_VERSION, assessmentFamily, assertAttemptChanceAvailable, readAttemptChances } from "./attempt-chances";
 import { studentTurnId } from "./student-turn-id";
 import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
 import { getInitialPreparationStatus } from "@/lib/workflow/initial-preparation-status";
@@ -1932,6 +1933,7 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       id: true,
       assessment_public_id: true,
       created_by_user_db_id: true,
+      revision_family_public_id: true,
       title: true,
       description: true,
       status: true,
@@ -1991,18 +1993,19 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       assessment.workflow_mode === "manual_review" &&
       !existingSession &&
       !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS;
+    const chances = await readAttemptChances(input.student_user_db_id, assessmentFamily(assessment));
+    const anotherFamilyAttemptOpen = Boolean(chances.family_resumable_session_public_id &&
+      chances.family_resumable_session_public_id !== existingSession?.session_public_id);
     const attemptPolicy = {
-      policy_version: "assessment-attempt-policy-v1",
-      maximum_attempts: null,
-      attempts_used: sessions.length,
-      remaining_attempts: null,
+      policy_version: ASSESSMENT_ATTEMPT_POLICY_VERSION,
+      ...chances,
       resumable_attempt_present: Boolean(existingSession),
       student_may_end_attempt: Boolean(existingSession),
       student_ended_attempt_counts_toward_limit: true,
-      completed_attempts_permit_new_attempt: catalogStartAllowed,
+      completed_attempts_permit_new_attempt: catalogStartAllowed && chances.remaining_attempts > 0,
       start_window_state: availabilityState,
       resume_window_state: existingSession ? "resume_allowed_for_existing_attempt" : "no_resumable_attempt",
-      teacher_override_state: "not_applicable"
+      teacher_override_state: chances.restored_attempts ? "technical_chance_restored" : "not_applicable"
     };
     const studentSafeAvailabilityMessage = existingSession
       ? "A resumable attempt already exists. Resume or end it before starting another attempt."
@@ -2016,6 +2019,8 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
     const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
     const canStart =
       computed.can_start_new_session &&
+      chances.remaining_attempts > 0 &&
+      !anotherFamilyAttemptOpen &&
       catalogStartAllowed &&
       !manualReviewNewStartBlocked &&
       !tutorRuntimeBlocksOpen;
@@ -2093,6 +2098,7 @@ export async function startOrResumeStudentAssessmentSession(
               id: true,
               assessment_public_id: true,
               created_by_user_db_id: true,
+              revision_family_public_id: true,
               title: true,
               description: true,
               status: true,
@@ -2381,6 +2387,22 @@ export async function startOrResumeStudentAssessmentSession(
             );
           }
 
+          const family = assessmentFamily(assessment);
+          await assertAttemptChanceAvailable(input.student_user_db_id, family, tx);
+          const otherFamilySessions = await tx.assessmentSession.findMany({
+            where: {
+              user_db_id: input.student_user_db_id,
+              assessment_db_id: { not: assessment.id },
+              assessment: { OR: [{ assessment_public_id: family }, { revision_family_public_id: family }] }
+            }
+          });
+          const familyResumable = findResumableAssessmentSession(otherFamilySessions);
+          if (familyResumable) {
+            throw new StudentAssessmentServiceError("existing_resumable_attempt",
+              "Resume or end your earlier version of this assessment before starting another attempt.", 409,
+              { existing_session_public_id: familyResumable.session_public_id });
+          }
+
           const tutorRuntimeStatus = executionPlan.adapter === "deterministic_mock_safe"
             ? {
                 ready: true,
@@ -2503,14 +2525,19 @@ export async function startOrResumeStudentAssessmentSession(
 
           const conceptUnits = await validPublishedConceptUnits(tx, assessment.id);
           const firstConceptUnit = conceptUnits[0];
+          const previousChance = await tx.assessmentAttemptChance.findFirst({
+            where: { student_db_id: input.student_user_db_id, assessment_public_id: assessment.assessment_public_id },
+            orderBy: { attempt_number: "desc" }, select: { attempt_number: true }
+          });
+          const nextAttemptNumber = Math.max(DEFAULT_ATTEMPT_NUMBER - 1,
+            previousChance?.attempt_number ?? 0, ...sessions.map((entry) => entry.attempt_number)) + 1;
 
           const session = await tx.assessmentSession.create({
             data: {
               session_public_id: generatePublicId("session"),
               user_db_id: input.student_user_db_id,
               assessment_db_id: assessment.id,
-              attempt_number:
-                Math.max(DEFAULT_ATTEMPT_NUMBER - 1, ...sessions.map((session) => session.attempt_number)) + 1,
+              attempt_number: nextAttemptNumber,
               status: "active",
               current_phase: "concept_unit_intro",
               workflow_mode_snapshot: assessment.workflow_mode,
@@ -2532,6 +2559,16 @@ export async function startOrResumeStudentAssessmentSession(
             }
           });
 
+          await tx.assessmentAttemptChance.create({ data: {
+            session_public_id: session.session_public_id,
+            student_db_id: input.student_user_db_id,
+            assessment_public_id: assessment.assessment_public_id,
+            assessment_family_public_id: family,
+            attempt_number: nextAttemptNumber,
+            policy_version: ASSESSMENT_ATTEMPT_POLICY_VERSION,
+            used_at: now
+          } });
+
           await tx.conceptUnitSession.create({
             data: {
               assessment_session_db_id: session.id,
@@ -2548,7 +2585,7 @@ export async function startOrResumeStudentAssessmentSession(
             event_source: "backend",
             payload: {
               assessment_public_id: assessment.assessment_public_id,
-              attempt_policy_version: "assessment-attempt-policy-v1",
+              attempt_policy_version: ASSESSMENT_ATTEMPT_POLICY_VERSION,
               operation_identity: stableHash({
                 command: "start_attempt",
                 actor: input.student_user_db_id,
@@ -2564,12 +2601,9 @@ export async function startOrResumeStudentAssessmentSession(
             event_category: "attempt_lifecycle",
             event_source: "backend",
             payload: {
-              attempt_number: Math.max(
-                DEFAULT_ATTEMPT_NUMBER - 1,
-                ...sessions.map((existingSession) => existingSession.attempt_number)
-              ) + 1,
+              attempt_number: nextAttemptNumber,
               assessment_public_id: assessment.assessment_public_id,
-              attempt_policy_version: "assessment-attempt-policy-v1",
+              attempt_policy_version: ASSESSMENT_ATTEMPT_POLICY_VERSION,
               operation_identity: stableHash({
                 command: "start_attempt",
                 actor: input.student_user_db_id,

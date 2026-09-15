@@ -1,6 +1,7 @@
 import type { StructuredStudentApiError } from "./types";
 
 const ACTIVE_ATTEMPT_ERROR_CODES = new Set([
+  "existing_resumable_attempt",
   "active_attempt_exists",
   "session_start_conflict"
 ]);

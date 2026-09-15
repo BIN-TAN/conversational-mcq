@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
+import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
 
 export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v1" as const;
 
@@ -42,9 +43,12 @@ const dashboardAssessmentSelect = {
   status: true,
   release_at: true,
   close_at: true,
+  revision_family_public_id: true,
   concept_units: {
     orderBy: [{ order_index: "asc" }, { created_at: "asc" }],
     select: {
+      id: true,
+      status: true,
       concept_unit_public_id: true,
       title: true,
       order_index: true,
@@ -90,6 +94,7 @@ const dashboardSessionSelect = {
   concept_unit_sessions: {
     select: {
       id: true,
+      concept_unit_db_id: true,
       status: true,
       initial_completed_at: true,
       item_responses: {
@@ -120,6 +125,7 @@ const dashboardSessionSelect = {
       response_packages: {
         select: {
           package_type: true,
+          payload: true,
           created_at: true
         },
         orderBy: [{ created_at: "desc" }]
@@ -1111,6 +1117,30 @@ export async function getTeacherAssessmentDashboard(input: {
   const canonicalSessionCount = attempts.filter((attempt) => attempt.session).length;
   const hasStudentData = canonicalSessionCount > 0;
   const totalStudents = eligible.keys.length;
+  const chanceRecords = await prisma.assessmentAttemptChance.findMany({
+    where: { session_public_id: { in: sessions.map(session => session.session_public_id) } },
+    select: { session_public_id: true, policy_version: true, waived_at: true }
+  });
+  const observations = observeAttempts(sessions.map(session => ({ ...session, assessment: {
+    ...assessment,
+    concept_units: assessment.concept_units.filter(concept => concept.items.some(item => item.included_in_published_set))
+  } })), chanceRecords);
+  const selected = selectSubmittedAttempts(observations, "latest");
+  const submittedByStudent = new Map(selected.map(row => [row.student_key, row]));
+  const resultAttempts = attempts.map(attempt => {
+    const observation = submittedByStudent.get(attempt.student_key);
+    const source = observation && sessions.find(session => session.session_public_id === observation.session_public_id);
+    if (!source || !observation) return { student_key: attempt.student_key, session: null };
+    const sealed = new Map(observation.items.map(item => [item.item_public_id, item]));
+    return { student_key: attempt.student_key, session: { ...source, concept_unit_sessions: source.concept_unit_sessions.map(concept => ({
+      ...concept, item_responses: concept.item_responses.filter(response => sealed.has(response.item.item_public_id)).map(response => {
+        const item = sealed.get(response.item.item_public_id)!;
+        return { ...response, selected_option: item.selected_option, reasoning_text: item.reasoning,
+          confidence_rating: item.confidence as DashboardItemResponse["confidence_rating"],
+          correctness: (item.correctness ?? "not_scored") as DashboardItemResponse["correctness"] };
+      })
+    })) } };
+  });
   const completedSessions = attempts
     .map((attempt) => attempt.session)
     .filter((session): session is DashboardSession => Boolean(session) && dashboardStatus(session) === "Completed");
@@ -1127,18 +1157,18 @@ export async function getTeacherAssessmentDashboard(input: {
   const unavailable = statusValues.filter((status) => status === "Unavailable").length;
   const timeIndicator = buildTimeIndicator(completedSessions);
 
-  const understandingValues = attempts.map((attempt) =>
+  const understandingValues = resultAttempts.map((attempt) =>
     attempt.session ? understandingCategoryFromProfile(latestProfile(attempt.session)) : "Unavailable / insufficient evidence"
   );
-  const engagementValues = attempts.map((attempt) =>
+  const engagementValues = resultAttempts.map((attempt) =>
     engagementReviewSignal({
       profile: attempt.session ? latestProfile(attempt.session) : null,
       session: attempt.session
     })
   );
-  const engagementReviewReasons = buildEngagementReviewReasons(attempts);
+  const engagementReviewReasons = buildEngagementReviewReasons(resultAttempts);
   const items = assessment.concept_units.flatMap((conceptUnit) => conceptUnit.items);
-  const responses = canonicalResponses(attempts, assessment.assessment_public_id);
+  const responses = canonicalResponses(resultAttempts, assessment.assessment_public_id);
   const statusDistribution = hasStudentData
     ? chart(
         countBy(
@@ -1185,7 +1215,7 @@ export async function getTeacherAssessmentDashboard(input: {
     eligibility_basis: eligible.basis,
     attempt_policy: {
       policy: ATTEMPT_POLICY_LATEST_PER_STUDENT,
-      description: "One dashboard state is counted per eligible student using that student's latest attempt."
+      description: "Participation uses the latest attempt; results use the latest full initial submission before feedback."
     },
     has_student_data: hasStudentData,
     candidate_pattern_threshold: CANDIDATE_PATTERN_THRESHOLD,
@@ -1236,7 +1266,7 @@ export async function getTeacherAssessmentDashboard(input: {
         ? "No eligible student denominator is available for this assessment."
         : `Eligible student denominator uses ${totalStudents} ${eligible.basis === ELIGIBILITY_BASIS_ALL_ACTIVE_TEACHER_STUDENTS ? "active student accounts created by this teacher; this system does not currently model assessment-specific assigned rosters." : "students with sessions for this assessment because no teacher-created active roster was found."}`,
       hasStudentData
-        ? "Status, understanding, engagement, item, and candidate-pattern summaries use one latest attempt per eligible student."
+        ? "Participation uses the latest attempt. Understanding, engagement and item results use the latest fully submitted attempt."
         : "No student data are available for this assessment.",
       "Dashboard categories are assessment-specific diagnostic signals, not stable learner traits.",
       "Understanding categories come from persisted profile outputs for the selected assessment; missing or insufficient profile evidence remains unavailable.",

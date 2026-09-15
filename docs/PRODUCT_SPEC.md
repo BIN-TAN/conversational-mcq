@@ -20,6 +20,19 @@ The LLM can be involved throughout the chat, but only inside application-governe
 
 ## Student Experience
 
+Each mini-test allows three optional chances, not three scheduled checkpoints.
+A successfully created attempt consumes a chance; pause/resume, page reload,
+submission retries and AI retries do not. Corrected versions share the allowance.
+Historical attempts, including those beyond three, remain retained. Teachers can
+restore a chance for a documented technical problem after closing the affected
+attempt, without deleting its evidence. See `ATTEMPT_COMPARISONS.md`.
+
+The teacher dashboard defaults to **Overview**. Participation reflects the latest
+attempt, while item results use the latest full initial submission, so a new
+unfinished attempt cannot erase earlier results. **Compare attempts** provides
+attempt 1/2/3/latest distributions and matched-student changes, with item details
+collapsed initially. Rich research tables remain in the existing research ZIP.
+
 The student UI should use agent messages on the left and student messages on the right.
 
 The student should experience the assessment as a natural sequence of short conversational turns:

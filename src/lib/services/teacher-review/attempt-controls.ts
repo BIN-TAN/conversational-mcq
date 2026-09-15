@@ -4,16 +4,22 @@ import { generatePublicId } from "@/lib/services/ids";
 import { StudentAssessmentServiceError } from "@/lib/services/student-assessment/errors";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
 import { createCommittedLifecycleOperation } from "@/lib/services/student-assessment/lifecycle-operations";
+import { assessmentFamily, readAttemptChances } from "@/lib/services/student-assessment/attempt-chances";
 
 export async function closeAttemptAndAllowAnother(input: {
   session_public_id: string;
   teacher_user_db_id: string;
   reason?: string | null;
 }) {
-  const session = await prisma.assessmentSession.findUnique({
-    where: { session_public_id: input.session_public_id },
+  const authorizedActor = await prisma.user.findFirst({ where: {
+    id: input.teacher_user_db_id, role: "teacher_researcher", account_status: "active"
+  }, select: { id: true } });
+  if (!authorizedActor) throw new StudentAssessmentServiceError("forbidden", "Teacher access is required.", 403);
+  const session = await prisma.assessmentSession.findFirst({
+    where: { session_public_id: input.session_public_id, assessment: { created_by_user_db_id: input.teacher_user_db_id } },
     select: {
       id: true,
+      user_db_id: true,
       session_public_id: true,
       attempt_number: true,
       status: true,
@@ -23,7 +29,7 @@ export async function closeAttemptAndAllowAnother(input: {
       resume_context: true,
       updated_at: true,
       user: { select: { user_id: true } },
-      assessment: { select: { assessment_public_id: true } }
+      assessment: { select: { assessment_public_id: true, revision_family_public_id: true } }
     }
   });
 
@@ -141,7 +147,8 @@ export async function closeAttemptAndAllowAnother(input: {
         occurred_at: now
       }
     });
-    await tx.processEvent.create({
+    const allowance = await readAttemptChances(session.user_db_id, assessmentFamily(session.assessment), tx);
+    if (allowance.remaining_attempts > 0) await tx.processEvent.create({
       data: {
         assessment_session_db_id: session.id,
         event_type: "new_attempt_available",

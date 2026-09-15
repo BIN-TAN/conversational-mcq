@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { AttemptComparisonPanel } from "./attempt-comparison-panel";
 import type {
   CandidateMisconceptionPattern,
   ChartDatum,
@@ -149,10 +150,10 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
           </h3>
           {item.response_count > 0 ? (
             <p className="mt-2 text-sm text-muted">
-              {item.response_count} latest-attempt responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
+              {item.response_count} latest submitted responses. Correct {item.correct_percentage}% / Incorrect {item.incorrect_percentage}%.
             </p>
           ) : (
-            <p className="mt-2 text-sm text-muted">No latest-attempt responses yet.</p>
+            <p className="mt-2 text-sm text-muted">No submitted responses yet.</p>
           )}
           <p className="mt-1 text-xs text-muted">
             Administered snapshot: {item.item_snapshot_public_id}. Version: {item.item_version ?? "not recorded"}.
@@ -221,7 +222,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
                   Question {pattern.item_order}, option {pattern.option_selected}
                 </h3>
                 <p className="mt-1 text-sm text-muted">
-                  {pattern.unique_student_count} unique students; {pattern.response_count} latest-attempt responses. {pattern.confidence_summary}.
+                  {pattern.unique_student_count} unique students; {pattern.response_count} latest submitted responses. {pattern.confidence_summary}.
                 </p>
                 <p className="mt-1 text-xs text-muted">
                   Administered snapshot: {pattern.item_snapshot_public_id}. Threshold: {pattern.threshold_unique_student_count} unique students.
@@ -278,6 +279,7 @@ async function fetchDashboard(assessmentPublicId: string) {
 }
 
 export function AssessmentDashboardClient({ initialDashboard }: { initialDashboard: TeacherAssessmentDashboard }) {
+  const [view, setView] = useState<"overview" | "attempts">("overview");
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState(initialDashboard.selected_assessment_public_id ?? "");
   const [loading, setLoading] = useState(false);
@@ -299,6 +301,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
     try {
       setDashboard(await fetchDashboard(nextAssessmentId));
     } catch (caught) {
+      setSelectedAssessmentId(dashboard.selected_assessment_public_id ?? "");
       setError(caught instanceof Error ? caught.message : "Assessment dashboard could not be loaded.");
     } finally {
       setLoading(false);
@@ -347,6 +350,19 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
         </section>
       ) : null}
 
+      {hasAssessment && <div role="tablist" aria-label="Dashboard view" className="flex gap-5 border-b border-line">
+        {([["overview", "Overview"], ["attempts", "Compare attempts"]] as const).map(([value, title], index) =>
+          <button key={value} type="button" role="tab" id={`dashboard-tab-${value}`} aria-selected={view === value}
+            aria-controls={`dashboard-panel-${value}`} tabIndex={view === value ? 0 : -1}
+            onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
+              event.preventDefault(); const next = event.key === "Home" ? "overview" : event.key === "End" ? "attempts" : index === 0 ? "attempts" : "overview";
+              setView(next); document.getElementById(`dashboard-tab-${next}`)?.focus();
+            } }} onClick={() => setView(value)} className={`border-b-2 px-1 py-3 text-sm font-semibold ${view === value ? "border-accent text-accent" : "border-transparent text-muted"}`}>{title}</button>)}
+      </div>}
+      {hasAssessment && view === "attempts" && <div role="tabpanel" id="dashboard-panel-attempts" aria-labelledby="dashboard-tab-attempts">
+        <AttemptComparisonPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
+      </div>}
+      {view === "overview" && <div role="tabpanel" id="dashboard-panel-overview" aria-labelledby="dashboard-tab-overview" className="space-y-6">
       {!hasAssessment ? (
         <section className="rounded-lg border border-dashed border-line bg-white p-6 text-sm text-muted">
           No mini tests are available yet.
@@ -414,6 +430,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           )}
         </>
       )}
+      </div>}
     </div>
   );
 }

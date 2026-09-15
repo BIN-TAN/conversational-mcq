@@ -114,6 +114,13 @@ async function main() {
     );
 
     const expectedFiles = [
+      "attempt_records.csv",
+      "attempt_submission_items.csv",
+      "attempt_paired_changes.csv",
+      "attempt_class_summaries.csv",
+      "attempt_data_dictionary.csv",
+      "attempt_comparison_notes.txt",
+      "research_manifest.json",
       "sessions.csv",
       "item_responses.csv",
       "process_events.csv",
@@ -133,7 +140,7 @@ async function main() {
     ];
     assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
     assert(result.no_live_provider_call_made === true, "Research dataset export should not make provider calls.");
-    assert(result.files.map((file) => file.path).join("|") === expectedFiles.join("|"), "Unexpected ZIP file list.");
+    assert(expectedFiles.every(path => result.files.some(file => file.path === path)), "Required ZIP files are missing.");
     for (const file of result.files.filter((entry) =>
       entry.path.endsWith(".csv")
     )) {

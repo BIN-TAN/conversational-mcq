@@ -426,7 +426,7 @@ async function main() {
   });
   assert(teacherClosed.status === "attempt_ended_by_teacher", "Teacher close should terminalize the attempt.");
   assert(await eventCount(third.session.session_public_id, "attempt_ended_by_teacher") === 1, "attempt_ended_by_teacher event missing.");
-  assert(await eventCount(third.session.session_public_id, "new_attempt_available") === 1, "new_attempt_available event missing.");
+  assert(await eventCount(third.session.session_public_id, "new_attempt_available") === 0, "Exhausted allowance must not log a new attempt as available.");
 
   const afterThreeTerminalAttempts = await availabilityRow(
     student.id,

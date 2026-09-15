@@ -9,6 +9,19 @@
 
 ## Core Principle
 
+### Three-Chance Attempt Policy
+
+`assessment-attempt-policy-v2` reserves one of three chances inside the same
+serializable transaction that creates a new session. Duplicate concurrent start
+requests resume the existing session. The allowance applies across a corrected
+assessment family; a resumable attempt in another version blocks a new start.
+An existing third attempt can still be resumed with zero new chances remaining.
+End attempt remains terminal and consumes its chance. Teacher technical
+restoration requires ownership, a terminal attempt and a recorded reason; it is
+idempotent and does not reopen or renumber historical sessions. Deletion of a
+session is not a restoration. The student history display limit remains three,
+independently of research retention.
+
 ### Current Free-Text Conversation Limit
 
 The formative learning conversation permits up to **30 student-authored turns**.

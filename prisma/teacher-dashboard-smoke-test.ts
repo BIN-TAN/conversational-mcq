@@ -62,7 +62,7 @@ function assertDashboardSurface() {
     "Candidate misconception patterns",
     "response patterns",
     "No student data are available for this assessment.",
-    "No latest-attempt responses yet.",
+    "No submitted responses yet.",
     "No response data are available for this item yet.",
     "ariaLabel",
     "role=\"list\"",
@@ -117,7 +117,7 @@ function assertDashboardSurface() {
   assertIncludes(header, "Assessment management", "Teacher workspace header");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
-  assertIncludes(contentHome, "JSON import", "Assessment management page");
+  assertIncludes(contentHome, "Import items", "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments/new"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
@@ -253,7 +253,7 @@ function assertStandardTeacherNav() {
 function assertAdvancedRoutesPreservedAndProtected() {
   const contentHome = readProjectFile("src/app/teacher/content/page.tsx");
   assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
-  assertIncludes(contentHome, "JSON import", "Assessment management page");
+  assertIncludes(contentHome, "Import items", "Assessment management page");
 
   const importPage = readProjectFile("src/app/teacher/content/import-json/page.tsx");
   assertIncludes(importPage, "ImportJsonClient", "JSON import page");
@@ -297,6 +297,7 @@ async function cleanupDashboardFixture(prefix: string) {
   });
   const conceptUnitIds = conceptUnits.map((conceptUnit) => conceptUnit.id);
 
+  await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.studentProfile.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
@@ -508,6 +509,18 @@ async function assertDashboardAggregationService() {
         }
       });
       if (input.selectedOption) {
+        await prisma.responsePackage.create({ data: {
+          concept_unit_session_db_id: conceptUnitSession.id,
+          package_type: "initial_concept_unit_response_package",
+          created_at: session.completed_at ?? new Date(startedAt.getTime() + 4 * 60_000),
+          payload: { initial_item_count: 1, completed_initial_item_count: 1,
+            included_items: [{ item_public_id: item.item_public_id }], item_responses: [{
+              item_public_id: item.item_public_id, item_version_snapshot: 1, item_snapshot: itemSnapshot,
+              correct_option_snapshot: "A", selected_option: input.selectedOption,
+              correctness: input.correctness ?? "incorrect", reasoning_text: input.reasoning ?? null,
+              confidence_rating: input.confidence ?? "high"
+            }] }
+        } });
         await prisma.itemResponse.create({
           data: {
             concept_unit_session_db_id: conceptUnitSession.id,
@@ -723,16 +736,16 @@ async function assertDashboardAggregationService() {
       "Dashboard should use administered item stem snapshot, not the edited current item."
     );
     assert(
-      administeredSnapshot.option_distribution.some((entry) => entry.label === "B" && entry.count === 3),
-      "Item diagnostics should use latest attempts and administered option snapshots."
+      administeredSnapshot.option_distribution.some((entry) => entry.label === "B" && entry.count === 4),
+      "Item diagnostics should retain the latest full submission when a newer attempt is unfinished."
     );
     assert(
       dashboard.candidate_misconception_patterns.length === 1,
       "Only the repeated exact reasoning pattern should meet the unique-student threshold."
     );
     const candidate = dashboard.candidate_misconception_patterns[0];
-    assert(candidate.unique_student_count === 3, "Candidate threshold should count unique students.");
-    assert(candidate.response_count === 3, "Repeated attempts from one student should not inflate response count.");
+    assert(candidate.unique_student_count === 4, "Candidate threshold should count unique students with full submissions.");
+    assert(candidate.response_count === 4, "Repeated attempts from one student should not inflate response count.");
     assert(candidate.threshold_unique_student_count === 3, "Candidate should report the configured threshold.");
     assert(candidate.item_snapshot_public_id.endsWith(":v1"), "Candidate should bind to administered item snapshot.");
     assert(

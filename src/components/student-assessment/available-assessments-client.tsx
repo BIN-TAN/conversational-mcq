@@ -79,6 +79,13 @@ function statusClass(assessment: AvailableAssessment) {
 }
 
 function attemptCardSummary(assessment: AvailableAssessment) {
+  const policy = assessment.attempt_policy;
+  if (policy?.maximum_attempts !== null && policy?.maximum_attempts !== undefined) {
+    if (assessment.can_resume) return `Attempt in progress. ${policy.remaining_attempts} new ${policy.remaining_attempts === 1 ? "attempt" : "attempts"} remaining.`;
+    return policy.remaining_attempts === 0
+      ? "All three chances used. Previous attempts remain available for review."
+      : `${policy.remaining_attempts} of ${policy.maximum_attempts} chances remaining`;
+  }
   if (assessment.availability_status === "completed") {
     return null;
   }
