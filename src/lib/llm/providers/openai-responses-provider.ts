@@ -250,10 +250,19 @@ export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
     request.model_config.reasoning_effort !== undefined
       ? { effort: request.model_config.reasoning_effort }
       : undefined;
+  const cacheStaticInstructions = request.cache_static_instructions === true &&
+    /^gpt-5\.6-(?:sol|terra)(?:-\d{4}-\d{2}-\d{2})?$/.test(request.model_config.model_name);
   return {
     model: request.model_config.model_name,
-    instructions: request.instructions,
-    input: JSON.stringify(request.input),
+    ...(cacheStaticInstructions ? {
+      // Explicit-only caching ends before any student or teacher-supplied data.
+      prompt_cache_options: { mode: "explicit" },
+      input: [
+        { role: "developer", content: [{ type: "input_text", text: request.instructions,
+          prompt_cache_breakpoint: { mode: "explicit" } }] },
+        { role: "user", content: JSON.stringify(request.input) }
+      ]
+    } : { instructions: request.instructions, input: JSON.stringify(request.input) }),
     text,
     store: false,
     metadata: request.metadata,

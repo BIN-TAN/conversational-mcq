@@ -258,8 +258,9 @@ export function normalizeStudentApiError(
   };
 }
 
-async function get<T>(path: string, parse: (value: unknown) => T) {
+async function get<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal) {
   const response = await fetch(path, {
+    signal,
     method: "GET",
     headers: { Accept: "application/json" }
   });
@@ -316,23 +317,24 @@ export async function startAssessmentSession(
   });
 }
 
-export function fetchSessionState(sessionPublicId: string): Promise<StudentSessionState> {
+export function fetchSessionState(sessionPublicId: string, signal?: AbortSignal): Promise<StudentSessionState> {
   return get(`/api/student/sessions/${sessionPublicId}/state`, (value) =>
-    StudentSessionStateSchema.parse(value)
+    StudentSessionStateSchema.parse(value), signal
   );
 }
 
 export function fetchStudentTranscript(
-  sessionPublicId: string
+  sessionPublicId: string,
+  signal?: AbortSignal
 ): Promise<StudentTranscriptResponse> {
   return get(`/api/student/sessions/${sessionPublicId}/transcript`, (value) =>
-    StudentTranscriptResponseSchema.parse(value)
+    StudentTranscriptResponseSchema.parse(value), signal
   );
 }
 
-export function fetchStudentReview(sessionPublicId: string): Promise<StudentReviewResponse> {
+export function fetchStudentReview(sessionPublicId: string, signal?: AbortSignal): Promise<StudentReviewResponse> {
   return get(`/api/student/sessions/${sessionPublicId}/review`, (value) =>
-    StudentReviewResponseSchema.parse(value)
+    StudentReviewResponseSchema.parse(value), signal
   );
 }
 
@@ -504,6 +506,12 @@ export function completeInitialConceptUnit(input: {
       };
     }
   );
+}
+
+export function fetchPreparationStatus(sessionPublicId: string, signal?: AbortSignal) {
+  return get(`/api/student/sessions/${sessionPublicId}/preparation`, (value) => ({
+    preparation: StudentSessionStateSchema.shape.preparation.parse((value as { preparation: unknown }).preparation)
+  }), signal);
 }
 
 export function exitSession(sessionPublicId: string) {

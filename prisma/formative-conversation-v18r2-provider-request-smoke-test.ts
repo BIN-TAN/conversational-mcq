@@ -111,7 +111,7 @@ function main() {
       assert.equal(compiledFromStructuredRequest.store, false);
       assert.equal(compiledFromStructuredRequest.max_output_tokens, 4_000);
       assert.match(
-        String(compiledFromStructuredRequest.input),
+        JSON.stringify(compiledFromStructuredRequest.input),
         /allowed_evidence_catalog/u
       );
       assert(
@@ -147,10 +147,10 @@ function main() {
     assert.equal(compiledFormative.model, "gpt-5.6-sol");
     assert.equal(compiledFormative.max_output_tokens, 7_000);
     assert.equal(compiledFormative.store, false);
-    assert.match(String(compiledFormative.input), /formative_lifecycle/u);
-    assert.match(String(compiledFormative.input), /student_turn_index/u);
-    assert.match(String(compiledFormative.input), /baseline_assessment/u);
-    assert.match(String(compiledFormative.input), /formative_conversation/u);
+    assert.match(JSON.stringify(compiledFormative.input), /formative_lifecycle/u);
+    assert.match(JSON.stringify(compiledFormative.input), /student_turn_index/u);
+    assert.match(JSON.stringify(compiledFormative.input), /baseline_assessment/u);
+    assert.match(JSON.stringify(compiledFormative.input), /formative_conversation/u);
     assert.match(
       JSON.stringify(compiledFormative.text),
       /profile_transition_recommendation/u

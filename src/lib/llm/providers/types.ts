@@ -153,6 +153,8 @@ export type StructuredAgentRequest<TInput, TOutput> = {
   agent_name: string;
   model_config: AgentModelConfig;
   instructions: string;
+  /** Opt in only for code-owned, static instructions, never interpolated user data. */
+  cache_static_instructions?: boolean;
   input: TInput;
   output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   schema_name: string;

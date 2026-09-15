@@ -244,6 +244,7 @@ export function buildFormativeConversationV18R2ProductionRequest(input: {
     agent_name: FORMATIVE_CONVERSATION_AGENT_NAME,
     model_config: input.model_config,
     instructions: FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS,
+    cache_static_instructions: true,
     input: input.context,
     output_schema: FormativeConversationV18R2AgentOutputSchema,
     schema_name: FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,

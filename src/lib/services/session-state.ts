@@ -97,9 +97,11 @@ const updateAssessmentSessionPhaseSchema = z.object({
 });
 
 export async function updateAssessmentSessionPhase(
-  input: z.input<typeof updateAssessmentSessionPhaseSchema>
+  input: z.input<typeof updateAssessmentSessionPhaseSchema>,
+  tx?: Prisma.TransactionClient
 ) {
   const parsed = updateAssessmentSessionPhaseSchema.parse(input);
+  if (tx) return updateAssessmentSessionPhaseInTransaction(tx, parsed);
   return prisma.$transaction((tx) => updateAssessmentSessionPhaseInTransaction(tx, parsed));
 }
 

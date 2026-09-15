@@ -220,6 +220,7 @@ const serverEnvSchema = z.object({
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_LEASE_TIMEOUT_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000),
+  INITIAL_PREPARATION_CONCURRENCY: positiveIntWithDefault(2).refine((value) => value <= 8, "Must be at most 8."),
   EVAL_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
   EVAL_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini-2026-03-17"),
   EVAL_REASONING_EFFORT: z.enum(["low"]).default("low"),

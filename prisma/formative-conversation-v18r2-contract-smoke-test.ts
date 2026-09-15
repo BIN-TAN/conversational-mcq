@@ -606,7 +606,7 @@ async function main() {
     assert.equal(compiled.model, "gpt-5.6-sol");
     assert.equal(compiled.max_output_tokens, 7_000);
     assert.equal(compiled.store, false);
-    const compiledInput = String(compiled.input);
+    const compiledInput = JSON.stringify(compiled.input);
     const compiledFormat = JSON.stringify(compiled.text);
     assert.match(compiledInput, /formative_lifecycle/u);
     assert.match(compiledInput, /student_turn_index/u);

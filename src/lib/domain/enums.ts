@@ -90,6 +90,7 @@ export const eventSources = ["frontend", "backend", "agent", "system"] as const;
 export const EventSourceSchema = z.enum(eventSources);
 
 export const workflowJobTypes = [
+  "prepare_initial_conversation",
   "run_initial_profiling",
   "run_initial_planning",
   "start_initial_followup",

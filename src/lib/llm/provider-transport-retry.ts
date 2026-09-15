@@ -477,6 +477,7 @@ export function canonicalStructuredAgentRequestHash<TInput, TOutput>(
     agent_name: request.agent_name,
     model_config: request.model_config,
     instructions: request.instructions,
+    ...(request.cache_static_instructions ? { cache_static_instructions: true } : {}),
     input: request.input,
     schema_name: request.schema_name,
     timeout_ms: request.timeout_ms,

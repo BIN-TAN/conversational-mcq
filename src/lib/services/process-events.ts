@@ -64,13 +64,14 @@ function countEvents(types: Partial<Record<ProcessEventType, number>>, keys: Pro
 }
 
 export async function aggregateProcessEventsByConceptUnitSession(
-  conceptUnitSessionDbId: string
+  conceptUnitSessionDbId: string,
+  db: Prisma.TransactionClient = prisma
 ): Promise<ProcessEventAggregation> {
-  const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
+  const conceptUnitSession = await db.conceptUnitSession.findUniqueOrThrow({
     where: { id: conceptUnitSessionDbId },
     select: { assessment_session_db_id: true }
   });
-  const events = await prisma.processEvent.findMany({
+  const events = await db.processEvent.findMany({
     where: { concept_unit_session_db_id: conceptUnitSessionDbId },
     select: { event_type: true }
   });
@@ -84,7 +85,7 @@ export async function aggregateProcessEventsByConceptUnitSession(
     }
   }
 
-  const followupTurnCount = await prisma.conversationTurn.count({
+  const followupTurnCount = await db.conversationTurn.count({
     where: {
       assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
       concept_unit_session_db_id: conceptUnitSessionDbId,

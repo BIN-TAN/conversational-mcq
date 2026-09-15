@@ -212,6 +212,7 @@ enum EventSource {
 }
 
 enum WorkflowJobType {
+  prepare_initial_conversation
   run_initial_profiling
   run_initial_planning
   start_initial_followup
@@ -629,6 +630,7 @@ model ConceptUnit {
   version                            Int               @default(1)
   supersedes_concept_unit_public_id  String?           @unique
   latest_item_verification_run_db_id String?           @db.Uuid
+  prepared_response_context         Json?
   created_at                         DateTime          @default(now()) @db.Timestamptz(6)
   updated_at                         DateTime          @updatedAt @db.Timestamptz(6)
 

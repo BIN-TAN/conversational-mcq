@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireStudent, studentAssessmentRouteError } from "@/lib/services/student-assessment/api";
-import { completeInitialConceptUnitAdministration } from "@/lib/services/student-assessment/service";
+import { submitInitialConceptUnitForPreparation } from "@/lib/services/student-assessment/service";
 
 export async function POST(
   _request: Request,
@@ -14,13 +14,13 @@ export async function POST(
 
   try {
     const params = await context.params;
-    const result = await completeInitialConceptUnitAdministration({
+    const result = await submitInitialConceptUnitForPreparation({
       student_user_db_id: auth.user.user_db_id,
       session_public_id: params.sessionPublicId,
       concept_unit_public_id: params.conceptUnitPublicId
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, { status: result.completion_status === "accepted" ? 202 : 200 });
   } catch (error) {
     return studentAssessmentRouteError(error);
   }

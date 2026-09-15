@@ -32,6 +32,7 @@ import {
   endAssessmentAttempt,
   exitSession,
   fetchSessionState,
+  fetchPreparationStatus,
   fetchStudentReview,
   fetchStudentTranscript,
   newClientActionId,
@@ -1977,7 +1978,7 @@ function StudentAssessmentChatShell({
       data-testid="student-assessment-chat-shell"
     >
       <header className="mb-4 flex flex-col gap-3 border-b border-line/70 pb-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
+        <div className="min-w-0 [overflow-wrap:anywhere]">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">
             {state.assessment.title}
           </p>
@@ -2428,6 +2429,7 @@ export function AssessmentSessionClient({
   const [isBusy, setIsBusy] = useState(false);
   const [isCompletingPackage, setIsCompletingPackage] = useState(false);
   const [isRetryingOpening, setIsRetryingOpening] = useState(false);
+  const [preparationConnectionLost, setPreparationConnectionLost] = useState(false);
   const [isAwaitingFormativeTutorResponse, setIsAwaitingFormativeTutorResponse] =
     useState(false);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
@@ -2459,6 +2461,52 @@ export function AssessmentSessionClient({
     state?.formative_conversation?.conversation_public_id ?? null;
   const activeSessionPublicId =
     state?.session_public_id ?? resolvedInitialSessionPublicId ?? null;
+  const preparationPending = Boolean(state?.preparation && ["queued", "preparing", "retrying"].includes(state.preparation.status));
+
+  useEffect(() => {
+    if (!activeSessionPublicId || !preparationPending || readOnlyReview || isBusy) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let failures = 0;
+    const controller = new AbortController();
+    async function poll() {
+      let again = true;
+      try {
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+        const result = await fetchPreparationStatus(activeSessionPublicId!, signal);
+        if (disposed) return;
+        if (result.preparation && ["queued", "preparing", "retrying"].includes(result.preparation.status)) {
+          setState((current) => current && !current.attempt_lifecycle?.terminal ? { ...current, preparation: result.preparation } : current);
+        } else {
+          const nextState = await fetchSessionState(activeSessionPublicId!, signal);
+          const [nextTranscript, nextReview] = await Promise.allSettled([
+            fetchStudentTranscript(activeSessionPublicId!, signal), fetchStudentReview(activeSessionPublicId!, signal)
+          ]);
+          if (disposed) return;
+          setState(nextState);
+          if (nextTranscript.status === "fulfilled") setTranscript(nextTranscript.value.transcript);
+          if (nextReview.status === "fulfilled") setReview(nextReview.value);
+          again = false;
+        }
+        failures = 0;
+        setPreparationConnectionLost(false);
+      } catch (errorValue) {
+        if (disposed) return;
+        const status = (errorValue as StructuredStudentApiError | undefined)?.status;
+        if (status === 401 || status === 403) {
+          again = false;
+          router.replace("/student/login");
+          return;
+        }
+        failures += 1;
+        setPreparationConnectionLost(true);
+      } finally {
+        if (!disposed && again) timer = setTimeout(poll, Math.min(15_000, 2000 * 2 ** Math.min(failures, 3)));
+      }
+    }
+    timer = setTimeout(poll, 1000);
+    return () => { disposed = true; controller.abort(); clearTimeout(timer); };
+  }, [activeSessionPublicId, preparationPending, readOnlyReview, isBusy, router]);
 
   useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
@@ -3132,7 +3180,13 @@ export function AssessmentSessionClient({
         });
         setState(result.state);
         setActivityRuntime(result.state.activity_runtime ?? null);
-        await refreshSecondaryData(result.state.session_public_id);
+        if (result.state.preparation && ["queued", "preparing", "retrying"].includes(result.state.preparation.status)) {
+          setReview((current) => current ? {
+            ...current, locked: true, items: current.items.map((item) => ({ ...item, can_edit: false }))
+          } : current);
+        } else {
+          await refreshSecondaryData(result.state.session_public_id);
+        }
       } catch (errorValue) {
         try {
           const canonicalState = await fetchSessionState(sessionPublicId);
@@ -3143,6 +3197,7 @@ export function AssessmentSessionClient({
               canonicalState.next_step === "formative_activity" ||
               canonicalState.next_step === "formative_conversation" ||
               Boolean(canonicalState.formative_conversation) ||
+              Boolean(canonicalState.preparation) ||
               Boolean(canonicalState.package_results) ||
               Boolean(canonicalState.activity_runtime?.activity_attempt_public_id)
             );
@@ -3592,7 +3647,48 @@ export function AssessmentSessionClient({
 
   const isReviewablePastAttempt =
     readOnlyReview && state.attempt_lifecycle?.terminal === true;
-  const activePrompt = readOnlyReview ? null : state.formative_conversation ? (
+  const activePrompt = readOnlyReview ? null : state.preparation && state.preparation.status !== "ready" && state.preparation.status !== "cancelled" ? (
+    <div className="rounded-lg border border-line bg-white p-4" data-testid="initial-preparation-status" role="status" aria-live="polite">
+      <p className="font-medium text-ink">
+        {preparationPending ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+        {state.preparation.status === "failed"
+          ? "Your responses are saved, but learning support could not be prepared."
+          : state.preparation.status === "paused"
+            ? "Your responses are saved. Preparation is paused."
+            : "Your responses are saved. Preparing your learning conversation..."}
+      </p>
+      {preparationConnectionLost && preparationPending ? (
+        <p className="mt-2 text-sm text-muted">Connection interrupted. Checking progress again shortly.</p>
+      ) : null}
+      {state.preparation.can_retry ? (
+        <button type="button" className="mt-3 inline-flex items-center gap-2 rounded-md border border-line px-4 py-2 font-semibold disabled:opacity-50"
+          data-testid="retry-initial-preparation" disabled={isBusy} onClick={handleCompletePackage}>
+          <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
+        </button>
+      ) : null}
+      {state.preparation.status === "failed" && !state.preparation.can_retry ? (
+        <p className="mt-2 text-sm text-muted">Please ask your teacher to review this attempt.</p>
+      ) : null}
+      {review?.locked && !state.package_results ? (
+        <details className="mt-4 border-t border-line pt-3" data-testid="submitted-response-review">
+          <summary className="cursor-pointer font-semibold text-ink">Review your responses</summary>
+          <ol className="mt-3 space-y-4">
+            {review.items.map((item, index) => (
+              <li key={item.item_public_id} className="space-y-2 break-words text-sm text-ink">
+                <p className="font-semibold">{index + 1}. {item.item_stem}</p>
+                <p>Your answer: {item.existing_selected_option
+                  ? `${item.existing_selected_option}. ${item.options.find((option) => option.label === item.existing_selected_option)?.text ?? ""}`
+                  : "Skipped"}</p>
+                <p className="whitespace-pre-wrap">Your reasoning: {item.existing_reasoning_text || "Not provided"}</p>
+                <p>Confidence: {item.existing_confidence_rating ? confidenceLabel(item.existing_confidence_rating) : "Not provided"}</p>
+                {item.tempting_option ? <p>Tempting option: {item.tempting_option}{item.tempting_option_reason ? ` - ${item.tempting_option_reason}` : ""}</p> : null}
+              </li>
+            ))}
+          </ol>
+        </details>
+      ) : null}
+    </div>
+  ) : state.formative_conversation ? (
     <FormativeConversationControls
       conversation={state.formative_conversation}
       draft={formativeConversationDraft}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { ResponsePackageTypeSchema } from "../domain/enums";
 import { teacherDiagnosticContextForProvider } from "./content/teacher-diagnostic-context";
@@ -9,6 +10,7 @@ import {
 import { toPrismaJson } from "./json";
 import { aggregateProcessEventsByConceptUnitSession } from "./process-events";
 import { projectConceptAdministrationRulesForStudentAgents } from "./content/item-design-provider-boundary";
+import { itemMetadataFromRules, prepareAssessmentContext } from "./content/prepared-assessment-context";
 
 const createResponsePackageSchema = z.object({
   concept_unit_session_db_id: z.string().uuid(),
@@ -82,20 +84,6 @@ function conciseStudentAnswerExplanation(input: {
   return `Option ${input.correct_option} best matches the measurement relationship described in this item.`;
 }
 
-function itemMetadataFromRules(value: unknown) {
-  const rules = jsonRecord(value);
-
-  return {
-    item_set_name: stringValue(rules, "item_set_name"),
-    domain: stringValue(rules, "domain"),
-    item_role: stringValue(rules, "item_role"),
-    cognitive_demand: stringValue(rules, "cognitive_demand"),
-    difficulty: stringValue(rules, "difficulty"),
-    knowledge_component: stringValue(rules, "knowledge_component"),
-    misconception_cluster: stringValue(rules, "misconception_cluster")
-  };
-}
-
 function normalizeTemptingPayload(value: unknown) {
   const payload = jsonRecord(value);
 
@@ -126,10 +114,10 @@ function elapsedMs(from: Date | null | undefined, to: Date | null | undefined): 
   return Math.max(0, to.getTime() - from.getTime());
 }
 
-export async function createResponsePackage(input: CreateResponsePackageInput) {
+export async function createResponsePackage(input: CreateResponsePackageInput, db: Prisma.TransactionClient = prisma) {
   const parsed = createResponsePackageSchema.parse(input);
   const createdAt = parsed.created_at ?? new Date();
-  const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
+  const conceptUnitSession = await db.conceptUnitSession.findUniqueOrThrow({
     where: { id: parsed.concept_unit_session_db_id },
     include: {
       assessment_session: {
@@ -160,6 +148,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
           administration_rules: true,
           order_index: true,
           version: true,
+          prepared_response_context: true,
           items: {
             where: {
               status: "published",
@@ -240,12 +229,23 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       }
     }
   });
-  const processCounts = await aggregateProcessEventsByConceptUnitSession(conceptUnitSession.id);
+  const processCounts = await aggregateProcessEventsByConceptUnitSession(conceptUnitSession.id, db);
   const initialItemIds = conceptUnitSession.concept_unit.items.map((item) => item.item_public_id);
   const initialItemPositionByPublicId = new Map(
     initialItemIds.map((itemPublicId, index) => [itemPublicId, index + 1])
   );
   const initialItemCount = conceptUnitSession.concept_unit.items.length;
+  const prepared = prepareAssessmentContext({
+    ...conceptUnitSession.concept_unit,
+    assessment_public_id: conceptUnitSession.assessment_session.assessment.assessment_public_id,
+    diagnostic_focus: conceptUnitSession.assessment_session.assessment.diagnostic_focus
+  }, conceptUnitSession.concept_unit.prepared_response_context);
+  if (!prepared.cache_hit) {
+    await db.conceptUnit.update({
+      where: { id: conceptUnitSession.concept_unit.id },
+      data: { prepared_response_context: toPrismaJson(prepared.envelope) ?? {} }
+    });
+  }
   const completedInitialItemCount = conceptUnitSession.item_responses.filter((response) =>
     Boolean(response.item_submitted_at && initialItemPositionByPublicId.has(response.item.item_public_id))
   ).length;
@@ -277,37 +277,12 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
       administration_rules: projectConceptAdministrationRulesForStudentAgents(
         conceptUnitSession.concept_unit.administration_rules
       ),
-      teacher_diagnostic_context: teacherDiagnosticContextForProvider({
-        administration_rules: conceptUnitSession.concept_unit.administration_rules,
-        assessment_diagnostic_focus:
-          conceptUnitSession.assessment_session.assessment.diagnostic_focus
-      }),
+      teacher_diagnostic_context: prepared.content.teacher_diagnostic_context,
       order_index: conceptUnitSession.concept_unit.order_index,
       version: conceptUnitSession.concept_unit.version,
       initial_completed_at: serializeDate(conceptUnitSession.initial_completed_at)
     },
-    included_items: conceptUnitSession.concept_unit.items.map((item) => ({
-      item_public_id: item.item_public_id,
-      item_order: item.item_order,
-      initial_item_position: initialItemPositionByPublicId.get(item.item_public_id) ?? null,
-      initial_item_count: initialItemCount,
-      item_stem: item.item_stem,
-      options: item.options,
-      version: item.version,
-      status: item.status,
-      included_in_published_set: item.included_in_published_set,
-      media_assets: item.media_assets.map(serializeItemMediaAsset),
-      llm_media_context: llmMediaContextForAssets(item.media_assets),
-      ...itemMetadataFromRules(item.administration_rules),
-      teacher_diagnostic_context: teacherDiagnosticContextForProvider({
-        administration_rules: item.administration_rules,
-        assessment_diagnostic_focus:
-          conceptUnitSession.assessment_session.assessment.diagnostic_focus,
-        distractor_rationales: item.distractor_rationales,
-        expected_reasoning_patterns: item.expected_reasoning_patterns,
-        possible_misconception_indicators: item.possible_misconception_indicators
-      })
-    })),
+    included_items: prepared.content.included_items,
     item_responses: conceptUnitSession.item_responses.map((response) => {
       const itemTurns = conceptUnitSession.conversation_turns.filter(
         (turn) => turn.item_db_id === response.item_db_id && turn.actor_type === "student"
@@ -478,7 +453,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput) {
     }
   };
 
-  return prisma.responsePackage.create({
+  return db.responsePackage.create({
     data: {
       concept_unit_session_db_id: conceptUnitSession.id,
       package_type: parsed.package_type,

@@ -1190,7 +1190,7 @@ async function addSyntheticProcessContext(sessionPublicId: string) {
 
 async function runDbPacketAssertion() {
   configureNoLiveRuntime();
-  await ensureDemoStudentAssessment(prisma);
+  const assessment = await ensureDemoStudentAssessment(prisma);
   await applyProvisionalItemDiagnosticMetadata(prisma);
 
   const prefix = `profile_integration_${Date.now()}_${randomUUID().slice(0, 8)}`;
@@ -1199,6 +1199,7 @@ async function runDbPacketAssertion() {
     prefix,
     accessCode: `${prefix}_access`
   });
+  await prisma.user.update({ where: { id: student.id }, data: { created_by_teacher_user_id: assessment.created_by_user_db_id } });
   const sessionPublicIds: string[] = [];
 
   try {

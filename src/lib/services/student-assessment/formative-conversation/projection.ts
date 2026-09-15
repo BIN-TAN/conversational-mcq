@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { getInitialPreparationStatus } from "@/lib/workflow/initial-preparation-status";
 import { studentTurnId } from "../student-turn-id";
 import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
@@ -126,9 +127,11 @@ export async function getStudentFormativeConversationProjection(input: {
     null;
   const failurePayload = jsonRecord(openingReceipt?.response_payload);
   const failureRetryable = failurePayload.retryable !== false;
+  const preparation = await getInitialPreparationStatus(conversation.assessment_session);
+  const preparationInProgress = preparation && ["queued", "preparing", "retrying", "paused"].includes(preparation.status);
   const openingStatus: FormativeConversationOpeningStatus = persistedOpening
     ? "ready"
-    : openingReceipt?.status === "reserved"
+    : preparationInProgress || openingReceipt?.status === "reserved"
       ? "preparing"
       : openingReceipt?.status === "failed"
         ? failureRetryable
@@ -139,6 +142,7 @@ export async function getStudentFormativeConversationProjection(input: {
           : "unavailable";
   const openingReady = openingStatus === "ready";
   const canRetryOpening =
+    !preparationInProgress &&
     attemptActive &&
     conversation.status === "active" &&
     openingStatus === "retry_available";

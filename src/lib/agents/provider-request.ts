@@ -14,6 +14,7 @@ export function buildProductionStructuredAgentRequest<TInput, TOutput>(input: {
   agent_name: string;
   model_config: AgentModelConfig;
   instructions: string;
+  cache_static_instructions?: boolean;
   input: TInput;
   output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   schema_name: string;
@@ -25,6 +26,7 @@ export function buildProductionStructuredAgentRequest<TInput, TOutput>(input: {
     agent_name: input.agent_name,
     model_config: input.model_config,
     instructions: input.instructions,
+    ...(input.cache_static_instructions ? { cache_static_instructions: true } : {}),
     input: input.input,
     output_schema: input.output_schema,
     schema_name: input.schema_name,
@@ -59,6 +61,7 @@ export function buildProductionAgentRequest<TAgentName extends AgentName>(input:
     agent_name: input.agent_name,
     model_config: input.model_config,
     instructions: prompt.instructions,
+    cache_static_instructions: input.agent_name === "student_profiling_agent",
     input: input.input,
     output_schema: outputSchema,
     schema_name: prompt.schema_version.replace(/[^a-zA-Z0-9_-]/g, "_"),

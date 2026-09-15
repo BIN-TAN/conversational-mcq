@@ -1519,6 +1519,32 @@ async function executeProfileIntegrationAgentWithProvider(input: {
   const clientRequestId = `profile_integration_${randomUUID()}`;
   assertNoProhibitedProviderInput(input.agent_input);
 
+  if (input.audit_context?.assessment_session_db_id && input.audit_context.concept_unit_session_db_id) {
+    const saved = await prisma.agentCall.findFirst({
+      where: {
+        assessment_session_db_id: input.audit_context.assessment_session_db_id,
+        concept_unit_session_db_id: input.audit_context.concept_unit_session_db_id,
+        agent_name: PROFILE_INTEGRATION_AGENT_NAME, prompt_hash: PROFILE_INTEGRATION_PROMPT_HASH,
+        schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
+        provider: input.provider_label, model_name: input.model_config.model_name,
+        reasoning_effort: input.model_config.reasoning_effort ?? null,
+        max_output_tokens: input.model_config.max_output_tokens ?? null,
+        temperature: input.model_config.temperature ?? null,
+        verbosity: input.model_config.verbosity ?? null,
+        live_call_allowed: input.live_call_allowed,
+        input_payload: { equals: prismaJson(redactForAudit(input.agent_input)) },
+        output_validated: true, call_status: "succeeded"
+      },
+      orderBy: { completed_at: "desc" }
+    });
+    if (saved) {
+      const validation = validateProfileIntegrationOutput(saved.output_payload, input.agent_input);
+      if (validation.valid) return {
+        status: "succeeded", packet: validation.packet, agent_call_id: saved.id, validation_issues: []
+      };
+    }
+  }
+
   const agentCall = await prisma.agentCall.create({
     data: {
       id: randomUUID(),
@@ -1532,6 +1558,8 @@ async function executeProfileIntegrationAgentWithProvider(input: {
       agent_invocation_key: `profile_integration:${input.agent_input.session_context.session_public_id}:${PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION}:${randomUUID()}`,
       prompt_hash: PROFILE_INTEGRATION_PROMPT_HASH,
       reasoning_effort: input.model_config.reasoning_effort,
+      temperature: input.model_config.temperature,
+      verbosity: input.model_config.verbosity,
       max_output_tokens: input.model_config.max_output_tokens,
       prompt_version: PROFILE_INTEGRATION_PROMPT_VERSION,
       schema_version: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION,
@@ -1548,6 +1576,7 @@ async function executeProfileIntegrationAgentWithProvider(input: {
       agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
       model_config: input.model_config,
       instructions: PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS,
+      cache_static_instructions: true,
       input: input.agent_input,
       output_schema: ProfileIntegrationInterpretationPacketV1Schema,
       schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
@@ -1708,6 +1737,7 @@ export async function executeProfileIntegrationAgentWithProviderForTest(input: {
   agent_input: ProfileIntegrationAgentInput;
   provider: LlmProvider;
   model_config?: AgentModelConfig;
+  audit_context?: { assessment_session_db_id: string; concept_unit_session_db_id: string };
 }): Promise<ProfileIntegrationExecutionResult> {
   return executeProfileIntegrationAgentWithProvider({
     agent_input: input.agent_input,
@@ -1718,7 +1748,8 @@ export async function executeProfileIntegrationAgentWithProviderForTest(input: {
       max_output_tokens: 3000
     },
     live_call_allowed: false,
-    request_timeout_ms: 60000
+    request_timeout_ms: 60000,
+    audit_context: input.audit_context
   });
 }
 
@@ -2230,7 +2261,11 @@ export function validateProfileIntegrationOutput(
 
 export async function buildProfileIntegrationInterpretationPacketForSession(
   sessionPublicId: string,
-  options: { execution_mode?: "deterministic_mock" | "live_provider" } = {}
+  options: {
+    execution_mode?: "deterministic_mock" | "live_provider";
+    on_source_prepared?: () => void;
+    assert_preparation_active?: () => Promise<void>;
+  } = {}
 ): Promise<ProfileIntegrationInterpretationPacketV1> {
   const abilityPacket = await buildAbilityEvidencePacketForSession(sessionPublicId);
   const engagementPacket = await buildEngagementEvidencePacketForSession(sessionPublicId);
@@ -2257,6 +2292,8 @@ export async function buildProfileIntegrationInterpretationPacketForSession(
     engagement_packet: engagementPacket,
     assessment_interpretation_context: assessmentContext
   });
+  await options.assert_preparation_active?.();
+  options.on_source_prepared?.();
 
   if (options.execution_mode === "live_provider") {
     const liveResult = await executeLiveProfileIntegrationAgent({
@@ -2287,6 +2324,8 @@ export async function buildProfileIntegrationInterpretationPacketForSession(
 export async function persistProfileIntegrationSnapshotForSession(input: {
   session_public_id: string;
   execution_mode?: "deterministic_mock" | "live_provider";
+  assert_preparation_active?: () => Promise<void>;
+  on_source_prepared?: () => void;
 }) {
   const session = await prisma.assessmentSession.findUnique({
     where: { session_public_id: input.session_public_id },
@@ -2342,8 +2381,11 @@ export async function persistProfileIntegrationSnapshotForSession(input: {
     };
   }
 
+  await input.assert_preparation_active?.();
   const packet = await buildProfileIntegrationInterpretationPacketForSession(input.session_public_id, {
-    execution_mode: input.execution_mode ?? "deterministic_mock"
+    execution_mode: input.execution_mode ?? "deterministic_mock",
+    on_source_prepared: input.on_source_prepared,
+    assert_preparation_active: input.assert_preparation_active
   });
   const validation = validateProfileIntegrationOutput(packet);
   const studentProjectionValidation = validateStudentSafeProfileIntegrationProjection(
@@ -2375,6 +2417,7 @@ export async function persistProfileIntegrationSnapshotForSession(input: {
     };
   }
 
+  await input.assert_preparation_active?.();
   const createdAt = conceptUnitSession.initial_completed_at ?? new Date();
   const profile = await prisma.studentProfile.create({
     data: {

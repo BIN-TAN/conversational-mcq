@@ -178,7 +178,7 @@ async function main() {
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
-  await ensureDemoStudentAssessment(prisma);
+  const assessment = await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase5_formative_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const student = await prisma.user.create({
@@ -186,6 +186,7 @@ async function main() {
       user_id: prefix,
       user_id_normalized: normalizeUserId(prefix),
       role: "student",
+      created_by_teacher_user_id: assessment.created_by_user_db_id,
       access_code_hash: await hashSecret("phase5_formative_access")
     },
     select: { id: true }

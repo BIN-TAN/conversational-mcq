@@ -265,6 +265,10 @@ export const StudentSessionStateSchema = z.object({
     initial_item_count: z.number()
   }),
   current_concept_unit: StudentConceptUnitSchema.nullable(),
+  preparation: z.object({
+    status: z.enum(["queued", "preparing", "retrying", "ready", "failed", "paused", "cancelled"]),
+    can_retry: z.boolean()
+  }).nullable().optional(),
   next_step: z.enum([
     "concept_unit_intro",
     "present_item",

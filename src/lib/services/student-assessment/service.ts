@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { studentTurnId } from "./student-turn-id";
+import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
+import { getInitialPreparationStatus } from "@/lib/workflow/initial-preparation-status";
 import {
   Prisma,
   type AssessmentPhase,
@@ -81,6 +83,7 @@ import {
   persistProfileIntegrationSnapshotForSession,
   projectStoredStudentProfileIntegration
 } from "@/lib/services/student-assessment/profile-integration";
+import { runParallelInitialInterpretation } from "./parallel-initial-interpretation";
 import {
   ANSWER_EXPLANATION_VERSION,
   EvidenceIntegratedProfileV2Schema,
@@ -373,8 +376,8 @@ function packageOperationPublicId(input: {
   return `pkgop_${hashValue(input).slice(0, 24)}`;
 }
 
-async function latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId: string) {
-  return prisma.responsePackage.findFirst({
+async function latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId: string, db: Prisma.TransactionClient = prisma) {
+  return db.responsePackage.findFirst({
     where: {
       concept_unit_session_db_id: conceptUnitSessionDbId,
       package_type: "initial_concept_unit_response_package"
@@ -383,8 +386,8 @@ async function latestInitialResponsePackageForConceptUnitSession(conceptUnitSess
   });
 }
 
-async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string) {
-  const existing = await latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId);
+async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string, db: Prisma.TransactionClient = prisma) {
+  const existing = await latestInitialResponsePackageForConceptUnitSession(conceptUnitSessionDbId, db);
 
   if (existing) {
     return {
@@ -395,7 +398,7 @@ async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string)
 
   return {
     status: "created" as const,
-    responsePackage: await createResponsePackage({ concept_unit_session_db_id: conceptUnitSessionDbId })
+    responsePackage: await createResponsePackage({ concept_unit_session_db_id: conceptUnitSessionDbId }, db)
   };
 }
 
@@ -403,12 +406,12 @@ async function markInitialAnswerExplanationsRevealed(input: {
   concept_unit_session_db_id: string;
   item_db_ids: string[];
   revealed_at: Date;
-}) {
+}, db: Prisma.TransactionClient = prisma) {
   if (input.item_db_ids.length === 0) {
     return;
   }
 
-  await prisma.itemResponse.updateMany({
+  await db.itemResponse.updateMany({
     where: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       item_db_id: { in: input.item_db_ids },
@@ -423,7 +426,7 @@ async function markInitialAnswerExplanationsRevealed(input: {
     }
   });
 
-  await prisma.itemResponse.updateMany({
+  await db.itemResponse.updateMany({
     where: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       item_db_id: { in: input.item_db_ids },
@@ -3226,6 +3229,7 @@ export async function getStudentSessionState(input: {
       : assessmentState;
   const attemptLifecycle = resolveCanonicalAttemptLifecycle(session);
   const result = {
+    preparation: await getInitialPreparationStatus(session),
     session: serializeStudentSessionSummary(session),
     session_public_id: session.session_public_id,
     session_status: session.status,
@@ -6010,12 +6014,107 @@ export async function submitItemResponse(input: {
   });
 }
 
-export async function completeInitialConceptUnitAdministration(input: {
+export async function submitInitialConceptUnitForPreparation(input: {
   student_user_db_id: string;
   session_public_id: string;
   concept_unit_public_id: string;
   execution_mode?: FormativeExecutionMode;
 }) {
+  const owned = await getOwnedSession(input);
+  // The sealed evidence and its durable work item commit together. No provider runs in this transaction.
+  const job = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`;
+    await assertActiveStudentAccount(input.student_user_db_id, tx);
+    const session = await tx.assessmentSession.findUniqueOrThrow({
+      where: { id: owned.id }, include: { current_concept_unit: true }
+    });
+    if (resolveCanonicalAttemptLifecycle(session).terminal || session.status !== "active" || session.automation_paused_at) {
+      throw publicConflict("This attempt is not active. Refresh to see its current state.");
+    }
+    if (session.current_concept_unit?.concept_unit_public_id !== input.concept_unit_public_id) {
+      throw new StudentAssessmentServiceError("concept_unit_not_current", "The requested topic is not current.", 409);
+    }
+    const unit = await tx.conceptUnitSession.findUniqueOrThrow({
+      where: { assessment_session_db_id_concept_unit_db_id: {
+        assessment_session_db_id: session.id, concept_unit_db_id: session.current_concept_unit.id
+      } }
+    });
+    const items = await tx.item.findMany({
+      where: { concept_unit_db_id: unit.concept_unit_db_id, status: "published", included_in_published_set: true },
+      select: { id: true, item_public_id: true }
+    });
+    const responses = await tx.itemResponse.findMany({
+      where: { concept_unit_session_db_id: unit.id, item_submitted_at: { not: null } },
+      select: { item_db_id: true }
+    });
+    const submitted = new Set(responses.map((response) => response.item_db_id));
+    const incomplete = items.filter((item) => !submitted.has(item.id));
+    if (!items.length || incomplete.length) {
+      throw new StudentAssessmentServiceError("missing_evidence_confirmation_required",
+        "Every included item needs a submitted response or explicit skip before completion.", 409,
+        { incomplete_item_public_ids: incomplete.map((item) => item.item_public_id) });
+    }
+    const now = new Date();
+    if (!unit.initial_completed_at) {
+      if (!["initial_item_administration", "missing_evidence_repair", "initial_concept_unit_completed"].includes(session.current_phase)) {
+        throw publicConflict("This attempt is not ready for submission.");
+      }
+      await tx.conceptUnitSession.update({ where: { id: unit.id }, data: { status: "initial_completed", initial_completed_at: now } });
+      if (session.current_phase === "missing_evidence_repair") {
+        await updateAssessmentSessionPhase({ assessment_session_db_id: session.id, to_phase: "initial_item_administration" }, tx);
+      }
+      await updateAssessmentSessionPhase({ assessment_session_db_id: session.id, to_phase: "initial_concept_unit_completed" }, tx);
+      await logProcessEvent({
+        assessment_session_db_id: session.id, concept_unit_session_db_id: unit.id,
+        event_type: "package_submitted", event_category: "initial_administration", event_source: "backend",
+        payload: { concept_unit_public_id: input.concept_unit_public_id }, occurred_at: now
+      }, tx);
+      await updateAssessmentSessionPhase({ assessment_session_db_id: session.id, to_phase: "profiling_pending" }, tx);
+    }
+    await markInitialAnswerExplanationsRevealed({
+      concept_unit_session_db_id: unit.id, item_db_ids: items.map((item) => item.id), revealed_at: now
+    }, tx);
+    const { responsePackage } = await getOrCreateInitialResponsePackage(unit.id, tx);
+    const queued = await enqueueWorkflowJob({
+      job_type: "prepare_initial_conversation", assessment_session_db_id: session.id,
+      concept_unit_session_db_id: unit.id, idempotency_key: `initial-preparation:${unit.id}`,
+      payload: {
+        session_public_id: session.session_public_id, concept_unit_public_id: input.concept_unit_public_id,
+        response_package_id: responsePackage.id, response_package_hash: hashValue(responsePackage.payload),
+        execution_mode: input.execution_mode ?? "production"
+      }
+    }, tx);
+    if (queued.job.status !== "failed") return queued.job;
+    if (queued.job.last_error_category === "preparation_source_conflict") {
+      throw publicConflict("Preparation needs teacher review. Your saved responses have not changed.");
+    }
+    // Only an explicit student retry reopens an exhausted job; retain its attempt history.
+    const retried = await tx.workflowJob.update({ where: { id: queued.job.id }, data: {
+      status: "pending", max_attempts: queued.job.attempt_count + 3, run_after: now,
+      completed_at: null, last_error_category: null, last_error_message: null
+    } });
+    await logProcessEvent({
+      assessment_session_db_id: session.id, concept_unit_session_db_id: unit.id,
+      event_type: "workflow_job_retry_scheduled", event_category: "workflow", event_source: "backend",
+      payload: { job_public_id: retried.job_public_id, reason: "student_requested_preparation_retry", attempt_count: retried.attempt_count },
+      occurred_at: now
+    }, tx);
+    return retried;
+  }, { timeout: 30_000 });
+  return {
+    completion_status: job.status === "completed" ? "already_completed" : "accepted",
+    state: await getStudentSessionState(input)
+  };
+}
+
+export async function completeInitialConceptUnitAdministration(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+  concept_unit_public_id: string;
+  execution_mode?: FormativeExecutionMode;
+  assert_preparation_active?: () => Promise<void>;
+}) {
+  await input.assert_preparation_active?.();
   const owned = await getOwnedSession(input);
   const session = await prisma.assessmentSession.findUniqueOrThrow({
     where: { id: owned.id },
@@ -6174,24 +6273,36 @@ export async function completeInitialConceptUnitAdministration(input: {
     recovered_from_partial_success: false
   };
 
-  if (!replayedCompletedOperation) {
-    await persistProfileIntegrationSnapshotForSession({
+  if (!replayedCompletedOperation || input.assert_preparation_active) {
+    await input.assert_preparation_active?.();
+    const integrate = (on_source_prepared?: () => void) => persistProfileIntegrationSnapshotForSession({
       session_public_id: session.session_public_id,
+      assert_preparation_active: input.assert_preparation_active,
+      on_source_prepared,
       execution_mode:
         resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production").adapter ===
         "configured_live_runtime"
           ? "live_provider"
           : "deterministic_mock"
     });
-    await ensureChatNativeFormativeActivity({
+    const activity = (before_profile_persistence?: () => Promise<void>) => ensureChatNativeFormativeActivity({
       concept_unit_session_db_id: conceptUnitSession.id,
       invocation_reason: operation.already_seen
         ? "student_package_review_continue_replay"
         : "student_package_review_continue",
-      execution_mode: input.execution_mode
+      execution_mode: input.execution_mode,
+      assert_preparation_active: input.assert_preparation_active,
+      before_profile_persistence
     });
+    if (input.assert_preparation_active) {
+      await runParallelInitialInterpretation({ integration: integrate, activity });
+    } else {
+      await integrate();
+      await activity();
+    }
   }
 
+  await input.assert_preparation_active?.();
   recovery = await reconcilePackageCompletionState({
     concept_unit_session_db_id: conceptUnitSession.id,
     reason: replayedCompletedOperation
@@ -6899,6 +7010,11 @@ export async function endStudentAssessmentAttempt(input: {
         observed_interval_duration_ms: null, client_instance_id: null, occurred_at: now
       }, tx);
     }
+
+    await tx.workflowJob.updateMany({
+      where: { assessment_session_db_id: session.id, job_type: "prepare_initial_conversation", status: { in: ["pending", "running", "retryable"] } },
+      data: { status: "cancelled", locked_at: null, locked_by: null, completed_at: now }
+    });
 
     await txLogProcessEvent(tx, {
       assessment_session_db_id: session.id,

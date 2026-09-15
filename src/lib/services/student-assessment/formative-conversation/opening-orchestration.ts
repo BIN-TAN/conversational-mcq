@@ -18,7 +18,9 @@ import { buildFormativeConversationRuntimeContextSeedForInternalOpening } from "
 export async function ensureFormativeConversationOpeningForConceptUnitSession(input: {
   concept_unit_session_db_id: string;
   execution_mode: FormativeExecutionMode;
+  assert_preparation_active?: () => Promise<void>;
 }) {
+  await input.assert_preparation_active?.();
   const conversation = await prisma.formativeConversationSession.findUnique({
     where: {
       concept_unit_session_db_id: input.concept_unit_session_db_id
@@ -75,6 +77,7 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
     throw error;
   }
 
+  await input.assert_preparation_active?.();
   const context =
     await buildFormativeConversationRuntimeContextSeedForInternalOpening({
       conversation_public_id: conversation.conversation_public_id

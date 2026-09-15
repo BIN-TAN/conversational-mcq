@@ -54,8 +54,8 @@ export function serializeWorkflowJob(job: WorkflowJob): WorkflowJobSummary {
   };
 }
 
-export async function enqueueWorkflowJob(input: EnqueueWorkflowJobInput) {
-  const existing = await prisma.workflowJob.findUnique({
+export async function enqueueWorkflowJob(input: EnqueueWorkflowJobInput, db: Prisma.TransactionClient = prisma) {
+  const existing = await db.workflowJob.findUnique({
     where: { idempotency_key: input.idempotency_key }
   });
 
@@ -64,7 +64,7 @@ export async function enqueueWorkflowJob(input: EnqueueWorkflowJobInput) {
   }
 
   try {
-    const job = await prisma.workflowJob.create({
+    const job = await db.workflowJob.create({
       data: {
         job_public_id: generatePublicId("workflow_job"),
         job_type: input.job_type,
@@ -89,12 +89,12 @@ export async function enqueueWorkflowJob(input: EnqueueWorkflowJobInput) {
         job_type: job.job_type
       },
       occurred_at: new Date()
-    });
+    }, db);
 
     return { job, created: true };
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      const job = await prisma.workflowJob.findUniqueOrThrow({
+      const job = await db.workflowJob.findUniqueOrThrow({
         where: { idempotency_key: input.idempotency_key }
       });
 
@@ -110,6 +110,7 @@ export async function releaseAbandonedWorkflowJobs() {
 
   return prisma.workflowJob.updateMany({
     where: {
+      job_type: { not: "prepare_initial_conversation" },
       status: "running",
       locked_at: { lt: cutoff }
     },
@@ -141,6 +142,7 @@ export async function claimNextWorkflowJob(workerId: string) {
       INNER JOIN "assessment_sessions" AS session
         ON session."id" = candidate."assessment_session_db_id"
       WHERE candidate."status" IN ('pending'::"WorkflowJobStatus", 'retryable'::"WorkflowJobStatus")
+        AND candidate."job_type" <> 'prepare_initial_conversation'::"WorkflowJobType"
         AND candidate."run_after" <= NOW()
         AND session."automation_paused_at" IS NULL
       ORDER BY candidate."run_after" ASC, candidate."created_at" ASC

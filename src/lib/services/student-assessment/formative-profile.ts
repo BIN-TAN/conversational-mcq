@@ -23,6 +23,7 @@ import {
   attachAssessmentInterpretationContext,
   buildAssessmentInterpretationContextFromResponsePackage
 } from "@/lib/services/student-assessment/assessment-interpretation-context";
+import { compactRepeatedDiagnosticContext } from "./compact-provider-context";
 import {
   evaluateResponseQuality,
   responseQualityAllowsAdvance,
@@ -812,7 +813,7 @@ function safePackageForProvider(payload: unknown) {
   const record = jsonRecord(payload);
   const conceptUnit = jsonRecord(record.concept_unit);
 
-  return {
+  return compactRepeatedDiagnosticContext({
     package_type: stringValue(record, "package_type"),
     created_at: stringValue(record, "created_at"),
     assessment: {
@@ -871,7 +872,7 @@ function safePackageForProvider(payload: unknown) {
     deferred_student_concerns: deferredConcernsFromPackagePayload(payload),
     process_counts: record.process_counts,
     logging_limitations: record.logging_limitations
-  };
+  });
 }
 
 type DeferredStudentConcern = {
@@ -2578,6 +2579,7 @@ async function callProviderOrMock(input: {
     agent_name: CHAT_NATIVE_PROFILE_AGENT_NAME,
     model_config: modelConfig,
     instructions: CHAT_NATIVE_PROFILE_INSTRUCTIONS,
+    cache_static_instructions: true,
     input: input.provider_input,
     output_schema: ChatNativeFormativeProfileOutputSchema,
     schema_name: CHAT_NATIVE_PROFILE_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
@@ -2833,6 +2835,7 @@ async function callTargetedFeedbackProviderOrMock(input: {
     agent_name: CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME,
     model_config: modelConfig,
     instructions: CHAT_NATIVE_TARGETED_FEEDBACK_INSTRUCTIONS,
+    cache_static_instructions: true,
     input: input.provider_input,
     output_schema: ChatNativeTargetedFeedbackOutputSchema,
     schema_name: CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
@@ -3866,7 +3869,10 @@ export async function ensureChatNativeFormativeActivity(input: {
   concept_unit_session_db_id: string;
   invocation_reason: string;
   execution_mode?: FormativeExecutionMode;
+  assert_preparation_active?: () => Promise<void>;
+  before_profile_persistence?: () => Promise<void>;
 }) {
+  await input.assert_preparation_active?.();
   const executionMode = input.execution_mode ?? "production";
   const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
     where: { id: input.concept_unit_session_db_id },
@@ -3897,9 +3903,12 @@ export async function ensureChatNativeFormativeActivity(input: {
   });
 
   if (existingRound) {
+    await input.before_profile_persistence?.();
+    await input.assert_preparation_active?.();
     await ensureFormativeConversationOpeningForConceptUnitSession({
       concept_unit_session_db_id: conceptUnitSession.id,
-      execution_mode: executionMode
+      execution_mode: executionMode,
+      assert_preparation_active: input.assert_preparation_active
     });
     return {
       status: "already_created" as const,
@@ -3953,6 +3962,8 @@ export async function ensureChatNativeFormativeActivity(input: {
     const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(existingCall.output_payload);
 
     if (parsed.success) {
+      await input.before_profile_persistence?.();
+      await input.assert_preparation_active?.();
       const persisted = await persistProfileDecisionAndActivity({
         concept_unit_session_db_id: conceptUnitSession.id,
         assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
@@ -3990,7 +4001,8 @@ export async function ensureChatNativeFormativeActivity(input: {
       }
       await ensureFormativeConversationOpeningForConceptUnitSession({
         concept_unit_session_db_id: conceptUnitSession.id,
-        execution_mode: executionMode
+        execution_mode: executionMode,
+        assert_preparation_active: input.assert_preparation_active
       });
 
       return {
@@ -4012,6 +4024,7 @@ export async function ensureChatNativeFormativeActivity(input: {
     }
   });
 
+  await input.assert_preparation_active?.();
   const providerResult = await callProviderOrMock({
     assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
     concept_unit_session_db_id: conceptUnitSession.id,
@@ -4058,6 +4071,8 @@ export async function ensureChatNativeFormativeActivity(input: {
     );
   }
 
+  await input.before_profile_persistence?.();
+  await input.assert_preparation_active?.();
   if (conceptUnitSession.assessment_session.current_phase === "profiling_pending") {
     await updateAssessmentSessionPhase({
       assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
@@ -4109,7 +4124,8 @@ export async function ensureChatNativeFormativeActivity(input: {
   }
   await ensureFormativeConversationOpeningForConceptUnitSession({
     concept_unit_session_db_id: conceptUnitSession.id,
-    execution_mode: executionMode
+    execution_mode: executionMode,
+    assert_preparation_active: input.assert_preparation_active
   });
 
   return {

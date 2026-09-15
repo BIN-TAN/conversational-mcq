@@ -14,6 +14,7 @@ import {
 } from "./teacher-diagnostic-context";
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
 import { archiveSupersededAssessmentForRevision } from "./assessment-revisions";
+import { preparePublishedAssessmentContext } from "./prepared-assessment-context";
 
 export type PublishValidationResult = {
   ok: boolean;
@@ -280,6 +281,7 @@ export async function publishConceptUnit(input: {
       where: { id: conceptUnit.id },
       data: { status: "published" }
     });
+    await preparePublishedAssessmentContext(tx, conceptUnit.id);
   });
 
   const published = await prisma.conceptUnit.findUniqueOrThrow({
@@ -393,6 +395,7 @@ export async function publishAssessment(input: {
         where: { id: conceptUnit.id },
         data: { status: "published" }
       });
+      await preparePublishedAssessmentContext(tx, conceptUnit.id);
     }
 
     const supersededAssessmentPublicId = await archiveSupersededAssessmentForRevision(
