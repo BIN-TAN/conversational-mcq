@@ -201,6 +201,7 @@ export const processEventTypes = [
   "navigation_event",
   "refresh_recovery",
   "agent_call_started",
+  "agent_input_projection_prepared",
   "agent_call_succeeded",
   "agent_call_failed",
   "schema_validation_succeeded",

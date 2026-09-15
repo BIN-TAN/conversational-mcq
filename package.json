@@ -18,6 +18,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "student:latency-smoke": "node --import tsx prisma/latency-optimization-smoke-test.ts",
+    "student:profiling-compaction-smoke": "node --import tsx prisma/profiling-input-compaction-smoke-test.ts",
     "student:latency-database-smoke": "node --import tsx prisma/latency-optimization-database-smoke-test.ts",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",

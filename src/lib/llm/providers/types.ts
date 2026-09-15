@@ -155,6 +155,8 @@ export type StructuredAgentRequest<TInput, TOutput> = {
   instructions: string;
   /** Opt in only for code-owned, static instructions, never interpolated user data. */
   cache_static_instructions?: boolean;
+  /** Lossless wire encoding only; validation and persisted evidence stay expanded. */
+  input_encoding?: "lossless-profiling-json-v1";
   input: TInput;
   output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
   schema_name: string;

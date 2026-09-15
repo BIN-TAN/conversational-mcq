@@ -78,6 +78,33 @@ async function main() {
   await executeProfileIntegrationAgentWithProviderForTest({ ...input, agent_input: changedInput });
   assert(mockCalls > 3);
   pass("model changes, unvalidated output, and changed evidence never reuse a prior receipt");
+
+  const unsafeOutput = structuredClone(output);
+  unsafeOutput.student_safe_message.message = "They are disengaged.";
+  const unsafeProvider: LlmProvider = { executeStructured: async <TInput, TOutput>(request: import("../src/lib/llm/providers/types").StructuredAgentRequest<TInput, TOutput>) => ({
+    provider: "mock", status: "completed", client_request_id: request.client_request_id,
+    parsed_output: unsafeOutput as TOutput, latency_ms: 1
+  }) };
+  const rejected = await executeProfileIntegrationAgentWithProviderForTest({ ...input, provider: unsafeProvider,
+    model_config: { model_name: "mock-projection-negative", max_output_tokens: 3000 } });
+  assert.notEqual(rejected.status, "succeeded");
+  const rejectedCall = await prisma.agentCall.findUniqueOrThrow({ where: { id: rejected.agent_call_id! } });
+  assert.equal(rejectedCall.output_validated, false);
+  assert.notEqual(rejectedCall.call_status, "succeeded");
+  pass("unsafe student projection is rejected before the provider receipt can be marked accepted or reused");
+  const acceptedOutput = structuredClone(output);
+  acceptedOutput.student_safe_message.message = "Your recent responses suggest that the different kinds of validity evidence and how they fit together are still developing.";
+  const acceptedProvider: LlmProvider = { executeStructured: async <TInput, TOutput>(request: import("../src/lib/llm/providers/types").StructuredAgentRequest<TInput, TOutput>) => ({
+    provider: "mock", status: "completed", client_request_id: request.client_request_id,
+    parsed_output: acceptedOutput as TOutput, latency_ms: 1
+  }) };
+  const accepted = await executeProfileIntegrationAgentWithProviderForTest({ ...input, provider: acceptedProvider,
+    model_config: { model_name: "mock-projection-positive", max_output_tokens: 3000 } });
+  assert.equal(accepted.status, "succeeded");
+  const acceptedCall = await prisma.agentCall.findUniqueOrThrow({ where: { id: accepted.agent_call_id! } });
+  assert.equal(acceptedCall.output_validated, true);
+  assert.equal(acceptedCall.call_status, "succeeded");
+  pass("the preserved live pronoun sentence is accepted by both generation and student projection validation");
   console.log(JSON.stringify({ passed: results.length, external_provider_calls: 0, model_auth_requests: 0 }));
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(async () => {

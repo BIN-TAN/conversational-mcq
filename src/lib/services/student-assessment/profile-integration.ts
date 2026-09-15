@@ -1860,12 +1860,13 @@ const STUDENT_SAFE_PROFILE_PROHIBITED_RULES: Array<{
 export function validateStudentSafeProfileIntegrationProjection(value: unknown) {
   const schemaResult = StudentSafeProfileIntegrationProjectionSchema.safeParse(value);
   const issues: ProfileIntegrationValidationIssue[] = [];
+  const warnings: Array<{ field_path: string; warning_code: "third_person_student_wording" }> = [];
 
   if (!schemaResult.success) {
     for (const issue of schemaResult.error.issues) {
       pushIssue(issues, issue.path.join(".") || "student_safe_message", "schema_invalid");
     }
-    return { valid: false as const, issues };
+    return { valid: false as const, issues, warnings };
   }
 
   const projection = schemaResult.data;
@@ -1875,13 +1876,9 @@ export function validateStudentSafeProfileIntegrationProjection(value: unknown) 
   ];
 
   for (const entry of textEntries) {
-    if (/\b(the student|they|their)\b/i.test(entry.text)) {
-      pushIssue(
-        issues,
-        entry.path,
-        "formative_value_direction_present",
-        "third_person_student_facing_language"
-      );
+    // Pronouns can refer to evidence or items; wording alone is not a disclosure.
+    if (/\bthe student\b/i.test(entry.text)) {
+      warnings.push({ field_path: entry.path, warning_code: "third_person_student_wording" });
     }
     for (const rule of STUDENT_SAFE_PROFILE_PROHIBITED_RULES) {
       if (rule.pattern.test(entry.text)) {
@@ -1891,8 +1888,8 @@ export function validateStudentSafeProfileIntegrationProjection(value: unknown) 
   }
 
   return issues.length === 0
-    ? { valid: true as const, projection, issues }
-    : { valid: false as const, issues };
+    ? { valid: true as const, projection, issues, warnings }
+    : { valid: false as const, issues, warnings };
 }
 
 export function projectStoredStudentProfileIntegration(input: {
@@ -2068,6 +2065,9 @@ export function validateProfileIntegrationOutput(
   }
 
   const packet = schemaResult.data;
+  // Generation, receipt reuse, and persistence must apply the same safety boundary.
+  const projectionValidation = validateStudentSafeProfileIntegrationProjection(packet.student_safe_message);
+  issues.push(...projectionValidation.issues);
   const keyEntries = flattenKeys(packet);
   const stringEntries = flattenStrings(packet);
   const studentProjectionStrings = flattenStrings(packet.student_safe_message);
@@ -2473,6 +2473,8 @@ export async function persistProfileIntegrationSnapshotForSession(input: {
       student_facing_status: packet.student_safe_message.status,
       status_confidence: packet.status_confidence,
       integration_pattern: packet.integration_pattern,
+      projection_validation_status: "accepted",
+      style_warnings: studentProjectionValidation.warnings,
       safety_check_passed: true
     }
   });

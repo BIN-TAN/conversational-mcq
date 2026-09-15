@@ -35,6 +35,8 @@ import {
 } from "@/lib/llm/usage/usage-guard";
 import { toPrismaJson } from "@/lib/services/json";
 import { buildProductionAgentRequest } from "@/lib/agents/provider-request";
+import { prepareLosslessProfilingInput } from "@/lib/llm/lossless-profiling-input";
+import { logProcessEvent } from "@/lib/services/process-events";
 
 export type AgentExecutionResult<TOutput> =
   | {
@@ -326,6 +328,17 @@ export async function executeAgent<TAgentName extends AgentNameType>(
   let lastProviderResult: StructuredAgentResult<AgentOutputByName[TAgentName]> | null = null;
 
   try {
+    if (agentName === "student_profiling_agent" && runtime.provider === "openai" && input.assessment_session_db_id) {
+      const projection = prepareLosslessProfilingInput(parsedInput);
+      await logProcessEvent({
+        assessment_session_db_id: input.assessment_session_db_id,
+        concept_unit_session_db_id: input.concept_unit_session_db_id ?? undefined,
+        event_type: "agent_input_projection_prepared",
+        event_category: "agent_execution",
+        event_source: "backend",
+        payload: { agent_name: agentName, agent_call_public_id: agentCall.agent_call_public_id, ...projection.audit }
+      }, db);
+    }
     while (true) {
       const providerRequest = buildProductionAgentRequest<TAgentName>({
         agent_name: input.agent_name,

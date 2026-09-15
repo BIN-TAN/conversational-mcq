@@ -16,6 +16,7 @@ import {
   resolveOpenAIBaseUrl
 } from "@/lib/llm/openai-transport-diagnostics";
 import { normalizeOpenAIResponsesResult } from "@/lib/llm/openai-responses-normalizer";
+import { prepareLosslessProfilingInput, PROFILING_INPUT_ENCODING } from "@/lib/llm/lossless-profiling-input";
 import type {
   LlmProvider,
   OpenAITransportMilestone,
@@ -240,6 +241,11 @@ function initialMilestones(): OpenAITransportMilestone {
 export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
   request: StructuredAgentRequest<TInput, TOutput>
 ) {
+  const projection = request.input_encoding === PROFILING_INPUT_ENCODING && request.agent_name === "student_profiling_agent"
+    ? prepareLosslessProfilingInput(request.input) : null;
+  const instructions = projection?.instructions
+    ? `${request.instructions}\n\n${projection.instructions}` : request.instructions;
+  const inputText = projection?.text ?? JSON.stringify(request.input);
   const text = {
     format: zodTextFormat(request.output_schema, request.schema_name),
     ...(request.model_config.verbosity
@@ -258,11 +264,11 @@ export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
       // Explicit-only caching ends before any student or teacher-supplied data.
       prompt_cache_options: { mode: "explicit" },
       input: [
-        { role: "developer", content: [{ type: "input_text", text: request.instructions,
+        { role: "developer", content: [{ type: "input_text", text: instructions,
           prompt_cache_breakpoint: { mode: "explicit" } }] },
-        { role: "user", content: JSON.stringify(request.input) }
+        { role: "user", content: inputText }
       ]
-    } : { instructions: request.instructions, input: JSON.stringify(request.input) }),
+    } : { instructions, input: inputText }),
     text,
     store: false,
     metadata: request.metadata,

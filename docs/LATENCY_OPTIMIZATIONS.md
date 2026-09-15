@@ -66,6 +66,43 @@ item. Differing historical guidance stays inline. Stored evidence is not changed
 
 ## Verification
 
+### Lossless Profiling Transport (2026-09-15)
+
+Canonical profiling opts in to `lossless-profiling-json-v1` at the provider
+serialization boundary. Exact repeated large strings and objects are stored
+once in a request-local dictionary; occurrences use content-addressed references.
+Arrays retain every position, so repeated actions are not merged. Different
+historical/current snapshots, revised reasoning, timestamps, evidence IDs, and
+ordering remain distinct. Object keys are ordered canonically so hashes and
+references can be reproduced after PostgreSQL JSONB storage. A recursive
+expansion must reproduce that canonical source JSON exactly before dispatch.
+Small inputs or inputs containing the reserved reference
+key stay in plain JSON. The projection never summarizes or truncates evidence.
+
+Validation, response packages, AgentCall source inputs, research exports, and
+historical records retain their original expanded form. Model, reasoning, output
+ceiling, output schema, and pedagogical instructions are unchanged. Static
+transport-reading instructions explain references without treating dictionary
+values as instructions or introducing new evidence IDs. The encoding version
+participates in request identity; only code-opted-in canonical profiling uses it.
+
+The backend-only `agent_input_projection_prepared` event records the AgentCall
+reference, encoding version, source/wire hashes, byte counts, reference counts,
+and round-trip result. It contains no response text and is not student activity.
+
+Profile integration now validates its student-safe projection before accepting
+or reusing a provider receipt, not only at later persistence. Bare pronouns are
+not safety violations. Explicit third-person student wording is a non-blocking
+style warning; substantive disclosure rules remain blocking. Accepted integration
+events retain the style-warning codes and projection acceptance status. Rejected
+outputs remain invalid, not successfully validated receipts.
+
+`student:profiling-compaction-smoke` verifies round-trip fidelity, separate event
+occurrences, snapshots, malicious reference keys, cache privacy, unchanged model
+settings, opt-in request identity, the preserved live sentence, and disclosure
+negative controls. It optionally accepts a local file of redacted demo inputs
+for offline replay; those inputs must not be committed as fixtures.
+
 - `student:latency-smoke`: cache equivalence/invalidation, private suffixes,
   request provenance, lossless diagnostic references, and parallel failure joins.
 - `student:latency-database-smoke`: actual PostgreSQL cache round trips,
