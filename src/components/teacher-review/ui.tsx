@@ -4,14 +4,14 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Clipboard, Loader2 } from "lucide-react";
 import type { StructuredApiError } from "./types";
 
-export function formatDate(value?: string | null) {
+export function formatDate(value?: string | null, includeSeconds = false) {
   if (!value) {
     return "Not recorded";
   }
 
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
-    timeStyle: "short"
+    timeStyle: includeSeconds ? "medium" : "short"
   }).format(new Date(value));
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   BrainCircuit,
@@ -61,16 +61,17 @@ import {
   StatusPill
 } from "./ui";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
+import { ProcessDataSection } from "./process-data-section";
+import { processEventLabel } from "@/lib/services/teacher-review/process-data-summary";
+import { ReviewResourceStatus, useReviewResource } from "./review-resource";
 
 const tabs = [
   "overview",
   "formative_conversation",
   "item_responses",
   "readable_transcript",
-  "conversation_transcript",
-  "process_events",
-  "session_evidence_audit",
-  "response_packages",
+  "process_data",
+  "assessment_log",
   "future_agent_data"
 ] as const;
 
@@ -180,9 +181,11 @@ function tabLabel(tab: Tab) {
     return "Readable transcript";
   }
 
-  if (tab === "conversation_transcript") {
-    return "Structured event log";
-  }
+  if (tab === "process_data") return "Process data";
+  if (tab === "assessment_log") return "Assessment log";
+  if (tab === "future_agent_data") return "Advanced records";
+  if (tab === "overview") return "Overview";
+  if (tab === "item_responses") return "Item responses";
 
   return label(tab);
 }
@@ -231,16 +234,27 @@ function Fact({ labelText, value }: { labelText: string; value: ReactNode }) {
 export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicId: string }) {
   const [activeTab, setActiveTab] = useState<Tab>("overview");
   const [detail, setDetail] = useState<SessionDetailResponse | null>(null);
-  const [itemResponses, setItemResponses] = useState<ItemResponsesResponse | null>(null);
-  const [readableTranscript, setReadableTranscript] = useState<ReadableTranscriptResponse | null>(null);
-  const [transcript, setTranscript] = useState<TranscriptResponse | null>(null);
-  const [responsePackages, setResponsePackages] = useState<ResponsePackagesResponse | null>(null);
-  const [dataAudit, setDataAudit] = useState<SessionDataAuditResponse | null>(null);
+  const [revision, setRevision] = useState(0);
+  const [snapshotsOpen, setSnapshotsOpen] = useState(false);
+  const [structuredOpen, setStructuredOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
+  const coreRequest = useRef(0);
+  const processRequest = useRef(0);
   const [processEvents, setProcessEvents] = useState<ProcessEventsResponse | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [processError, setProcessError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [processLoading, setProcessLoading] = useState(true);
+  const itemResource = useReviewResource(sessionPublicId, revision, !loading && ["item_responses", "formative_conversation"].includes(activeTab), fetchItemResponses);
+  const readableResource = useReviewResource(sessionPublicId, revision, !loading && activeTab === "readable_transcript", fetchReadableTranscript);
+  const transcriptResource = useReviewResource(sessionPublicId, revision, !loading && activeTab === "assessment_log" && structuredOpen, fetchTranscript);
+  const packageResource = useReviewResource(sessionPublicId, revision, !loading && activeTab === "item_responses" && snapshotsOpen, fetchResponsePackages);
+  const auditResource = useReviewResource(sessionPublicId, revision, !loading && (activeTab === "process_data" || (activeTab === "assessment_log" && auditOpen)), fetchSessionDataAudit);
+  const readableTranscript = readableResource.data;
+  const transcript = transcriptResource.data;
+  const responsePackages = packageResource.data;
+  const dataAudit = auditResource.data;
+  const itemResponses = itemResource.data;
   const [profilingAction, setProfilingAction] = useState<{
     concept_unit_public_id: string;
     error: StructuredApiError | null;
@@ -274,46 +288,39 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   });
 
   const loadCore = useCallback(async () => {
+    const request = ++coreRequest.current;
     setLoading(true);
     setError(null);
+    setDetail(null);
+    setProcessEvents(null);
+    setRevision((value) => value + 1);
 
     try {
-      const [detailResult, itemResult, readableTranscriptResult, transcriptResult, packageResult, dataAuditResult] =
-        await Promise.all([
-          fetchSessionDetail(sessionPublicId),
-          fetchItemResponses(sessionPublicId),
-          fetchReadableTranscript(sessionPublicId),
-          fetchTranscript(sessionPublicId),
-          fetchResponsePackages(sessionPublicId),
-          fetchSessionDataAudit(sessionPublicId)
-        ]);
-
+      const detailResult = await fetchSessionDetail(sessionPublicId);
+      if (request !== coreRequest.current) return;
       setDetail(detailResult);
-      setItemResponses(itemResult);
-      setReadableTranscript(readableTranscriptResult);
-      setTranscript(transcriptResult);
-      setResponsePackages(packageResult);
-      setDataAudit(dataAuditResult);
     } catch (requestError) {
-      setError(errorFromUnknown(requestError));
+      if (request === coreRequest.current) setError(errorFromUnknown(requestError));
     } finally {
-      setLoading(false);
+      if (request === coreRequest.current) setLoading(false);
     }
   }, [sessionPublicId]);
 
   const loadProcessEvents = useCallback(async () => {
+    const request = ++processRequest.current;
+    if (activeTab !== "assessment_log") return;
     setProcessLoading(true);
     setProcessError(null);
 
     try {
       const result = await fetchProcessEvents(sessionPublicId, processFilters);
-      setProcessEvents(result);
+      if (request === processRequest.current) setProcessEvents(result);
     } catch (requestError) {
-      setProcessError(errorFromUnknown(requestError));
+      if (request === processRequest.current) setProcessError(errorFromUnknown(requestError));
     } finally {
-      setProcessLoading(false);
+      if (request === processRequest.current) setProcessLoading(false);
     }
-  }, [processFilters, sessionPublicId]);
+  }, [activeTab, processFilters, sessionPublicId]);
 
   useEffect(() => {
     void loadCore();
@@ -552,6 +559,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
                     : "border-transparent text-muted hover:text-ink"
                 }`}
                 key={tab}
+                aria-current={activeTab === tab ? "page" : undefined}
                 onClick={() => setActiveTab(tab)}
                 type="button"
               >
@@ -569,8 +577,15 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               onAutomationAction={handleAutomationAction}
             />
           ) : null}
+          {["item_responses", "formative_conversation"].includes(activeTab) ? <ReviewResourceStatus resource={itemResource} /> : null}
           {activeTab === "item_responses" && itemResponses ? (
-            <ItemResponsesSection data={itemResponses} />
+            <section className="space-y-6">
+              <ItemResponsesSection data={itemResponses} />
+              <details className="border-t border-line pt-4" open={snapshotsOpen} onToggle={(event) => setSnapshotsOpen(event.currentTarget.open)}>
+                <summary className="cursor-pointer font-semibold">Submission snapshots{responsePackages ? ` (${responsePackages.response_packages.length})` : ""}</summary>
+                <div className="mt-4"><ReviewResourceStatus resource={packageResource} />{responsePackages ? <ResponsePackagesSection data={responsePackages} /> : null}</div>
+              </details>
+            </section>
           ) : null}
           {activeTab === "formative_conversation" ? (
             <FormativeConversationEvidenceSection
@@ -579,16 +594,15 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               sessionPublicId={detail.session.session_public_id}
             />
           ) : null}
+          {activeTab === "readable_transcript" ? <ReviewResourceStatus resource={readableResource} /> : null}
           {activeTab === "readable_transcript" && readableTranscript ? (
             <ReadableTranscriptSection
               data={readableTranscript}
               sessionPublicId={sessionPublicId}
             />
           ) : null}
-          {activeTab === "conversation_transcript" && transcript ? (
-            <TranscriptSection data={transcript} />
-          ) : null}
-          {activeTab === "process_events" ? (
+          {activeTab === "assessment_log" ? (
+            <section className="space-y-6">
             <ProcessEventsSection
               data={processEvents}
               error={processError}
@@ -596,12 +610,12 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               loading={processLoading}
               onUpdateFilter={updateProcessFilter}
             />
+            <details className="border-t border-line pt-4" open={structuredOpen} onToggle={(event) => setStructuredOpen(event.currentTarget.open)}><summary className="cursor-pointer font-semibold">Structured conversation records</summary><div className="mt-4"><ReviewResourceStatus resource={transcriptResource} />{transcript ? <TranscriptSection data={transcript} /> : null}</div></details>
+            <details className="border-t border-line pt-4" open={auditOpen} onToggle={(event) => setAuditOpen(event.currentTarget.open)}><summary className="cursor-pointer font-semibold">Technical evidence audit</summary><div className="mt-4"><ReviewResourceStatus resource={auditResource} />{dataAudit ? <SessionEvidenceAuditSection data={dataAudit} /> : null}</div></details>
+            </section>
           ) : null}
-          {activeTab === "session_evidence_audit" && dataAudit ? (
-            <SessionEvidenceAuditSection data={dataAudit} />
-          ) : null}
-          {activeTab === "response_packages" && responsePackages ? (
-            <ResponsePackagesSection data={responsePackages} />
+          {activeTab === "process_data" ? (
+            <><ReviewResourceStatus resource={auditResource} />{dataAudit ? <ProcessDataSection data={dataAudit.behavior_summary} sessionPublicId={sessionPublicId} /> : null}</>
           ) : null}
           {activeTab === "future_agent_data" ? (
             <FutureAgentSection
@@ -903,7 +917,9 @@ export function FormativeConversationEvidenceSection({
                 </p>
               )}
               {administeredResponses.length > 0 ? (
-                <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                <details className="mt-5 border-y border-line py-3">
+                  <summary className="cursor-pointer text-sm font-semibold">Administered responses ({administeredResponses.length})</summary>
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
                   {administeredResponses.map((response) => (
                     <article
                       className="rounded-md border border-line p-4"
@@ -966,6 +982,7 @@ export function FormativeConversationEvidenceSection({
                     </article>
                   ))}
                 </div>
+                </details>
               ) : (
                 <p className="mt-4 text-sm text-muted">
                   No administered item responses are recorded.
@@ -1798,7 +1815,7 @@ function ReadableTranscriptSection({
             )}
             {turn.has_structured_payload_available_elsewhere ? (
               <p className="mt-2 text-xs text-muted">
-                Structured metadata is available in the Structured event log.
+                Structured metadata is available in the Assessment log.
               </p>
             ) : null}
             {turn.next_student_response_latency_seconds !== null ? (
@@ -1824,7 +1841,7 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
   return (
     <section className="space-y-3">
       <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-        <h3 className="font-semibold">Structured event log</h3>
+        <h3 className="font-semibold">Structured conversation records</h3>
         <p className="mt-1">
           Audit view with redacted structured payloads. Use the Readable transcript tab for a
           conversation-only view.
@@ -1836,7 +1853,7 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
             <StatusPill value={turn.actor_type} />
             <StatusPill value={turn.phase} tone="warn" />
             {turn.agent_name ? <StatusPill value={turn.agent_name} /> : null}
-            <span className="text-xs text-muted">{formatDate(turn.created_at)}</span>
+            <span className="text-xs text-muted">{formatDate(turn.created_at, true)}</span>
           </div>
           {turn.actor_type === "agent" && turn.message_text ? (
             <SafeTutorMessageMarkdown
@@ -1849,8 +1866,8 @@ function TranscriptSection({ data }: { data: TranscriptResponse }) {
             </p>
           )}
           <p className="mt-2 text-xs text-muted">
-            {turn.concept_unit_public_id ? `Topic: ${turn.concept_unit_public_id}` : "No topic association"}
-            {turn.item_public_id ? ` · Item: ${turn.item_public_id}` : ""}
+            {turn.concept_unit_title ?? "Assessment"}
+            {turn.item_order !== null ? ` · Item ${turn.item_order}` : ""}
             {turn.followup_round_index !== null ? ` · Follow-up round ${turn.followup_round_index}` : ""}
           </p>
           <JsonDetails value={turn.structured_payload} labelText="Structured payload" />
@@ -1882,10 +1899,7 @@ function ProcessEventsSection({
   return (
     <section className="space-y-4">
       <section className="rounded-lg border border-line bg-white p-4">
-        <p className="text-sm leading-6 text-muted">
-          {data?.interpretation_boundary ??
-            "Process events are contextual evidence for engagement and evidence sufficiency; they are not misconduct labels."}
-        </p>
+        <h2 className="text-lg font-semibold">Assessment log</h2>
         <div className="mt-3 grid gap-3 md:grid-cols-4">
           <label className="flex flex-col gap-2 text-sm font-medium text-ink">
             Event type
@@ -1895,9 +1909,9 @@ function ProcessEventsSection({
               value={filters.event_type}
             >
               <option value="">All event types</option>
-              {eventTypes.map((eventType) => (
+              {[...new Set([...(data ? Object.keys(data.aggregates.event_count_by_type) : eventTypes), ...(filters.event_type ? [filters.event_type] : [])])].sort().map((eventType) => (
                 <option key={eventType} value={eventType}>
-                  {label(eventType)}
+                  {processEventLabel(eventType)}
                 </option>
               ))}
             </select>
@@ -1953,11 +1967,11 @@ function ProcessEventsSection({
       </section>
 
       {error ? <ErrorState error={error} /> : null}
-      {loading ? <LoadingState label="Loading process events" /> : null}
+      {loading ? <LoadingState label="Loading assessment log" /> : null}
 
-      {data ? (
+      {data && !loading && !error ? (
         <>
-          <div className="grid gap-3 md:grid-cols-4">
+          <details className="border-b border-line pb-4"><summary className="cursor-pointer text-sm font-semibold">Technical event counts</summary><div className="mt-3 grid gap-3 md:grid-cols-4">
             {[
               "page_switch_count",
               "long_pause_count",
@@ -1976,34 +1990,34 @@ function ProcessEventsSection({
               "response_collection_reasoning_extraction_count",
               "response_collection_reasoning_extraction_failure_count",
               "followup_turn_count"
-            ].map((key) => (
+            ].filter((key) => Number(data.aggregates[key] ?? 0) > 0).map((key) => (
               <Fact key={key} labelText={label(key)} value={String(data.aggregates[key] ?? 0)} />
             ))}
-          </div>
+          </div></details>
 
           {data.events.length === 0 ? (
-            <EmptyState title="No process events match the current filters." />
+            <EmptyState title="No assessment events match the current filters." />
           ) : (
             <section className="space-y-3">
               {data.events.map((event, index) => (
                 <article className="rounded-lg border border-line bg-white p-4" key={`${event.occurred_at}-${index}`}>
                   <div className="flex flex-wrap items-center gap-2">
-                    <StatusPill value={event.event_type} tone="warn" />
+                    <h3 className="font-semibold text-ink">{processEventLabel(event.event_type, event.payload)}</h3>
                     <StatusPill value={event.event_source} />
                     <StatusPill value={event.event_category} />
-                    <span className="text-xs text-muted">{formatDate(event.occurred_at)}</span>
+                    <span className="text-xs text-muted">{formatDate(event.occurred_at, true)}</span>
                   </div>
                   <dl className="mt-3 grid gap-3 text-sm md:grid-cols-4">
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Topic</dt>
-                      <dd className="mt-1 text-ink">{event.concept_unit_public_id ?? "Not associated"}</dd>
+                      <dd className="mt-1 text-ink">{event.concept_unit_title ?? "Assessment"}</dd>
                     </div>
                     <div>
                       <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Item</dt>
-                      <dd className="mt-1 text-ink">{event.item_public_id ?? "Not associated"}</dd>
+                      <dd className="mt-1 text-ink">{event.item_order !== null ? `Item ${event.item_order}` : "Not item-specific"}</dd>
                     </div>
                     <div>
-                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Visibility duration</dt>
+                      <dt className="text-xs font-semibold uppercase tracking-wide text-muted">Reported visibility interval</dt>
                       <dd className="mt-1 text-ink">{formatDuration(event.visibility_duration_ms)}</dd>
                     </div>
                     <div>
@@ -2011,7 +2025,7 @@ function ProcessEventsSection({
                       <dd className="mt-1 text-ink">{formatDuration(event.pause_duration_ms)}</dd>
                     </div>
                   </dl>
-                  <JsonDetails value={event.payload} labelText="Technical process payload" />
+                  <JsonDetails value={{ event_type: event.event_type, payload: event.payload }} labelText="Technical event details" />
                 </article>
               ))}
             </section>

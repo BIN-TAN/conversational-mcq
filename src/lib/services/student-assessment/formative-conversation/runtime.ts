@@ -37,6 +37,7 @@ import {
 } from "./candidate-validation-v18r2";
 import { compilePersistedFormativeConversationV18Context } from "./context-v18";
 import { compilePersistedFormativeConversationV18R2Context } from "./context-v18r2";
+import { FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS } from "./lifecycle-contract-v18r2";
 import { compilePersistedFormativeConversationContext } from "./context";
 import { recordFormativeConversationV18ProfileEvidenceReferences } from "./evidence-references-v18";
 import { recordFormativeConversationProfileEvidenceReferences } from "./evidence-references";
@@ -282,7 +283,7 @@ async function compileRuntimeContext(input: {
     return compilePersistedFormativeConversationV18R2Context({
       conversation_public_id: input.conversation_public_id,
       ...input.context
-    });
+    }, FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS);
   }
   return isV18SchemaVersion(input.schema_version)
     ? compilePersistedFormativeConversationV18Context({

@@ -17,12 +17,12 @@ import {
   executeFormativeConversationIdempotentWrite,
   measureFormativeConversationPersistencePhase
 } from "./persistence-observability";
-import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "./lifecycle-contract-v18r2";
+import { FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS } from "./lifecycle-contract-v18r2";
 
 export const FORMATIVE_CONVERSATION_CANONICAL_RUNTIME_STATE =
   "FORMATIVE_CONVERSATION" as const;
 export const FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS =
-  FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS;
+  FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS;
 
 export type FormativeConversationFoundationErrorCode =
   | "conversation_session_mismatch"
@@ -699,7 +699,7 @@ export async function reserveAndPersistFormativeConversationStudentMessage(input
           }
 
           // Serialize distinct message reservations at the conversation boundary.
-          // This makes the phase-local twelfth-turn limit stable across tabs.
+          // This makes the phase-local turn limit stable across tabs.
           const lockedSession =
             await tx.formativeConversationSession.update({
               where: { id: session.session_id },
@@ -1300,6 +1300,7 @@ export async function persistFormativeConversationAssistantMessage(input: {
                 message_type:
                   input.message_type ??
                   "formative_conversation_tutor_message",
+                max_formative_student_turns: FORMATIVE_CONVERSATION_MAX_STUDENT_TURNS,
                 visibility: "student_visible",
                 generation_source: input.generation_source,
                 validator_status: input.validator_status,

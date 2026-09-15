@@ -18,7 +18,7 @@ import {
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
-import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
+import { formativeConversationTurnLimit } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob } from "@/lib/workflow/jobs";
@@ -585,6 +585,10 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       const studentFormativeTurnCount = conversation.conversation_turns.filter(
         (turn) => turn.actor_type === "student"
       ).length;
+      const maxStudentTurns = formativeConversationTurnLimit({
+        ...conversation,
+        status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+      });
 
       return {
         conversation_public_id: conversation.conversation_public_id,
@@ -596,15 +600,15 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         status: resolveCanonicalAttemptLifecycle(session).terminal && ["active", "paused"].includes(conversation.status)
           ? "ended" as const : conversation.status,
         student_formative_turn_count: studentFormativeTurnCount,
-        max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        max_student_turns: maxStudentTurns,
         final_allowed_turn:
           studentFormativeTurnCount ===
-          FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+          maxStudentTurns,
         another_student_turn_available:
           resolveCanonicalAttemptLifecycle(session).canonical_status === "active" &&
           conversation.status === "active" &&
           studentFormativeTurnCount <
-            FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+            maxStudentTurns,
         lifecycle_termination_source: platformLifecycleHandoff
           ? "platform_lifecycle"
           : conversation.lifecycle_reason?.startsWith(

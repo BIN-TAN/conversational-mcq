@@ -12,6 +12,7 @@ import {
 } from "@/lib/services/student-assessment/engagement-evidence";
 import { TeacherReviewServiceError } from "./errors";
 import { asArray, asRecord, assertNoInternalIds, serializeDate } from "./serializers";
+import { buildProcessDataSummary } from "./process-data-summary";
 
 export const SESSION_DATA_COMPLETENESS_REVIEW_VERSION =
   "session-data-completeness-review-v2" as const;
@@ -294,8 +295,9 @@ export async function buildTeacherSessionDataAudit(input: {
         select: {
           event_type: true, event_category: true, event_source: true,
           item_db_id: true, visibility_duration_ms: true, pause_duration_ms: true,
-          occurred_at: true, created_at: true,
-          concept_unit_session: { select: { concept_unit: { select: { concept_unit_public_id: true } } } }
+          occurred_at: true, created_at: true, payload: true,
+          item: { select: { item_public_id: true, item_order: true } },
+          concept_unit_session: { select: { concept_unit: { select: { concept_unit_public_id: true, title: true } } } }
         }
       },
       user: {
@@ -312,7 +314,11 @@ export async function buildTeacherSessionDataAudit(input: {
       },
       formative_conversation_sessions: {
         select: {
-          status: true
+          status: true,
+          concept_unit_session: { select: { concept_unit: { select: { title: true } } } },
+          conversation_turns: { where: { actor_type: "student" }, select: { sequence_index: true } },
+          lifecycle_events: { orderBy: { occurred_at: "asc" }, select: { event_type: true, occurred_at: true, event_source: true } },
+          input_telemetry: { select: { edit_count: true, backspace_count: true, paste_event_count: true, final_message_length_chars: true } }
         }
       },
       concept_unit_sessions: {
@@ -695,6 +701,27 @@ export async function buildTeacherSessionDataAudit(input: {
     session_public_id: session.session_public_id,
     data_completeness: dataCompleteness,
     process_data_summary: processDataSummary,
+    behavior_summary: buildProcessDataSummary({
+      started_at: session.started_at ?? session.created_at,
+      completed_at: session.completed_at,
+      last_activity_at: session.last_activity_at,
+      events: session.process_events.map((event) => ({ ...event,
+        item_public_id: event.item?.item_public_id,
+        item_order: event.item?.item_order,
+        topic_title: event.concept_unit_session?.concept_unit.title })),
+      items: session.concept_unit_sessions.flatMap((topic) => topic.item_responses.map((response) => ({
+        item_public_id: response.item.item_public_id,
+        item_order: response.item.item_order,
+        topic_title: topic.concept_unit.title,
+        revision_count: response.revision_count
+      }))),
+      conversations: session.formative_conversation_sessions.map((conversation) => ({
+        topic_title: conversation.concept_unit_session.concept_unit.title,
+        student_turn_count: conversation.conversation_turns.length,
+        lifecycle_events: conversation.lifecycle_events,
+        input_telemetry: conversation.input_telemetry
+      }))
+    }),
     response_evidence_summary: responseEvidenceSummary,
     engagement_evidence_summary: engagementEvidenceSummary,
     correctness_inflation_summary: correctnessInflationSummary,

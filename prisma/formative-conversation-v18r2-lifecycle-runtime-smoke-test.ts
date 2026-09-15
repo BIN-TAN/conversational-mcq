@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { executeAgent } from "../src/lib/agents/execute-agent";
 import { compileProductionStructuredAgentRequest } from "../src/lib/agents/provider-request";
 import { prisma } from "../src/lib/db";
+import { FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS as turnLimit } from "../src/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import {
   cleanupSyntheticStudentValidationRun,
   runFormativeConversationProtocolValidation,
@@ -142,9 +143,9 @@ function lifecycleSubjects(): FormativeConversationValidationSubject[] {
       assessment_response_behavior: structuredClone(
         compoundAssessmentEvidence
       ),
-      conversation_behavior: Array.from({ length: 12 }, (_, index) =>
+      conversation_behavior: Array.from({ length: turnLimit }, (_, index) =>
         turn(
-          index === 11
+          index === turnLimit - 1
             ? "Even after all these explanations, I still cannot separate consistency, validity evidence, and score uncertainty."
             : `I am still uncertain after formative explanation ${index + 1}; can we keep working through the distinction?`,
           index
@@ -157,7 +158,7 @@ function lifecycleSubjects(): FormativeConversationValidationSubject[] {
       assessment_response_behavior: structuredClone(
         compoundAssessmentEvidence
       ),
-      conversation_behavior: Array.from({ length: 11 }, (_, index) =>
+      conversation_behavior: Array.from({ length: turnLimit - 1 }, (_, index) =>
         turn(
           `I am continuing to compare reliability, validity, and SEM in formative turn ${index + 1}.`,
           index
@@ -359,6 +360,7 @@ async function conversationRecord(conversationPublicId: string) {
 }
 
 async function main() {
+  assert.equal(turnLimit, 30, "Current classroom limit must be 30 student turns");
   const originalFetch = globalThis.fetch;
   const priorResearchKey = process.env.RESEARCH_PSEUDONYMIZATION_KEY;
   const priorResearchVersion = process.env.RESEARCH_PSEUDONYMIZATION_VERSION;
@@ -428,7 +430,7 @@ async function main() {
       failedConversation.conversation_turns.filter(
         (entry) => entry.actor_type === "student"
       ).length,
-      12
+      turnLimit
     );
     assert.equal(
       failedConversation.profile_transitions.length,
@@ -527,7 +529,7 @@ async function main() {
     await processFormativeConversationStudentMessage(
       {
         conversation_public_id: failSafeConversationPublicId,
-        client_message_id: `${runPublicId}:persistent_non_improvement:message:12`,
+        client_message_id: `${runPublicId}:persistent_non_improvement:message:${turnLimit}`,
         message_text: failSafeFinalMessage.message_text,
         context: failedSeed
       },
@@ -544,8 +546,8 @@ async function main() {
       processFormativeConversationStudentMessage(
         {
           conversation_public_id: failSafeConversationPublicId,
-          client_message_id: `${runPublicId}:persistent_non_improvement:message:13`,
-          message_text: "This distinct message must not become turn 13.",
+          client_message_id: `${runPublicId}:persistent_non_improvement:message:${turnLimit + 1}`,
+          message_text: "This distinct message must not exceed the turn limit.",
           context: failedSeed
         },
         { runner: runner.runner }
@@ -564,12 +566,12 @@ async function main() {
       beforeConcurrent.conversation_turns.filter(
         (entry) => entry.actor_type === "student"
       ).length,
-      11
+      turnLimit - 1
     );
     assert.equal(
       beforeConcurrent.profile_transitions.length,
       0,
-      "the 11-turn conversation must remain nonterminal"
+      "the conversation before the final allowed turn must remain nonterminal"
     );
     const staleSeed = await buildFormativeConversationRuntimeContextSeed({
       conversation_public_id: concurrentConversationPublicId,
@@ -623,7 +625,7 @@ async function main() {
       afterConcurrent.conversation_turns.filter(
         (entry) => entry.actor_type === "student"
       ).length,
-      12
+      turnLimit
     );
     assert.equal(afterConcurrent.profile_transitions.length, 1);
     assert.equal(
@@ -669,6 +671,10 @@ async function main() {
     const failedTeacherConversation = failedTeacher.formative_conversations[0];
     const successfulTeacherConversation =
       successfulTeacher.formative_conversations[0];
+    assert.equal(failedTeacherConversation?.max_student_turns, 30);
+    assert.equal(successfulTeacherConversation?.max_student_turns, 30);
+    assert.equal(failedTeacherConversation?.final_allowed_turn, true);
+    assert.equal(successfulTeacherConversation?.another_student_turn_available, false);
     assert.equal(
       failedTeacherConversation?.lifecycle_termination_source,
       "platform_lifecycle"
@@ -744,16 +750,16 @@ async function main() {
           status: "passed",
           assessment_messages_counted_as_formative_turns: 0,
           assistant_opening_counted_as_formative_turns: 0,
-          final_allowed_turn_index: 12,
+          final_allowed_turn_index: turnLimit,
           final_turn_semantic_regenerations: 1,
           final_turn_invalid_candidates_preserved: 2,
           platform_lifecycle_handoff_persisted: true,
           platform_handoff_profile_transitions: 0,
           platform_handoff_semantic_teacher_assistance: false,
-          thirteenth_distinct_turn_rejected: true,
+          over_limit_distinct_turn_rejected: true,
           exact_replay_after_closure_increment: 0,
-          concurrent_turn_12_accepted: 1,
-          concurrent_turn_13_accepted: 0,
+          concurrent_final_turn_accepted: 1,
+          concurrent_over_limit_turn_accepted: 0,
           terminal_transition_count: 1,
           duplicate_transition_count: 0,
           teacher_export_lifecycle_source_parity: true,

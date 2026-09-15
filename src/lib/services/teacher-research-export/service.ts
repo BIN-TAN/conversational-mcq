@@ -421,6 +421,7 @@ function dataDictionary() {
       interpretation_boundary: "Human-readable interpretation boundary for teacher/research use.",
       data_completeness: "Nested session data-completeness summary.",
       process_data_summary: "Nested process-data availability and count summary.",
+      behavior_summary: "Versioned observable process-data summary: browser visibility, idle intervals, explicit pauses, response revisions, per-item timing, conversation input counts, and readable activity timeline. Derived from retained records; null is unavailable, not zero. Includes timing and interpretation limitations. Generic browser and conversation-specific counts overlap and must not be summed.",
       response_evidence_summary: "Nested response-evidence availability summary.",
       activity_runtime_summary: "Nested activity-runtime availability summary.",
       misconception_evidence_summary: "Nested post-activity misconception-evidence summary.",

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { canAccessTeacherReview } from "../src/lib/services/teacher-review/api";
 import { buildTeacherSessionDataAudit } from "../src/lib/services/teacher-review/session-data-audit";
 import { assertNoInternalIds } from "../src/lib/services/teacher-review/serializers";
+import { getTeacherReviewProcessEvents } from "../src/lib/services/teacher-review/process-events";
 import {
   cleanupTeacherReviewDemoFixture,
   ensureTeacherReviewDemoFixture,
@@ -112,6 +113,14 @@ async function main() {
     assert(audit.data_completeness.response_package.item_attempt_count === 3, "Expected three item attempts.");
     assert(audit.data_completeness.response_package.initial_package_count === 1, "Expected one initial package.");
     assert(audit.process_data_summary.process_event_count > 0, "Expected process events in fixture.");
+    assert(audit.behavior_summary.version === "process-data-summary-v1", "Expected readable behavior summary.");
+    assert(audit.behavior_summary.items.length === 3, "Every item response must appear in process data.");
+    assert(audit.behavior_summary.timeline.length > 0, "Expected readable activity timeline.");
+    assertNoProtectedAuditData(audit.behavior_summary);
+    const log = await getTeacherReviewProcessEvents(teacherReviewSessionPublicId, { page: 1, page_size: 100 });
+    const expectedVisibilityCount = ["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible"]
+      .reduce((sum, type) => sum + (log.aggregates.event_count_by_type[type] ?? 0), 0);
+    assert(log.aggregates.page_switch_count === expectedVisibilityCount, "Visibility aliases must all count.");
     assert(
       audit.process_data_summary.observed_event_type_count > 0,
       "Expected observed process event types."
@@ -157,6 +166,7 @@ async function main() {
       "Missing process session should not report focus instrumentation."
     );
     assertNoProtectedAuditData(emptyAudit);
+    assert(emptyAudit.behavior_summary.core.page_hidden_count === null, "Missing browser observations must not become zero.");
 
     const afterCounts = {
       process_events: await prisma.processEvent.count(),

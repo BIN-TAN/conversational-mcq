@@ -9,6 +9,22 @@
 
 ## Core Principle
 
+### Current Free-Text Conversation Limit
+
+The formative learning conversation permits up to **30 student-authored turns**.
+Its counter starts at zero only when the formative phase begins. Initial item
+answers, explanations, confidence, alternative-answer evidence, tutor openings,
+and retries of the same message do not consume formative turns. Turn 30 is the
+final allowed turn; the platform rejects a new turn 31 even across concurrent
+tabs. Earlier valid completion and student exit remain available. A longer
+limit is not a required number of turns or evidence of learning.
+
+Active or paused conversations use the current 30-turn policy. Closed histories
+retain their recorded policy, with a 12-turn fallback for legacy records; they
+are not reopened. Accepted student messages and tutor replies record the limit
+in their existing structured payloads. Historical frozen evaluation fixtures
+continue to compile under their explicit/default 12-turn contract.
+
 The student assessment should be chat-native. The platform should present the assessment as a conversation while the application controls the state machine, allowed actions, persistence, and answer-key protection.
 
 Phase 30a reframes the purpose of the flow as distractor-informed misconception diagnosis. The flow still collects the same answer, reasoning, confidence, and tempting-option evidence, but the design rationale is now to form, test, weaken, or reject distractor-linked misconception hypotheses rather than to produce a broad ability profile or broad adaptive tutoring path.

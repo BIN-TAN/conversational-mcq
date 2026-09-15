@@ -3,6 +3,7 @@ import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
 import { parseCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
@@ -20,7 +21,7 @@ import {
   latestPersistedFormativeConversationProfileTransition,
   persistedFormativeConversationOutcome
 } from "@/lib/services/student-assessment/formative-conversation/profile-projection";
-import { FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
+import { formativeConversationTurnLimit } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { parseFormativeConversationProfileSnapshot } from "@/lib/services/student-assessment/formative-conversation/profile-update";
 import { createStoreOnlyZip } from "@/lib/services/teacher-research-export/zip";
 import {
@@ -1811,6 +1812,10 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
       const studentFormativeTurnCount = conversation.conversation_turns.filter(
         (turn) => turn.actor_type === "student"
       ).length;
+      const maxStudentTurns = formativeConversationTurnLimit({
+        ...conversation,
+        status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+      });
       return {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -1836,14 +1841,15 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
         turn_count: conversation.conversation_turns.length,
         student_formative_turn_count: studentFormativeTurnCount,
         current_student_turn_index: studentFormativeTurnCount,
-        max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+        max_student_turns: maxStudentTurns,
         final_allowed_turn:
           studentFormativeTurnCount ===
-          FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+          maxStudentTurns,
         another_student_turn_available:
+          !resolveCanonicalAttemptLifecycle(session).terminal &&
           conversation.status === "active" &&
           studentFormativeTurnCount <
-            FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+            maxStudentTurns,
         lifecycle_termination_source: platformLifecycleHandoff
           ? "platform_lifecycle"
           : conversation.lifecycle_reason?.startsWith(
@@ -2264,7 +2270,7 @@ function formativeConversationDataDictionaryRows() {
       return "Pilot lifecycle limit for phase-local formative student turns; this is not a learning or mastery threshold.";
     }
     if (variable === "final_allowed_turn") {
-      return "Whether the current phase-local formative student turn is turn 12, the final accepted student turn.";
+      return "Whether the phase-local formative student turn equals the recorded maximum (12 for legacy histories; 30 for the current policy).";
     }
     if (variable === "another_student_turn_available") {
       return "Whether the platform lifecycle can accept another unique formative student message.";

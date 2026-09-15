@@ -20,6 +20,7 @@ const bundle = await build({
       return <><button onClick={() => setItem('item-two')}>Next item</button>
         <button onClick={() => setEnabled(v => !v)}>Toggle capture</button>
         <button onClick={() => setMounted(false)}>Leave</button>
+        <button onClick={() => setMounted(true)}>Return</button>
         {mounted && <Capture item={item} enabled={enabled} />}</>;
     }
     createRoot(document.getElementById('root')).render(<App />);
@@ -60,11 +61,13 @@ try {
   await input.waitFor();
   await settle(page);
   check('A real page reload produces one recovery event', records.filter(e => e.event_type === 'refresh_recovery').length === 1);
+  const initialEntries = records.filter(e => e.payload?.reason === 'assessment_view_entered').length;
   await input.pressSequentially('private-answer');
   await input.press('Backspace');
   await page.getByRole('button', {name: 'Next item'}).click();
   await settle(page);
   check('Changing items does not count as another reload', records.filter(e => e.event_type === 'refresh_recovery').length === 1);
+  check('Changing items does not count as a new assessment page entry', records.filter(e => e.payload?.reason === 'assessment_view_entered').length === initialEntries);
   check('Typing is attributed to the item just left', records.some(e => e.event_type === 'typing_activity_summary' && e.item_public_id === 'item-one' && e.payload.key_count === 15 && e.payload.backspace_count === 1));
   await input.pressSequentially('last-draft');
   await page.getByRole('button', {name: 'Toggle capture'}).click();
@@ -77,6 +80,26 @@ try {
   await page.getByRole('button', {name: 'Leave', exact: true}).click();
   await settle(page);
   check('Unmounting sends the final typing summary', records.some(e => e.event_type === 'typing_activity_summary' && e.item_public_id === 'item-two' && e.payload.key_count === 6));
+  check('Leaving the assessment records a view exit', records.some(e => e.payload?.reason === 'assessment_view_left'));
+  const beforeReturn = records.filter(e => e.payload?.reason === 'assessment_view_entered').length;
+  await page.getByRole('button', {name: 'Return', exact: true}).click();
+  await settle(page);
+  check('Returning records one new view entry', records.filter(e => e.payload?.reason === 'assessment_view_entered').length === beforeReturn + 1);
+  check('Returning within the same document does not fabricate a reload', records.filter(e => e.event_type === 'refresh_recovery').length === 1);
+  const returnedEntry = records.filter(e => e.payload?.reason === 'assessment_view_entered').at(-1);
+  const precedingExit = records.filter(e => e.payload?.reason === 'assessment_view_left').at(-1);
+  check('Document identity survives assessment component remount', returnedEntry.browser_tab_id === precedingExit.browser_tab_id);
+  await page.evaluate(() => {
+    window.dispatchEvent(new PageTransitionEvent('pagehide', {persisted: true}));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true}));
+    Object.defineProperty(document, 'visibilityState', {value:'hidden', configurable:true});
+    document.dispatchEvent(new Event('visibilitychange'));
+    Object.defineProperty(document, 'visibilityState', {value:'visible', configurable:true});
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await settle(page);
+  check('Browser document leave and cache return are recorded', records.some(e => e.payload?.reason === 'pagehide') && records.some(e => e.payload?.reason === 'pageshow_return'));
+  check('Page hiding and return use canonical event names', records.some(e => e.event_type === 'page_visibility_hidden') && records.some(e => e.event_type === 'page_visibility_visible'));
   const serialized = JSON.stringify(records);
   check('No raw keystrokes or response text are captured', !['private-answer','last-draft','unsent'].some(value => serialized.includes(value)));
   check('Retransmissions preserve event identity and payload for server deduplication', records.every(event =>

@@ -5,7 +5,7 @@ import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "./opening-contract";
 import {
-  FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+  formativeConversationTurnLimit,
   projectFormativeConversationV18R2LifecycleForTurnCount
 } from "./lifecycle-contract-v18r2";
 import { recordFormativeConversationLifecycleEvent } from "./telemetry";
@@ -172,7 +172,8 @@ export async function getStudentFormativeConversationProjection(input: {
     (turn) => turn.actor_type === "student"
   ).length;
   const lifecycle = projectFormativeConversationV18R2LifecycleForTurnCount(
-    studentFormativeTurnCount
+    studentFormativeTurnCount,
+    formativeConversationTurnLimit({ ...conversation, status: projectedStatus })
   );
   const anotherStudentTurnAvailable =
     attemptActive &&
@@ -200,7 +201,7 @@ export async function getStudentFormativeConversationProjection(input: {
     message_max_chars: 5_000,
     student_formative_turn_count: studentFormativeTurnCount,
     current_student_turn_index: studentFormativeTurnCount,
-    max_student_turns: FORMATIVE_CONVERSATION_V18R2_MAX_STUDENT_TURNS,
+    max_student_turns: lifecycle.max_student_turns,
     final_allowed_turn: lifecycle.final_allowed_turn,
     another_student_turn_available: anotherStudentTurnAvailable,
     lifecycle_termination_source:

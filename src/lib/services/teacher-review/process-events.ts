@@ -2,18 +2,13 @@ import { prisma } from "@/lib/db";
 import type { ProcessEventType } from "@/lib/domain/enums";
 import type { ProcessEventQuery } from "./filters";
 import { TeacherReviewServiceError } from "./errors";
-import { asRecord, serializeDate, stripInternalKeys } from "./serializers";
+import { serializeDate, stripInternalKeys } from "./serializers";
+import { countResponseRevisionEvents } from "./process-data-summary";
 
 type EventCounts = Partial<Record<ProcessEventType | string, number>>;
 
 function countEvents(types: EventCounts, keys: string[]) {
   return keys.reduce((total, key) => total + (types[key] ?? 0), 0);
-}
-
-function hasRevisionPayload(payload: unknown) {
-  const record = asRecord(payload);
-
-  return record.revision === true || Number(record.revision_count ?? 0) > 0;
 }
 
 export async function getTeacherReviewProcessEvents(
@@ -85,6 +80,7 @@ export async function getTeacherReviewProcessEvents(
     where: { assessment_session_db_id: session.id },
     select: {
       event_type: true,
+      item_db_id: true,
       payload: true
     }
   });
@@ -92,9 +88,7 @@ export async function getTeacherReviewProcessEvents(
     counts[event.event_type] = (counts[event.event_type] ?? 0) + 1;
     return counts;
   }, {});
-  const optionRevisionCount = allSessionEvents.filter(
-    (event) => event.event_type === "option_selected" && hasRevisionPayload(event.payload)
-  ).length;
+  const optionRevisionCount = countResponseRevisionEvents(allSessionEvents).answers;
   const followupTurnCount = await prisma.conversationTurn.count({
     where: {
       assessment_session_db_id: session.id,
@@ -125,7 +119,7 @@ export async function getTeacherReviewProcessEvents(
     session_public_id: session.session_public_id,
     aggregates: {
       event_count_by_type: eventCounts,
-      page_switch_count: countEvents(eventCounts, ["page_hidden", "page_visible"]),
+      page_switch_count: countEvents(eventCounts, ["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible"]),
       long_pause_count: countEvents(eventCounts, ["long_pause"]),
       inactivity_count: countEvents(eventCounts, ["inactivity_detected"]),
       navigation_event_count: countEvents(eventCounts, ["navigation_event"]),
@@ -137,7 +131,7 @@ export async function getTeacherReviewProcessEvents(
       emotional_response_count: countEvents(eventCounts, [
         "emotional_or_frustration_response"
       ]),
-      reasoning_revision_count: countEvents(eventCounts, ["reasoning_revised"]),
+      reasoning_revision_count: countEvents(eventCounts, ["reasoning_revised", "reasoning_edited"]),
       option_revision_count: optionRevisionCount,
       validation_failure_count: countEvents(eventCounts, ["schema_validation_failed"]),
       agent_retry_count: countEvents(eventCounts, ["agent_retry_scheduled"]),

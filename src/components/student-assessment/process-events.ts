@@ -6,6 +6,7 @@ import { createProcessEventDelivery } from "./process-event-delivery";
 
 const LONG_PAUSE_MS = Number(process.env.NEXT_PUBLIC_LONG_PAUSE_MS ?? 120000);
 const INACTIVITY_MS = Number(process.env.NEXT_PUBLIC_INACTIVITY_MS ?? 300000);
+const documentCapture = new WeakMap<Document, { tabId: string; reloadSessions: Set<string> }>();
 
 export function useStudentProcessEvents(input: {
   sessionPublicId: string;
@@ -15,10 +16,10 @@ export function useStudentProcessEvents(input: {
   const deliveryRef = useRef<ReturnType<typeof createProcessEventDelivery> | null>(null);
   const tabIdRef = useRef<string | null>(null);
   const flushTypingRef = useRef<((keepalive: boolean) => void) | null>(null);
-  const reloadReportedRef = useRef(new Set<string>());
   useEffect(() => {
     if (input.enabled === false) return;
-    tabIdRef.current ??= crypto.randomUUID();
+    if (!documentCapture.has(document)) documentCapture.set(document, { tabId: crypto.randomUUID(), reloadSessions: new Set() });
+    tabIdRef.current = documentCapture.get(document)!.tabId;
     let storage: Storage | undefined;
     try { storage = window.sessionStorage; } catch { /* In-memory delivery when storage is unavailable. */ }
     const delivery = createProcessEventDelivery({
@@ -28,6 +29,8 @@ export function useStudentProcessEvents(input: {
       send: (events, keepalive) => sendProcessEvents(input.sessionPublicId, events, keepalive)
     });
     deliveryRef.current = delivery;
+    delivery.enqueue({ event_type: "navigation_event", client_occurred_at: new Date().toISOString(),
+      payload: { reason: "assessment_view_entered" } });
     const retry = () => { void delivery.retry(); };
     retry();
     window.addEventListener("online", retry);
@@ -35,6 +38,8 @@ export function useStudentProcessEvents(input: {
       window.removeEventListener("online", retry);
       // React cleans up this effect before the listener effect below.
       flushTypingRef.current?.(true);
+      delivery.enqueue({ event_type: "navigation_event", client_occurred_at: new Date().toISOString(),
+        payload: { reason: "assessment_view_left" } }, true);
       void delivery.finish();
     };
   }, [input.sessionPublicId, input.enabled]);
@@ -121,8 +126,9 @@ export function useStudentProcessEvents(input: {
       | PerformanceNavigationTiming
       | undefined;
 
-    if (navigation?.type === "reload" && !reloadReportedRef.current.has(input.sessionPublicId)) {
-      reloadReportedRef.current.add(input.sessionPublicId);
+    const reloadSessions = documentCapture.get(document)!.reloadSessions;
+    if (navigation?.type === "reload" && !reloadSessions.has(input.sessionPublicId)) {
+      reloadSessions.add(input.sessionPublicId);
       send({
         ...eventBase(),
         event_type: "refresh_recovery",
@@ -169,6 +175,18 @@ export function useStudentProcessEvents(input: {
         },
         true
       );
+    }
+
+    function handlePageHide() {
+      flushTypingSummary(true);
+      send({ ...eventBase(), event_type: "navigation_event", payload: { reason: "pagehide" } }, true);
+    }
+
+    function handlePageShow(event: PageTransitionEvent) {
+      if (event.persisted) {
+        send({ ...eventBase(), event_type: "navigation_event", payload: { reason: "pageshow_return" } });
+        void delivery?.retry();
+      }
     }
 
     function handleWindowBlur() {
@@ -255,6 +273,8 @@ export function useStudentProcessEvents(input: {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("paste", handlePaste);
     window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("pageshow", handlePageShow);
     window.addEventListener("blur", handleWindowBlur);
     window.addEventListener("focus", handleWindowFocus);
     window.addEventListener("pointerdown", markActivity);
@@ -267,6 +287,8 @@ export function useStudentProcessEvents(input: {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("paste", handlePaste);
       window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("pageshow", handlePageShow);
       window.removeEventListener("blur", handleWindowBlur);
       window.removeEventListener("focus", handleWindowFocus);
       window.removeEventListener("pointerdown", markActivity);

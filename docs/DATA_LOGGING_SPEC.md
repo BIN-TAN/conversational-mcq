@@ -607,8 +607,45 @@ CSV exports use UTF-8, one header row, stable snake_case columns, deterministic
 column order, ISO 8601 UTC timestamps, public IDs, empty cells for null, and
 spreadsheet-safe escaping for cells beginning with `=`, `+`, `-`, or `@`.
 
-The teacher session page also includes a read-only **Session evidence audit**
-tab. It reports counts and limitations only. It does not expose raw process
+The teacher session page includes a read-only **Process data** tab with a
+versioned `behavior_summary`: core activity measures, per-item timing,
+conversation input observations, a filterable chronological timeline, capture
+limitations, a downloadable JSON summary, and a full-timeline CSV with UTC
+timestamps and millisecond durations. CSV quoting and formula escaping preserve
+safe spreadsheet review; missing durations remain blank. Timing uses the same v3 interval
+derivation as research exports. Missing browser evidence is unavailable, not
+zero; incomplete visibility pairs and multiple documents do not produce a
+fabricated total time away. Idle thresholds overlap and are not added.
+
+The **Assessment log** contains event records, collapsible structured
+conversation records, and the original technical evidence audit. Its technical
+counter section hides zero-valued counters rather than deleting stored data.
+**Item responses** contains the historical submission snapshots previously in
+Response packages. These snapshots remain separate immutable research records,
+not duplicate editable answers. Existing export files and join keys remain;
+`session_data_completeness.jsonl` adds the documented `behavior_summary` field.
+Review sections load on demand and reuse their data until Refresh is selected.
+A failed optional section can be retried without blocking the rest of the page.
+Historical and current answer-revision event aliases share one counting rule,
+so the readable summary and technical counts do not double count the same item.
+
+Generic browser observations span initial administration and the learning
+conversation. Conversation input/lifecycle telemetry is summarized separately
+and is not added to overlapping page-wide counts. Revisions distinguish
+accepted response updates, changed fields, and input edit/backspace counts.
+Typing duration is not treated as active thinking time. No keystroke text or
+full unsent draft history is collected.
+
+Browser navigation records now distinguish `assessment_view_entered`,
+`assessment_view_left`, `beforeunload`, `pagehide`, and `pageshow_return` reasons.
+View entry/exit denotes instrumentation mount/unmount, not verified abandonment.
+Item navigation does not generate new view entries or reloads. Document identity
+and reload deduplication survive component remount within the same document.
+Close/return delivery remains bounded and best effort; an abrupt shutdown or
+offline gap cannot establish an exact absence interval. No record is backfilled
+for historical attempts.
+
+The technical evidence audit does not expose raw process
 payloads, raw provider outputs, answer keys, correct options, correctness
 labels, raw distractor metadata, raw misconception IDs, internal database UUIDs,
 or secrets.

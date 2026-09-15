@@ -640,6 +640,7 @@ export type ResponsePackagesResponse = {
 };
 
 export type SessionDataAuditResponse = {
+  behavior_summary?: import("@/lib/services/teacher-review/process-data-summary").ProcessDataSummary;
   artifact_version: string;
   generated_at: string;
   no_live_provider_call_made: boolean;
