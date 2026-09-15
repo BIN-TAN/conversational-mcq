@@ -39,14 +39,14 @@ function numberCard(label: string, value: number) {
   );
 }
 
-export function RosterImportClient() {
+export function RosterImportClient({ defaultTemporaryPassword }: { defaultTemporaryPassword: string }) {
   const [csvText, setCsvText] = useState(sampleRoster);
   const [sourceFileName, setSourceFileName] = useState("sample-student-roster.csv");
   const [preview, setPreview] = useState<RosterPreview | null>(null);
   const [credentials, setCredentials] = useState<CredentialResponse | null>(null);
   const [batches, setBatches] = useState<RosterImportBatch[]>([]);
   const [applyDisplayNameUpdates, setApplyDisplayNameUpdates] = useState(false);
-  const [passwordMode, setPasswordMode] = useState("individual");
+  const [passwordMode, setPasswordMode] = useState<"course_default" | "individual" | "shared">("course_default");
   const [sharedPassword, setSharedPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [replacePendingPasswords, setReplacePendingPasswords] = useState(false);
@@ -117,7 +117,9 @@ export function RosterImportClient() {
 
     try {
       const result = await commitRoster(preview.batch_public_id, applyDisplayNameUpdates,
-        passwordMode === "shared" ? { shared_temporary_password: sharedPassword, replace_pending_passwords: replacePendingPasswords } : {});
+        { password_mode: passwordMode,
+          ...(passwordMode === "shared" ? { shared_temporary_password: sharedPassword } : {}),
+          replace_pending_passwords: passwordMode !== "individual" && replacePendingPasswords });
       setCredentials({
         one_time_credentials: result.one_time_credentials,
         credential_csv: result.credential_csv,
@@ -161,20 +163,20 @@ export function RosterImportClient() {
           students or generate temporary passwords/access codes. Email is optional and teacher-facing.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+          <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-ink">
             Upload CSV
             <input
               accept=".csv,text/csv"
               disabled={loading}
-              className="rounded-md border border-line bg-white px-3 py-2 text-sm"
+              className="w-full min-w-0 rounded-md border border-line bg-white px-3 py-2 text-sm"
               onChange={(event) => void loadFile(event.target.files?.[0])}
               type="file"
             />
           </label>
-          <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+          <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-ink">
             Source file name
             <input
-              className="h-10 rounded-md border border-line px-3 text-sm"
+              className="h-10 w-full min-w-0 rounded-md border border-line px-3 text-sm"
               disabled={loading}
               onChange={(event) => { invalidatePreview(); setSourceFileName(event.target.value); }}
               value={sourceFileName}
@@ -242,11 +244,13 @@ export function RosterImportClient() {
             <label className="flex max-w-lg flex-col gap-2 text-sm font-medium text-ink">
               Password assignment
               <select className="h-11 w-full rounded-md border border-line bg-white px-3" value={passwordMode}
-                onChange={(event) => { setPasswordMode(event.target.value); setReplacePendingPasswords(false); setSharedPassword(""); setShowPassword(false); }}>
-                <option value="individual">Individual temporary passwords</option>
-                <option value="shared">Shared temporary password</option>
+                onChange={(event) => { setPasswordMode(event.target.value as typeof passwordMode); setReplacePendingPasswords(false); setSharedPassword(""); setShowPassword(false); }}>
+                <option value="course_default">Course default temporary password</option>
+                <option value="individual">Generate individual random passwords</option>
+                <option value="shared">Custom shared temporary password</option>
               </select>
             </label>
+            {passwordMode === "course_default" ? <p className="text-sm text-ink">Default temporary password: <strong>{defaultTemporaryPassword}</strong></p> : null}
             {passwordMode === "shared" ? <>
               <label className="flex max-w-lg flex-col gap-2 text-sm font-medium text-ink">
                 Shared temporary password
@@ -263,6 +267,9 @@ export function RosterImportClient() {
                 </span>
               </label>
               <p className="text-sm text-muted">At least 7 characters. Students must choose a different private password of at least 8 characters at first login.</p>
+            </> : null}
+            {passwordMode === "course_default" ? <p className="text-sm text-muted">Students must choose a different private password of at least 8 characters at first login.</p> : null}
+            {passwordMode !== "individual" ? <>
               <p className="text-sm text-amber-900">Anyone who knows a shared password and another student&apos;s username could sign in before that student changes it.</p>
               <label className="flex items-start gap-2 text-sm text-ink">
                 <input className="mt-1" type="checkbox" checked={replacePendingPasswords}

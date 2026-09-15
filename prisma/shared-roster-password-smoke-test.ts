@@ -59,7 +59,7 @@ async function main() {
     assert.equal(initial.preview_rows.find(row => row.user_id === `${prefix}_foreign`)?.existing_display_name, null);
     await assert.rejects(() => commitRosterImport({ teacher_user_db_id: other.id, batch_public_id: initial.batch_public_id }), /another teacher/);
     await assert.rejects(() => commitRosterImport({ teacher_user_db_id: teacher.id, batch_public_id: initial.batch_public_id,
-      data: { replace_pending_passwords: true } }), /shared temporary password/);
+      data: { password_mode: "individual", replace_pending_passwords: true } }), /shared temporary password/);
     results.push("preview redacts extra credentials and protects foreign accounts");
 
     const noReplace = await preview(["unchanged"]);

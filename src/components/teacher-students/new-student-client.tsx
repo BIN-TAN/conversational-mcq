@@ -7,12 +7,13 @@ import { createStudent, errorFromUnknown } from "./api";
 import type { CredentialResponse, StructuredApiError } from "./types";
 import { CredentialResult, ErrorPanel } from "./ui";
 
-export function NewStudentClient() {
+export function NewStudentClient({ defaultTemporaryPassword }: { defaultTemporaryPassword: string }) {
   const router = useRouter();
   const [userId, setUserId] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [temporaryPassword, setTemporaryPassword] = useState("");
+  const [passwordMode, setPasswordMode] = useState("course_default");
   const [credentials, setCredentials] = useState<CredentialResponse | null>(null);
   const [createdUserId, setCreatedUserId] = useState<string | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
@@ -46,8 +47,8 @@ export function NewStudentClient() {
         user_id: userId,
         display_name: displayName,
         email,
-        temporary_password: temporaryPassword || undefined,
-        generate_password: !temporaryPassword
+        ...(passwordMode === "shared" ? { temporary_password: temporaryPassword, generate_password: false }
+          : passwordMode === "individual" ? { generate_password: true } : {})
       });
       setCredentials({
         one_time_credentials: result.one_time_credentials,
@@ -59,6 +60,7 @@ export function NewStudentClient() {
       setDisplayName("");
       setEmail("");
       setTemporaryPassword("");
+      setPasswordMode("course_default");
       setHasUnsavedChanges(false);
     } catch (requestError) {
       setError(errorFromUnknown(requestError));
@@ -125,23 +127,38 @@ export function NewStudentClient() {
             />
           </label>
           <label className="flex flex-col gap-2 text-sm font-medium text-ink">
+            Password assignment
+            <select className="h-10 w-full rounded-md border border-line bg-white px-3 text-sm" value={passwordMode}
+              disabled={loading} onChange={(event) => { markDirty(); setPasswordMode(event.target.value); setTemporaryPassword(""); }}>
+              <option value="course_default">Course default temporary password</option>
+              <option value="individual">Generate individual random password</option>
+              <option value="shared">Custom temporary password</option>
+            </select>
+          </label>
+          {passwordMode === "shared" ? <label className="flex flex-col gap-2 text-sm font-medium text-ink">
             Temporary password
             <input
+              autoComplete="new-password"
+              minLength={7}
+              maxLength={200}
+              disabled={loading}
               className="h-10 rounded-md border border-line px-3 text-sm"
               onChange={(event) => {
                 markDirty();
                 setTemporaryPassword(event.target.value);
               }}
-              placeholder="Leave blank to generate"
+              placeholder="At least 7 characters"
               type="password"
               value={temporaryPassword}
             />
-          </label>
+          </label> : null}
         </div>
+        {passwordMode === "course_default" ? <p className="mt-4 text-sm text-ink">Default temporary password: <strong>{defaultTemporaryPassword}</strong></p> : null}
+        <p className="mt-2 text-sm text-muted">Students must choose a different private password of at least 8 characters at first login.</p>
         <div className="mt-5 flex flex-wrap gap-2">
           <button
             className="inline-flex h-10 items-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white hover:bg-[#176350] disabled:opacity-50"
-            disabled={loading}
+            disabled={loading || (passwordMode === "shared" && temporaryPassword.length < 7)}
             onClick={() => void submit()}
             type="button"
           >

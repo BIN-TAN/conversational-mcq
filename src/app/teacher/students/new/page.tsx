@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { NewStudentClient } from "@/components/teacher-students/new-student-client";
 import { getCurrentUser } from "@/lib/auth";
+import { getDefaultStudentTemporaryPassword } from "@/lib/services/student-accounts/temporary-password-policy";
 
 export default async function NewTeacherStudentPage() {
   const user = await getCurrentUser();
@@ -19,7 +20,7 @@ export default async function NewTeacherStudentPage() {
       <div className="mx-auto max-w-5xl">
         <TeacherPageHeader title="Create student" />
         <section className="mt-6">
-          <NewStudentClient />
+          <NewStudentClient defaultTemporaryPassword={getDefaultStudentTemporaryPassword()} />
         </section>
       </div>
     </main>

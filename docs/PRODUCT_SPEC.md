@@ -20,8 +20,9 @@ The LLM can be involved throughout the chat, but only inside application-governe
 
 ## Student Experience
 
-Teachers import rosters from **Student accounts**, choosing individually generated
-temporary passwords or one shared temporary password for that import. Replacing
+Teachers import rosters from **Student accounts** or create individual students.
+Both default to the course temporary password, `edpy507`; random generation or a
+custom temporary password requires an explicit choice. Replacing
 existing unused temporary passwords requires a separate opt-in and is restricted
 to owned, active accounts that have never signed in or changed their password.
 Students must choose a different private password before accessing assessments.

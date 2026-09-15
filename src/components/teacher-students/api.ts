@@ -168,7 +168,7 @@ export function previewRoster(input: { csv_text: string; source_file_name?: stri
 }
 
 export function commitRoster(batchPublicId: string, applyDisplayNameUpdates: boolean,
-  passwordOptions: { shared_temporary_password?: string; replace_pending_passwords?: boolean } = {}) {
+  passwordOptions: { password_mode?: "course_default" | "individual" | "shared"; shared_temporary_password?: string; replace_pending_passwords?: boolean } = {}) {
   return apiRequest<
     {
       batch_public_id: string;

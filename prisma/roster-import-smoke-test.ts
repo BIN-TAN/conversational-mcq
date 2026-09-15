@@ -96,7 +96,8 @@ async function main() {
 
     const commit = await commitRosterImport({
       teacher_user_db_id: teacher.id,
-      batch_public_id: preview.batch_public_id
+      batch_public_id: preview.batch_public_id,
+      data: { password_mode: "individual" }
     });
     const codes = commit.one_time_credentials.map((credential) => credential.temporary_access_code);
 

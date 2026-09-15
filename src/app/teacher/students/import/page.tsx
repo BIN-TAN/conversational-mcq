@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { TeacherPageHeader } from "@/components/teacher-page-header";
 import { RosterImportClient } from "@/components/teacher-students/roster-import-client";
 import { getCurrentUser } from "@/lib/auth";
+import { getDefaultStudentTemporaryPassword } from "@/lib/services/student-accounts/temporary-password-policy";
 
 export default async function TeacherRosterImportPage() {
   const user = await getCurrentUser();
@@ -19,7 +20,7 @@ export default async function TeacherRosterImportPage() {
       <div className="mx-auto max-w-7xl">
         <TeacherPageHeader title="Import roster" />
         <section className="mt-6">
-          <RosterImportClient />
+          <RosterImportClient defaultTemporaryPassword={getDefaultStudentTemporaryPassword()} />
         </section>
       </div>
     </main>

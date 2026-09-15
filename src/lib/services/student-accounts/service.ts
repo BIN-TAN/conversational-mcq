@@ -8,6 +8,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { generateHashedAccessCode, type AccessCodeGenerator } from "./access-codes";
 import { credentialCsv, oneTimeCredentialWarning, type OneTimeCredential } from "./credentials";
 import { StudentAccountServiceError } from "./errors";
+import { getDefaultStudentTemporaryPassword } from "./temporary-password-policy";
 import {
   displayNameValidationError,
   normalizeUserId,
@@ -48,6 +49,7 @@ const rosterPreviewSchema = z.object({
 
 const rosterCommitSchema = z.object({
   apply_display_name_updates: z.boolean().default(false),
+  password_mode: z.enum(["course_default", "individual", "shared"]).optional(),
   shared_temporary_password: z.unknown().optional(),
   replace_pending_passwords: z.boolean().default(false)
 }).strict();
@@ -456,9 +458,10 @@ export async function createStudentAccount(input: {
     );
   }
 
+  const useCourseDefault = parsed.temporary_password == null && parsed.generate_password === undefined;
   const credential = await buildTemporaryCredential({
     user_id: userId,
-    temporary_password: parsed.temporary_password,
+    temporary_password: useCourseDefault ? getDefaultStudentTemporaryPassword() : parsed.temporary_password,
     generate_password: parsed.generate_password,
     accessCodeGenerator: input.accessCodeGenerator
   });
@@ -490,7 +493,8 @@ export async function createStudentAccount(input: {
         user_id: created.user_id,
         display_name: created.display_name,
         email_present: Boolean(created.email),
-        temporary_credential_generated: parsed.temporary_password === undefined || parsed.temporary_password === null
+        temporary_credential_generated: !useCourseDefault && parsed.temporary_password == null,
+        temporary_password_mode: useCourseDefault ? "course_default" : parsed.temporary_password == null ? "individual" : "shared"
       }
     });
     return created;
@@ -945,8 +949,13 @@ export async function commitRosterImport(input: {
   accessCodeGenerator?: AccessCodeGenerator;
 }) {
   const commitOptions = rosterCommitSchema.parse(input.data ?? {});
-  const sharedPassword = commitOptions.shared_temporary_password === undefined
-    ? undefined : parseStudentTemporaryPassword(commitOptions.shared_temporary_password);
+  const passwordMode = commitOptions.password_mode ??
+    (commitOptions.shared_temporary_password === undefined ? "course_default" : "shared");
+  if (passwordMode !== "shared" && commitOptions.shared_temporary_password !== undefined) {
+    throw new StudentAccountServiceError("password_mode_conflict", "Choose custom shared password to supply a different temporary password.", 400);
+  }
+  const sharedPassword = passwordMode === "course_default" ? getDefaultStudentTemporaryPassword()
+    : passwordMode === "shared" ? parseStudentTemporaryPassword(commitOptions.shared_temporary_password) : undefined;
   if (commitOptions.replace_pending_passwords && sharedPassword === undefined) {
     throw new StudentAccountServiceError("shared_password_required", "Enter a shared temporary password before replacing unused passwords.", 400);
   }
@@ -1040,7 +1049,7 @@ export async function commitRosterImport(input: {
             user_id: created.user_id,
             display_name: created.display_name,
             email_present: Boolean(created.email),
-            temporary_password_mode: sharedPassword === undefined ? "individual" : "shared"
+            temporary_password_mode: passwordMode
           }
         });
         credentials.push(credentialRecord({
@@ -1070,7 +1079,7 @@ export async function commitRosterImport(input: {
           if (updated.count === 1) {
             await createAccountEvent(tx, { student_user_db_id: existing.id, performed_by_user_db_id: input.teacher_user_db_id,
               roster_import_batch_db_id: batch.id, event_type: "teacher_student_password_reset",
-              metadata: { user_id: existing.user_id, temporary_password_mode: "shared", pending_roster_reissue: true } });
+              metadata: { user_id: existing.user_id, temporary_password_mode: passwordMode, pending_roster_reissue: true } });
             const updateProfile = row.row_status === "display_name_change" && commitOptions.apply_display_name_updates;
             credentials.push(credentialRecord({ user_id: existing.user_id, display_name: updateProfile ? row.display_name : existing.display_name,
               email: updateProfile ? row.email : existing.email, temporary_password: credential.temporary_password }));

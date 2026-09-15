@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 import { chromium } from "playwright";
 import { prisma } from "../src/lib/db";
 import { createSmokeTeacher } from "../prisma/account-security-smoke-helpers";
+import { verifySecret } from "../src/lib/password";
 
 async function main() {
   const db = new URL(process.env.DATABASE_URL ?? "");
@@ -27,6 +28,7 @@ async function main() {
     LLM_PROVIDER: "mock", LLM_LIVE_CALLS_ENABLED: "false", OPENAI_API_KEY: "", OPENAI_API_KEY_FILE: "",
     OPERATIONAL_AGENT_MODE: "disabled", ALLOW_LOCAL_MOCK_RUNTIME: "true", NEXT_TELEMETRY_DISABLED: "1",
     APP_BASE_URL: base, NEXT_PUBLIC_APP_BASE_URL: base,
+    STUDENT_DEFAULT_TEMPORARY_PASSWORD: "edpy507",
     NODE_OPTIONS: `--import ${pathToFileURL(resolve("scripts/classroom-audit-network-guard.mjs")).href}` };
   const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "start", "-H", "127.0.0.1", "-p", String(port)], { env, stdio: "ignore" });
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
@@ -55,6 +57,9 @@ async function main() {
     await page.getByLabel("Paste CSV", { exact: true }).fill(csv);
     await page.getByRole("button", { name: "Preview roster", exact: true }).click();
     await page.getByLabel("Password assignment").waitFor();
+    assert.equal(await page.getByLabel("Password assignment").inputValue(), "course_default");
+    await page.getByText("Default temporary password: edpy507", { exact: true }).waitFor();
+    await page.screenshot({ path: join(output, "default-desktop.png"), fullPage: true });
     await page.getByLabel("Password assignment").selectOption("shared");
     await page.getByLabel("Shared temporary password", { exact: true }).fill("Course7");
     assert.equal(await page.getByLabel("Shared temporary password", { exact: true }).getAttribute("type"), "password");
@@ -66,18 +71,33 @@ async function main() {
     assert.equal(await page.getByRole("heading", { name: "Preview results" }).count(), 0, "Changed roster must invalidate old preview");
     await page.getByRole("button", { name: "Preview roster", exact: true }).click();
     await page.getByLabel("Password assignment").waitFor();
+    await page.getByLabel("Password assignment").selectOption("course_default");
     await page.getByRole("button", { name: "Import valid rows", exact: true }).click();
     await page.getByText("1 accounts created. 0 unused temporary passwords replaced. 0 profiles updated.", { exact: true }).waitFor();
     assert(await page.getByRole("button", { name: "Imported", exact: true }).isDisabled());
-    assert.equal(await page.getByLabel("Shared temporary password", { exact: true }).inputValue(), "");
+    const firstStudent = await prisma.user.findUniqueOrThrow({ where: { user_id: `${prefix}_student` } });
+    assert(await verifySecret("edpy507", firstStudent.access_code_hash));
+    await page.reload();
+    assert.equal(await page.getByRole("heading", { name: "Preview results" }).count(), 0);
+    await page.getByLabel("Paste CSV", { exact: true }).fill(csv);
     await page.getByRole("button", { name: "Preview roster", exact: true }).click();
     const replacement = page.getByRole("checkbox", { name: /Replace unused temporary passwords for 1 existing/ });
     await replacement.waitFor();
     assert(!await replacement.isChecked());
+    assert.equal(await page.getByLabel("Password assignment").inputValue(), "course_default");
+    await page.screenshot({ path: join(output, "default-mobile.png"), fullPage: true });
+    await page.getByLabel("Password assignment").selectOption("shared");
     await page.getByLabel("Shared temporary password", { exact: true }).fill("NewTemp7");
     await replacement.check();
     await page.getByRole("button", { name: "Import valid rows", exact: true }).click();
     await page.getByText("0 accounts created. 1 unused temporary passwords replaced. 0 profiles updated.", { exact: true }).waitFor();
+    await page.goto(`${base}/teacher/students/new`);
+    assert.equal(await page.getByLabel("Password assignment").inputValue(), "course_default");
+    await page.getByLabel("user_id", { exact: true }).fill(`${prefix}_single`);
+    await page.getByRole("button", { name: "Save student and add another", exact: true }).click();
+    await page.getByText(`Created student account ${prefix}_single.`, { exact: true }).waitFor();
+    assert(await verifySecret("edpy507", (await prisma.user.findUniqueOrThrow({ where: { user_id: `${prefix}_single` } })).access_code_hash));
+    assert.equal(await page.getByLabel("Password assignment").inputValue(), "course_default");
     await page.goto(`${base}/teacher/students/invitations`);
     await page.waitForURL(`${base}/teacher/students`);
     assert.equal(await page.getByRole("link", { name: "Prepare login emails" }).count(), 0);
