@@ -131,6 +131,8 @@ export const sessionAutomationStates = [
 export const SessionAutomationStateSchema = z.enum(sessionAutomationStates);
 
 export const processEventTypes = [
+  "response_stage_observation",
+  "response_stage_outcome",
   "attempt_start_requested",
   "attempt_started",
   "attempt_paused",

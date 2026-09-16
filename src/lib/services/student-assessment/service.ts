@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { RESPONSE_OBSERVATION_VERSION, ResponseObservationLinkSchema, ResponseObservationPayloadSchema } from "@/lib/student-assessment-ui/response-observation";
 import { ASSESSMENT_ATTEMPT_POLICY_VERSION, assessmentFamily, assertAttemptChanceAvailable, readAttemptChances } from "./attempt-chances";
 import { studentTurnId } from "./student-turn-id";
 import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
@@ -217,21 +218,25 @@ type TemptingOptionEvidence = {
 };
 
 const optionActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   selected_option: z.string().trim().min(1).max(16),
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
 
 const reasoningActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   reasoning_text: z.string().max(MAX_REASONING_LENGTH),
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
 
 const confidenceActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   confidence_rating: ConfidenceLevelSchema,
   client_action_id: z.string().trim().min(1).max(120).optional()
 }).strict();
 
 const temptingOptionActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   tempting_option: z.string().trim().min(1).max(16).nullable().optional(),
   tempting_option_reason: z.string().trim().max(MAX_REASONING_LENGTH).nullable().optional(),
   no_tempting_option: z.boolean().default(false),
@@ -239,6 +244,7 @@ const temptingOptionActionSchema = z.object({
 }).strict();
 
 const packageReviewEditActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   selected_option: z.string().trim().min(1).max(16),
   reasoning_text: z.string().trim().min(1).max(MAX_REASONING_LENGTH),
   confidence_rating: ConfidenceLevelSchema,
@@ -249,6 +255,7 @@ const packageReviewEditActionSchema = z.object({
 }).strict();
 
 const inFlowEditActionSchema = z.object({
+  response_observation: ResponseObservationLinkSchema.optional(),
   selected_option: z.string().trim().min(1).max(16).optional(),
   reasoning_text: z.string().trim().min(1).max(MAX_REASONING_LENGTH).optional(),
   confidence_rating: ConfidenceLevelSchema.optional(),
@@ -276,6 +283,7 @@ const submitActionSchema = z.object({
 }).strict();
 
 const frontendEventTypes = [
+  "response_stage_observation",
   "page_hidden",
   "page_visible",
   "page_visibility_hidden",
@@ -1856,6 +1864,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
     client_action_id?: string;
     action_type: string;
     request_payload: unknown;
+    research_context?: { item_db_id: string; concept_unit_session_db_id: string; phase: string };
     run: () => Promise<T>;
   }
 ): Promise<T> {
@@ -1903,9 +1912,21 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 
   try {
     const response = await input.run();
-    await prisma.studentActionIdempotencyKey.update({
-      where: { id: created.id },
-      data: { response_payload: toPrismaJson(response) }
+    await prisma.$transaction(async (tx) => {
+      const link = ResponseObservationLinkSchema.safeParse(recordValue(input.request_payload).response_observation);
+      if (link.success && input.research_context) {
+        const status = response.action_status ?? response.edit_status ?? response.submission_status;
+        await logProcessEvent({ assessment_session_db_id: input.assessment_session_db_id,
+          item_db_id: input.research_context.item_db_id, concept_unit_session_db_id: input.research_context.concept_unit_session_db_id,
+          event_type: "response_stage_outcome", event_category: "response_observation", event_source: "backend",
+          payload: { ...link.data, observation_version: RESPONSE_OBSERVATION_VERSION,
+            action_type: input.action_type, phase: input.research_context.phase, client_action_id: input.client_action_id,
+            action_status: typeof status === "string" ? status : "unknown",
+            accepted: ["saved", "item_completed", "tempting_option_saved", "updated", "unchanged"].includes(String(status)),
+            validation_rejected: ["response_quality_rejected", "same_option_tempting_rejected"].includes(String(status)) }
+        }, tx);
+      }
+      await tx.studentActionIdempotencyKey.update({ where: { id: created.id }, data: { response_payload: toPrismaJson(response) } });
     });
 
     return response;
@@ -4141,6 +4162,7 @@ export async function recordSelectedOption(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "option",
     request_payload: data,
@@ -4290,6 +4312,7 @@ export async function recordReasoning(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "reasoning",
     request_payload: data,
@@ -4571,6 +4594,7 @@ export async function recordConfidence(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "confidence",
     request_payload: data,
@@ -4693,6 +4717,7 @@ export async function recordTemptingOption(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "tempting_option",
     request_payload: data,
@@ -5265,6 +5290,7 @@ export async function updatePackageReviewItemResponse(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "package_review_edit",
     request_payload: data,
@@ -5381,6 +5407,10 @@ export async function updatePackageReviewItemResponse(input: {
       const now = new Date();
       const structuredPayload = {
         source: "package_review_tempting_option",
+        revision_phase: "before_feedback_review",
+        previous_response: { selected_option: response.selected_option, reasoning_text: response.reasoning_text, confidence_rating: response.confidence_rating,
+          tempting_option: previousTemptingEvidence?.tempting_option ?? null, tempting_option_reason: previousTemptingEvidence?.tempting_option_reason ?? null },
+        reasoning_text: reasoningText,
         item_public_id: context.item.item_public_id,
         selected_option: selectedOption,
         reasoning_length: reasoningText.length,
@@ -5538,6 +5568,7 @@ export async function updateInFlowItemResponse(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "in_flow_response_edit",
     request_payload: data,
@@ -5646,6 +5677,10 @@ export async function updateInFlowItemResponse(input: {
       const now = new Date();
       const structuredPayload = {
         source: "student_response_in_flow_edit",
+        revision_phase: context.isTransferItem ? "transfer" : "before_initial_submission",
+        previous_response: { selected_option: response.selected_option, reasoning_text: response.reasoning_text, confidence_rating: response.confidence_rating,
+          tempting_option: previousTemptingEvidence?.tempting_option ?? null, tempting_option_reason: previousTemptingEvidence?.tempting_option_reason ?? null },
+        reasoning_text: nextReasoning,
         item_public_id: context.item.item_public_id,
         item_context: context.isTransferItem ? "transfer" : "initial",
         changed_fields: changedFields,
@@ -5666,7 +5701,7 @@ export async function updateInFlowItemResponse(input: {
         event_source: "frontend",
         payload: {
           item_public_id: context.item.item_public_id,
-          requested_fields: Object.keys(data).filter((key) => key !== "client_action_id")
+          requested_fields: Object.keys(data).filter((key) => !["client_action_id", "response_observation"].includes(key))
         },
         occurred_at: now
       });
@@ -5832,6 +5867,7 @@ export async function submitItemResponse(input: {
 
   return withActionIdempotency({
     assessment_session_db_id: context.session.id,
+    research_context: { item_db_id: context.item.id, concept_unit_session_db_id: context.conceptUnitSession.id, phase: context.session.current_phase },
     client_action_id: data.client_action_id,
     action_type: "submit",
     request_payload: data,
@@ -6496,6 +6532,12 @@ export async function ingestFrontendProcessEvents(input: {
     const created = [];
 
     for (const event of events) {
+      if (event.event_type === "response_stage_observation") {
+        const observation = ResponseObservationPayloadSchema.safeParse(event.payload);
+        if (!event.client_event_id || !event.browser_tab_id || !event.item_public_id || !event.client_occurred_at || !observation.success) {
+          throw new StudentAssessmentServiceError("validation_failed", "Response-stage observation metadata is invalid.", 400);
+        }
+      }
       if (event.client_event_id) {
         const existing = await tx.processEvent.findFirst({
           where: {
@@ -6546,8 +6588,8 @@ export async function ingestFrontendProcessEvents(input: {
         client_occurred_at: event.client_occurred_at?.toISOString(),
         server_received_at: serverReceivedAt.toISOString(),
         clock_source: clockSource,
-        timing_contract_version: TIMING_CONTRACT_VERSION,
-        timing_source_version: TIMING_SOURCE_VERSION,
+        timing_contract_version: event.event_type === "response_stage_observation" ? "timing-contract-v4" : TIMING_CONTRACT_VERSION,
+        timing_source_version: event.event_type === "response_stage_observation" ? RESPONSE_OBSERVATION_VERSION : TIMING_SOURCE_VERSION,
         timing_quality_status: event.client_occurred_at ? "client_timestamp_recorded" : "client_timestamp_missing"
       };
       const payloadBytes = Buffer.byteLength(JSON.stringify(payload), "utf8");

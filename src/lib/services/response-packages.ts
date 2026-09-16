@@ -213,6 +213,9 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         }
       },
       process_events: {
+        // High-frequency timing stays in ProcessEvent/research exports, not a
+        // second copy in the pedagogical response package.
+        where: { event_type: { notIn: ["response_stage_observation", "response_stage_outcome"] } },
         orderBy: { occurred_at: "asc" },
         select: {
           id: true,

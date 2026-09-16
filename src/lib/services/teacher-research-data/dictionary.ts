@@ -186,6 +186,7 @@ export const ITEM_RESPONSES_COLUMNS = [
   "reasoning_active_time_ms",
   "reasoning_active_typing_time_ms",
   "reasoning_input_elapsed_time_ms",
+  "reasoning_start_latency_ms",
   "confidence_prompted_at",
   "confidence_selected_at",
   "confidence_prompt_to_selection_ms",
@@ -962,6 +963,7 @@ function canonicalQualifiedNameFor(table: string, variable: string) {
 }
 
 function processEventTier(eventType: string): ProcessEventTier {
+  if (eventType.startsWith("response_stage_")) return "core_learning_process";
   if (CORE_PROCESS_EVENT_TYPES.has(eventType)) return "core_learning_process";
   if (/auth|password|login|logout|credential|security/.test(eventType)) return "security_or_excluded";
   if (/workflow|worker|retry|export|provider|agent_call|schema|llm_runtime|repair|automation|configuration|job/.test(eventType)) {
@@ -1413,7 +1415,8 @@ function measuredValueDefinition(table: string, variable: string) {
     time_to_first_option_selection_ms: "Milliseconds between item presentation and the first accepted option selection.",
     post_option_completion_time_ms: "Milliseconds between first accepted option selection and completed item submission.",
     reasoning_prompt_to_submission_ms: "Compatibility alias for reasoning_elapsed_time_ms.",
-    reasoning_elapsed_time_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission.",
+    reasoning_elapsed_time_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission. V4 uses browser-ready and linked accepted-submission monotonic observations; V3 uses legacy timestamps.",
+    reasoning_start_latency_ms: "Browser-ready justification stage to first text input in V4; null when first-input observation is unavailable. This is not a measure of thinking time.",
     reasoning_active_time_ms: "Deprecated compatibility alias for reasoning_active_typing_time_ms.",
     reasoning_active_typing_time_ms: "Sum of validated active reasoning typing intervals in milliseconds; null when active typing instrumentation is insufficient.",
     reasoning_input_elapsed_time_ms: "Elapsed reasoning input-field time from frontend typing summaries when available; may include idle time.",
@@ -1942,7 +1945,14 @@ function timingMetadata(variable: string, table: string) {
       start: "reasoning_prompted_at",
       end: "reasoning_submitted_at",
       formula: "reasoning_submitted_at minus reasoning_prompted_at",
-      method: "Calculated by deriveItemTiming() from reasoning prompt and submission timestamps."
+      method: "V4 uses within-document monotonic observations linked to server acceptance. V3 uses reasoning prompt and submission timestamps."
+    },
+    reasoning_start_latency_ms: {
+      construct: "justification_pre_input_latency",
+      start: "browser-ready reasoning stage",
+      end: "first observed text input",
+      formula: "first_input.monotonic_ms minus ready.monotonic_ms",
+      method: "V4 browser observations only; missing observations remain null."
     },
     reasoning_active_time_ms: {
       construct: "deprecated_alias_reasoning_active_typing_time",
@@ -1969,7 +1979,7 @@ function timingMetadata(variable: string, table: string) {
       formula: "reasoning_input_elapsed_time_ms or typing_duration_ms from typing summary payload",
       idle: "May include idle time.",
       hidden: "May include hidden time unless frontend excludes it.",
-      method: "Copied by deriveItemTiming() from elapsed typing summary payload fields."
+      method: "V4 uses first input to linked accepted submission in one document. V3 uses elapsed typing summary payload fields. Neither measures active typing time."
     },
     confidence_prompt_to_selection_ms: {
       construct: "deprecated_alias_confidence_prompt_to_selection_latency",
@@ -2745,6 +2755,7 @@ export function prismaFieldClassificationEntries() {
 }
 
 function eventCategory(eventType: string) {
+  if (eventType.startsWith("response_stage_")) return "item_response_process";
   if (/session|assessment|package|completion|resume|exit|start/.test(eventType)) return "session_lifecycle";
   if (/item|option|answer|reasoning|confidence|tempting|idk|clarification|help/.test(eventType)) return "item_response_process";
   if (/page|window|focus|blur|visibility|pause|typing|navigation/.test(eventType)) return "interaction_instrumentation";
@@ -2753,12 +2764,15 @@ function eventCategory(eventType: string) {
 }
 
 function eventActor(eventType: string) {
+  if (eventType === "response_stage_observation") return "student_browser_or_student_action";
+  if (eventType === "response_stage_outcome") return "application_backend";
   if (/option|answer|reasoning|confidence|tempting|idk|clarification|help|typing|page|window|focus|blur|navigation/.test(eventType)) return "student_browser_or_student_action";
   if (/agent|llm|profile|formative|activity|feedback|followup|workflow/.test(eventType)) return "backend_agent_or_workflow_service";
   return "application_backend";
 }
 
 function eventScope(eventType: string) {
+  if (eventType.startsWith("response_stage_")) return "one session, administered item, and browser response-stage visit; submission_id links outcome";
   if (/item|option|answer|reasoning|confidence|tempting|transfer/.test(eventType)) return "one session and one administered item when item_public_id is present";
   if (/activity|followup|feedback|revision/.test(eventType)) return "one session and one formative activity or follow-up phase when applicable";
   return "one assessment session";
@@ -2766,6 +2780,8 @@ function eventScope(eventType: string) {
 
 function eventTrigger(eventType: string) {
   const triggers: Record<string, string> = {
+    response_stage_observation: "Browser reports a visible usable stage, first input, submission, request completion, next usable controls, interruption, or visit close. No response text is collected here.",
+    response_stage_outcome: "Backend records the accepted or rejected result of an idempotent response action linked by stage_visit_id and submission_id. Client observations never determine acceptance.",
     item_presented:
       "Recorded when the application persists or acknowledges the item-presentation step for the administered item snapshot; it is not proof of browser paint or reading.",
     option_clicked: "Recorded when the student selects an answer option in the chat-native item administration UI.",
@@ -2798,6 +2814,8 @@ function eventTrigger(eventType: string) {
 }
 
 function eventPayloadFields(eventType: string) {
+  if (eventType === "response_stage_observation") return "stage_visit_id; response_stage; response_phase; observation_kind; monotonic_ms; observation_sequence; submission_id; result; input_change_count; input_length; reason; observation_version; browser_tab_id; client_event_id; client_occurred_at; server_received_at";
+  if (eventType === "response_stage_outcome") return "stage_visit_id; submission_id; action_type; phase; client_action_id; action_status; accepted; validation_rejected; observation_version";
   const fields = ["source", "action_status", "status", "phase"];
   if (/item|option|answer/.test(eventType)) fields.push("selected_option", "item_public_id");
   if (/reasoning|message|typing/.test(eventType)) fields.push("text_length", "reasoning_length", "active_typing_time_ms", "reasoning_input_elapsed_time_ms");
@@ -2808,6 +2826,8 @@ function eventPayloadFields(eventType: string) {
 }
 
 function eventTimestampMeaning(eventType: string) {
+  if (eventType === "response_stage_observation") return "Client UTC timestamp locates the observation; elapsed durations use monotonic_ms only within one browser document. Server receipt is separate. Neither proves attention.";
+  if (eventType === "response_stage_outcome") return "Server timestamp of the recorded action result. Do not subtract it from a client timestamp to measure response latency.";
   if (eventType === "item_presented") {
     return "occurred_at is the application-side item-presentation acknowledgement timestamp, not guaranteed browser-render completion or reading time.";
   }
@@ -3337,6 +3357,8 @@ function formulaReferenceIssues(research: DataDictionaryEntry[]) {
   const exported = new Set(research.flatMap((entry) => [entry.variable_name, entry.qualified_name]));
   const eventNames = new Set<string>(processEventTypes);
   const documentedPayloadFields = new Set([
+    "monotonic_ms",
+    "first_input", // observation_kind value in response_stage_observation
     "duration_ms",
     "pause_duration_ms",
     "visibility_duration_ms",

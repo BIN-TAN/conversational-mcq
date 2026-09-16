@@ -1,3 +1,4 @@
+import { browserItemTiming } from "./response-stage-data";
 export const TIMING_CONTRACT_VERSION = "timing-contract-v3" as const;
 export const TIMING_SOURCE_VERSION = "student-assessment-timing-source-v3" as const;
 
@@ -41,12 +42,13 @@ export type DerivedItemTiming = {
   reasoning_elapsed_time_ms: number | null;
   reasoning_active_typing_time_ms: number | null;
   reasoning_input_elapsed_time_ms: number | null;
+  reasoning_start_latency_ms: number | null;
   confidence_response_time_ms: number | null;
   tempting_option_response_time_ms: number | null;
   last_action_to_submission_ms: number | null;
   legacy_item_response_time_ms: number | null;
-  timing_contract_version: typeof TIMING_CONTRACT_VERSION;
-  timing_source_version: typeof TIMING_SOURCE_VERSION;
+  timing_contract_version: typeof TIMING_CONTRACT_VERSION | "timing-contract-v4";
+  timing_source_version: typeof TIMING_SOURCE_VERSION | "response-stage-observation-v1";
   timing_quality_status: TimingQualityStatus;
   timing_limitations: string[];
   instrumentation_complete: boolean;
@@ -292,6 +294,7 @@ export function deriveItemTiming(input: {
     reasoning_elapsed_time_ms,
     reasoning_active_typing_time_ms,
     reasoning_input_elapsed_time_ms,
+    reasoning_start_latency_ms: null,
     confidence_response_time_ms,
     tempting_option_response_time_ms,
     last_action_to_submission_ms,
@@ -300,7 +303,8 @@ export function deriveItemTiming(input: {
     timing_source_version: TIMING_SOURCE_VERSION,
     timing_quality_status,
     timing_limitations: limitations,
-    instrumentation_complete: timing_quality_status === "valid"
+    instrumentation_complete: timing_quality_status === "valid",
+    ...browserItemTiming(events, Boolean(item_submitted_at))
   };
 }
 

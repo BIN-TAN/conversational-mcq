@@ -7,6 +7,8 @@ const SAFE_TYPES = new Set(["page_hidden", "page_visible", "page_visibility_hidd
 const SAFE_PAYLOAD_KEYS = new Set(["key_count", "backspace_count", "enter_key_count", "duration_ms", "focus_duration_ms", "target_kind", "pasted_text_length_band", "clipboard_type_count", "includes_plain_text", "reason", "navigation_type", "delivery_gap_count"]);
 
 type Pending = { event: FrontendProcessEvent; queued_at: number };
+SAFE_TYPES.add("response_stage_observation");
+for (const key of ["observation_version", "stage_visit_id", "response_stage", "response_phase", "observation_kind", "monotonic_ms", "observation_sequence", "submission_id", "result", "input_length", "input_change_count"]) SAFE_PAYLOAD_KEYS.add(key);
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem" | "removeItem">;
 
 // Only aggregate instrumentation enters this queue, never response text or

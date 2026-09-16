@@ -220,6 +220,9 @@ export async function buildInitialStudentProfilingInput(
         }
       },
       process_events: {
+        // Keep research timing out of provider context; accepted response and
+        // lifecycle evidence remain available through their canonical events.
+        where: { event_type: { notIn: ["response_stage_observation", "response_stage_outcome"] } },
         orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }],
         include: {
           item: {

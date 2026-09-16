@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
+import { responseStageExportFiles } from "./response-stage-export";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
@@ -1303,6 +1304,7 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           reasoning_active_time_ms: timing.reasoning_active_typing_time_ms,
           reasoning_active_typing_time_ms: timing.reasoning_active_typing_time_ms,
           reasoning_input_elapsed_time_ms: timing.reasoning_input_elapsed_time_ms,
+          reasoning_start_latency_ms: timing.reasoning_start_latency_ms,
           confidence_prompted_at: iso(timing.confidence_prompted_at),
           confidence_selected_at: iso(timing.confidence_selected_at),
           confidence_prompt_to_selection_ms: timing.confidence_response_time_ms,
@@ -2443,6 +2445,13 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
       preservation_note:
         "Export first and preserve existing profile, formative decision, follow-up, activity, process-event, conversation-turn, and agent-call records before rerunning assessment intelligence.",
       included_files: [
+        "response_stage_events.csv",
+        "response_stage_visits.csv",
+        "item_behavior_summary.csv",
+        "response_revision_history.csv",
+        "feedback_exposure_events.csv",
+        "response_stage_data_dictionary.csv",
+        "response_stage_notes.txt",
         "sessions.csv",
         "item_responses.csv",
         "process_events.csv",
@@ -2607,6 +2616,15 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   const source = sourceFor(input);
   const includeRestricted = input.include_restricted_fields === true;
   const files = [
+    ...responseStageExportFiles(sessions.map(session => ({
+      session_public_id: session.session_public_id, assessment_public_id: session.assessment.assessment_public_id,
+      research_student_id: researchStudentId(session.user.user_id), attempt_number: session.attempt_number,
+      events: session.process_events.map(event => ({ ...event, item_public_id: event.item?.item_public_id ?? null })),
+      items: session.concept_unit_sessions.flatMap(c => c.item_responses.map(response => ({
+        item_public_id: response.item.item_public_id, item_snapshot_public_id: itemSnapshotId(response), item_version: response.item_version_snapshot
+      }))),
+      turns: session.conversation_turns.map(turn => ({ ...turn, item_public_id: turn.item?.item_public_id ?? null }))
+    }))),
     ...attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
       pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope }),
     {

@@ -507,7 +507,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   }
 
   return (
-    <div className="space-y-5">
+    <div className="min-w-0 space-y-5">
       <div className="flex flex-wrap items-center gap-2">
         <Link
           className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
@@ -536,14 +536,14 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
         <>
           <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-wide text-accent">
                   session review
                 </p>
-                <h2 className="mt-2 text-2xl font-semibold text-ink">
+                <h2 className="mt-2 break-words text-2xl font-semibold text-ink [overflow-wrap:anywhere]">
                   {detail.student.user_id} · {detail.assessment.title}
                 </h2>
-                <p className="mt-2 text-sm text-muted">
+                <p className="mt-2 break-words text-sm text-muted">
                   Session public ID: {detail.session.session_public_id}
                 </p>
               </div>

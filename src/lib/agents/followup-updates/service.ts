@@ -472,6 +472,7 @@ async function buildFollowupEvidencePackagePayload(input: {
   const processEvents = await prisma.processEvent.findMany({
     where: {
       concept_unit_session_db_id: conceptUnitSession.id,
+      event_type: { notIn: ["response_stage_observation", "response_stage_outcome"] },
       occurred_at: {
         ...(processWindowStart ? { gte: processWindowStart } : {}),
         lte: cutoffAt

@@ -59,6 +59,8 @@ import {
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
+import { useResponseStageObservations } from "./use-response-stage-observations";
+import type { ResponseObservationLink, ResponseStageContext } from "@/lib/student-assessment-ui/response-observation";
 import {
   buildInitialAdminPrompt,
   studentIndicatedReasoningUncertainty,
@@ -2511,10 +2513,23 @@ export function AssessmentSessionClient({
     return () => { disposed = true; controller.abort(); clearTimeout(timer); };
   }, [activeSessionPublicId, preparationPending, readOnlyReview, isBusy, router]);
 
-  useStudentProcessEvents({
+  const sendObservation = useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
     currentItemPublicId: state?.current_item?.item_public_id,
-    enabled: !readOnlyReview
+    enabled: !readOnlyReview && Boolean(state?.session_public_id)
+  });
+  const responseStageByState: Record<string, ResponseStageContext["response_stage"]> = {
+    ITEM_PRESENTED: "answer", AWAIT_ANSWER: "answer", TRANSFER_ITEM: "answer", AWAIT_REASON: "reasoning",
+    AWAIT_CONFIDENCE: "confidence", AWAIT_TEMPTING_OPTION: "tempting_option", AWAIT_TEMPTING_REASON: "tempting_reason"
+  };
+  const observedItemId = editingReviewItemId ?? state?.current_item?.item_public_id;
+  const observedStage = editingReviewItemId ? "revision" : inFlowEditDraft
+    ? inFlowEditDraft.field === "tempting" ? "tempting_option" : inFlowEditDraft.field
+    : responseStageByState[state?.assessment_state ?? ""];
+  const stageObservation = useResponseStageObservations({
+    context: observedItemId && observedStage ? { item_public_id: observedItemId, response_stage: observedStage,
+      response_phase: editingReviewItemId ? "review" : inFlowEditDraft ? "revision" : state && stateIsTransferItemFlow(state) ? "transfer" : "initial" } : null,
+    enabled: !readOnlyReview && !isLoading && Boolean(state?.session_public_id), busy: isBusy, send: sendObservation
   });
 
   useEffect(() => {
@@ -2785,17 +2800,21 @@ export function AssessmentSessionClient({
     }
   }
 
-  async function runAction(label: string, action: () => Promise<StudentSessionState>) {
+  async function runAction(label: string, action: (observation?: ResponseObservationLink) => Promise<StudentSessionState>) {
+    const tracked = ["Record answer", "Record reason", "Record confidence", "Record tempting option", "Record no tempting option", "Record tempting reason", "Save response edit", "Save response edits"].includes(label)
+      ? stageObservation.recorder.submit() : null;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
 
     try {
-      const nextState = await action();
+      const nextState = await action(tracked?.link);
+      tracked?.finish();
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id);
     } catch (errorValue) {
+      tracked?.finish(true);
       handleError(errorValue, label, () => {
         void runAction(label, action);
       });
@@ -3014,8 +3033,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record answer", () =>
+    void runAction("Record answer", (observation) =>
       saveOption({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         selectedOption: label
@@ -3030,8 +3050,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record reason", () =>
+    void runAction("Record reason", (observation) =>
       saveReasoning({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         reasoningText: trimmed
@@ -3044,8 +3065,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record confidence", () =>
+    void runAction("Record confidence", (observation) =>
       saveConfidence({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         confidenceRating: confidence
@@ -3058,8 +3080,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record tempting option", () =>
+    void runAction("Record tempting option", (observation) =>
       saveTemptingOption({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         temptingOption: label
@@ -3072,8 +3095,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record no tempting option", () =>
+    void runAction("Record no tempting option", (observation) =>
       saveTemptingOption({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         noTemptingOption: true
@@ -3088,8 +3112,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record tempting reason", () =>
+    void runAction("Record tempting reason", (observation) =>
       saveTemptingOption({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         temptingOptionReason: trimmed
@@ -3132,8 +3157,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Save response edit", async () => {
+    void runAction("Save response edit", async (observation) => {
       const nextState = await updateInFlowItem({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         selectedOption: draft.field === "answer" ? draft.selectedOption : undefined,
@@ -3242,8 +3268,9 @@ export function AssessmentSessionClient({
 
     const draft = reviewEditDraft;
 
-    void runAction("Save response edits", async () => {
+    void runAction("Save response edits", async (observation) => {
       const nextState = await updatePackageReviewItem({
+        observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: draft.itemPublicId,
         selectedOption: draft.selectedOption,
@@ -3272,6 +3299,7 @@ export function AssessmentSessionClient({
 
     try {
       await exitSession(activeSessionPublicId);
+      stageObservation.recorder.close("pause_requested");
       router.push("/student/assessment");
     } catch (errorValue) {
       handleError(errorValue, "Pause assessment", () => {
@@ -3301,6 +3329,7 @@ export function AssessmentSessionClient({
 
     try {
       await endAssessmentAttempt(activeSessionPublicId);
+      stageObservation.recorder.close("end_requested");
       router.push("/student/assessment");
     } catch (errorValue) {
       handleError(errorValue, "End attempt", () => {
@@ -3841,7 +3870,9 @@ export function AssessmentSessionClient({
           {state.formative_conversation?.transcript.map((turn) => (
             <FormativeConversationBubble key={turn.turn_id} turn={turn} />
           ))}
-          {activePrompt}
+          <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
+            if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recorder.input(event.target.value.length);
+          }}>{activePrompt}</div>
           {!readOnlyReview &&
           isBusy &&
           !isCompletingPackage &&

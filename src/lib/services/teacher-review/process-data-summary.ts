@@ -1,6 +1,7 @@
 import { deriveItemTiming, deriveSessionTiming, type TimingEventLike } from "../student-assessment/timing-contract";
+import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v1";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v2";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -41,6 +42,13 @@ function record(value: unknown): Record<string, unknown> {
 }
 
 export function processEventLabel(type: string, payload?: unknown) {
+  if (type === "response_stage_observation") {
+    const p = record(payload);
+    const stage = String(p.response_stage ?? "response").replaceAll("_", " ");
+    const labels: Record<string, string> = { ready: "ready", first_input: "input started", submitted: "submitted", offline: "connection lost", online: "connection restored" };
+    return `${stage.charAt(0).toUpperCase() + stage.slice(1)}: ${labels[String(p.observation_kind)] ?? String(p.observation_kind).replaceAll("_", " ")}`;
+  }
+  if (type === "response_stage_outcome") return record(payload).accepted === true ? "Response accepted" : record(payload).validation_rejected === true ? "Response needs clarification" : "Response result recorded";
   if (type === "typing_activity_summary" && typeof record(payload).key_count === "number") {
     return `Typing recorded: ${finiteCount(record(payload).key_count)} keys, ${finiteCount(record(payload).backspace_count)} deletions`;
   }
@@ -116,7 +124,9 @@ export function buildProcessDataSummary(input: {
   // matched timestamps in the readable view; retain unmatched historical events.
   const readableEvents = input.events.filter((event) => !aliases[event.event_type] || !canonicalLifecycle.has(lifecycleKey(event, aliases[event.event_type])));
   const timeline = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
-    (event.event_type === "confidence_selected" && record(event.payload).revised === true)).map((event) => {
+    (event.event_type === "confidence_selected" && record(event.payload).revised === true) ||
+    (event.event_type === "response_stage_observation" && ["ready", "first_input", "offline", "online"].includes(String(record(event.payload).observation_kind))) ||
+    (event.event_type === "response_stage_outcome" && record(event.payload).validation_rejected === true)).map((event) => {
     const at = event.occurred_at ?? event.created_at;
     return {
       at: at ? new Date(at).toISOString() : null,
@@ -140,6 +150,13 @@ export function buildProcessDataSummary(input: {
   }
   timeline.sort((left, right) => (left.at ?? "").localeCompare(right.at ?? ""));
   const incompleteVisibility = timing.visibility_intervals.filter((interval) => interval.quality_status !== "valid").length;
+  const stageVisits = deriveResponseStageVisits(input.events);
+  const observedItems = new Map(input.items.map(item => [item.item_public_id, item]));
+  for (const event of input.events) {
+    if (event.event_type !== "response_stage_observation" || !event.item_public_id || observedItems.has(event.item_public_id)) continue;
+    observedItems.set(event.item_public_id, { item_public_id: event.item_public_id,
+      item_order: event.item_order ?? 0, topic_title: event.topic_title ?? "Observed item", revision_count: 0 });
+  }
   const deliveryGaps = input.events.reduce((sum, event) => sum + finiteCount(record(event.payload).delivery_gap_count), 0);
   return {
     version: PROCESS_DATA_SUMMARY_VERSION,
@@ -170,12 +187,14 @@ export function buildProcessDataSummary(input: {
       key_count: typingEvents.length ? typingEvents.reduce((sum, event) => sum + finiteCount(record(event.payload).key_count), 0) : null,
       backspace_count: typingEvents.length ? typingEvents.reduce((sum, event) => sum + finiteCount(record(event.payload).backspace_count), 0) : null
     },
-    items: input.items.map((item) => {
+    items: [...observedItems.values()].map((item) => {
       const events = input.events.filter((event) => event.item_public_id === item.item_public_id);
       const itemTiming = deriveItemTiming({ events });
       return { ...item, elapsed_ms: itemTiming.item_elapsed_response_time_ms,
         time_to_first_action_ms: itemTiming.time_to_first_response_action_ms,
         explanation_elapsed_ms: itemTiming.reasoning_elapsed_time_ms,
+        stage_summary: summarizeItemStageVisits(stageVisits.filter(v => v.item_public_id === item.item_public_id)),
+        stage_visits: stageVisits.filter(v => v.item_public_id === item.item_public_id),
         timing_quality: itemTiming.timing_quality_status };
     }),
     conversations: input.conversations.map((conversation) => ({

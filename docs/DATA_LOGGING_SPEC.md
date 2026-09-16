@@ -1434,3 +1434,65 @@ latency, retry count, and safe validation issue codes. They do not enter
 classroom records or the approved operational manifest. API keys,
 authentication headers, hidden prompts, chain-of-thought, and raw provider
 output are excluded.
+
+## Browser Response-Stage Observations (V4)
+
+New initial/transfer administration records `response_stage_observation` for
+answer, reasoning, confidence, tempting-option, and tempting-reason stages.
+Review and in-flow edits have separate `review`/`revision` contexts. A stage
+visit begins when its interface is visible in the viewport and usable; this is
+not a claim that the student read it. First input includes typing, paste, and
+input-method edits. Pointer movement or focus alone is not a response action.
+
+`stage_visit_id` identifies one visit; `submission_id` links each submitted
+action to a separate backend `response_stage_outcome`. The backend alone
+determines acceptance or validation rejection. Delivery retries retain event
+IDs and do not create duplicate observations. Client timing does not control
+assessment state, scoring, answer-key access, or completion.
+
+Elapsed times use `performance.now()` within a single browser document.
+`browser_tab_id` identifies the document capture, not a persistent device.
+Client UTC timestamps, server receipt, and server outcome timestamps remain
+separate. Reloaded documents cannot be joined by subtracting monotonic clocks.
+Missing endpoints, sequence gaps, conflicting context, and unpaired visibility
+or connection observations are flagged. Unknown durations remain null.
+
+The research ZIP adds these additive tables:
+
+- `response_stage_events.csv`: allow-listed observations and linked outcomes.
+- `response_stage_visits.csv`: first-action/input/submission timing, accepted
+  submission timing, request/UI waiting, visibility, connectivity, and counts.
+- `item_behavior_summary.csv`: compact first-observed stage summaries per item.
+- `response_revision_history.csv`: accepted edits with before/after values and
+  phase, derived from the existing transcript rather than copied browser text.
+- `feedback_exposure_events.csv`: existing display acknowledgements, not proof
+  of reading, comprehension, or time spent reading.
+- `response_stage_data_dictionary.csv` and `response_stage_notes.txt` explain
+  the added variables and their limits.
+
+`response_elapsed_ms` ends at the first submitted action, including a rejected
+submission. `time_to_accepted_submission_ms` ends at the last submitted action
+linked to an accepted outcome in that visit. `input_start_latency_ms` separates
+pre-input time from input-to-submission time; neither is a direct measure of
+thinking or active typing. `request_wait_ms` ends when the request finishes;
+`system_wait_ms` ends when usable controls are visible again, including UI
+refresh and rendering. These waiting intervals, hidden time, and stage elapsed
+time overlap and must not be added together or treated as pure student work.
+
+Explicit assessment pause/end actions remain in the authoritative lifecycle
+log and also close the active visit. Returns create new visits. Gaps between
+visits are not imputed as absence or thinking time. Browser close, device
+shutdown, and offline delivery remain best effort. Detailed timing is not
+backfilled for historical attempts; their existing V3 evidence is retained.
+
+Teacher Process data shows compact item timing, an expandable stage table,
+and a readable timeline. Raw keystroke text, unsent draft content, other-site
+URLs, screen captures, and unrelated browsing history are not collected.
+Process observations are context, not diagnoses of attention, learning, or
+misconduct.
+
+The two high-frequency `response_stage_*` event types remain in ProcessEvent
+and research exports, but are not recopied into pedagogical response packages
+or raw profiling/follow-up provider input. Existing accepted-response,
+revision, visibility, and lifecycle evidence still supplies the pedagogical
+context. This separates research instrumentation from added model workload.

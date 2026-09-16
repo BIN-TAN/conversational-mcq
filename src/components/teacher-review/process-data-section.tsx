@@ -53,16 +53,32 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
     <section>
       <h3 className="mb-3 text-lg font-semibold">Item activity</h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="border-b border-line text-muted"><tr>{["Topic / item", "Elapsed response time", "First action", "Explanation time", "Revisions"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="border-b border-line text-muted"><tr>{["Topic / item", "Elapsed response time", "First action", "Explanation time", "Confidence time", "System waiting", "Revisions"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
           <tbody>{data.items.map((item) => <tr className="border-b border-line" key={item.item_public_id}>
             <th className="px-3 py-3 font-medium">{item.topic_title}<span className="block text-muted">Item {item.item_order}</span></th>
             <td className="px-3 py-3">{formatDuration(item.elapsed_ms)}</td><td className="px-3 py-3">{formatDuration(item.time_to_first_action_ms)}</td>
-            <td className="px-3 py-3">{formatDuration(item.explanation_elapsed_ms)}</td><td className="px-3 py-3">{item.revision_count}</td>
+            <td className="px-3 py-3">{formatDuration(item.explanation_elapsed_ms)}</td>
+            <td className="px-3 py-3">{formatDuration(item.stage_summary?.confidence_time_ms ?? null)}</td>
+            <td className="px-3 py-3">{formatDuration(item.stage_summary?.system_wait_ms ?? null)}</td><td className="px-3 py-3">{item.revision_count}</td>
           </tr>)}</tbody>
         </table>
       </div>
       {!data.items.length ? <p className="mt-3 text-sm text-muted">No item responses recorded.</p> : null}
+      <details className="mt-4 border-b border-line pb-4 text-sm">
+        <summary className="cursor-pointer font-semibold">Response stages and interruptions</summary>
+        <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[880px] text-left">
+          <thead className="border-b border-line text-muted"><tr>{["Item / stage", "Context", "Before typing", "To first submission", "Submissions / accepted", "Clarification required", "Time hidden", "Capture"].map(label => <th className="px-3 py-3" key={label}>{label}</th>)}</tr></thead>
+          <tbody>{data.items.flatMap(item => (item.stage_visits ?? []).map(visit => <tr className="border-b border-line" key={visit.stage_visit_id}>
+            <th className="px-3 py-3 font-medium">Item {item.item_order} / {visit.response_stage.replaceAll("_", " ")}</th>
+            <td className="px-3 py-3">{visit.response_phase}</td><td className="px-3 py-3">{formatDuration(visit.input_start_latency_ms)}</td>
+            <td className="px-3 py-3">{formatDuration(visit.response_elapsed_ms)}</td><td className="px-3 py-3">{visit.submission_count} / {visit.accepted_submission_count}</td>
+            <td className="px-3 py-3">{visit.validation_rejection_count}</td><td className="px-3 py-3">{formatDuration(visit.hidden_duration_ms)}</td>
+            <td className="px-3 py-3" title={visit.timing_limitations}>{visit.timing_quality_status === "valid" ? "Complete" : "Partial"}</td>
+          </tr>))}</tbody>
+        </table></div>
+        {!data.items.some(item => item.stage_visits?.length) ? <p className="mt-3 text-muted">Stage observations were not recorded for this attempt.</p> : null}
+      </details>
     </section>
     {data.conversations.length ? <section>
       <h3 className="mb-3 text-lg font-semibold">Learning conversation activity</h3>

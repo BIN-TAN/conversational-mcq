@@ -295,4 +295,6 @@ export function useStudentProcessEvents(input: {
       window.removeEventListener("keydown", handleKeydown);
     };
   }, [input.sessionPublicId, input.currentItemPublicId, input.enabled]);
+
+  return (event: FrontendProcessEvent, keepalive = false) => deliveryRef.current?.enqueue(event, keepalive);
 }
