@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { ResponseStageContext } from "@/lib/student-assessment-ui/response-observation";
 import { createResponseStageRecorder } from "./response-stage-recorder";
 import type { FrontendProcessEvent } from "./api";
@@ -21,22 +21,24 @@ export function useResponseStageObservations(input: {
   });
   const current = recorder.current;
   const key = input.context ? JSON.stringify(input.context) : "";
+  const synchronizeReady = useCallback(() => {
+    const { context, enabled, busy } = latest.current;
+    if (!enabled || busy || document.visibilityState !== "visible" || !root.current) return false;
+    const rect = root.current.getBoundingClientRect();
+    if (rect.bottom <= 0 || rect.top >= innerHeight || rect.width <= 0) return false;
+    current.controlsReady();
+    if (context) current.ready(context); else current.close();
+    return Boolean(context);
+  }, [current]);
   useEffect(() => {
     if (!input.enabled) { current.close("view_left"); return; }
-    const check = () => {
-      const { context, enabled, busy } = latest.current;
-      if (!enabled || busy || document.visibilityState !== "visible" || !root.current) return;
-      const rect = root.current.getBoundingClientRect();
-      if (rect.bottom <= 0 || rect.top >= innerHeight || rect.width <= 0) return;
-      current.controlsReady();
-      if (context) current.ready(context); else current.close();
-    };
+    const check = () => { synchronizeReady(); };
     const frame = requestAnimationFrame(check);
     const observer = new IntersectionObserver(check);
     if (root.current) observer.observe(root.current);
     document.addEventListener("visibilitychange", check);
     return () => { cancelAnimationFrame(frame); observer.disconnect(); document.removeEventListener("visibilitychange", check); };
-  }, [current, input.enabled, input.busy, key]);
+  }, [current, input.enabled, input.busy, key, synchronizeReady]);
   useEffect(() => {
     if (!input.enabled) return;
     const visible = () => current.observe(document.visibilityState === "hidden" ? "hidden" : "visible");
@@ -56,5 +58,10 @@ export function useResponseStageObservations(input: {
       window.removeEventListener("pagehide", left);
     };
   }, [current, input.enabled]);
-  return { root, recorder: current };
+  return {
+    root, recorder: current,
+    // Input can arrive before the next animation frame after opening an editor.
+    recordInput: (length: number) => { if (synchronizeReady()) current.input(length); },
+    recordSubmission: () => synchronizeReady() ? current.submit() : null
+  };
 }

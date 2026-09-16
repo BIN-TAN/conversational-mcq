@@ -1,4 +1,5 @@
 import { stringify } from "csv-stringify/sync";
+import { RESPONSE_STAGE_CALCULATION_VERSION, responseStageDictionaryRows } from "./response-stage-dictionary";
 import { deriveResponseStageVisits, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, type ResponseStageEvent } from "../student-assessment/response-stage-data";
 
 type Source = { session_public_id: string; research_student_id: string; assessment_public_id: string; attempt_number: number;
@@ -60,46 +61,13 @@ export function responseStageExportFiles(sources: Source[]) {
     { path: "response_revision_history.csv", columns: [...identity, ...itemIdentity, "source_turn_sequence_index", "changed_at", "changed_field", "previous_value", "new_value", "revision_phase", "coverage"], rows: revisions },
     { path: "feedback_exposure_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", "client_occurred_at", "content_id", "observation_meaning"], rows: exposures }
   ];
-  const definitions: Record<string, string> = {
-    stage_visit_id: "One browser visit to an item response stage. Reload or return creates a new visit; never combine monotonic clocks across documents.",
-    response_phase: "Browser context: initial, transfer, review, or revision. Acceptance and server_phase come from the backend, not the browser.",
-    ready_at: "Client UTC time when the active stage was rendered, in the viewport, document-visible, and not blocked by an action.",
-    accepted_at: "Server timestamp of a linked accepted action result. Do not subtract from client timestamps for elapsed time.",
-    last_accepted_submitted_at: "Client timestamp of the last submission in this visit linked to an accepted server outcome.",
-    time_to_first_action_ms: "Monotonic time from ready to first typed/pasted input or submitted selection. Focus and mouse movement do not count.",
-    input_start_latency_ms: "Ready to first input. For justification this separates pre-input time from subsequent composition time.",
-    input_elapsed_ms: "First input to first submission; includes reading and pauses. Not active typing or thinking time.",
-    response_elapsed_ms: "Ready to first submission within this visit. Includes any time hidden before submission.",
-    time_to_accepted_submission_ms: "Ready to the last submitted action linked to an accepted server outcome in this visit. Includes clarification and request waiting before that submission.",
-    input_to_accepted_ms: "First text input to the last submission accepted in this visit; not active typing time.",
-    stage_elapsed_ms: "Ready to recorded visit close. Includes system waiting; not pure student work time.",
-    system_wait_ms: "Sum of observed submit-to-controls-ready intervals for this visit; includes network, processing, UI refresh and rendering. Blank if any endpoint is missing.",
-    request_wait_ms: "Sum of submit-to-request-finished intervals. A subset of system waiting, not an extra duration to add.",
-    hidden_duration_ms: "Sum of complete stage-local hidden/visible pairs. Blank for incomplete visits/pairs. May overlap waiting; do not add durations.",
-    offline_duration_ms: "Sum of complete browser offline/online pairs during this visit. Browser connectivity signals do not prove server reachability; blank for incomplete visits/pairs.",
-    focus_loss_count: "Browser-window blur observations during this stage, not proof of leaving the assessment or misconduct.",
-    submission_count: "Observed submit actions, including clarification attempts and manual retries. Delivery retries reuse event IDs and are deduplicated.",
-    validation_rejection_count: "Linked server response-quality or same-option rejection results; not evidence of low ability.",
-    input_change_count: "Input-change event count, including additions, deletions and IME edits, not conceptual revision count.",
-    observation_sequence: "Increasing within-visit sequence. Gaps indicate incomplete observation capture.",
-    monotonic_ms: "Browser performance.now() value, comparable only within the same browser document.",
-    observed_stage_visit_count: "Zero means no stage observations, including historical sessions predating instrumentation; it does not mean no activity.",
-    timing_quality_status: "valid/partial/not_recorded. Missing data are not zero. No observation implies attention or misconduct.",
-    previous_value: "Previously accepted response field, never an unsent draft. Blank for legacy revisions lacking this evidence.",
-    new_value: "Accepted changed response field from the existing transcript. No answer key is added.",
-    first_action_ms: "First observed initial answer-stage visit ready to meaningful response action; not a mental reading-time estimate.",
-    reasoning_start_latency_ms: "First observed initial justification visit ready to first text input.",
-    reasoning_time_ms: "First observed initial justification visit ready to first submission.",
-    reasoning_input_elapsed_ms: "First input to first submission in the first observed initial justification visit.",
-    answer_time_ms: "First observed initial answer visit ready to first submitted selection.",
-    confidence_time_ms: "First observed initial confidence visit ready to first submitted confidence choice."
-  };
+  for (const table of tables.filter(t => ["response_stage_visits.csv", "item_behavior_summary.csv"].includes(t.path))) {
+    table.columns.push("calculation_version");
+    table.rows.forEach(row => { row.calculation_version = RESPONSE_STAGE_CALCULATION_VERSION; });
+  }
   const csv = (rows: Row[], columns?: readonly string[]) => stringify(rows, { header: true, columns: columns ? [...columns] : undefined, cast: { date: d => d.toISOString() }, escape_formulas: true });
   return [...tables.map(t => ({ path: t.path, data: csv(t.rows, t.columns) })),
-    { path: "response_stage_data_dictionary.csv", data: csv(tables.flatMap(t => t.columns.map(name => ({ dataset: t.path,
-      variable_name: name, definition: definitions[name] ?? name.replaceAll("_", " "),
-      missing_values: "Blank means unavailable/not applicable. Historical timing is not backfilled.",
-      unit: name.endsWith("_ms") ? "milliseconds" : name.endsWith("_at") ? "UTC timestamp" : "" })))) },
+    { path: "response_stage_data_dictionary.csv", data: csv(responseStageDictionaryRows(tables)) },
     { path: "response_stage_notes.txt", data: "Stage observations use response-stage-observation-v1. Browser data are observations, not authoritative response acceptance.\nDurations use monotonic time within one browser document. Backend outcome timestamps use a separate clock.\nFirst-observed visit summaries must be interpreted with all visit rows; a resumed visit is not necessarily first exposure.\nWaiting, hidden time and elapsed time overlap and must not be added. Abrupt closure/offline delivery may lose events.\nExplicit pause/end requests are recorded as visit close reasons; time between visits is not imputed as thinking or absence.\nRevisions reuse existing accepted transcript records; initial immutable packages and all prior exports remain available.\nFeedback acknowledgements show display, not reading. Before/after values are available only for newly recorded edits.\n" }
   ];
 }

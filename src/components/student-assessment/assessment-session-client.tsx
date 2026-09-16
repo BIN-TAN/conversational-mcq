@@ -2802,7 +2802,7 @@ export function AssessmentSessionClient({
 
   async function runAction(label: string, action: (observation?: ResponseObservationLink) => Promise<StudentSessionState>) {
     const tracked = ["Record answer", "Record reason", "Record confidence", "Record tempting option", "Record no tempting option", "Record tempting reason", "Save response edit", "Save response edits"].includes(label)
-      ? stageObservation.recorder.submit() : null;
+      ? stageObservation.recordSubmission() : null;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
@@ -3871,7 +3871,7 @@ export function AssessmentSessionClient({
             <FormativeConversationBubble key={turn.turn_id} turn={turn} />
           ))}
           <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
-            if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recorder.input(event.target.value.length);
+            if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recordInput(event.target.value.length);
           }}>{activePrompt}</div>
           {!readOnlyReview &&
           isBusy &&

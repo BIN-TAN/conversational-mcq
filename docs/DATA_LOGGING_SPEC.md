@@ -283,9 +283,11 @@ Do not label students as cheating, dishonest, or confirmed GenAI users based on 
 
 ## Timing Contract
 
-The current analysis contract is `timing-contract-v3`, exported in
-`research-dataset-v2`. Earlier v2 timing values remain historical artifacts;
-re-exporting applies the explicitly versioned corrected derivations.
+The baseline analysis contract is `timing-contract-v3`, exported in
+`research-dataset-v2`. Items with browser response-stage observations use
+`timing-contract-v4` instead; see Browser Response-Stage Observations below.
+Earlier v2 timing values remain historical artifacts; re-exporting applies
+the explicitly versioned corrected derivations supported by retained events.
 
 Idle time is the union of observed idle intervals intersected with active
 lifecycle windows, not the sum of cumulative threshold durations. Visible time
@@ -294,7 +296,8 @@ or multi-document visibility evidence yields an unavailable visible estimate.
 Browser process delivery uses bounded acknowledged retries with stable event
 IDs; see `RESEARCH_DATA_FIXES_2026-09-11.md` for storage and loss limitations.
 
-Item timing must be derived from explicit event endpoints:
+V3 item timing is derived from explicit event endpoints (V4 uses the browser
+stage endpoints and first-versus-accepted distinctions documented below):
 
 - `item_elapsed_response_time_ms`: `item_presented_at -> item_submitted_at`
 - `time_to_first_response_action_ms`: `item_presented_at -> first qualifying student response action`
@@ -1436,6 +1439,17 @@ authentication headers, hidden prompts, chain-of-thought, and raw provider
 output are excluded.
 
 ## Browser Response-Stage Observations (V4)
+
+See [Process and Product Analytics Guide](PROCESS_PRODUCT_ANALYTICS_GUIDE.md)
+for formulas, analysis units, join rules, current coverage limits and suggested
+analyses. Every new analysis-ready ZIP includes `data_coverage.csv` calculated
+from its actual tables, with row/populated/blank/zero counts and actor/stage
+subgroups. It describes population, not eligible-record completeness or validity.
+`response_stage_data_dictionary.csv` provides explicit source, formula, units,
+applicability and missing-value rules for every stage-export column. Derived
+visits/item summaries carry `calculation_version=response-stage-derivation-v2`;
+cumulative waiting/hidden/offline durations are unavailable when sequence gaps
+could hide intervals. Raw records and their collector version are unchanged.
 
 New initial/transfer administration records `response_stage_observation` for
 answer, reasoning, confidence, tempting-option, and tempting-reason stages.

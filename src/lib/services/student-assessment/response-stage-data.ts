@@ -42,7 +42,8 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
     const orderInvalid = list.some((e, i) => i > 0 && (e.monotonic_ms < list[i - 1].monotonic_ms || e.observation_sequence <= list[i - 1].observation_sequence));
     if (contextMismatch) limitations.push("visit_context_conflict");
     if (orderInvalid) limitations.push("invalid_monotonic_order");
-    if (list.some((e, i) => e.observation_sequence !== (list[i - 1]?.observation_sequence ?? 0) + 1)) limitations.push("observation_sequence_gap");
+    const sequenceGap = list.some((e, i) => e.observation_sequence !== (list[i - 1]?.observation_sequence ?? 0) + 1);
+    if (sequenceGap) limitations.push("observation_sequence_gap");
     const ready = list.find(e => e.observation_kind === "ready");
     const closed = list.find(e => e.observation_kind === "closed");
     const firstInput = list.find(e => e.observation_kind === "first_input");
@@ -57,7 +58,7 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
     const lastAccepted = submissions.filter(e => record(bySubmission.get(e.submission_id!)?.payload).accepted === true).at(-1);
     if (submissions.some(e => !bySubmission.has(e.submission_id!))) limitations.push("server_outcome_missing");
     const wait = (kind: "request_finished" | "controls_ready") => {
-      if (!ready) return null;
+      if (!ready || sequenceGap) return null;
       const spans = submissions.map(s => delta(s, list.find(e => e.observation_kind === kind && e.submission_id === s.submission_id)));
       if (spans.some(d => d === null)) { limitations.push(`${kind}_missing`); return null; }
       return spans.reduce<number>((sum, d) => sum + (d ?? 0), 0);
@@ -102,11 +103,11 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
       input_elapsed_ms: duration(firstInput, submissions[0]), response_elapsed_ms: duration(ready, submissions[0]), stage_elapsed_ms: duration(ready, closed),
       time_to_accepted_submission_ms: duration(ready, lastAccepted), input_to_accepted_ms: duration(firstInput, lastAccepted),
       request_wait_ms: valid ? requestWait : null, system_wait_ms: valid ? systemWait : null,
-      hidden_duration_ms: valid && ready && closed && !hidden && !visibilityPartial ? hiddenMs : null,
+      hidden_duration_ms: valid && ready && closed && !sequenceGap && !hidden && !visibilityPartial ? hiddenMs : null,
       hidden_count: list.filter(e => e.observation_kind === "hidden").length, return_count: returns,
       focus_loss_count: list.filter(e => e.observation_kind === "blur").length,
       offline_count: list.filter(e => e.observation_kind === "offline").length,
-      offline_duration_ms: valid && ready && closed && !offline && !offlinePartial ? offlineMs : null,
+      offline_duration_ms: valid && ready && closed && !sequenceGap && !offline && !offlinePartial ? offlineMs : null,
       submission_count: submissions.length, accepted_submission_count: accepted.length,
       validation_rejection_count: [...bySubmission.values()].filter(e => record(e.payload).validation_rejected === true).length,
       request_failure_count: list.filter(e => e.observation_kind === "request_finished" && e.result === "request_failed").length,

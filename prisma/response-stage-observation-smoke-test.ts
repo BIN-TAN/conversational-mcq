@@ -25,6 +25,10 @@ const submit = (accepted = true) => {
 ready("answer"); ready("answer");
 assert.equal(events.length, 1, "Repeated renders are not extra visits.");
 time = 4000; const answer = submit();
+const pendingCount = events.length;
+recorder.controlsReady();
+assert.equal(events.length, pendingCount, "A rapid UI event cannot finish an in-flight request.");
+assert.equal(recorder.submit(), null, "Duplicate submission stays blocked until the request finishes.");
 time = 5000; answer.finish(); time = 5500; recorder.controlsReady(); ready("reasoning");
 const finishedCount = events.length;
 answer.finish(true);

@@ -93,7 +93,9 @@ try {
   await page.getByTestId("in-flow-edit-save").click();
   await confidence.waitFor();
   await confidence.click();
-  await page.getByTestId("chat-no-tempting").click();
+  await page.locator('[data-testid^="chat-tempting-option-"]').first().click();
+  await page.getByTestId("tempting-reason-input").fill("This option was tempting because it also mentions item difficulty, but that is different from the person's trait estimate.");
+  await page.getByTestId("tempting-reason-input-send").click();
   await waitFor(async () => (await visits()).filter(v => v.response_stage === "answer").length >= 2, "next item");
   checks.push("browser-ready stages, first input, rejection, accepted retry, confidence and next item");
   let captured = await visits();
@@ -104,6 +106,9 @@ try {
   assert(explanation.time_to_accepted_submission_ms >= explanation.response_elapsed_ms);
   assert.equal(explanation.offline_count, 1);
   assert(explanation.offline_duration_ms !== null);
+  assert(captured.some(v => v.response_stage === "tempting_reason" && v.input_start_latency_ms !== null && v.accepted_submission_count === 1));
+  assert(captured.some(v => v.response_stage === "reasoning" && v.response_phase === "revision" && v.input_start_latency_ms !== null && v.accepted_submission_count === 1), "Immediate editor input must belong to the revision, not the previous confidence stage.");
+  assert(captured.filter(v => v.response_stage === "confidence" && v.response_phase === "initial").every(v => v.input_start_latency_ms === null && v.input_change_count === 0), "Chip-only confidence stages cannot receive reasoning input events.");
   const firstDoc = captured[0].browser_tab_id;
   await page.reload({ waitUntil: "networkidle" });
   await page.locator('[data-testid^="chat-option-card-"]').first().scrollIntoViewIfNeeded();
@@ -159,11 +164,20 @@ try {
   captured = await visits();
   assert.equal(exportedVisits.length, captured.length);
   assert(exportedVisits.some(v => v.validation_rejection_count === "1"));
+  assert(exportedVisits.some(v => v.response_stage === "reasoning" && v.response_phase === "revision" && v.input_start_latency_ms !== ""));
+  assert(exportedVisits.filter(v => v.response_stage === "confidence" && v.response_phase === "initial").every(v => v.input_start_latency_ms === "" && v.input_change_count === "0"));
   const revisions = parse(await find("response_revision_history.csv").async("string"), { columns: true });
   assert(revisions.some(r => r.changed_field === "reasoning_text" && r.new_value === editedReason && r.previous_value.includes("Theta describes")));
   assert(!(await find("response_stage_events.csv").async("string")).includes(editedReason));
   assert(audit.behavior_summary.items.length >= 2, "Viewed unanswered items belong in the teacher process summary.");
   assert(find("response_stage_data_dictionary.csv"));
+  const coverage = parse(await find("data_coverage.csv").async("string"), { columns: true });
+  for (const stage of ["answer", "reasoning", "confidence", "tempting_option", "tempting_reason"]) {
+    const populated = coverage.find(r => r.dataset === "response_stage_visits.csv" && r.group_by === "response_stage" && r.group_value === stage && r.variable_name === "response_elapsed_ms");
+    assert(Number(populated?.populated_count) > 0, `${stage} response timing must actually reach the export.`);
+  }
+  await writeFile(join(output, "data-coverage.csv"), await find("data_coverage.csv").async("string"));
+  await writeFile(join(output, "response-stage-data-dictionary.csv"), await find("response_stage_data_dictionary.csv").async("string"));
   assert.equal(await db.agentCall.count({ where: { provider: { not: "mock" } } }), 0);
   assert.deepEqual(eventErrors, []);
   assert.deepEqual(browserErrors, []);

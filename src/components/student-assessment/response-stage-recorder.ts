@@ -9,7 +9,7 @@ export function createResponseStageRecorder(input: {
   wallNow: () => string;
   newId: () => string;
 }) {
-  type Visit = ResponseStageContext & { id: string; sequence: number; firstInput: boolean; changes: number; pending?: string };
+  type Visit = ResponseStageContext & { id: string; sequence: number; firstInput: boolean; changes: number; pending?: string; requestFinished?: boolean };
   let visit: Visit | null = null;
   let suspended = false;
   const awaitingControls = new Set<Visit>();
@@ -44,6 +44,7 @@ export function createResponseStageRecorder(input: {
       const v = visit;
       const submission_id = input.newId();
       v.pending = submission_id;
+      v.requestFinished = false;
       awaitingControls.add(v);
       const link: ResponseObservationLink = { stage_visit_id: v.id, submission_id };
       emit(v, "submitted", { submission_id, input_change_count: v.changes });
@@ -51,15 +52,17 @@ export function createResponseStageRecorder(input: {
       return { link, finish(failed = false) {
         if (finished) return;
         finished = true;
+        v.requestFinished = true;
         emit(v, "request_finished", { submission_id, result: failed ? "request_failed" : "response_received" });
       } };
     },
     controlsReady() {
       for (const v of awaitingControls) {
+        if (!v.requestFinished) continue;
         emit(v, "controls_ready", { submission_id: v.pending });
         v.pending = undefined;
+        awaitingControls.delete(v);
       }
-      awaitingControls.clear();
     },
     observe(kind: "hidden" | "visible" | "blur" | "focus" | "offline" | "online") {
       if (visit) emit(visit, kind, {}, kind === "hidden");

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
+import { researchCoverageFiles } from "./coverage-report";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
@@ -605,7 +606,10 @@ const FORMATIVE_CONVERSATION_DICTIONARY_COLUMNS = [
   "definition",
   "source_nature",
   "analysis_phase",
-  "interpretation_caution"
+  "interpretation_caution",
+  "calculation",
+  "unit",
+  "missing_values"
 ] as const;
 
 function iso(value?: Date | null) {
@@ -2222,10 +2226,16 @@ function formativeConversationDataDictionaryRows() {
       return "Exact visible student or tutor message persisted in chronological order.";
     }
     if (variable === "typing_duration_ms") {
-      return "Observed elapsed or active typing duration using the accompanying typing_duration_method.";
+      return "Current browser: elapsed first nonempty input to submit, including pauses, equal to student response_time_ms; not active typing. Historical records must be interpreted with typing_duration_method.";
+    }
+    if (variable === "response_time_ms") {
+      return "Actor-dependent: for current browser student turns, elapsed first nonempty input to submit; for generated tutor turns, provider call latency. Never pool student and tutor rows or add student response_time_ms to typing_duration_ms.";
+    }
+    if (variable === "observed_interval_duration_ms") {
+      return "Optional explicitly supplied lifecycle interval; current browser navigation emits null. Do not interpret an empty field as zero or infer exact off-page time from server receipt timestamps.";
     }
     if (variable === "edit_count") {
-      return "Count of observed input-change events before the student submitted the message.";
+      return "Current browser: input changes for which the previous draft was nonempty; the first change from an empty draft is excluded. This is not a count of conceptual revisions.";
     }
     if (variable === "backspace_count") {
       return "Count of observed Backspace or Delete key events before submission.";
@@ -2383,6 +2393,27 @@ function formativeConversationDataDictionaryRows() {
             ? "derived_from_persisted_observations"
             : "directly_recorded_observable_or_operational",
       analysis_phase: table.phase,
+      calculation: ({
+        response_time_ms: "Student browser: max(0, submit client time - first nonempty input client time); null without first input. Tutor: copy linked AgentCall.latency_ms. Platform-only tutor messages can be null.",
+        typing_duration_ms: "Current browser: max(0, typing_ended_at - typing_started_at), client wall clock in milliseconds, method=elapsed_first_input_to_submit. Includes pauses; historical active_intervals records use their original method, not this formula.",
+        typing_duration_method: "Current browser emits elapsed_first_input_to_submit only when a first nonempty input timestamp exists; otherwise null.",
+        edit_count: "Increment on input change if the previous draft length > 0; reset after successful submission. Not a keystroke or semantic revision count.",
+        backspace_count: "Count observed Backspace/Delete keydown events before submission; reset after success. Touch/IME deletions may not emit these keys.",
+        paste_event_count: "Count paste events before submission; reset after success. No clipboard contents recorded in this field.",
+        paste_character_count: "Sum JavaScript clipboard plain-text .length over observed paste events; UTF-16 code units, not necessarily grapheme count.",
+        final_message_length_chars: "JavaScript length of the accepted, trimmed student message; UTF-16 code units.",
+        message_length_chars: "Stored telemetry length; fallback to persisted message_text.length, then 0 when text absent. UTF-16 code units.",
+        wall_clock_duration_ms: "Conversation endpoint (completed_at, else ended_at, else last_activity_at) minus started_at; includes pauses and system waits.",
+        observed_interval_duration_ms: "Copy explicitly provided interval; no inferred interval in the current browser emitter.",
+        latency_ms: "Copy recorded provider-call latency; not end-to-end student-visible waiting.",
+        turn_sequence_index: "Persisted global transcript sequence; join and order within session, not a duration.",
+        conversation_local_turn_sequence_index: "Persisted one-based telemetry sequence within conversation; may differ from global transcript sequence.",
+        conversation_local_event_sequence_index: "Persisted one-based lifecycle sequence within conversation; distinct from global export order.",
+        event_sequence_index: "Export ordering index; not a stable event identity across export scopes. Use event_public_id for deduplication.",
+        assistant_response_retry_count: "Copy persisted retry count for the student's response receipt; a retry is not another student message."
+      } as Record<string, string>)[variable] ?? "Copy the named persisted record/metadata or projection described in definition; no additional arithmetic in this export.",
+      unit: variable.endsWith("_ms") ? "milliseconds" : variable.endsWith("_at") ? "UTC timestamp" : /_count$|_chars$/.test(variable) ? "count (see definition)" : "",
+      missing_values: "Blank means unavailable/inapplicable; apply actor_type, collection version and lifecycle context. No rows can mean the phase was never reached. Do not impute zero.",
       interpretation_caution:
         table.phase === "profile_transition"
           ? "Profile transitions are validated interpretations with explicit evidence provenance, not raw observations or stable traits."
@@ -2402,6 +2433,9 @@ function formativeConversationDataDictionaryRows() {
       definition: `${variable.replaceAll("_", " ")} may be derived later from documented transcript, telemetry, and profile-transition evidence.`,
       source_nature: "derive_later_not_runtime",
       analysis_phase: "post_export_analysis",
+      calculation: "Not calculated or stored by the runtime. Requires a separate preregistered coding/derivation method.",
+      unit: "not defined",
+      missing_values: "Not a collected variable.",
       interpretation_caution:
         "This construct is not recorded as raw runtime data and requires a separate validated derivation method."
     }))
@@ -2445,6 +2479,8 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
       preservation_note:
         "Export first and preserve existing profile, formative decision, follow-up, activity, process-event, conversation-turn, and agent-call records before rerunning assessment intelligence.",
       included_files: [
+        "data_coverage.csv",
+        "data_coverage_notes.txt",
         "response_stage_events.csv",
         "response_stage_visits.csv",
         "item_behavior_summary.csv",
@@ -2713,6 +2749,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: processEventCodebookCsv()
     }
   ];
+  files.push(...researchCoverageFiles(files));
   if (input.scope === "selected_session") {
     files.push({
       path: "session_diagnostic_manifest.json",
@@ -2721,6 +2758,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   }
   files.push({ path: "README.txt", data: [
     "Research dataset v2",
+    "Start with data_coverage.csv and its notes to inspect actual populated/blank/zero values by dataset, actor and stage; population is not proof of measurement validity.",
     "Join session_public_id to sessions.csv. Join item snapshots using both assessment_snapshot_public_id and item_snapshot_public_id.",
     "event_public_id is stable across exports; event_sequence_index is export ordering, not a permanent identity.",
     "Empty CSV cells denote unavailable or inapplicable values, not measured zero or false. Formula-leading text is prefixed with an apostrophe for spreadsheet safety.",
