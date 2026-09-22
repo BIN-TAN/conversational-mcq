@@ -1535,3 +1535,35 @@ and research exports, but are not recopied into pedagogical response packages
 or raw profiling/follow-up provider input. Existing accepted-response,
 revision, visibility, and lifecycle evidence still supplies the pedagogical
 context. This separates research instrumentation from added model workload.
+
+## Accepted Response Evidence (2026-09-22)
+
+New response packages and research manifests identify the projection as
+`response_evidence_version=accepted-response-evidence-v2`.
+
+- `reasoning_text_initial` is the first accepted reasoning submission, not the
+  first free-text utterance. Content questions, procedural questions and rejected
+  text remain in the transcript but are not initial justifications. Accepted
+  reasoning edits use `reasoning_text`, not their formatted chat summary.
+- `answer_changed` is true when retained answer values contain a transition
+  (including A -> B -> A), or the first and final accepted answers differ.
+  Repeating the same answer in a confidence/reasoning edit does not count.
+- Package alternative-choice evidence includes accepted package-review edits.
+  A complete replacement or explicit reset supersedes the earlier alternative
+  and its explanation. It never borrows a reason from another alternative.
+- `item_responses.csv` represents current accepted products. Its alternative
+  fields use the latest accepted student transcript record by `sequence_index`,
+  even when an attempt stopped before a package was submitted. Package evidence
+  is a fallback only if accepted transcript evidence is unavailable.
+- `no_tempting_option` is true for an explicit No, false for a named alternative
+  or a reset awaiting reconsideration, and blank when no evidence exists. False
+  with blank option/reason must not be interpreted as an explicit No. Accepted
+  edits now retain this flag in `previous_response` and field-level revision
+  exports. Legacy missing previous values remain flagged, not reconstructed.
+
+Previously sealed packages and original turns are not rewritten. Re-exporting
+can recover current alternative fields from retained turns; it does not repair
+old package baselines or regenerate their profile interpretations. Researchers
+using older packages should inspect the original transcript and projection
+version. A version in the export manifest describes the export projection, not
+a retroactive upgrade of every historical package inside it.

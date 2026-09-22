@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
+import { acceptedTemptingEvidence, RESPONSE_EVIDENCE_VERSION } from "../student-assessment/response-evidence";
 import { researchCoverageFiles } from "./coverage-report";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
@@ -1256,6 +1257,13 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
       for (const response of conceptUnitSession.item_responses) {
         const itemEvents = session.process_events.filter((event) => event.item?.item_public_id === response.item.item_public_id);
         const evidence = asRecord(packageEvidence.get(response.item.item_public_id));
+        // Product rows describe current accepted responses, including attempts
+        // that ended before package submission. Sealed baselines stay separate.
+        const latestTempting = session.conversation_turns
+          .filter(turn => turn.actor_type === "student" && turn.item?.item_public_id === response.item.item_public_id)
+          .sort((a, b) => b.sequence_index - a.sequence_index)
+          .map(turn => acceptedTemptingEvidence(turn.structured_payload)).find(Boolean);
+        const temptingEvidence = latestTempting ?? evidence;
         const timing = deriveItemTiming({
           events: itemEvents,
           item_started_at: response.item_started_at,
@@ -1278,8 +1286,9 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           selected_option: response.selected_option,
           reasoning_text: response.reasoning_text,
           confidence_rating: response.confidence_rating,
-          tempting_option: typeof evidence.tempting_option === "string" ? evidence.tempting_option : null,
-          tempting_option_reason: typeof evidence.tempting_option_reason === "string" ? evidence.tempting_option_reason : null,
+          no_tempting_option: typeof temptingEvidence.no_tempting_option === "boolean" ? temptingEvidence.no_tempting_option : null,
+          tempting_option: typeof temptingEvidence.tempting_option === "string" ? temptingEvidence.tempting_option : null,
+          tempting_option_reason: typeof temptingEvidence.tempting_option_reason === "string" ? temptingEvidence.tempting_option_reason : null,
           insufficient_knowledge_selected: countEvents(itemEvents, ["idk_selected", "insufficient_knowledge_marked"]) > 0,
           skipped_item: response.skipped_item,
           skipped_reasoning: response.skipped_reasoning,
@@ -2772,6 +2781,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   const manifest = {
     schema_version: "research-dataset-manifest-v1",
     export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
+    response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     export_run_public_id: source.export_run_public_id,
     export_generated_at: source.export_generated_at,
     app_commit_sha: source.app_commit_sha,

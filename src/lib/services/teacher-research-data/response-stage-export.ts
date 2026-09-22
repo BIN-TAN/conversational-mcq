@@ -44,7 +44,7 @@ export function responseStageExportFiles(sources: Source[]) {
       if (!["student_response_in_flow_edit", "package_review_tempting_option"].includes(String(p.source))) continue;
       const previous = record(p.previous_response);
       const fields = Array.isArray(p.changed_fields) ? p.changed_fields : [];
-      const mapping: Record<string, string[]> = { answer: ["selected_option"], reasoning: ["reasoning_text"], confidence: ["confidence_rating"], tempting_option: ["tempting_option", "tempting_option_reason"] };
+      const mapping: Record<string, string[]> = { answer: ["selected_option"], reasoning: ["reasoning_text"], confidence: ["confidence_rating"], tempting_option: ["tempting_option", "tempting_option_reason", "no_tempting_option"] };
       for (const changed of fields) for (const field of mapping[String(changed)] ?? []) {
         if (field in previous && previous[field] === p[field]) continue;
         revisions.push({ ...ids, ...item(turn.item_public_id), source_turn_sequence_index: turn.sequence_index,

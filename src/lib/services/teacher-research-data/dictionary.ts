@@ -150,6 +150,7 @@ export const ITEM_RESPONSES_COLUMNS = [
   "selected_option",
   "reasoning_text",
   "confidence_rating",
+  "no_tempting_option",
   "tempting_option",
   "tempting_option_reason",
   "insufficient_knowledge_selected",
@@ -1178,6 +1179,7 @@ function guessDataType(variable: string) {
   if (variable.endsWith("_count") || variable.endsWith("_index") || variable === "attempt_number" || variable === "item_order") return "integer";
   if (variable.endsWith("_pct") || variable.endsWith("_ratio") || variable.endsWith("_proportion")) return "decimal";
   if (
+    variable === "no_tempting_option" ||
     variable.startsWith("is_") ||
     variable.startsWith("has_") ||
     variable.endsWith("_available") ||
@@ -1492,6 +1494,7 @@ function definition(table: string, variable: string) {
     selected_option: "Option label selected by the student for the administered item snapshot in the chat-native answer step.",
     reasoning_text: "Student-authored reasoning text submitted for the item response. This is research-sensitive text.",
     confidence_rating: "Student-selected confidence rating for the item response after the reasoning prompt.",
+    no_tempting_option: "Latest explicit no-alternative flag. True means no other option; false with a blank alternative can mean reconsideration after an answer edit. Blank means no retained evidence.",
     tempting_option: "Student-reported alternative option that seemed tempting, when the tempting-option step was administered and the student named one.",
     tempting_option_reason: "Student-authored explanation for why the reported tempting option seemed plausible.",
     correct_option: "Restricted item-key field. Export only in explicitly restricted teacher/research contexts.",
@@ -1601,8 +1604,9 @@ function collectionMethod(table: string, variable: string) {
     selected_option: "Recorded when the student submits or confirms an option selection for the administered item snapshot.",
     reasoning_text: "Recorded from the student's submitted reasoning response for the current item.",
     confidence_rating: "Recorded when the student selects the confidence control for the administered item.",
-    tempting_option: "Recorded from the student's submitted tempting-option response when one is provided.",
-    tempting_option_reason: "Recorded from the student's explanation of why another option seemed tempting.",
+    no_tempting_option: "Latest accepted alternative-choice transcript by sequence_index, including review edits and resets; sealed package fallback only when no accepted transcript evidence remains. Not inferred from a blank option.",
+    tempting_option: "Latest accepted alternative-choice transcript by sequence_index, including partial attempts, review edits and resets; sealed package fallback when transcript evidence is unavailable.",
+    tempting_option_reason: "Explanation from the same latest accepted alternative-choice record; never carry a reason forward from a superseded choice.",
     time_to_first_action_ms:
       "Compatibility alias calculated in itemResponseRows() as first_student_action_at minus item_presented_at for the same administered item when both timestamps are available.",
     time_to_first_response_action_ms:

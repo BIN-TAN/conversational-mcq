@@ -11,6 +11,7 @@ import { toPrismaJson } from "./json";
 import { aggregateProcessEventsByConceptUnitSession } from "./process-events";
 import { projectConceptAdministrationRulesForStudentAgents } from "./content/item-design-provider-boundary";
 import { itemMetadataFromRules, prepareAssessmentContext } from "./content/prepared-assessment-context";
+import { acceptedTemptingEvidence as normalizeTemptingPayload, RESPONSE_EVIDENCE_VERSION } from "./student-assessment/response-evidence";
 
 const createResponsePackageSchema = z.object({
   concept_unit_session_db_id: z.string().uuid(),
@@ -33,10 +34,6 @@ function jsonRecord(value: unknown): Record<string, unknown> {
 function stringValue(record: Record<string, unknown>, key: string): string | null {
   const value = record[key];
   return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function boolValue(record: Record<string, unknown>, key: string): boolean {
-  return record[key] === true;
 }
 
 function stringArrayValue(value: unknown): string[] {
@@ -82,28 +79,6 @@ function conciseStudentAnswerExplanation(input: {
   }
 
   return `Option ${input.correct_option} best matches the measurement relationship described in this item.`;
-}
-
-function normalizeTemptingPayload(value: unknown) {
-  const payload = jsonRecord(value);
-
-  if (payload.source !== "initial_tempting_option") {
-    return null;
-  }
-
-  const noTemptingOption = boolValue(payload, "no_tempting_option");
-  const temptingOption = stringValue(payload, "tempting_option");
-  const temptingOptionReason = stringValue(payload, "tempting_option_reason");
-
-  if (!noTemptingOption && !temptingOption && payload.tempting_evidence_reset_reason !== "answer_changed_to_tempting_option") {
-    return null;
-  }
-
-  return {
-    no_tempting_option: noTemptingOption,
-    tempting_option: noTemptingOption ? null : temptingOption,
-    tempting_option_reason: noTemptingOption ? null : temptingOptionReason
-  };
 }
 
 function elapsedMs(from: Date | null | undefined, to: Date | null | undefined): number | null {
@@ -254,6 +229,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
   ).length;
   const payload = {
     package_type: parsed.package_type,
+    response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     created_at: createdAt.toISOString(),
     initial_item_count: initialItemCount,
     completed_initial_item_count: completedInitialItemCount,
@@ -298,14 +274,19 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         const structuredPayload = jsonRecord(turn.structured_payload);
         return typeof structuredPayload.confidence_rating === "string";
       });
-      const reasoningTurns = itemTurns.filter((turn) => {
+      const reasoningTurns = itemTurns.flatMap((turn) => {
         const structuredPayload = jsonRecord(turn.structured_payload);
-        return (
-          Boolean(turn.message_text) &&
-          structuredPayload.source !== "initial_tempting_option" &&
-          typeof structuredPayload.selected_option !== "string" &&
-          typeof structuredPayload.confidence_rating !== "string"
-        );
+        const source = structuredPayload.source;
+        if (["initial_reasoning", "transfer_reasoning"].includes(String(source)) ||
+            (!source && structuredPayload.response_type === "reasoning_response")) {
+          return turn.message_text ? [{ turn, text: turn.message_text }] : [];
+        }
+        if (["student_response_in_flow_edit", "package_review_tempting_option"].includes(String(source)) &&
+            Array.isArray(structuredPayload.changed_fields) && structuredPayload.changed_fields.includes("reasoning")) {
+          const text = stringValue(structuredPayload, "reasoning_text");
+          return text ? [{ turn, text }] : [];
+        }
+        return [];
       });
       const temptingTurns = itemTurns
         .map((turn) => ({
@@ -325,7 +306,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         "confidence_rating"
       );
       const answerSelectedAt = selectedTurns[0]?.created_at ?? null;
-      const reasoningSubmittedAt = reasoningTurns.at(-1)?.created_at ?? null;
+      const reasoningSubmittedAt = reasoningTurns.at(-1)?.turn.created_at ?? null;
       const confidenceSelectedAt = confidenceTurns[0]?.created_at ?? null;
       const temptingOptionSubmittedAt = temptingTurns[0]?.turn.created_at ?? null;
       const temptingOptionReasonSubmittedAt =
@@ -340,7 +321,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         possible_misconception_indicators: response.item.possible_misconception_indicators
       });
       const answerChanged =
-        selectedTurns.length > 1 ||
+        new Set(selectedTurns.map(turn => stringValue(jsonRecord(turn.structured_payload), "selected_option"))).size > 1 ||
         Boolean(selectedAnswerInitial && response.selected_option && selectedAnswerInitial !== response.selected_option);
 
       return {
@@ -365,7 +346,7 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         correct_option_snapshot: response.correct_option_snapshot,
         correctness: response.correctness,
         reasoning_text: response.reasoning_text,
-        reasoning_text_initial: reasoningTurns[0]?.message_text ?? null,
+        reasoning_text_initial: reasoningTurns[0]?.text ?? null,
         reasoning_text_final: response.reasoning_text,
         confidence_rating: response.confidence_rating,
         confidence_initial: confidenceInitial,

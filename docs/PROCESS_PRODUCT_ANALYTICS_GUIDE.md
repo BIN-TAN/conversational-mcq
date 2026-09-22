@@ -192,6 +192,22 @@ administered.
 
 ## Joining Without Double Counting
 
+Current response products and sealed package baselines have different meanings.
+The `accepted-response-evidence-v2` projection excludes rejected questions from
+initial justification fields and does not treat confidence-only edits as answer
+changes. Current `item_responses.csv` alternative fields include partial attempts
+and package-review edits. `no_tempting_option=true` means an explicit No; false
+with a blank alternative can mean an answer-change reset awaiting reconsideration.
+Blank means no retained evidence. Older immutable packages are not rewritten;
+their baseline fields may require a transcript audit before analysis. The
+research manifest's projection version does not change a historical package's
+version. See `DATA_LOGGING_SPEC.md`, Accepted Response Evidence.
+
+CSV booleans require explicit parsing: the stage-event export serializes
+`accepted` and `validation_rejected` as `1`/`0`, whereas the main product export
+uses `true`/`false`. Blank is missing, not false. Retain that distinction when
+joining these files; do not test nonempty strings as truth values.
+
 Join attempts by `session_public_id` and students by stable
 `research_student_id`; scope both to the export manifest/pseudonym version.
 Join product snapshots via the corresponding item-response snapshot keys,
