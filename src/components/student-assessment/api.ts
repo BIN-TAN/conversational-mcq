@@ -403,6 +403,14 @@ export function saveConfidence(input: {
   );
 }
 
+export function completeReadyItem(input: { sessionPublicId: string; itemPublicId: string }) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/items/${input.itemPublicId}/submit`,
+    { client_action_id: `complete-ready:${input.itemPublicId}` },
+    (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
+  );
+}
+
 export function saveTemptingOption(input: {
   observation?: ResponseObservationLink;
   sessionPublicId: string;

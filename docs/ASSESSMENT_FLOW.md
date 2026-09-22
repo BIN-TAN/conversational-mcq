@@ -184,6 +184,27 @@ After the student responds, transition to `ITEM_COMPLETE`.
 
 Persist the completed item response. If fewer than three initial items are complete, automatically present the next item. If all three are complete, transition to `PACKAGE_REVIEW`.
 
+Normal tempting-option responses and in-flow edits use the same completion path.
+When an edit supplies the last missing evidence, completion and its research events
+are recorded once, followed by the next included item or package review. A resumed
+attempt with complete evidence but a missing submission timestamp automatically
+retries completion through the existing authenticated submit endpoint. It does not
+require a student-facing submit/continue button or another AI call. Incomplete edits
+continue to request missing evidence.
+
+### Formative Misconception Coverage
+
+The formative tutor considers every administered response, including justification
+and tempting-option reasoning, and every unresolved misconception claim. It may
+group related issues but must return to distinct remaining issues after addressing
+one. Wrong answers alone are not proof of a misconception, and correct answers can
+still contain faulty reasoning. Only supported student evidence can resolve a claim.
+Partial profile improvement does not end teaching. Completion is rejected while
+known claims remain and turns are available, except an evidence-supported teacher
+assistance recommendation. Student pause/exit and the configured turn limit remain
+available; unresolved claims remain recorded. The system cannot guarantee that a
+student will resolve all difficulties before stopping.
+
 ### PACKAGE_REVIEW
 
 Allow package-level review or edit if supported. Review should be at the package level, not an item-level submit loop. When the package is ready, construct the response package and transition to `PACKAGE_ANALYSIS`.

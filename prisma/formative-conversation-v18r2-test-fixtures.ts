@@ -118,6 +118,7 @@ function evidenceCatalog(input: {
 
 export function v18r2TestContext(input: {
   student_turn_count: number;
+  max_student_turns?: 12 | 30;
   student_messages?: readonly string[];
   current_profile_evidence_cutoff_sequence_index?: number;
   conversation_public_id?: string;
@@ -196,7 +197,7 @@ export function v18r2TestContext(input: {
       total_output_tokens: 0
     },
     formative_lifecycle: formativeConversationV18R2LifecycleForTurnCount(
-      studentTurns.length
+      studentTurns.length, input.max_student_turns
     ),
     teacher_guidance: [],
     intervention_history: [],

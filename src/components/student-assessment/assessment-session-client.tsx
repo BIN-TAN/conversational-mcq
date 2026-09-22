@@ -29,6 +29,7 @@ import {
   chooseStudentActivityRuntimeAction,
   chooseProgression,
   completeInitialConceptUnit,
+  completeReadyItem,
   endAssessmentAttempt,
   exitSession,
   fetchSessionState,
@@ -2822,6 +2823,19 @@ export function AssessmentSessionClient({
       setIsBusy(false);
     }
   }
+
+  const completingReadyItemRef = useRef<string | null>(null);
+  const runActionRef = useRef(runAction);
+  runActionRef.current = runAction;
+  useEffect(() => {
+    if (readOnlyReview || isBusy || !state?.current_item || state.assessment_state !== "ITEM_COMPLETE") return;
+    const input = { sessionPublicId: state.session_public_id, itemPublicId: state.current_item.item_public_id };
+    const key = `${input.sessionPublicId}:${input.itemPublicId}`;
+    if (completingReadyItemRef.current === key) return;
+    completingReadyItemRef.current = key;
+    // Recover persisted complete evidence from an interrupted or older edit request.
+    void runActionRef.current("Open next question", () => completeReadyItem(input));
+  }, [state, isBusy, readOnlyReview]);
 
   useEffect(() => {
     let mounted = true;

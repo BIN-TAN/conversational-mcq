@@ -108,6 +108,15 @@ Likely current support:
 
 ## Item Response Data
 
+Item completion after an in-flow edit records the same `item_completed` and
+`item_submitted` events as normal administration. The submission timestamp and both
+events commit together, once per item, including recovery of an older incomplete
+transition. Recovery timestamps describe when completion was persisted; the original
+answer/edit turns keep their original timestamps. An initial item completion does
+not emit `assessment_completion_summary_shown`. Misconception coverage uses existing
+claim dispositions and append-only profile transitions; no historical evidence is
+overwritten or inferred from tutor explanations.
+
 For each item, collect:
 
 ```text

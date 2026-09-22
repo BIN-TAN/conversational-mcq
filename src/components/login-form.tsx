@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 
 type LoginResponse = {
@@ -14,7 +13,6 @@ type LoginResponse = {
 };
 
 export function LoginForm() {
-  const router = useRouter();
   const [userId, setUserId] = useState("");
   const [credential, setCredential] = useState("");
   const [error, setError] = useState("");
@@ -42,7 +40,8 @@ export function LoginForm() {
         return;
       }
 
-      router.push(
+      // Discard redirects prefetched before the session cookie was established.
+      window.location.replace(
         data.user.role === "teacher_researcher"
           ? "/teacher/dashboard"
           : data.user.must_change_password

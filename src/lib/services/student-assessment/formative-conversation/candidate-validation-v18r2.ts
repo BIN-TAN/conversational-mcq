@@ -14,7 +14,7 @@ import { validateFormativeConversationStudentOutputFormat } from "./output-forma
 import { validateFormativeConversationSafetyBoundary } from "./safety-boundary";
 
 export const FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION =
-  "formative-conversation-v18r2-candidate-acceptance-v3" as const;
+  "formative-conversation-v18r2-candidate-acceptance-v4" as const;
 
 export type FormativeConversationV18R2CandidateValidation = {
   valid: boolean;
@@ -219,6 +219,27 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       paths: transition.issues.map(
         (entry) => `${entry.field_path}:${entry.code}`
       ),
+      non_blocking_review_signals: nonBlockingReviewSignals,
+      output: parsed.data
+    });
+  }
+
+  const resolvedClaims = new Set(
+    (parsed.data.profile_transition_recommendation?.misconception_claim_dispositions ?? [])
+      .filter((claim) => claim.disposition === "resolved")
+      .map((claim) => claim.claim_id)
+  );
+  const remainingClaims = input.context.allowed_misconception_claim_catalog.indicators
+    .flatMap((indicator) => indicator.claims)
+    .filter((claim) => !resolvedClaims.has(claim.claim_id));
+  if (remainingClaims.length > 0 &&
+      (parsed.data.outcome === "sound_understanding" ||
+       (parsed.data.lifecycle_recommendation === "complete" &&
+        input.context.formative_lifecycle.another_student_turn_available &&
+        parsed.data.outcome !== "teacher_assistance_recommended"))) {
+    return invalid({
+      status: "semantic_contract_invalid",
+      paths: ["lifecycle_recommendation:unresolved_misconceptions_require_continued_support"],
       non_blocking_review_signals: nonBlockingReviewSignals,
       output: parsed.data
     });
