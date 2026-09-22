@@ -1473,6 +1473,22 @@ determines acceptance or validation rejection. Delivery retries retain event
 IDs and do not create duplicate observations. Client timing does not control
 assessment state, scoring, answer-key access, or completion.
 
+Initial-response and edit transport retries reuse both `client_action_id` and
+the original `response_observation` link. Clicking Retry is not a new product
+response or accepted submission; the backend replays the original result.
+The original browser request may therefore show `request_failed` while its
+linked server outcome is accepted. This indicates a delivery failure, not loss
+of the saved answer. A new response after validation rejection gets a new ID.
+
+When an answer edit adopts the former tempting option, a new tempting-evidence
+turn records `tempting_evidence_reset_reason=answer_changed_to_tempting_option`
+with null option/reason and `no_tempting_option=false`. This means the student
+must reconsider the alternative, not that the student selected No. Earlier
+turns remain unchanged. Current-state and package projections honor this reset;
+unrelated edits do not cause older valid tempting evidence to disappear.
+Repeated Start questions requests preserve `initial_started_at` and do not
+create additional `item_presented` events.
+
 Elapsed times use `performance.now()` within a single browser document.
 `browser_tab_id` identifies the document capture, not a persistent device.
 Client UTC timestamps, server receipt, and server outcome timestamps remain

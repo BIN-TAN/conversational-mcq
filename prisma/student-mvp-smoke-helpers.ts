@@ -56,12 +56,14 @@ export async function createSmokeStudent(input: {
   prisma: PrismaClient;
   prefix: string;
   accessCode: string;
+  teacherDbId?: string;
 }) {
   return input.prisma.user.create({
     data: {
       user_id: input.prefix,
       user_id_normalized: normalizeUserId(input.prefix),
       role: "student",
+      created_by_teacher_user_id: input.teacherDbId,
       access_code_hash: await hashSecret(input.accessCode)
     },
     select: { id: true, user_id: true }

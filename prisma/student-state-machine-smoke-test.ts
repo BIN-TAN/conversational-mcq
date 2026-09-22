@@ -70,6 +70,7 @@ async function cleanup(userDbId: string) {
   await prisma.agentCall.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
+  await prisma.assessmentLifecycleOperation.deleteMany({ where: { assessment_session_db_id: { in: sessionIds } } });
   await prisma.assessmentSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.user.deleteMany({ where: { id: userDbId } });
 }
@@ -163,6 +164,7 @@ async function main() {
       user_id: userId,
       user_id_normalized: normalizeUserId(userId),
       role: "student",
+      created_by_teacher_user_id: (await prisma.user.findUniqueOrThrow({ where: { user_id_normalized: "teacher_demo" } })).id,
       access_code_hash: await hashSecret("state_machine_smoke_access")
     }
   });

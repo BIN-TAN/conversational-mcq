@@ -1657,22 +1657,17 @@ async function getLatestTemptingOptionEvidence(input: {
     where: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       item_db_id: input.item_db_id,
-      actor_type: "student"
+      actor_type: "student",
+      OR: ["initial_tempting_option", "transfer_tempting_option", "package_review_tempting_option"].map(
+        (source) => ({ structured_payload: { path: ["source"], equals: source } })
+      )
     },
     orderBy: [{ sequence_index: "desc" }],
     select: { structured_payload: true },
-    take: 10
+    take: 1
   });
-
-  for (const turn of turns) {
-    const evidence = normalizeTemptingOptionEvidence(turn.structured_payload);
-
-    if (evidence) {
-      return evidence;
-    }
-  }
-
-  return null;
+  // The latest record may explicitly clear superseded evidence after an answer edit.
+  return normalizeTemptingOptionEvidence(turns[0]?.structured_payload);
 }
 
 function assertActionAllowedForState(input: {
@@ -1908,6 +1903,14 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
       action_type: input.action_type,
       request_hash: requestHash
     }
+  }).catch(async (error: unknown) => {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      // Another tab or a rapid retry claimed this operation between read and insert.
+      throw new StudentAssessmentServiceError(
+        "session_start_conflict", "A matching request is already in progress. Please retry shortly.", 409
+      );
+    }
+    throw error;
   });
 
   try {
@@ -3404,6 +3407,12 @@ export async function startConceptUnitInitialAdministration(input: {
     }
   });
 
+  if (resolveCanonicalAttemptLifecycle(session).terminal || session.status !== "active") {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action", "Resume an active attempt before starting the questions.", 409
+    );
+  }
+
   if (!session.current_concept_unit) {
     throw publicConflict("No current concept unit is set for this session.");
   }
@@ -3414,6 +3423,15 @@ export async function startConceptUnitInitialAdministration(input: {
       "The requested concept unit is not the current concept unit.",
       409
     );
+  }
+
+  if (session.current_phase === "initial_item_administration") {
+    const existing = await prisma.conceptUnitSession.findUnique({ where: {
+      assessment_session_db_id_concept_unit_db_id: {
+        assessment_session_db_id: session.id, concept_unit_db_id: session.current_concept_unit.id
+      }
+    } });
+    if (existing?.initial_started_at) return getStudentSessionState(input);
   }
 
   if (session.current_concept_unit.status !== "published") {
@@ -3570,6 +3588,12 @@ async function getActionContext(input: {
       "assessment_already_completed",
       "This assessment attempt is already completed.",
       409
+    );
+  }
+
+  if (session.status === "paused") {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action", "Resume this attempt before changing a response.", 409
     );
   }
 
@@ -5078,7 +5102,7 @@ export async function recordTemptingOption(input: {
         );
       }
 
-      if (state.assessment_state === "AWAIT_TEMPTING_REASON" && !temptingOptionReason) {
+      if (state.assessment_state === "AWAIT_TEMPTING_REASON" && !noTemptingOption && !temptingOptionReason) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
           "Explain what made the tempting option seem plausible.",
@@ -5604,6 +5628,12 @@ export async function updateInFlowItemResponse(input: {
         );
       }
 
+      if (state.current_item?.item_public_id !== input.item_public_id) {
+        throw new StudentAssessmentServiceError(
+          "invalid_phase_for_action", "Only the current item can be edited here. Review earlier answers at the end of the question set.", 409
+        );
+      }
+
       const response = await prisma.itemResponse.findUnique({
         where: {
           concept_unit_session_db_id_item_db_id: {
@@ -5636,16 +5666,28 @@ export async function updateInFlowItemResponse(input: {
         data.no_tempting_option !== undefined
           ? data.no_tempting_option
           : (previousTemptingEvidence?.no_tempting_option ?? false);
-      const nextTemptingOption = nextNoTemptingOption
+      let nextTemptingOption = nextNoTemptingOption
         ? null
         : data.tempting_option !== undefined
           ? normalizedOptionLabel(data.tempting_option)
           : previousTemptingEvidence?.tempting_option ?? null;
-      const nextTemptingReason = nextNoTemptingOption
+      let nextTemptingReason = nextNoTemptingOption
         ? null
         : data.tempting_option_reason !== undefined
           ? data.tempting_option_reason?.trim() || null
           : previousTemptingEvidence?.tempting_option_reason ?? null;
+
+      // An answer can legitimately become the former alternative. Preserve the old
+      // turn, but ask for fresh tempting evidence instead of rejecting the answer.
+      const resetTemptingEvidence = nextSelectedOption !== response.selected_option &&
+        nextTemptingOption === nextSelectedOption && data.tempting_option === undefined;
+      if (resetTemptingEvidence) {
+        nextTemptingOption = null;
+        nextTemptingReason = null;
+      } else if (nextTemptingOption !== previousTemptingEvidence?.tempting_option &&
+          data.tempting_option_reason === undefined) {
+        nextTemptingReason = null;
+      }
 
       if (nextSelectedOption && !answerLabels.includes(nextSelectedOption)) {
         throw new StudentAssessmentServiceError(
@@ -5678,7 +5720,7 @@ export async function updateInFlowItemResponse(input: {
       }
 
       if (
-        data.no_tempting_option !== undefined ||
+        resetTemptingEvidence || data.no_tempting_option !== undefined ||
         data.tempting_option !== undefined ||
         data.tempting_option_reason !== undefined
       ) {
@@ -5706,7 +5748,8 @@ export async function updateInFlowItemResponse(input: {
         confidence_rating: nextConfidence,
         no_tempting_option: nextNoTemptingOption,
         tempting_option: nextTemptingOption,
-        tempting_option_reason: nextTemptingReason
+        tempting_option_reason: nextTemptingReason,
+        tempting_evidence_reset_reason: resetTemptingEvidence ? "answer_changed_to_tempting_option" : null
       };
 
       await logProcessEvent({
@@ -5830,7 +5873,9 @@ export async function updateInFlowItemResponse(input: {
             item_db_id: context.item.id,
             phase: context.session.current_phase,
             actor_type: "student",
-            message_text: nextNoTemptingOption
+            message_text: resetTemptingEvidence
+              ? "I changed my answer and will reconsider whether another option was tempting."
+              : nextNoTemptingOption
               ? "No other option was tempting."
               : nextTemptingReason
                 ? `Option ${nextTemptingOption} was tempting because ${nextTemptingReason}`
@@ -5841,6 +5886,7 @@ export async function updateInFlowItemResponse(input: {
               no_tempting_option: nextNoTemptingOption,
               tempting_option: nextTemptingOption,
               tempting_option_reason: nextTemptingReason,
+              tempting_evidence_reset_reason: resetTemptingEvidence ? "answer_changed_to_tempting_option" : null,
               item_context: context.isTransferItem ? "transfer" : "initial"
             },
             created_at: now

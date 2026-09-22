@@ -353,6 +353,7 @@ export function beginConceptUnit(
 }
 
 export function saveOption(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -363,13 +364,14 @@ export function saveOption(input: {
     {
       selected_option: input.selectedOption,
       response_observation: input.observation,
-      client_action_id: newClientActionId("option")
+      client_action_id: input.clientActionId ?? newClientActionId("option")
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
   );
 }
 
 export function saveReasoning(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -380,13 +382,14 @@ export function saveReasoning(input: {
     {
       reasoning_text: input.reasoningText,
       response_observation: input.observation,
-      client_action_id: newClientActionId("reasoning")
+      client_action_id: input.clientActionId ?? newClientActionId("reasoning")
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
   );
 }
 
 export function saveConfidence(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -397,7 +400,7 @@ export function saveConfidence(input: {
     {
       confidence_rating: input.confidenceRating,
       response_observation: input.observation,
-      client_action_id: newClientActionId("confidence")
+      client_action_id: input.clientActionId ?? newClientActionId("confidence")
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
   );
@@ -412,6 +415,7 @@ export function completeReadyItem(input: { sessionPublicId: string; itemPublicId
 }
 
 export function saveTemptingOption(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -426,13 +430,14 @@ export function saveTemptingOption(input: {
       tempting_option_reason: input.temptingOptionReason ?? null,
       no_tempting_option: Boolean(input.noTemptingOption),
       response_observation: input.observation,
-      client_action_id: newClientActionId("tempting-option")
+      client_action_id: input.clientActionId ?? newClientActionId("tempting-option")
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
   );
 }
 
 export function updatePackageReviewItem(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -452,7 +457,7 @@ export function updatePackageReviewItem(input: {
       no_tempting_option: input.noTemptingOption,
       tempting_option: input.temptingOption ?? null,
       tempting_option_reason: input.temptingOptionReason ?? null,
-      client_action_id: newClientActionId("package-review-edit"),
+      client_action_id: input.clientActionId ?? newClientActionId("package-review-edit"),
       response_observation: input.observation
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)
@@ -460,6 +465,7 @@ export function updatePackageReviewItem(input: {
 }
 
 export function updateInFlowItem(input: {
+  clientActionId?: string;
   observation?: ResponseObservationLink;
   sessionPublicId: string;
   itemPublicId: string;
@@ -479,7 +485,7 @@ export function updateInFlowItem(input: {
       no_tempting_option: input.noTemptingOption,
       tempting_option: input.temptingOption,
       tempting_option_reason: input.temptingOptionReason,
-      client_action_id: newClientActionId("in-flow-edit"),
+      client_action_id: input.clientActionId ?? newClientActionId("in-flow-edit"),
       response_observation: input.observation
     },
     (value) => StudentSessionStateSchema.parse((value as { state: unknown }).state)

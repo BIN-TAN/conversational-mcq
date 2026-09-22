@@ -2801,15 +2801,24 @@ export function AssessmentSessionClient({
     }
   }
 
-  async function runAction(label: string, action: (observation?: ResponseObservationLink) => Promise<StudentSessionState>) {
-    const tracked = ["Record answer", "Record reason", "Record confidence", "Record tempting option", "Record no tempting option", "Record tempting reason", "Save response edit", "Save response edits"].includes(label)
-      ? stageObservation.recordSubmission() : null;
+  const actionPendingRef = useRef(false);
+  async function runAction(label: string,
+    action: (observation?: ResponseObservationLink, clientActionId?: string) => Promise<StudentSessionState>,
+    retryAttempt?: { id: string; tracked: ReturnType<typeof stageObservation.recordSubmission> }
+  ) {
+    if (actionPendingRef.current) return;
+    actionPendingRef.current = true;
+    // A transport retry is the same submission, including its observation link.
+    const attempt = retryAttempt ?? { id: newClientActionId("student-action"),
+      tracked: ["Record answer", "Record reason", "Record confidence", "Record tempting option", "Record no tempting option", "Record tempting reason", "Save response edit", "Save response edits"].includes(label)
+        ? stageObservation.recordSubmission() : null };
+    const tracked = attempt.tracked;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
 
     try {
-      const nextState = await action(tracked?.link);
+      const nextState = await action(tracked?.link, attempt.id);
       tracked?.finish();
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
@@ -2817,9 +2826,10 @@ export function AssessmentSessionClient({
     } catch (errorValue) {
       tracked?.finish(true);
       handleError(errorValue, label, () => {
-        void runAction(label, action);
+        void runAction(label, action, attempt);
       });
     } finally {
+      actionPendingRef.current = false;
       setIsBusy(false);
     }
   }
@@ -3047,8 +3057,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record answer", (observation) =>
+    void runAction("Record answer", (observation, clientActionId) =>
       saveOption({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3064,8 +3075,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record reason", (observation) =>
+    void runAction("Record reason", (observation, clientActionId) =>
       saveReasoning({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3079,8 +3091,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record confidence", (observation) =>
+    void runAction("Record confidence", (observation, clientActionId) =>
       saveConfidence({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3094,8 +3107,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record tempting option", (observation) =>
+    void runAction("Record tempting option", (observation, clientActionId) =>
       saveTemptingOption({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3109,8 +3123,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record no tempting option", (observation) =>
+    void runAction("Record no tempting option", (observation, clientActionId) =>
       saveTemptingOption({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3126,8 +3141,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record tempting reason", (observation) =>
+    void runAction("Record tempting reason", (observation, clientActionId) =>
       saveTemptingOption({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3171,8 +3187,9 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Save response edit", async (observation) => {
+    void runAction("Save response edit", async (observation, clientActionId) => {
       const nextState = await updateInFlowItem({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
@@ -3282,8 +3299,9 @@ export function AssessmentSessionClient({
 
     const draft = reviewEditDraft;
 
-    void runAction("Save response edits", async (observation) => {
+    void runAction("Save response edits", async (observation, clientActionId) => {
       const nextState = await updatePackageReviewItem({
+        clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: draft.itemPublicId,

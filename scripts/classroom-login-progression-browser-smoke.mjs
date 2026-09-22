@@ -97,6 +97,76 @@ try {
     }
     await chat.locator('[data-testid^="chat-option-card-"]').first().waitFor();
   }
+  const submittedIds = [];
+  let dropSavedReply = true;
+  await chat.route("**/items/*/option", async route => {
+    submittedIds.push(route.request().postDataJSON().client_action_id);
+    if (!dropSavedReply) return route.continue();
+    dropSavedReply = false;
+    const saved = await route.fetch();
+    assert(saved.ok(), await saved.text());
+    await route.abort("failed");
+  });
+  await chat.getByTestId(/chat-option-card-.*-A$/).click();
+  await chat.getByRole("button", { name: /Retry/ }).click();
+  await chat.getByTestId("reasoning-input").waitFor();
+  assert.equal(submittedIds.length, 2);
+  assert.equal(submittedIds[0], submittedIds[1], "A lost reply must retry the same operation");
+  await chat.getByTestId("reasoning-input").fill("What is theta?");
+  const rejectedReason = chat.waitForResponse(response => response.url().endsWith("/reasoning") && response.request().method() === "POST");
+  await chat.getByTestId("reasoning-input-send").click();
+  assert((await rejectedReason).ok());
+  await chat.getByTestId("reasoning-input").fill("I don't know the reason yet.");
+  await chat.getByTestId("reasoning-input-send").click();
+  await chat.getByTestId("chat-confidence-low").click();
+  await chat.getByTestId(/chat-tempting-option-.*-B$/).click();
+  await chat.getByTestId("in-flow-edit-answer").click();
+  await chat.getByTestId("in-flow-edit-answer-option-B").click();
+  await chat.getByTestId("in-flow-edit-cancel").click();
+  await chat.getByTestId("tempting-reason-input").waitFor();
+  await chat.getByTestId("in-flow-edit-answer").click();
+  await chat.getByTestId("in-flow-edit-answer-option-B").click();
+  await chat.getByTestId("in-flow-edit-save").click();
+  await chat.getByTestId(/chat-tempting-option-.*-A$/).waitFor();
+  await chat.reload();
+  await chat.getByTestId(/chat-tempting-option-.*-A$/).waitFor();
+  await chat.getByTestId("save-exit").click();
+  await chat.waitForURL("**/student/assessment");
+  await chat.getByRole("button", { name: /Resume/ }).first().click();
+  await chat.getByTestId(/chat-tempting-option-.*-A$/).waitFor();
+  console.log("PASS: lost reply retry, deferred content question, uncertainty, cancel edit, changed answer, reload, pause/resume");
+  await chat.getByTestId("chat-no-tempting").click();
+  await chat.getByTestId("package-review-list").waitFor();
+  const firstResponse = await db.itemResponse.findFirstOrThrow({
+    where: { concept_unit_session: { assessment_session: { session_public_id: sessionId } } },
+    orderBy: { item: { item_order: "asc" } }, include: { item: true }
+  });
+  const firstItem = firstResponse.item.item_public_id;
+  await chat.getByTestId(`package-review-edit-${firstItem}`).click();
+  await chat.getByTestId(`package-review-edit-confidence-${firstItem}-high`).click();
+  await chat.getByTestId(`package-review-cancel-${firstItem}`).click();
+  assert.equal((await db.itemResponse.findUniqueOrThrow({ where: { id: firstResponse.id } })).confidence_rating, "medium");
+  await chat.getByTestId(`package-review-edit-${firstItem}`).click();
+  await chat.getByTestId(`package-review-edit-confidence-${firstItem}-high`).click();
+  const savedReview = chat.waitForResponse(response => response.url().endsWith("/package-review-edit") && response.request().method() === "POST");
+  await chat.getByTestId(`package-review-save-${firstItem}`).click();
+  assert((await savedReview).ok());
+  await chat.getByTestId(`package-review-edit-${firstItem}`).waitFor();
+  await chat.reload();
+  await chat.getByTestId("package-review-list").waitFor();
+  assert.equal((await db.itemResponse.findUniqueOrThrow({ where: { id: firstResponse.id } })).confidence_rating, "high");
+  chat.once("dialog", dialog => dialog.dismiss());
+  await chat.getByTestId("end-attempt").click();
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { session_public_id: sessionId } })).status, "active");
+  chat.once("dialog", dialog => dialog.accept());
+  await chat.getByTestId("end-attempt").click();
+  await chat.waitForURL("**/student/assessment");
+  await chat.getByTestId("review-attempt-history-assessment_mvp_irt_theta_invariance").click();
+  await chat.getByTestId(`review-attempt-${sessionId}`).click();
+  await chat.getByTestId("back-to-assessments").waitFor();
+  assert.equal(await chat.getByTestId("end-attempt").count(), 0);
+  assert.equal(await chat.locator('[data-testid^="package-review-edit-"]').count(), 0);
+  console.log("PASS: package edit/cancel/save/reload, end cancel/confirm, and read-only history");
   await chat.screenshot({ path: join(output, "student-next-item-mobile.png"), fullPage: true });
   assert.equal(await chat.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
   assert.deepEqual(errors, []);

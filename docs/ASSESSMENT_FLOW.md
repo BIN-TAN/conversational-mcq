@@ -185,6 +185,15 @@ After the student responds, transition to `ITEM_COMPLETE`.
 Persist the completed item response. If fewer than three initial items are complete, automatically present the next item. If all three are complete, transition to `PACKAGE_REVIEW`.
 
 Normal tempting-option responses and in-flow edits use the same completion path.
+In-flow editing applies only to the current item in an active attempt; paused
+attempts must be resumed, and earlier items are edited through package review.
+If an answer changes to the previously tempting option, the earlier evidence
+remains in the transcript, but the student is asked for a new tempting choice
+instead of being blocked. Choosing No after selecting a tempting option is valid.
+Repeated start requests preserve the original start time and do not repeat the
+first-item presentation. A Retry action preserves the original submission ID
+and observation link, including when the first response was saved but its reply
+was lost in transit.
 When an edit supplies the last missing evidence, completion and its research events
 are recorded once, followed by the next included item or package review. A resumed
 attempt with complete evidence but a missing submission timestamp automatically

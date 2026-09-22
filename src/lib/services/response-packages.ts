@@ -95,7 +95,7 @@ function normalizeTemptingPayload(value: unknown) {
   const temptingOption = stringValue(payload, "tempting_option");
   const temptingOptionReason = stringValue(payload, "tempting_option_reason");
 
-  if (!noTemptingOption && !temptingOption) {
+  if (!noTemptingOption && !temptingOption && payload.tempting_evidence_reset_reason !== "answer_changed_to_tempting_option") {
     return null;
   }
 

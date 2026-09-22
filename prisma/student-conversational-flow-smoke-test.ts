@@ -151,6 +151,7 @@ async function main() {
       user_id: userId,
       user_id_normalized: normalizeUserId(userId),
       role: "student",
+      created_by_teacher_user_id: (await prisma.user.findUniqueOrThrow({ where: { user_id_normalized: "teacher_demo" } })).id,
       access_code_hash: await hashSecret("phase8d_conversation_smoke_access")
     }
   });

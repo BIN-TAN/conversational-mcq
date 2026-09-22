@@ -35,6 +35,7 @@ async function main() {
   const student = await createSmokeStudent({
     prisma,
     prefix,
+    teacherDbId: (await prisma.user.findUniqueOrThrow({ where: { user_id_normalized: "teacher_demo" } })).id,
     accessCode: "phase11_review_edit_access"
   });
   const sessionPublicIds: string[] = [];
