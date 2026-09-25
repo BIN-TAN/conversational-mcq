@@ -5259,7 +5259,7 @@ export async function recordTemptingOption(input: {
       const messageText = noTemptingOption
         ? "No other option was tempting."
         : temptingOptionReason
-          ? `Option ${temptingOption} was tempting because ${temptingOptionReason}`
+          ? `Option ${temptingOption} was tempting.\n${temptingOptionReason}`
           : `Option ${temptingOption} was tempting.`;
 
       await logStudentTurnAndEvent({

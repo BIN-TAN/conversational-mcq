@@ -129,9 +129,10 @@ function isPromptTurn(turn: LatencyConversationTurn) {
 }
 
 function contextMatches(
-  prompt: Pick<LatencyConversationTurn, "item_public_id" | "concept_unit_public_id">,
-  candidate: Pick<LatencyConversationTurn | LatencyProcessEvent, "item_public_id" | "concept_unit_public_id">
+  prompt: Pick<LatencyConversationTurn, "session_public_id" | "item_public_id" | "concept_unit_public_id">,
+  candidate: Pick<LatencyConversationTurn | LatencyProcessEvent, "session_public_id" | "item_public_id" | "concept_unit_public_id">
 ) {
+  if (candidate.session_public_id !== prompt.session_public_id) return false;
   if (prompt.item_public_id) {
     return candidate.item_public_id === prompt.item_public_id;
   }
@@ -243,12 +244,26 @@ export function buildTurnResponseLatencyRows(input: {
     const promptTime = timestamp(prompt.created_at);
     const nextEventTime = timestamp(nextEvent?.occurred_at) ?? timestamp(nextEvent?.created_at);
     const nextTurnTime = timestamp(nextTurn?.created_at);
-    const preferredTime = nextEventTime ?? nextTurnTime ?? null;
+    const preferredTime = nextEventTime !== null && nextTurnTime !== null
+      ? Math.min(nextEventTime, nextTurnTime) : nextEventTime ?? nextTurnTime;
+    const usesEvent = nextEventTime !== null && nextEventTime === preferredTime;
+    const usesTurn = nextTurnTime !== null && nextTurnTime === preferredTime;
     const responseLatencyMs =
       promptTime !== null && preferredTime !== null ? Math.max(0, preferredTime - promptTime) : null;
     const source: TurnResponseLatencyRow["latency_source"] =
-      nextEvent && nextTurn ? "mixed" : nextEvent ? "process_events" : nextTurn ? "conversation_turns" : "unavailable";
-    const limitations: string[] = [];
+      usesEvent && usesTurn ? "mixed" : usesEvent ? "process_events" : usesTurn ? "conversation_turns" : "unavailable";
+    const limitations: string[] = ["server_record_time_not_client_display_time", "elapsed_time_not_active_work_time"];
+    if (promptTime !== null && preferredTime !== null) {
+      if (turns.some(turn => turn.turn_index > prompt.turn_index && isPromptTurn(turn) &&
+        contextMatches(prompt, turn) && (timestamp(turn.created_at) ?? Infinity) < preferredTime)) {
+        limitations.push("overlapping_prompt_intervals_do_not_sum");
+      }
+      if (processEvents.some(event => event.session_public_id === prompt.session_public_id &&
+        /(?:pause|resume|hidden|visible|page_exit|page_return)/i.test(event.event_type) &&
+        (timestamp(event.occurred_at) ?? 0) > promptTime && (timestamp(event.occurred_at) ?? Infinity) < preferredTime)) {
+        limitations.push("interval_contains_navigation_or_pause");
+      }
+    }
 
     if (!nextEvent && nextTurn) {
       limitations.push("process_event_action_not_found_for_prompt");
@@ -276,14 +291,14 @@ export function buildTurnResponseLatencyRows(input: {
       prompt_phase: prompt.phase,
       prompt_type: safePromptType,
       prompt_shown_at: iso(prompt.created_at),
-      next_student_turn_index: nextTurn?.turn_index ?? null,
-      next_student_event_type: nextEvent?.event_type ?? (nextTurn ? "student_conversation_turn" : null),
+      next_student_turn_index: usesTurn ? nextTurn?.turn_index ?? null : null,
+      next_student_event_type: usesEvent ? nextEvent?.event_type ?? null : usesTurn ? "student_conversation_turn" : null,
       next_student_response_at: preferredTime !== null ? new Date(preferredTime).toISOString() : null,
       response_latency_ms: responseLatencyMs,
       response_latency_seconds: responseLatencyMs === null ? null : Number((responseLatencyMs / 1000).toFixed(3)),
       latency_source: source,
       latency_scope: inferLatencyScope(prompt, safePromptType),
-      student_response_text_present: Boolean(nextTurn?.message_text?.trim()),
+      student_response_text_present: usesTurn && Boolean(nextTurn?.message_text?.trim()),
       structured_payload_available_elsewhere: hasStructuredPayload(prompt.structured_payload),
       limitations
     };

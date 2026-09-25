@@ -386,6 +386,12 @@ export function buildCanonicalEvidenceCatalog(input: {
     if (turn.actor !== "student") {
       continue;
     }
+    const content = normalized(turn.message_text);
+    const copiedTutorText = content.length >= 80 && (input.transcript ?? []).some(prior =>
+      prior.actor === "tutor" && prior.sequence_index < turn.sequence_index &&
+      normalized(prior.message_text).toLowerCase().includes(content.toLowerCase()));
+    const requestOnly = /^(?:(?:please|next)\s+)?(?:explain\b|(?:can|could|would) you (?:explain|talk|provide|create|give|improve)\b|(?:create|provide|give me)\s+(?:a |an |some |two |three )?(?:study guide|practice|example|question)|(?:improve|rewrite)\s+(?:this|my|the)\s+prompt)/i.test(content) &&
+      !/\b(?:my answer|i think|i chose|i believe|my reasoning)\b/i.test(content);
     evidence.push(
       canonicalEvidenceRef({
         evidence_scope_id: evidenceScopeId,
@@ -393,14 +399,14 @@ export function buildCanonicalEvidenceCatalog(input: {
         evidence_kind: "formative_student_turn",
         source_role: "student",
         evidence_stage: "formative_conversation",
-        eligibility: "student_understanding",
+        eligibility: copiedTutorText || requestOnly ? "evidence_quality_context" : "student_understanding",
         assessment_public_id: input.assessment_public_id,
         concept_unit_public_id: input.concept_unit_public_id,
         conversation_public_id: input.conversation_public_id ?? null,
         item_public_id: null,
         source_sequence_index: turn.sequence_index,
         source_ordinal: null,
-        content: normalized(turn.message_text)
+        content
       })
     );
   }

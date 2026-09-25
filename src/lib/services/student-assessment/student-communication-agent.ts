@@ -26,7 +26,7 @@ export const STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION =
 export const STUDENT_COMMUNICATION_LANGUAGE_VALIDATOR_VERSION =
   "student-communication-language-validator-v1" as const;
 export const STUDENT_COMMUNICATION_FALLBACK_VERSION =
-  "student-communication-deterministic-fallback-v1" as const;
+  "student-communication-deterministic-fallback-v2" as const;
 export const STUDENT_COMMUNICATION_RENDERED_VERSION =
   "student-communication-rendered-v1" as const;
 
@@ -281,15 +281,6 @@ function joinNaturalSentences(parts: Array<string | null | undefined>) {
     .join(" ");
 }
 
-function cleanConfidenceText(value: string) {
-  return value
-    .replace(/\bconfidence calibrated\b/gi, "confidence mostly matched the evidence")
-    .replace(/\breasonably_calibrated\b/gi, "mostly matched")
-    .replace(/\boverconfident\b/gi, "sounded more certain than the evidence supported")
-    .replace(/\bunderconfident\b/gi, "sounded less certain than the answer evidence supported")
-    .replace(/\bcalibration\b/gi, "confidence pattern");
-}
-
 export function buildDeterministicStudentCommunicationFallback(
   input: StudentCommunicationInputV1
 ): StudentCommunicationOutputV1 {
@@ -307,12 +298,9 @@ export function buildDeterministicStudentCommunicationFallback(
     : "";
   const packageNarrative = joinNaturalSentences([
     `You answered ${input.validated_outcome_summary.initial_results}.`,
-    input.validated_understanding_summary.safe_explanation,
     input.validated_reasoning_summary.safe_explanation,
-    cleanConfidenceText(input.validated_confidence_summary.safe_explanation || input.validated_confidence_summary.student_label),
     limitationText,
-    `The next idea to work on is: ${input.validated_growth_target.student_facing_text.replace(/[.?!]+$/u, "")}.`,
-    "Try this next:"
+    input.validated_growth_target.student_facing_text
   ]);
 
   return {

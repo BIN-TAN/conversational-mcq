@@ -277,7 +277,7 @@ async function main() {
       where: {
         assessment_session_db_id: session.id,
         agent_name: "formative_value_and_planning_agent",
-        schema_version: "chat-native-formative-profile-output-v1"
+        schema_version: "chat-native-formative-profile-output-v2"
       }
     });
     assert(agentCall.provider === "mock", "Smoke test should use mock provider.");

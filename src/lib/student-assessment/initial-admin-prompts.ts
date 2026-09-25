@@ -1,6 +1,6 @@
 import type { ChatNativeAssessmentState } from "@/lib/student-assessment/state-machine";
 
-export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v1";
+export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v2";
 
 export type InitialAdminRequiredEvidence =
   | "answer"
@@ -195,18 +195,8 @@ export function buildInitialAdminPrompt(input: {
       promptVariant = `reasoning_${index + 1}`;
     }
   } else if (input.kind === "confidence_prompt") {
-    if (selectedE) {
-      promptText =
-        "Since you indicated uncertainty, Low is a reasonable confidence choice, but choose the level that best matches how you feel right now.";
-      promptVariant = "confidence_selected_e";
-    } else if (indicatedUnknown) {
-      promptText =
-        "That's okay. I'll record that you are unsure about the reason. Low is a reasonable confidence choice, but choose the level that best matches how you feel right now.";
-      promptVariant = "confidence_reason_uncertain";
-    } else {
-      promptText = "How confident are you: Low, Medium, or High?";
-      promptVariant = "confidence_standard";
-    }
+    promptText = "How confident are you in your current answer: Low, Medium, or High?";
+    promptVariant = "confidence_neutral_v2";
   } else if (input.kind === "tempting_option_prompt") {
     if (selectedE) {
       promptText = IDK_TEMPTING_PROMPT;

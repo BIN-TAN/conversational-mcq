@@ -108,8 +108,16 @@ function assertStudentVisibleTextIsClean(values: string[]) {
 function main() {
   const fixedDate = new Date("2026-07-15T00:02:00.000Z");
   const payload = fixturePackage();
+  const semanticReviews = payload.item_responses.map(response => ({
+    item_public_id: response.item_public_id,
+    reasoning_judgment: "supported_concise" as const,
+    reasoning_quote: response.reasoning_text_final,
+    explanation: "The explanation distinguishes consistency from interpretation evidence.",
+    misconceptions: []
+  }));
   const bundle = buildEvidenceIntegratedProfileBundle({
     response_package_payload: payload,
+    semantic_item_reviews: semanticReviews,
     generated_at: fixedDate
   });
   const communication = bundle.student_communication;
@@ -124,9 +132,9 @@ function main() {
     communication.output.item_review_introductions.map((item) => item.status_label),
     ["Correct", "Correct", "Correct"]
   );
-  assert.ok(
-    communication.output.package_feedback_narrative.includes("Try this next"),
-    "package narrative should transition naturally into the activity"
+  assert.doesNotMatch(
+    communication.output.package_feedback_narrative, /Try this next/i,
+    "package feedback must stand alone without a dangling activity introduction"
   );
   assert.ok(
     communication.output.activity_prompt.includes("For Item 1"),
@@ -229,6 +237,7 @@ function main() {
 
   const repeatBundle = buildEvidenceIntegratedProfileBundle({
     response_package_payload: payload,
+    semantic_item_reviews: semanticReviews,
     generated_at: fixedDate
   });
   assert.deepEqual(

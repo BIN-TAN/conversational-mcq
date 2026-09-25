@@ -78,10 +78,10 @@ for (const scenario of [
   assert.doesNotMatch(output.package_feedback_narrative, banned, `${scenario.name}: narrative leaked internal wording.`);
   assert.doesNotMatch(output.activity_transition, banned, `${scenario.name}: transition leaked internal wording.`);
   assert.doesNotMatch(output.activity_prompt, banned, `${scenario.name}: activity prompt leaked internal wording.`);
-  assert.match(
+  assert.doesNotMatch(
     output.package_feedback_narrative,
     /Try this next/i,
-    `${scenario.name}: narrative should use the approved activity transition.`
+    `${scenario.name}: feedback must not end with a dangling activity introduction.`
   );
   assert.equal(bundle.student_communication.fact_validation.valid, true);
   assert.equal(bundle.student_communication.language_validation.valid, true);

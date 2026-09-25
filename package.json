@@ -17,6 +17,8 @@
     "app:build-info:write": "tsx scripts/write-application-build-info.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "student:transcript-quality-regression": "node --import tsx prisma/student-transcript-quality-regression.ts",
+    "student:semantic-profile-runtime-smoke": "node --import tsx prisma/student-formative-live-validation-smoke-test.ts --initial-profile-only",
     "student:latency-smoke": "node --import tsx prisma/latency-optimization-smoke-test.ts",
     "student:profiling-compaction-smoke": "node --import tsx prisma/profiling-input-compaction-smoke-test.ts",
     "student:latency-database-smoke": "node --import tsx prisma/latency-optimization-database-smoke-test.ts",

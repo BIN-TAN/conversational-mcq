@@ -77,10 +77,10 @@ assert(
   !bundle.feedback.result_summary.includes(bundle.feedback.strengths.join("\n\n")),
   "chat package feedback should not be assembled by joining structured profile fields"
 );
-assert.match(
+assert.doesNotMatch(
   bundle.student_communication.output.package_feedback_narrative,
   /Try this next/i,
-  "narrative should introduce the actual activity naturally"
+  "narrative should stand alone without a dangling activity introduction"
 );
 assert.doesNotMatch(
   bundle.student_communication.output.package_feedback_narrative,

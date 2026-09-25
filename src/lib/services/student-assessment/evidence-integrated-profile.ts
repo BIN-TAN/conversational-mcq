@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { SEMANTIC_ITEM_REVIEW_VERSION, SemanticItemReviewSchema, validateSemanticItemReviews, type SemanticItemReview } from "./semantic-item-review";
 import {
   buildValidatedStudentCommunication,
   STUDENT_COMMUNICATION_FACT_LOCK_VALIDATOR_VERSION,
@@ -217,12 +218,19 @@ export const ItemEvidenceV2Schema = z.object({
   evidence_limitations: z.array(EvidenceLimitationSchema),
   evidence_sufficiency: EvidenceSufficiencyV2Schema,
   source_response_public_id: z.string().nullable(),
-  administered_snapshot_version: z.number().int().nullable()
+  administered_snapshot_version: z.number().int().nullable(),
+  semantic_review: SemanticItemReviewSchema.nullable().optional()
 }).strict();
 export type ItemEvidenceV2 = z.infer<typeof ItemEvidenceV2Schema>;
 
 export const EvidenceIntegratedProfileV2Schema = z.object({
   profile_schema_version: z.literal(EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION),
+  semantic_review_audit: z.object({
+    version: z.string(),
+    status: z.enum(["validated", "unavailable"]),
+    issues: z.array(z.string()),
+    source_agent_call_id: z.string().nullable()
+  }).optional(),
   session_public_id: z.string().min(1),
   assessment_public_id: z.string().min(1),
   assessment_snapshot_version: z.string().min(1),
@@ -559,7 +567,7 @@ function studentLabelForReasoning(value: ReasoningQuality) {
     case "well_supported_and_precise":
       return "Well supported and precise";
     case "accurate_but_concise":
-      return "Accurate but somewhat concise";
+      return "Supported reasoning";
     case "partially_supported":
       return "Partially supported";
     case "internally_inconsistent":
@@ -610,7 +618,7 @@ function allTextForTopic(payload: PackagePayload, items: ResponsePackageItem[]) 
 function growthTargetFor(payload: PackagePayload, items: ResponsePackageItem[]) {
   const topicText = allTextForTopic(payload, items);
   if (/\breliab/i.test(topicText) && /\bvalid/i.test(topicText)) {
-    return "Explain more precisely why reliability may be necessary for a defensible score interpretation but does not itself constitute validity evidence.";
+    return "Apply the distinction between reliability and validity to another example.";
   }
 
   const conceptUnit = recordValue(payload.concept_unit);
@@ -638,7 +646,7 @@ function evidenceReferenceFor(item: ItemEvidenceV2, summary: string): EvidenceRe
 
 function analyzeReasoning(input: {
   reasoning: string | null;
-  result: z.infer<typeof CorrectnessResultSchema>;
+  review?: SemanticItemReview;
 }): {
   quality: ReasoningQuality;
   interpretation: string;
@@ -646,7 +654,7 @@ function analyzeReasoning(input: {
   sufficiency: EvidenceSufficiencyV2;
 } {
   const reasoning = input.reasoning?.trim() ?? "";
-  if (!reasoning) {
+  if (!reasoning && !input.review?.misconceptions.length) {
     return {
       quality: "insufficient_reasoning_evidence",
       interpretation: "No reasoning text was available for this item.",
@@ -655,63 +663,28 @@ function analyzeReasoning(input: {
     };
   }
 
-  const wordCount = reasoning.split(/\s+/).filter(Boolean).length;
-  const uncertainty = /\b(i don'?t know|not sure|guess|maybe|idk)\b/i.test(reasoning);
-  const offConstruct = /\b(lunch|weather|game|movie|phone)\b/i.test(reasoning) && wordCount < 18;
-  const contradictoryReliabilityValidity =
-    /\b(reliability\s+(is|equals|means)\s+validity|validity\s+(is|equals|means)\s+reliability|reliability\s+alone\s+proves\s+validity|reliability\s+proves\s+validity|same\s+thing)\b/i.test(reasoning);
-
-  if (offConstruct) {
-    return {
-      quality: "irrelevant_or_construct_irrelevant",
-      interpretation: "The reasoning did not clearly address the assessed idea.",
-      limitations: ["low_information_response", "construct_identification_unclear"],
-      sufficiency: "limited"
-    };
-  }
-
-  if (uncertainty && wordCount < 12) {
-    return {
-      quality: "insufficient_reasoning_evidence",
-      interpretation: "The reasoning mainly signaled uncertainty rather than a conceptual explanation.",
-      limitations: ["low_information_response"],
-      sufficiency: "limited"
-    };
-  }
-
-  if (contradictoryReliabilityValidity) {
-    return {
-      quality: "internally_inconsistent",
-      interpretation:
-        "The selected answer may be correct, but the explanation collapses reliability and validity in a way that conflicts with the assessed boundary.",
-      limitations: ["contradictory_responses"],
-      sufficiency: "adequate"
-    };
-  }
-
-  if (input.result === "incorrect" && wordCount >= 8) {
-    return {
-      quality: "misconception_based",
-      interpretation: "The selected answer and explanation may reflect a specific incorrect proposition, but it remains provisional until reviewed with the item context.",
-      limitations: [],
-      sufficiency: "adequate"
-    };
-  }
-
-  if (wordCount < 22) {
-    return {
-      quality: "accurate_but_concise",
-      interpretation: "The reasoning is relevant and usable but leaves the conceptual boundary somewhat compressed.",
-      limitations: ["limited_elaboration"],
-      sufficiency: "adequate"
-    };
-  }
-
+  const review = input.review;
+  if (!review) return {
+    quality: "insufficient_reasoning_evidence",
+    interpretation: "Your explanation is saved, but its conceptual accuracy has not yet been verified.",
+    limitations: ["construct_identification_unclear"],
+    sufficiency: "limited"
+  };
+  const quality: ReasoningQuality = review.misconceptions.length ? "misconception_based" : {
+    supported_precise: "well_supported_and_precise",
+    supported_concise: "accurate_but_concise",
+    partial: "partially_supported",
+    contradictory: "internally_inconsistent",
+    insufficient: "insufficient_reasoning_evidence",
+    irrelevant: "irrelevant_or_construct_irrelevant"
+  }[review.reasoning_judgment] as ReasoningQuality;
   return {
-    quality: "well_supported_and_precise",
-    interpretation: "The reasoning provides usable conceptual support for the selected answer.",
-    limitations: [],
-    sufficiency: "strong"
+    quality,
+    interpretation: review.explanation,
+    limitations: quality === "internally_inconsistent" ? ["contradictory_responses"]
+      : quality === "irrelevant_or_construct_irrelevant" ? ["construct_identification_unclear"] : [],
+    sufficiency: quality === "well_supported_and_precise" ? "strong"
+      : ["insufficient_reasoning_evidence", "irrelevant_or_construct_irrelevant"].includes(quality) ? "limited" : "adequate"
   };
 }
 
@@ -729,7 +702,7 @@ function confidenceCalibrationFor(input: {
   const highCount = input.confidenceValues.filter((value) => value === "high").length;
   const lowCount = input.confidenceValues.filter((value) => value === "low").length;
 
-  if (correctRate >= 0.75 && input.reasoningQuality !== "insufficient_reasoning_evidence") {
+  if (correctRate >= 0.75 && ["well_supported_and_precise", "accurate_but_concise"].includes(input.reasoningQuality)) {
     return lowCount > highCount ? "underconfident" : "reasonably_calibrated";
   }
 
@@ -774,10 +747,7 @@ function understandingFor(input: {
   evidenceSufficiency: EvidenceSufficiencyV2;
 }): AssessmentSpecificUnderstanding {
   const correctRate = input.itemsAnswered > 0 ? input.itemsCorrect / input.itemsAnswered : 0;
-  if (correctRate === 0 && input.reasoningQuality === "insufficient_reasoning_evidence") {
-    return "foundational_knowledge_gap";
-  }
-  if (input.itemsAnswered === 0 || input.evidenceSufficiency === "insufficient") {
+  if (input.itemsAnswered === 0 || input.evidenceSufficiency === "insufficient" || input.reasoningQuality === "insufficient_reasoning_evidence") {
     return "indeterminate_due_to_insufficient_evidence";
   }
   if (input.reasoningQuality === "misconception_based") {
@@ -1028,6 +998,7 @@ function communicationValidationToResult(
 
 export function buildEvidenceIntegratedProfileBundle(input: {
   response_package_payload: unknown;
+  semantic_item_reviews?: unknown;
   generated_at?: Date;
   source_agent_call_public_id?: string | null;
   answer_reveal_policy?: AnswerRevealPolicy;
@@ -1046,6 +1017,8 @@ export function buildEvidenceIntegratedProfileBundle(input: {
     "after_package";
   const answersRevealed = answerRevealPolicy === "after_package";
   const responses = itemResponses(payload);
+  const reviewValidation = validateSemanticItemReviews(payload, input.semantic_item_reviews);
+  const reviews = new Map(reviewValidation.reviews.map(review => [review.item_public_id, review]));
   const sessionRecord = recordValue(payload.assessment_session);
   const assessment = recordValue(payload.assessment);
   const sessionPublicId = stringValue(sessionRecord.session_public_id) ?? "unknown_session";
@@ -1053,11 +1026,12 @@ export function buildEvidenceIntegratedProfileBundle(input: {
 
   const itemEvidence = responses.map((response, index): ItemEvidenceV2 => {
     const itemPublicId = stringValue(response.item_public_id) ?? `item_${index + 1}`;
-    const selectedOption = stringValue(response.selected_option);
+    const selectedOption = stringValue(response.selected_answer_final) ?? stringValue(response.selected_option);
     const result = correctnessValue(response.correctness);
     const reasoning = stringValue(response.reasoning_text_final) ?? stringValue(response.reasoning_text);
-    const analysis = analyzeReasoning({ reasoning, result });
-    const confidence = stringValue(response.confidence_rating);
+    const review = reviews.get(itemPublicId);
+    const analysis = analyzeReasoning({ reasoning, review });
+    const confidence = stringValue(response.confidence_final) ?? stringValue(response.confidence_rating);
     const temptingOption = stringValue(response.tempting_option);
     const noTemptingOption = booleanValue(response.no_tempting_option) === true;
     const limitationSet = new Set<EvidenceLimitation>(analysis.limitations);
@@ -1082,12 +1056,10 @@ export function buildEvidenceIntegratedProfileBundle(input: {
         : "No confidence rating was available."
     ];
 
-    const evidenceAgainst =
-      result === "incorrect"
-        ? ["The selected option did not match the scored item key."]
-        : analysis.quality === "accurate_but_concise"
-          ? ["The explanation is concise, so precision should be checked in the next interaction."]
-          : [];
+    const evidenceAgainst = [
+      ...(result === "incorrect" ? ["The selected option did not match the scored item key."] : []),
+      ...(review?.misconceptions.map(claim => claim.proposition) ?? [])
+    ];
 
     return {
       item_evidence_schema_version: ITEM_EVIDENCE_SCHEMA_VERSION,
@@ -1107,12 +1079,9 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       evidence_for_understanding: evidenceFor,
       evidence_against_understanding: evidenceAgainst,
       possible_misconception: {
-        present: result === "incorrect" && analysis.quality === "misconception_based",
-        proposition:
-          result === "incorrect" && analysis.quality === "misconception_based"
-            ? "The selected distractor may reflect an incorrect proposition that should be reviewed with the item context."
-            : null,
-        evidence_refs: result === "incorrect" ? [itemPublicId] : []
+        present: Boolean(review?.misconceptions.length),
+        proposition: review?.misconceptions.map(claim => claim.proposition).join("; ") || null,
+        evidence_refs: review?.misconceptions.length ? [itemPublicId] : []
       },
       alternative_explanations: [
         "Concise wording can reflect brevity rather than misunderstanding.",
@@ -1121,7 +1090,8 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       evidence_limitations: [...limitationSet],
       evidence_sufficiency: analysis.sufficiency,
       source_response_public_id: stringValue(response.item_response_public_id) ?? null,
-      administered_snapshot_version: numberValue(response.item_version_snapshot)
+      administered_snapshot_version: numberValue(response.item_version_snapshot),
+      semantic_review: review ?? null
     };
   });
 
@@ -1143,7 +1113,10 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       .filter((value): value is "low" | "medium" | "high" => Boolean(value)),
     reasoningQuality
   });
-  const growthTarget = growthTargetFor(payload, responses);
+  const reviewItems = itemEvidence.filter(item => !["well_supported_and_precise", "accurate_but_concise"].includes(item.reasoning_quality));
+  const growthTarget = reviewItems.length
+    ? `Review the reasoning for ${reviewItems.map(item => `Item ${item.item_position}`).join(", ")} and distinguish supported explanations from ideas that still need checking.`
+    : growthTargetFor(payload, responses);
   const evidenceRefs = itemEvidence.map((item) =>
     evidenceReferenceFor(
       item,
@@ -1157,9 +1130,6 @@ export function buildEvidenceIntegratedProfileBundle(input: {
         limitationCodes.add(limitation);
       }
     }
-  }
-  if (reasoningQuality === "accurate_but_concise") {
-    limitationCodes.add("limited_elaboration");
   }
   limitationCodes.add("transfer_not_yet_observed");
 
@@ -1228,6 +1198,12 @@ export function buildEvidenceIntegratedProfileBundle(input: {
 
   const profile: EvidenceIntegratedProfileV2 = {
     profile_schema_version: EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION,
+    semantic_review_audit: {
+      version: SEMANTIC_ITEM_REVIEW_VERSION,
+      status: reviewValidation.valid ? "validated" : "unavailable",
+      issues: reviewValidation.issues,
+      source_agent_call_id: input.source_agent_call_public_id ?? null
+    },
     session_public_id: sessionPublicId,
     assessment_public_id: assessmentPublicId,
     assessment_snapshot_version: stringValue(assessment.title) ?? assessmentPublicId,
@@ -1239,7 +1215,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       student_label: understandingLabel,
       explanation:
         understanding === "sound_understanding"
-          ? "The package supports a sound assessment-specific understanding, while the next step should sharpen the conceptual boundary."
+          ? "The explanations support the assessed ideas; application in a new context has not yet been observed."
           : understanding === "strong_well_supported_understanding"
             ? "The package shows correct answers with precise reasoning, while transfer evidence is still pending."
             : understanding === "specific_misconception"
@@ -1253,7 +1229,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
       student_label: reasoningLabel,
       explanation:
         reasoningQuality === "accurate_but_concise"
-          ? "The reasons you gave show the main idea, but one distinction could be stated more clearly."
+          ? "Your explanations support the main ideas in these items."
           : reasoningQuality === "well_supported_and_precise"
             ? "The reasoning gives clear support for the selected answers."
             : "The reasoning evidence needs additional review before making a stronger claim.",
@@ -1318,7 +1294,7 @@ export function buildEvidenceIntegratedProfileBundle(input: {
         ? "All initial answers were scored correct."
         : `${itemsCorrect} of ${itemEvidence.length} initial answers were scored correct.`,
       reasoningQuality === "accurate_but_concise"
-        ? "Your reasoning gives useful evidence, but some boundaries are compressed."
+        ? "Your explanations support the main ideas in these items."
         : profile.reasoning_quality.explanation
     ],
     growth_target: growthTarget,

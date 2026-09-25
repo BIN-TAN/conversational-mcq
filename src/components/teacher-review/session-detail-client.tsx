@@ -1733,13 +1733,11 @@ function ReadableTranscriptSection({
           <div>
             <h3 className="font-semibold text-emerald-950">Readable transcript</h3>
             <p className="mt-1">
-              Conversation-only teacher/research view. Structured payloads, answer keys,
-              correctness labels, provider output, process payloads, and internal metadata are
-              omitted here.
+              Conversation and recorded student actions. Technical details remain in the Assessment log.
             </p>
             <p className="mt-1">
-              Item response time and prompt-to-response latency are different: latency is measured
-              from a prompt being shown to the next recorded student response or action.
+              Elapsed intervals start when a prompt was recorded. They can overlap and include
+              time away; they are not active working time.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1815,14 +1813,9 @@ function ReadableTranscriptSection({
                 {turn.message_text}
               </p>
             )}
-            {turn.has_structured_payload_available_elsewhere ? (
-              <p className="mt-2 text-xs text-muted">
-                Structured metadata is available in the Assessment log.
-              </p>
-            ) : null}
             {turn.next_student_response_latency_seconds !== null ? (
               <p className="mt-2 text-xs text-muted">
-                Next student response/action after: {formatDuration(turn.next_student_response_latency_ms)}
+                Elapsed until next recorded student response/action: {formatDuration(turn.next_student_response_latency_ms)}
                 {turn.next_student_response_latency_source
                   ? ` (${turn.next_student_response_latency_source})`
                   : ""}

@@ -120,53 +120,58 @@ function confidenceLabel(value: string | null | undefined) {
   return "Not selected";
 }
 
-function reconstructEditedResponseText(input: {
+export function reconstructReadableStudentAction(input: {
   message_text: string | null;
   structured_payload: unknown;
-  current_response?: {
-    selected_option: string | null;
-    reasoning_text: string | null;
-    confidence_rating: string | null;
-  } | null;
 }) {
+  const payload = asRecord(input.structured_payload);
+  const source = stringPayloadValue(payload, "source");
+  if (!isNonEmptyText(input.message_text)) {
+    if (source === "initial_answer" || source === "transfer_answer") {
+      const option = stringPayloadValue(payload, "selected_option");
+      return option && /^[A-Z]$/.test(option)
+        ? `[Recorded action] ${payload.revised === true ? "Changed answer to" : "Selected"} ${option}.` : null;
+    }
+    if (source === "initial_confidence" || source === "transfer_confidence") {
+      const confidence = stringPayloadValue(payload, "confidence_rating");
+      return confidence && ["low", "medium", "high"].includes(confidence)
+        ? `[Recorded action] ${payload.revised === true ? "Changed confidence to" : "Confidence:"} ${confidenceLabel(confidence)}.` : null;
+    }
+  }
   if (!isLegacyEditedResponsePlaceholder(input.message_text)) {
     return input.message_text;
   }
 
-  const payload = asRecord(input.structured_payload);
-  const source = stringPayloadValue(payload, "source");
-
   if (source !== "student_response_in_flow_edit" && source !== "package_review_tempting_option") {
-    return "I updated my response.";
+    return "[Recorded action] Response updated; historical details unavailable.";
   }
 
   const parts: string[] = [];
   const changedFields = changedFieldsFromPayload(payload);
-  const selectedOption = stringPayloadValue(payload, "selected_option") ?? input.current_response?.selected_option ?? null;
-  const reasoningText = input.current_response?.reasoning_text?.trim() ?? null;
-  const confidenceRating =
-    stringPayloadValue(payload, "confidence_rating") ?? input.current_response?.confidence_rating ?? null;
+  const selectedOption = stringPayloadValue(payload, "selected_option");
+  const reasoningText = stringPayloadValue(payload, "reasoning_text");
+  const confidenceRating = stringPayloadValue(payload, "confidence_rating");
   const noTemptingOption = booleanPayloadValue(payload, "no_tempting_option") ?? false;
   const temptingOption = stringPayloadValue(payload, "tempting_option");
   const temptingOptionReason = stringPayloadValue(payload, "tempting_option_reason");
 
   if (changedFields.includes("answer")) {
-    parts.push(`I changed my answer to ${selectedOption ?? "the selected option"}.`);
+    parts.push(selectedOption ? `Changed answer to ${selectedOption}.` : "Answer changed; historical value unavailable.");
   }
 
   if (changedFields.includes("reasoning")) {
-    parts.push(reasoningText || "I updated my reason.");
+    parts.push(reasoningText ? `Updated reason: ${reasoningText}` : "Reason changed; historical wording unavailable.");
   }
 
   if (changedFields.includes("confidence")) {
-    parts.push(`I changed my confidence to ${confidenceLabel(confidenceRating)}.`);
+    parts.push(confidenceRating ? `Changed confidence to ${confidenceLabel(confidenceRating)}.` : "Confidence changed; historical value unavailable.");
   }
 
   if (changedFields.includes("tempting_option")) {
     if (noTemptingOption) {
       parts.push("No other option was tempting.");
     } else if (temptingOption && temptingOptionReason) {
-      parts.push(`I was tempted by ${temptingOption} because ${temptingOptionReason}`);
+      parts.push(`Option ${temptingOption} was tempting.\n${temptingOptionReason}`);
     } else if (temptingOption) {
       parts.push(`I was tempted by ${temptingOption}.`);
     } else {
@@ -174,7 +179,7 @@ function reconstructEditedResponseText(input: {
     }
   }
 
-  return parts.length > 0 ? parts.join("\n") : "I updated my response.";
+  return `[Recorded action] ${parts.length > 0 ? parts.join("\n") : "Response updated; historical details unavailable."}`;
 }
 
 function hasStructuredPayload(value: unknown) {
@@ -210,7 +215,7 @@ export async function getTeacherReadableTranscript(
     );
   }
 
-  const [turns, processEvents, responses] = await Promise.all([
+  const [turns, processEvents] = await Promise.all([
     prisma.conversationTurn.findMany({
       where: { assessment_session_db_id: session.id },
       orderBy: [{ sequence_index: "asc" }],
@@ -274,32 +279,8 @@ export async function getTeacherReadableTranscript(
           }
         }
       }
-    }),
-    prisma.itemResponse.findMany({
-      where: {
-        concept_unit_session: {
-          assessment_session_db_id: session.id
-        }
-      },
-      select: {
-        item_db_id: true,
-        selected_option: true,
-        reasoning_text: true,
-        confidence_rating: true
-      }
     })
   ]);
-
-  const responseByItemDbId = new Map(
-    responses.map((response) => [
-      response.item_db_id,
-      {
-        selected_option: response.selected_option,
-        reasoning_text: response.reasoning_text,
-        confidence_rating: response.confidence_rating
-      }
-    ])
-  );
   const limitations = new Set<string>();
   const latencyRows = buildTurnResponseLatencyRows({
     turns: turns.map((turn, index) => ({
@@ -339,11 +320,10 @@ export async function getTeacherReadableTranscript(
 
   const projectedTurns = turns.flatMap((turn, index) => {
     const turnIndex = index + 1;
-    const reconstructedText = reconstructEditedResponseText({
+    const reconstructedText = turn.actor_type === "student" ? reconstructReadableStudentAction({
       message_text: turn.message_text,
-      structured_payload: turn.structured_payload,
-      current_response: turn.item_db_id ? responseByItemDbId.get(turn.item_db_id) ?? null : null
-    });
+      structured_payload: turn.structured_payload
+    }) : turn.message_text;
 
     if (!isNonEmptyText(reconstructedText)) {
       limitations.add("empty_text_turns_hidden");

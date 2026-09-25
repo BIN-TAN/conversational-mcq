@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
 import {
-  buildEvidenceIntegratedProfileBundle,
+  buildEvidenceIntegratedProfileBundle as buildBundle,
   packageResultsForStudent,
   studentSafeProjectionFromEvidenceProfile,
   validateEvidenceProfileCoherence,
   validatePackageFeedbackSpecificity,
   validateSingleActionState
 } from "../src/lib/services/student-assessment/evidence-integrated-profile";
+import type { SemanticItemReview } from "../src/lib/services/student-assessment/semantic-item-review";
+
+// Routing fixtures provide explicit semantic judgments, not word-count heuristics.
+function buildEvidenceIntegratedProfileBundle(input: Parameters<typeof buildBundle>[0] & {
+  judgments?: SemanticItemReview["reasoning_judgment"][];
+  misconception?: string;
+}) {
+  const payload = input.response_package_payload as ReturnType<typeof fixturePackage>;
+  return buildBundle({ ...input, semantic_item_reviews: payload.item_responses.map((response, index) => ({
+    item_public_id: response.item_public_id,
+    reasoning_judgment: input.judgments?.[index] ?? "supported_concise",
+    reasoning_quote: response.reasoning_text_final,
+    explanation: "Synthetic semantic assessment for routing verification.",
+    misconceptions: input.misconception ? [{ proposition: input.misconception, source_field: "reasoning", evidence_quote: response.reasoning_text_final }] : []
+  })) });
+}
 
 function fixturePackage(overrides?: {
   correctness?: Array<"correct" | "incorrect">;
@@ -104,7 +120,8 @@ function assertIncidentPattern() {
   assert.equal(bundle.profile.reasoning_quality.value, "accurate_but_concise");
   assert.equal(bundle.profile.confidence_calibration.value, "reasonably_calibrated");
   assert.ok(
-    bundle.profile.evidence_limitations.some((entry) => entry.code === "limited_elaboration")
+    bundle.profile.evidence_limitations.every((entry) => entry.code !== "limited_elaboration"),
+    "Concise but supported reasoning must not be treated as an evidence deficit."
   );
   assert.ok(
     bundle.profile.evidence_limitations.some((entry) => entry.code === "transfer_not_yet_observed")
@@ -132,6 +149,7 @@ function assertIncidentPattern() {
 
 function assertRoutingVariants() {
   const strong = buildEvidenceIntegratedProfileBundle({
+    judgments: ["supported_precise", "supported_precise", "supported_precise"],
     response_package_payload: fixturePackage({
       reasoning: [
         "Reliability means consistent scores across comparable conditions, while validity depends on whether evidence supports the intended score interpretation for the actual use being made.",
@@ -148,6 +166,7 @@ function assertRoutingVariants() {
   assert.equal(strong.next_interaction.activity_type, "rank_distractors");
 
   const contradictory = buildEvidenceIntegratedProfileBundle({
+    judgments: ["contradictory", "contradictory", "contradictory"],
     response_package_payload: fixturePackage({
       reasoning: [
         "Reliability is validity because both mean the score is good.",
@@ -168,6 +187,8 @@ function assertRoutingVariants() {
   );
 
   const incorrect = buildEvidenceIntegratedProfileBundle({
+    judgments: ["contradictory", "contradictory", "contradictory"],
+    misconception: "Reliability alone establishes validity.",
     response_package_payload: fixturePackage({
       correctness: ["incorrect", "incorrect", "incorrect"],
       reasoning: [
@@ -195,6 +216,7 @@ function assertRoutingVariants() {
   );
 
   const partial = buildEvidenceIntegratedProfileBundle({
+    judgments: ["supported_concise", "insufficient", "supported_concise"],
     response_package_payload: fixturePackage({
       correctness: ["correct", "incorrect", "correct"],
       reasoning: [
@@ -213,6 +235,7 @@ function assertRoutingVariants() {
   assert.equal(partial.next_interaction.activity_type, "correct_incorrect_parts");
 
   const lowInfo = buildEvidenceIntegratedProfileBundle({
+    judgments: ["insufficient", "insufficient", "insufficient"],
     response_package_payload: fixturePackage({
       correctness: ["incorrect", "incorrect", "incorrect"],
       reasoning: ["idk", "not sure", "guess"],
@@ -221,10 +244,11 @@ function assertRoutingVariants() {
   });
   assert.equal(
     lowInfo.next_interaction.interaction_type,
-    "foundational_support_activity"
+    "diagnostic_clarification"
   );
 
   const offConstruct = buildEvidenceIntegratedProfileBundle({
+    judgments: ["irrelevant", "irrelevant", "irrelevant"],
     response_package_payload: fixturePackage({
       correctness: ["incorrect", "incorrect", "incorrect"],
       reasoning: ["weather", "lunch", "movie"],

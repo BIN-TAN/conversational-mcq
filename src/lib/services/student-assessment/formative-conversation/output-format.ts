@@ -7,8 +7,8 @@ import {
   type FormativeConversationProfileTransitionValidationIssue
 } from "./profile-transition-validator";
 
-export const FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION =
-  "formative-conversation-student-output-format-v1";
+export const FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION: string =
+  "formative-conversation-student-output-format-v2";
 
 export type FormativeConversationOutputValidationIssue = {
   code:
@@ -17,6 +17,7 @@ export type FormativeConversationOutputValidationIssue = {
     | "student_output_image_unsupported"
     | "student_output_link_unsupported"
     | "student_output_raw_html_unsupported"
+    | "student_output_concrete_answer_example"
     | FormativeConversationProfileTransitionValidationIssue["code"];
   field_path: string;
   message: string;
@@ -42,6 +43,14 @@ export function validateFormativeConversationStudentOutputFormat(
   fieldPath = "student_visible_message"
 ): FormativeConversationOutputValidationIssue[] {
   const issues: FormativeConversationOutputValidationIssue[] = [];
+  // Input-format examples must not contain choices that could expose a new key.
+  const plain = value.replace(/[*_`]/g, "");
+  if (/(?:\b(?:respond|reply|type|enter|submit|answer|format)\b[^\n]{0,180}?(?:such as|for example|e\.g\.|like|with|format\s*:)|(?:例如|比如|回复格式)[：:]?)[^\n]{0,35}?(?:\b\d{1,2}\s*[.):=-]?\s*[A-E]\b|["'“][A-E]["'”])/i.test(plain)) {
+    issues.push({
+      code: "student_output_concrete_answer_example", field_path: fieldPath,
+      message: "Do not include concrete answer letters as response-format examples. Ask for the question number and chosen letter without an example answer."
+    });
+  }
   if (markdownTableDetected(value)) {
     issues.push({
       code: "student_output_markdown_table_unsupported",

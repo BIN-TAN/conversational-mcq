@@ -840,10 +840,18 @@ units, collection sources, and interpretation limits. Timing definitions
 include:
 
 - `item_response_time_ms`: item wall-clock response time, including idle time.
-- `turn_response_latency_ms`: wall-clock time from an agent/system prompt being
-  shown to the first subsequent student response turn or recorded student
-  action in the same safe session context. It may include reading, thinking, or
-  idle time and is unavailable when no next event is recorded.
+- `turn_response_latency_ms` (export column `response_latency_ms`): elapsed
+  wall-clock time from an agent/system conversation turn's **server record**
+  timestamp, not verified browser display time, to the earliest eligible student
+  conversation turn or process action in the same session and item/topic context.
+  Formula: `min(next_turn.created_at, next_action.occurred_at ?? next_action.created_at)
+  - prompt.created_at`, using only available, nonnegative candidates. Missing
+  endpoints remain null. Source/type/index metadata describe the selected endpoint;
+  `mixed` means both endpoints share that timestamp. The legacy `prompt_shown_at`
+  column contains `prompt.created_at`, not a client display acknowledgement.
+  It may include reading, thinking, network delay, or time away. Overlapping
+  prompt intervals must not be summed as active work. Rows explicitly flag
+  overlapping prompts and recorded visibility/pause events during the interval.
 - `prompt_to_next_student_turn_latency_ms`: prompt-to-next-student conversation
   turn latency when no safe process-event action timestamp is available.
 - `prompt_to_next_student_action_latency_ms`: prompt-to-next-student process

@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
 import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
-import { FormativeConversationUnavailableError } from "./formative-conversation/availability";
+import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./formative-conversation/availability";
 import { FormativeValueSchema } from "@/lib/domain/enums";
 import {
   getLlmRuntimeConfig,
@@ -117,6 +118,7 @@ export const FormativeActivityNextActionSchema = z.enum([
 ]);
 
 export const ChatNativeFormativeProfileOutputSchema = z.object({
+  semantic_item_reviews: z.array(SemanticItemReviewSchema).max(12).optional(),
   provisional_learning_state: z.string().trim().min(1).max(600),
   main_issue: z.string().trim().min(1).max(600),
   formative_need: FormativeNeedSchema,
@@ -129,6 +131,10 @@ export const ChatNativeFormativeProfileOutputSchema = z.object({
   should_reveal_correct_answer: z.boolean(),
   next_expected_action: NextExpectedActionSchema
 }).strict();
+
+export const ChatNativeLiveFormativeProfileOutputSchema = ChatNativeFormativeProfileOutputSchema.extend({
+  semantic_item_reviews: z.array(SemanticItemReviewSchema).min(1).max(12)
+});
 
 export type ChatNativeFormativeProfileOutput = z.infer<
   typeof ChatNativeFormativeProfileOutputSchema
@@ -179,16 +185,30 @@ const CHAT_NATIVE_PROFILE_AGENT_NAME = "formative_value_and_planning_agent";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME = "followup_agent";
 const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
-const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v1";
+const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v2";
 const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v1";
-const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v1";
+const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v2";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
-const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
+export const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after a protected initial item package.
 
 Use the response package to produce exactly one short structured formative profile and one matched formative activity.
 The application owns state transitions and persistence.
 Return valid structured output only.
+
+Review EVERY administered item in semantic_item_reviews, once per exact item_public_id.
+Judge the reasoning against the item stem, options, learning objective, and teacher diagnostic context.
+Correct answer choice does not prove correct reasoning; incorrect choice alone does not prove a misconception.
+Length, vocabulary, confidence, uncertainty words and response speed do not establish conceptual correctness.
+Use supported_precise or supported_concise only for conceptually supported explanations, partial for mixed evidence,
+contradictory for conflicting claims, insufficient for missing or uninterpretable evidence, and irrelevant for off-topic text.
+Quote an exact excerpt of reasoning_text_final in reasoning_quote; use an empty string only when no usable reasoning exists.
+List EVERY distinct supported misconception, including in tempting_option_reason, with its proposition, source_field,
+and an exact evidence_quote from that student's corresponding text. Do not infer a misconception merely from asking
+a question, reporting uncertainty, choosing a distractor, or repeating a task request. A partially correct explanation
+can have a specific error: preserve both. Teacher misconception hypotheses are not observed student misconceptions.
+Do not use a model-generated explanation or copied instructional request as independent evidence of student understanding.
+Item reviews are teacher/research-only diagnostics; do not insert hidden answers into student-facing text.
 
 Student-facing text must:
 - be short and conversational;
@@ -540,7 +560,8 @@ function canonicalizeFormativeProfileOutput(value: unknown) {
     student_facing_pattern_statement: output.student_facing_pattern_statement,
     student_facing_followup_prompt: output.student_facing_followup_prompt,
     should_reveal_correct_answer: output.should_reveal_correct_answer,
-    next_expected_action: output.next_expected_action
+    next_expected_action: output.next_expected_action,
+    ...(output.semantic_item_reviews !== undefined ? { semantic_item_reviews: output.semantic_item_reviews } : {})
   };
 }
 
@@ -2489,21 +2510,20 @@ async function callProviderOrMock(input: {
   let modelConfig: AgentModelConfig | null = null;
 
   const executionPlan = resolveTopicDialogueExecutionPlan(input.execution_mode);
-  try {
-    if (executionPlan.adapter !== "configured_live_runtime") {
-      throw new Error("deterministic_evaluation_adapter_selected");
-    }
-    const runtime = getLlmRuntimeConfig();
-    runtimeProvider = runtime.provider;
-    liveCallAllowed = runtime.provider === "openai" && runtime.live_calls_enabled;
+  if (executionPlan.adapter === "configured_live_runtime") {
+    // A misconfigured live service must not persist simulated learning evidence.
+    try {
+      const runtime = getLlmRuntimeConfig();
+      runtimeProvider = runtime.provider;
+      liveCallAllowed = runtime.provider === "openai" && runtime.live_calls_enabled;
 
-    if (liveCallAllowed) {
-      modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
-      modelName = modelConfig.model_name;
+      if (liveCallAllowed) {
+        modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
+        modelName = modelConfig.model_name;
+      }
+    } catch (error) {
+      throw formativeConversationUnavailableFromConfiguration(error) ?? error;
     }
-  } catch {
-    runtimeProvider = "mock";
-    liveCallAllowed = false;
   }
 
   const agentCall = await prisma.agentCall.create({
@@ -2581,7 +2601,7 @@ async function callProviderOrMock(input: {
     instructions: CHAT_NATIVE_PROFILE_INSTRUCTIONS,
     cache_static_instructions: true,
     input: input.provider_input,
-    output_schema: ChatNativeFormativeProfileOutputSchema,
+    output_schema: ChatNativeLiveFormativeProfileOutputSchema,
     schema_name: CHAT_NATIVE_PROFILE_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
     client_request_id: agentCall.client_request_id ?? `chat_native_profile_${randomUUID()}`,
     timeout_ms: getLlmRuntimeConfig().request_timeout_ms,
@@ -2602,10 +2622,19 @@ async function callProviderOrMock(input: {
 
   if (providerResult.status === "completed") {
     const normalizedOutput = canonicalizeFormativeProfileOutput(providerResult.parsed_output);
-    const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(normalizedOutput);
-    const validation = parsed.success
+    const parsed = ChatNativeLiveFormativeProfileOutputSchema.safeParse(normalizedOutput);
+    const validation: { ok: boolean; issues: SafeValidationIssue[] } = parsed.success
       ? validateStudentFacingOutput({ output: parsed.data, correct_options: input.correct_options })
       : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };
+    if (parsed.success) {
+      const review = validateSemanticItemReviews(jsonRecord(input.provider_input).response_package, parsed.data.semantic_item_reviews);
+      if (!review.valid) {
+        validation.ok = false;
+        validation.issues.push(...review.issues.map(message => safeValidationIssue({
+          field_path: "semantic_item_reviews", rule_code: "semantic_item_evidence_invalid", message
+        })));
+      }
+    }
 
     if (parsed.success && validation.ok) {
       await prisma.agentCall.update({
@@ -3331,7 +3360,8 @@ async function persistProfileDecisionAndActivity(input: {
   const evidenceBundle = responsePackage
     ? buildEvidenceIntegratedProfileBundle({
         response_package_payload: responsePackage.payload,
-        source_agent_call_public_id: null
+        semantic_item_reviews: input.output.semantic_item_reviews,
+        source_agent_call_public_id: input.agent_call_id
       })
     : null;
   const existingRoundBeforeCommunication = await prisma.followupRound.findFirst({

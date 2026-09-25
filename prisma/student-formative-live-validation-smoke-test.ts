@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
+import { resolveActiveOperationalApproval } from "../src/lib/operational/active-approval-bundle";
 import {
   completeInitialConceptUnitAdministration,
   getStudentSessionState,
@@ -173,8 +174,8 @@ function simulatedLiveRuntimeEnv() {
     LLM_LIVE_CALLS_ENABLED: "true",
     OPENAI_API_KEY: "sk-formative-live-validation-smoke-000000000000",
     OPENAI_API_KEY_FILE: "",
-    OPENAI_MODEL_PLANNING: "synthetic-formative-profile-model",
-    OPENAI_MODEL_FOLLOWUP: "synthetic-targeted-feedback-model",
+    OPENAI_MODEL_PLANNING: "",
+    OPENAI_MODEL_FOLLOWUP: "",
     NODE_ENV: "development"
   };
 }
@@ -189,6 +190,7 @@ class SyntheticFormativeProvider implements LlmProvider {
         | "internal_label"
         | "protected_content"
         | "multiple_statuses"
+        | "bad_semantic_quote"
         | "long_text";
       targeted?: "valid" | "invalid" | "heading" | "iterative" | "endless_revision";
     }
@@ -202,8 +204,8 @@ class SyntheticFormativeProvider implements LlmProvider {
     const isProfile = request.agent_name === "formative_value_and_planning_agent";
     const mode = isProfile ? this.outputs.profile : this.outputs.targeted ?? "valid";
     const parsedOutput = (() => {
-      if (mode === "valid") {
-        return isProfile ? validProfileOutput : validTargetedOutput;
+      if (mode === "valid" || mode === "bad_semantic_quote") {
+        return structuredClone(isProfile ? validProfileOutput : validTargetedOutput);
       }
 
       if (mode === "canonicalizable" && isProfile) {
@@ -308,6 +310,17 @@ class SyntheticFormativeProvider implements LlmProvider {
           };
     })();
 
+    if (isProfile && mode !== "invalid") {
+      const input = request.input as { response_package: { item_responses: Array<{ item_public_id: string; reasoning_text_final: string }> } };
+      Object.assign(parsedOutput, { semantic_item_reviews: input.response_package.item_responses.map(item => ({
+        item_public_id: item.item_public_id,
+        reasoning_judgment: "partial",
+        reasoning_quote: mode === "bad_semantic_quote" ? "Not written by this synthetic student." : item.reasoning_text_final,
+        explanation: "Synthetic semantic review for provider-boundary validation.",
+        misconceptions: []
+      })) });
+    }
+
     return {
       provider: "openai",
       client_request_id: request.client_request_id,
@@ -336,9 +349,11 @@ class SyntheticFormativeProvider implements LlmProvider {
 }
 
 async function createPackageReviewSession(prefix: string) {
+  const assessment = await prisma.assessment.findUniqueOrThrow({ where: { assessment_public_id: demoAssessmentPublicId } });
   const student = await createSmokeStudent({
     prisma,
     prefix,
+    teacherDbId: assessment.created_by_user_db_id ?? undefined,
     accessCode: `${prefix}_access`
   });
   const sessionPublicIds: string[] = [];
@@ -403,7 +418,7 @@ function validationFieldPaths(value: string | null) {
 }
 
 async function assertInvalidProfileModeBlocks(input: {
-  mode: "internal_label" | "protected_content" | "multiple_statuses" | "long_text";
+  mode: "internal_label" | "protected_content" | "multiple_statuses" | "long_text" | "bad_semantic_quote";
   expectedRuleCode: string;
   expectedFieldPath: string;
 }) {
@@ -506,8 +521,8 @@ async function assertInvalidProfileBlocks() {
       where: { assessment_session_db_id: session.id },
       select: { id: true }
     });
-    const [profileCount, decisionCount, roundCount, blockedEvents, invalidCall] = await Promise.all([
-      prisma.studentProfile.count({ where: { concept_unit_session_db_id: conceptUnitSession.id } }),
+    const [profiles, decisionCount, roundCount, blockedEvents, invalidCall] = await Promise.all([
+      prisma.studentProfile.findMany({ where: { concept_unit_session_db_id: conceptUnitSession.id }, select: { item_level_evidence: true } }),
       prisma.formativeDecision.count({ where: { concept_unit_session_db_id: conceptUnitSession.id } }),
       prisma.followupRound.count({ where: { concept_unit_session_db_id: conceptUnitSession.id } }),
       prisma.processEvent.count({
@@ -533,7 +548,7 @@ async function assertInvalidProfileBlocks() {
       })
     ]);
 
-    assert(profileCount === 0, "Invalid live profile must not create a student profile.");
+    assert(!profiles.some(profile => (profile.item_level_evidence as Record<string, unknown> | null)?.evidence_integrated_profile_v2), "Invalid live profile must not persist an evidence-integrated profile; earlier independent integration records may remain.");
     assert(decisionCount === 0, "Invalid live profile must not create a formative decision.");
     assert(roundCount === 0, "Invalid live profile must not create a follow-up round.");
     assert(blockedEvents > 0, "Invalid live profile should log llm_runtime_blocked.");
@@ -552,6 +567,37 @@ async function assertInvalidProfileBlocks() {
       userDbId: student.id,
       sessionPublicIds
     });
+  }
+}
+
+async function assertLiveConfigurationCannotBecomeMockEvidence() {
+  const prefix = `formative_bad_config_${Date.now()}`;
+  const { student, sessionPublicIds, started, state } = await createPackageReviewSession(prefix);
+  try {
+    let rejected = false;
+    await withTemporaryEnv({ ...simulatedLiveRuntimeEnv(), OPENAI_API_KEY: "", OPENAI_API_KEY_FILE: "" }, async () => {
+      try {
+        await completeInitialConceptUnitAdministration({
+          student_user_db_id: student.id,
+          session_public_id: started.session.session_public_id,
+          concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+        });
+      } catch {
+        rejected = true;
+      }
+    });
+    assert(rejected, "Invalid live configuration must block completion, not generate a mock profile.");
+    const calls = await prisma.agentCall.count({ where: {
+      assessment_session: { session_public_id: started.session.session_public_id },
+      agent_name: "formative_value_and_planning_agent", call_status: "succeeded"
+    } });
+    assert(calls === 0, "Configuration failure must not create successful simulated profile evidence.");
+    const packages = await prisma.responsePackage.count({ where: {
+      concept_unit_session: { assessment_session: { session_public_id: started.session.session_public_id } }
+    } });
+    assert(packages > 0, "Student responses must remain available for recovery.");
+  } finally {
+    await cleanupSmokeStudentSessions({ prisma, userDbId: student.id, sessionPublicIds });
   }
 }
 
@@ -629,6 +675,20 @@ async function assertValidProfileAndTargetedFeedbackSucceed() {
           });
           assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Valid live profile should show activity.");
 
+          const savedProfiles = await prisma.studentProfile.findMany({
+            where: { concept_unit_session: { assessment_session: { session_public_id: started.session.session_public_id } } },
+            orderBy: { created_at: "desc" }
+          });
+          const saved = savedProfiles.find(profile => (profile.item_level_evidence as Record<string, unknown> | null)?.evidence_integrated_profile_v2);
+          assert(saved, "Initial semantic profile should remain available alongside later canonical profiles.");
+          const evidence = saved.item_level_evidence as { evidence_integrated_profile_v2: { semantic_review_audit: { status: string; source_agent_call_id: string }; item_evidence: Array<{ semantic_review: { reasoning_quote: string } }> } };
+          const sourceCall = await prisma.agentCall.findUniqueOrThrow({ where: { id: evidence.evidence_integrated_profile_v2.semantic_review_audit.source_agent_call_id } });
+          assert(sourceCall.provider === "openai", `Synthetic provider must exercise live validation, not mock fallback: ${sourceCall.provider}`);
+          assert(evidence.evidence_integrated_profile_v2.semantic_review_audit.status === "validated", `Reviewed evidence must be persisted, not only returned by the provider: ${JSON.stringify(evidence.evidence_integrated_profile_v2.semantic_review_audit)}`);
+          assert(Boolean(evidence.evidence_integrated_profile_v2.semantic_review_audit.source_agent_call_id), "Profile must retain the source call.");
+          assert(evidence.evidence_integrated_profile_v2.item_evidence.every(item => item.semantic_review.reasoning_quote), "Every item must retain its quoted student evidence.");
+          if (process.argv.includes("--initial-profile-only")) return;
+
           const response = await submitFormativeActivityResponse({
             student_user_db_id: student.id,
             session_public_id: started.session.session_public_id,
@@ -658,8 +718,10 @@ async function assertValidProfileAndTargetedFeedbackSucceed() {
       },
       orderBy: [{ created_at: "asc" }]
     });
-    const liveCalls = calls.filter((call) => call.provider === "openai");
-    assert(liveCalls.length >= 2, "Valid simulated live path should audit profile and targeted feedback calls.");
+    const initialOnly = process.argv.includes("--initial-profile-only");
+    const liveCalls = calls.filter((call) => call.provider === "openai" &&
+      (!initialOnly || call.agent_name === "formative_value_and_planning_agent"));
+    assert(liveCalls.length >= (initialOnly ? 1 : 2), "Valid simulated live path should audit its provider calls.");
     for (const call of liveCalls) {
       assert(call.call_status === "succeeded", `${call.agent_name} should succeed.`);
       assert(call.output_validated === true, `${call.agent_name} should validate.`);
@@ -1111,13 +1173,23 @@ async function assertRepeatedFollowupGuardDecisionStopsRound() {
 }
 
 async function main() {
+  const approval = resolveActiveOperationalApproval();
+  if (approval?.kind === "derived_approval") {
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = approval.record.runtime_candidate_hash;
+  }
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
   await ensureDemoStudentAssessment(prisma);
 
   await assertValidProfileAndTargetedFeedbackSucceed();
+  await assertLiveConfigurationCannotBecomeMockEvidence();
   await assertCanonicalizableProfileLabelsValidate();
   await assertInvalidProfileBlocks();
+  await assertInvalidProfileModeBlocks({
+    mode: "bad_semantic_quote",
+    expectedRuleCode: "semantic_item_evidence_invalid",
+    expectedFieldPath: "semantic_item_reviews"
+  });
   await assertInvalidProfileModeBlocks({
     mode: "internal_label",
     expectedRuleCode: "internal_label_detected",
@@ -1146,6 +1218,10 @@ async function main() {
     canonicalizeStudentFacingLearningStatus("Needs attention") === "Needs more work",
     "Needs attention should canonicalize to Needs more work."
   );
+  if (process.argv.includes("--initial-profile-only")) {
+    console.log("Initial semantic profile provider-boundary tests passed: valid persistence, canonicalization, missing fields, invented quotes, protected content, and invalid student-facing output. No OpenAI calls.");
+    return;
+  }
   await assertInvalidTargetedFeedbackBlocks();
   await assertRigidTargetedFeedbackHeadingSanitizes();
   await assertIterativeFormativeLoopReachesNextChoice();
