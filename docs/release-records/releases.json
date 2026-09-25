@@ -1,0 +1,142 @@
+{
+  "schema_version": 1,
+  "updated_at": "2026-09-25T16:24:06-06:00",
+  "title": "Conversational MCQ 系统变更与部署记录",
+  "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
+  "releases": [
+    {
+      "id": "CMCQ-20260925-01",
+      "date": "2026-09-25",
+      "title": "课堂反馈与会话证据的系统性修复",
+      "application_commit": "a9c04fb3d3d49df5fac47f3ab5e741f7134b4fd8",
+      "push_status": "已推送 main；2026-09-25 再次核对 origin/main 一致。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-darf1su7bikc739a27ng",
+        "source_commit": "a9c04fb3d3d49df5fac47f3ab5e741f7134b4fd8",
+        "verified_at": "2026-09-25T16:24:06-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-darf1su7bikc739a27ng",
+        "evidence": [
+          "Render 页面显示 Deploy succeeded | Live，源提交与应用提交一致。页面列出的部署开始时间为 2026-09-25 16:08:51 MDT；成功状态于当日约 16:16 后核实。",
+          "线上构建元数据返回完整应用提交 a9c04fb3d3d49df5fac47f3ab5e741f7134b4fd8；网页服务和 initial-preparation-worker 进程均存在。",
+          "健康检查返回 status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。最新核查服务器时间为 2026-09-25T22:24:06.400Z。健康端点本身不证明 AI 质量。",
+          "只读检查真实会话的教师页面：Readable transcript 正常显示 12 条 Recorded action，重复元数据脚注已移除；Process data 正常加载。未改动学生会话状态。"
+        ]
+      },
+      "summary": "针对四份实际课堂会话所暴露的反馈质量、证据解释及记录可读性问题，修改共享的解释、验证和展示逻辑，而不是针对学生或题目建立特例。共涉及 23 个文件，新增 667 行、删除 237 行；没有新增数据库迁移。",
+      "changes": [
+        {
+          "area": "逐题判断解释内容",
+          "problem": "选项正确、解释较长或出现某些词语，不能充分支持学生已经理解；反之，简短但准确的解释不应自动受到负面判断。",
+          "fix": "在原有初始反馈调用中加入每道已作答题的 semantic_item_reviews。逐条核验题目身份、覆盖范围及学生原文引文；缺失或无效证据不能当作已掌握。允许正确选项与多个错误命题同时存在。",
+          "impact": "新增模型解释及其来源审计，但不增加逐题独立 AI 调用；选择题评分仍由应用负责。"
+        },
+        {
+          "area": "保留所有未处理的误解",
+          "problem": "学生存在多项困难时，解决一项不代表其余困难也已解决；老师讲解过内容也不代表学生已经独立理解。",
+          "fix": "加强所有作答字段和未解决命题的持续覆盖，区分讲解、练习、识别与独立解释。终止判断继续受完整命题覆盖和当前学生证据验证约束。长段逐字复制老师文本或纯请求内容只作为情境证据。",
+          "impact": "保留学生暂停、退出及轮次限制。不能承诺每个学生退出前都解决所有误解，也不能据复制过滤作出作弊结论。"
+        },
+        {
+          "area": "减少提示偏向与答案泄露",
+          "problem": "推荐某一信心等级会影响信心测量；回答格式示例包含具体答案字母时可能泄露新练习答案。",
+          "fix": "所有选择统一使用中立信心提问。共享输出验证器拦截格式说明中的具体答案字母示例，并进入既有的有限修复流程。改进提示词以避免对部分答案立即给予完整肯定。",
+          "impact": "学生仍可请求详细讲解；教学示例与等待学生回答的练习保持区分。此验证并非对所有语义泄露的形式化证明。"
+        },
+        {
+          "area": "反馈失败不伪装为正常学习证据",
+          "problem": "线上 AI 配置错误若静默回退为模拟反馈，会制造看似正常但并非真实推理结果的资料。",
+          "fix": "配置错误作为可重试的不可用状态返回，保留已提交回答与既有后台重试机制；只有明确的本地测试模式可以使用模拟输出。",
+          "impact": "不改变现有线上令牌上限与调用预算，不将失败调用记录成成功的教学回合。"
+        },
+        {
+          "area": "保真且可读的会话记录",
+          "problem": "只有点击而没有文本的回答可能难以阅读；旧编辑占位记录若引用当前答案，会把后来的内容写进历史视图。",
+          "fix": "从允许展示的事件字段呈现 Recorded action。历史编辑使用该回合自身的载荷；缺失旧文本时明确标示不可得，不从当前可变回答补填。移除每条消息重复的技术脚注与重复反馈包装。",
+          "impact": "原始学生文字保持不变，行为记录与学生原话明确区分，适用于教师审查和研究导出。"
+        },
+        {
+          "area": "修正提示到行动的时间匹配",
+          "problem": "若优先使用较晚的文本回合，或跨会话匹配事件，时长可能失真；经过时间也可能被误当作主动工作时间。",
+          "fix": "在同一会话和题目或主题内取最早合格回合或行动，元数据对应实际选中的时间端点；缺失端点为 null。说明服务器记录时间、区间重叠、页面离开与暂停的限制。",
+          "impact": "更新派生与展示，不为历史会话虚构浏览器观察值，不将重叠区间相加为学习投入时间。"
+        }
+      ],
+      "data_impact": [
+        "原始会话、学生回答、已封存 response packages、分数与已有 profiles 均未重写。新反馈规则用于之后生成的反馈；历史 AI 判断没有自动重跑或重新分类。",
+        "逐题解释保存在 evidence_integrated_profile_v2.item_evidence[].semantic_review。semantic_review_audit 记录 version、status、issues 和 source_agent_call_id；版本为 semantic-item-review-v1。",
+        "reasoning_judgment 可为 supported_precise、supported_concise、partial、contradictory、insufficient 或 irrelevant。reasoning_quote 和 evidence_quote 通过原文字段校验；引文可追溯不代表模型结论一定科学正确。",
+        "提示到回应时长等于同一情境内最早的合格学生回合或行动时间减去提示的服务器记录时间。只使用存在且非负的候选值；两个端点同时时标记 mixed；无端点保留 null。不能将其解释为纯思考时间。",
+        "不少于 80 个规范化字符的逐字复制老师文本，及明确的纯请求消息，标记为 evidence_quality_context 而非 student_understanding。该窄规则不检测释义，不证明作者身份，也不赋予不当行为标签。"
+      ],
+      "tests": [
+        {"name": "静态检查与构建", "result": "通过", "detail": "npm run typecheck、npm run lint、npm run build、git diff --check。Lint 无错误，保留 5 条未涉及文件中的既有警告；Render 生产构建通过。"},
+        {"name": "共享逻辑与持久化", "result": "通过", "detail": "student:transcript-quality-regression 与 student:semantic-profile-runtime-smoke，以及 profile、communication、narrative、准备任务、误解覆盖、教师可读记录等定向回归。注入式运行测试检验无效引文、覆盖缺失、配置错误和源调用记录。"},
+        {"name": "导航与研究数据", "result": "通过", "detail": "运行导航矩阵、状态机、动态题数、包级编辑、准备恢复、当前 formative 生命周期和研究导出等 15 个已有数据库测试套件；最终额外串行重跑研究导出完整性、采集完整性及选定会话导出，3 项均通过。"},
+        {"name": "一次测试环境干扰", "result": "已复测通过", "detail": "一轮定向运行中的研究导出检查失败，与同一临时数据库同时创建或清理测试夹具有关。稳定夹具后串行重跑通过。保留此失败与复测事实，不把第一次运行描述为全部通过。"},
+        {"name": "真实 AI 小规模检查", "result": "2 次通过", "detail": "仅发送合成回答。模型 gpt-5.6-sol，medium reasoning，输出上限 3000 tokens；3 题调用延迟 23543 ms，输入 1391、输出 1479 tokens；12 题调用延迟 24018 ms，输入 2366、输出 1879 tokens。覆盖正确选项但解释错误、准确简短解释、猜测或不知道。"},
+        {"name": "线上只读检查", "result": "通过", "detail": "核对教师登录直接进入 dashboard、实际会话记录与过程数据页面、精确构建提交、健康状态和准备任务进程。没有在真实学生账户内新增或改写作答。"}
+      ],
+      "limitations": [
+        "这些检查覆盖测试路径，不等于穷尽所有 AI 回答、所有真实研究记录或课堂并发负载。两个合成 AI 样例不能建立诊断的效度、信度或学习收益。",
+        "旧版完整 targeted-feedback 测试路径已经被当前 formative runtime 替代；使用 initial-profile-only 定向验证与当前 v18r2 生命周期测试，不声称所有历史测试脚本均运行通过。",
+        "部署切换期间曾有短暂 502；新版本就绪后不带缓存的健康请求和页面加载通过。未将缓存中的旧错误当作持续故障。",
+        "本条目记录 2026-09-25 的观察结果。以后的模型、配置、代码或数据变化需要新的验证和记录。"
+      ],
+      "references": [
+        "docs/TRANSCRIPT_QUALITY_AND_EVIDENCE.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/semantic-item-review.ts",
+        "src/lib/services/student-assessment/formative-profile.ts",
+        "src/lib/services/student-assessment/formative-conversation/output-format.ts",
+        "src/lib/services/teacher-review/readable-transcript.ts",
+        "src/lib/services/teacher-review/turn-response-latencies.ts",
+        "prisma/student-transcript-quality-regression.ts",
+        "prisma/semantic-item-review-live-canary.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20260922-01",
+      "date": "2026-09-22",
+      "title": "登录 导航推进与研究回答证据基线",
+      "application_commit": "09897b2faaa674523fb453f20836bd8be7424d07",
+      "push_status": "已包含在当前远程 main 的历史提交中。",
+      "deployment": {
+        "status": "historical_report",
+        "service": "conversational-mcq",
+        "source_commit": "09897b2faaa674523fb453f20836bd8be7424d07",
+        "evidence": ["先前部署核验记录报告该版本 Live、健康和准备任务正常。本档案将其作为追溯记录，不把它作为当前线上版本证据，也不补造原始部署 ID 或精确上线时间。"]
+      },
+      "summary": "相关代码由 77a5c8a7、e3c04f76 和 09897b2f 三次提交完成。该基线修复教师登录跳转、tempting-option 路径卡住、请求重试与历史回答投影问题，并补充导航场景的数据导出核验。",
+      "changes": [
+        {"area": "登录与自动推进", "problem": "教师登录入口及部分替代选项回答后的下一题推进不一致。", "fix": "角色感知跳转；正常作答与编辑共享完成路径，同时持久化提交时间、完成事件和下一题呈现。", "impact": "学生仍使用会话式微步骤，不新增逐题提交按钮。"},
+        {"area": "重试和编辑保真", "problem": "丢失网络回复、重复开始与改选原先 tempting option 可能导致重复或状态不一致。", "fix": "重试复用原操作和观察标识；保持原始开始时间；必要时重置替代选项证据并重新询问。", "impact": "保留原始回合，区分客户端请求失败与服务器已接受回答。"},
+        {"area": "研究产品字段", "problem": "被拒绝的问题可能变成初始理由；仅编辑信心也可能被误记为更换答案；未提交整包的会话可能丢失替代选项字段。", "fix": "仅以被接受的理由作为初始理由；按实际答案值转换识别修改；按最新已接受回合投影替代选项及明确的 No。", "impact": "新包和导出标明 accepted-response-evidence-v2；已封存历史包不重写。"}
+      ],
+      "data_impact": ["重导出能利用保留的原始回合改善当前产品字段，但不能自动修复旧包基线或既有 AI 解释。No、等待重新选择和从未记录三种状态必须区分。"],
+      "tests": [
+        {"name": "历史本地验证", "result": "审计文档记录通过", "detail": "NAVIGATION_RESEARCH_DATA_AUDIT_2026-09-22.md 记录 64/64 导航场景、20/20 回归套件、浏览器研究 ZIP 对照、9 个阶段访问和 121 个阶段字段文档检查。这里引用当时结果，不声称本次重新运行全部检查。"}
+      ],
+      "limitations": ["被引用审计文档是在部署前形成，结尾仍注明当时未 push/deploy；之后的部署核验是独立证据。历史测试不证明所有生产数据完整，也不是大班并发压测。"],
+      "references": ["docs/STUDENT_NAVIGATION_AUDIT_2026-09-22.md", "docs/NAVIGATION_RESEARCH_DATA_AUDIT_2026-09-22.md", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md"]
+    }
+  ],
+  "historical_index": [
+    ["2026-09-15", "905bf3f7 / 9760c041", "记录作答阶段行为 时间计算及数据覆盖"],
+    ["2026-09-15", "f8510052 / d58fbec1", "统一临时密码默认规则 停用系统内邮件发送"],
+    ["2026-09-15", "262a5eb9", "曾加入 Gmail 邀请功能 后续已停用"],
+    ["2026-09-15", "b447eec3", "三次机会及课堂尝试比较"],
+    ["2026-09-15", "bf7a74d5 / 226792df", "扩展对话及精简研究审查 合并重复暂停记录"],
+    ["2026-09-15", "fa1e6e64 / 0c6b9ced", "初始反馈等待提示 浏览器记录及画像输入去重"],
+    ["2026-09-14", "661d6af2 / 2cedd795", "后台准备与安全复用 画像不一致和提前结束审查"],
+    ["2026-09-14", "21a52c8e / a571d7e8", "课堂调用限制 尝试恢复与研究完整性"],
+    ["2026-09-14", "4be3ff88", "JSON 与多工作表 Excel 小测导入"],
+    ["2026-09-14", "3026b7d8", "完整测试预览改为独立页面"],
+    ["2026-09-13", "f96371c8", "教师完整测试只读预览"],
+    ["2026-09-11", "bbb8ed44 / 7159ea03", "学生测试目录归属 与教师起始提示"],
+    ["2026-09-11", "905c6418 / cb14cb2b", "未使用题目批量删除 草稿审查与导入安全"],
+    ["2026-09-11", "fe3ce8e2 / 5ce6805b", "生成元数据 研究完整性和课堂工作流修复"]
+  ]
+}
