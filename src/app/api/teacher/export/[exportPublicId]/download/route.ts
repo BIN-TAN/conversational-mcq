@@ -2,7 +2,7 @@ import {
   masterExportRouteError,
   requireMasterExportTeacher
 } from "@/lib/services/master-export/api";
-import { getExportDownload } from "@/lib/services/master-export/service";
+import { getExportDownloadStream } from "@/lib/services/master-export/service";
 
 export async function GET(
   _request: Request,
@@ -16,11 +16,12 @@ export async function GET(
 
   try {
     const params = await context.params;
-    const download = await getExportDownload(params.exportPublicId);
+    const download = await getExportDownloadStream(params.exportPublicId);
 
-    return new Response(download.bytes, {
+    return new Response(download.body, {
       headers: {
         "Content-Type": download.content_type,
+        "Content-Length": String(download.size),
         "Content-Disposition": `attachment; filename="${download.file_name}"`,
         "Cache-Control": "no-store"
       }

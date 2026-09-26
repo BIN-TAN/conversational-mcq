@@ -129,7 +129,7 @@ const IDK_OPTION_LABEL = "E";
 const ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE =
   "This assessment is temporarily unavailable. Please try again later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
-  "I still cannot use that as a reason. Choose one:\nA. Try writing your reason again.\nB. Mark this as 'I don't know the reason yet.'";
+  "Please keep your response about this question. A brief reason is enough; you can also say you are unsure or have no more to add.";
 
 function repeatedInvalidOverride(input: {
   attempt_count: number;
@@ -942,32 +942,8 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function markUnknownChoiceRequested(text: string) {
-  const lower = text.trim().toLowerCase().replace(/\s+/g, " ");
-  return (
-    lower === "b" ||
-    lower === "b." ||
-    lower === "option b" ||
-    lower === "mark unknown" ||
-    lower === "mark this as i don't know" ||
-    lower === "i don't know the reason yet"
-  );
-}
-
 function responseQualityIsInsufficientKnowledge(result: ResponseQualityResult) {
   return result.output.response_quality === "insufficient_knowledge";
-}
-
-function unknownEvidenceText(stage: ResponseQualityStage) {
-  if (stage === "initial_tempting_reason" || stage === "transfer_tempting_reason") {
-    return "I don't know why it was tempting yet.";
-  }
-
-  if (stage === "formative_activity_response" || stage === "revision_response") {
-    return "I don't know yet.";
-  }
-
-  return "I don't know the reason yet.";
 }
 
 function safeStringList(value: unknown, fallback: string[] = []) {
@@ -4092,14 +4068,21 @@ async function countPriorRejectedOpenTextAttempts(input: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       item_db_id: input.item_db_id,
       event_type: "response_quality_rejected",
-      event_category: "response_quality"
+      event_category: "response_quality",
+      payload: { path: ["stage"], equals: input.stage }
     },
-    select: { payload: true },
-    orderBy: [{ occurred_at: "desc" }, { created_at: "desc" }],
-    take: 20
+    select: { payload: true }
   });
 
-  return events.filter((event) => recordValue(event.payload).stage === input.stage).length;
+  const stageEvents = events.filter((event) => recordValue(event.payload).stage === input.stage);
+  return {
+    rejected_count: stageEvents.length,
+    neutral_clarification_count: stageEvents.filter(event => {
+      const tutor = recordValue(recordValue(event.payload).item_administration_tutor);
+      return ["incomplete", "continuation", "affective_expression"].includes(String(tutor.message_classification)) &&
+        !["configuration_blocked", "safe_block_after_live_failure"].includes(String(tutor.item_admin_tutor_source));
+    }).length
+  };
 }
 
 async function logRepeatedInvalidResponse(input: {
@@ -4354,16 +4337,13 @@ export async function recordReasoning(input: {
       const qualityStage: ResponseQualityStage = context.isTransferItem
         ? "transfer_item_reasoning"
         : "initial_item_reasoning";
-      const priorRejectedAttempts = await countPriorRejectedOpenTextAttempts({
+      const { rejected_count: priorRejectedAttempts, neutral_clarification_count: priorClarifications } = await countPriorRejectedOpenTextAttempts({
         session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         stage: qualityStage
       });
-      const reasoningText =
-        priorRejectedAttempts > 0 && markUnknownChoiceRequested(data.reasoning_text)
-          ? unknownEvidenceText(qualityStage)
-          : data.reasoning_text;
+      const reasoningText = data.reasoning_text;
       const contextInitialItems = context.isTransferItem
         ? []
         : await prisma.item.findMany({
@@ -4391,6 +4371,7 @@ export async function recordReasoning(input: {
           latest_student_message: reasoningText,
           correctness_feedback_prohibited: true,
           prior_uncertainty: response.skipped_reasoning || response.selected_option === IDK_OPTION_LABEL,
+          prior_neutral_clarification_count: priorClarifications,
           assessment_interpretation_context: itemAdministrationContext({
             session: context.session,
             item: context.item,
@@ -5051,16 +5032,13 @@ export async function recordTemptingOption(input: {
       const qualityStage: ResponseQualityStage = context.isTransferItem
         ? "transfer_tempting_reason"
         : "initial_tempting_reason";
-      const priorRejectedAttempts = await countPriorRejectedOpenTextAttempts({
+      const { rejected_count: priorRejectedAttempts, neutral_clarification_count: priorClarifications } = await countPriorRejectedOpenTextAttempts({
         session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
         stage: qualityStage
       });
-      const temptingOptionReason =
-        initialTemptingOptionReason && priorRejectedAttempts > 0 && markUnknownChoiceRequested(initialTemptingOptionReason)
-          ? unknownEvidenceText(qualityStage)
-          : initialTemptingOptionReason;
+      const temptingOptionReason = initialTemptingOptionReason;
 
       if (!noTemptingOption && !temptingOption) {
         throw new StudentAssessmentServiceError(
@@ -5126,6 +5104,7 @@ export async function recordTemptingOption(input: {
             latest_student_message: temptingOptionReason,
             correctness_feedback_prohibited: true,
             prior_uncertainty: false,
+            prior_neutral_clarification_count: priorClarifications,
             assessment_interpretation_context: itemAdministrationContext({
               session: context.session,
               item: context.item,

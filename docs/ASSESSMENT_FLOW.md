@@ -1,5 +1,30 @@
 # Assessment Flow Specification
 
+## Protected Collection and Learning Summaries (2026-09-26)
+
+Initial and transfer explanation collection uses item-admin tutor v2. The model
+classifies a message; the application supplies content-neutral collection text.
+No model-authored conceptual hint is displayed during protected collection.
+Short, incorrect, option-derived, or uncertain reasons remain evidence, not a
+reason to demand repeated rewriting. On-topic difficulty statements are retained
+verbatim as limited evidence. One neutral clarification may be requested for an
+incomplete fragment; a subsequent fragment is retained as weak evidence rather
+than trapping the student. Content/answer requests, procedural requests, edits,
+off-topic text, and gibberish do not become reasons merely through repetition.
+Provider failures remain recoverable blocked operations, not student deficits.
+Letters such as B are never translated into an invented admission of not knowing.
+
+Host v7.8 defaults to a direct answer and focused explanation, expanding when
+needed or requested without a hard word limit or truncation. Learning summaries
+are conversational waypoints, not automatic completion. They include only
+evidence-supported understanding, specific supported progress, and remaining
+difficulties when applicable. There is no "Discussed, awaiting confirmation"
+section or equivalent placeholder. Progress requires earlier and later student
+reasoning; tutor explanations, agreement, or requests for help do not establish
+improvement. The tutor can continue correcting misconceptions while turns remain,
+respect a pause, or recommend specific teacher support without claiming a teacher
+has been notified. Item/key concerns require teacher review, not silent rescoring.
+
 ## Teacher Test Preview
 
 - Assessment details include **Preview the test**, which opens `/teacher/content/assessments/[assessmentPublicId]/preview` in a new tab. This standalone, read-only page uses normal document scrolling and a **Return to mini test** link, with full saved wording, options, and active media in topic/item order.

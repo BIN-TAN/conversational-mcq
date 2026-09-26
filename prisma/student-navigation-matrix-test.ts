@@ -100,6 +100,21 @@ async function verifyResearchExport(sessionId: string) {
 }
 async function main() {
   await ensureDemoStudentAssessment(prisma);
+  await check("limited reasoning and tempting uncertainty: verbatim products, idempotency and next item", async () => {
+    const { base, action } = await fixture();
+    await recordSelectedOption({ ...action, data: { selected_option: "A" } });
+    const data = { reasoning_text: "I'm confused.", client_action_id: "limited-reasoning" };
+    assert.equal((await recordReasoning({ ...action, data })).state.assessment_state, "AWAIT_CONFIDENCE");
+    await recordReasoning({ ...action, data });
+    assert.equal((await responseSnapshot(base))[0].reasoning_text, data.reasoning_text);
+    await recordConfidence({ ...action, data: { confidence_rating: "medium" } });
+    await recordTemptingOption({ ...action, data: { tempting_option: "B" } });
+    const tempting = { tempting_option: "B", tempting_option_reason: "This is confusing.", client_action_id: "limited-tempting" };
+    const next = await recordTemptingOption({ ...action, data: tempting });
+    assert.notEqual(next.state.current_item?.item_public_id, action.item_public_id);
+    await recordTemptingOption({ ...action, data: tempting });
+    assert((await responseSnapshot(base))[0].item_submitted_at);
+  });
   // Cross answer, confidence, and tempting-evidence routes, reloading at each step.
   for (const selected of ["A", "B", "C", "D", "E"]) {
     for (const confidence of ["low", "medium", "high"] as const) {

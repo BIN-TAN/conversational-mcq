@@ -33,7 +33,7 @@ export type FormativeConversationV18R2FailureClass =
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
 const InterpretationProjectionAuditSchema = z.object({
-  policy_version: z.literal("formative-interpretation-policy-v1"),
+  policy_version: z.enum(["formative-interpretation-policy-v1", "formative-interpretation-policy-v2"]),
   operation: z.literal("unchanged_updated_fields_marked_retained"),
   fields: z.array(z.string()),
   original_sha256: HashSchema,

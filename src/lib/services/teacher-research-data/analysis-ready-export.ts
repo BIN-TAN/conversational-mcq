@@ -4,7 +4,8 @@ import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-compar
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
 import { acceptedTemptingEvidence, RESPONSE_EVIDENCE_VERSION } from "../student-assessment/response-evidence";
-import { researchCoverageFiles } from "./coverage-report";
+import { ResearchExportSpool, withResearchExportSlot } from "./export-spool";
+import { exportStorageDirectory, pathForStorageKey } from "../master-export/storage";
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
@@ -652,13 +653,6 @@ export function countSerializedCsvDataRows(data: string) {
     skip_empty_lines: true
   }) as unknown[][];
   return Math.max(0, records.length - 1);
-}
-
-function serializedFileRecordCount(file: { path: string; data: string }) {
-  if (file.path.endsWith(".csv")) {
-    return countSerializedCsvDataRows(file.data);
-  }
-  return file.data.trim() ? 1 : 0;
 }
 
 function columnsFor(columns: readonly string[], includeRestricted: boolean) {
@@ -2664,7 +2658,7 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
   );
 }
 
-export async function buildAnalysisReadyResearchDataBundle(input: {
+export type AnalysisReadyExportInput = {
   teacher_user_db_id: string;
   scope: "all_authorized" | "selected_assessment" | "selected_student" | "selected_session";
   assessment_public_id?: string;
@@ -2672,42 +2666,11 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   session_public_id?: string;
   include_incomplete_sessions?: boolean;
   include_restricted_fields?: boolean;
-}) {
-  try {
-    assertResearchPseudonymizationReadyForExport();
-  } catch (error) {
-    if (error instanceof ResearchPseudonymizationConfigError) {
-      throw new ContentServiceError(error.code, error.message, 503, {
-        retryable: true,
-        operator_action: "Run research-export:preflight and configure the server-side research pseudonymization key."
-      });
-    }
-    throw error;
-  }
+};
 
-  // Freeze one database snapshot, then release it before CSV/ZIP serialization.
-  const { sessions, supplemental, snapshotAt, attemptObservations } = await prisma.$transaction(async (tx) => {
-    const [snapshot] = await tx.$queryRaw<Array<{ snapshot_at: Date }>>`SELECT transaction_timestamp() AS snapshot_at`;
-    const sessions = await loadSessions(input, tx);
-    const supplemental = await loadSupplementalRecords(sessions.map((session) => session.session_public_id), tx);
-    const chances = await tx.assessmentAttemptChance.findMany({
-      where: { session_public_id: { in: sessions.map(session => session.session_public_id) } },
-      select: { session_public_id: true, policy_version: true, waived_at: true }
-    });
-    const attemptObservations = observeAttempts(sessions, chances);
-    return { sessions, supplemental, attemptObservations, snapshotAt: snapshot.snapshot_at.toISOString() };
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 30_000 });
-  if (sessions.length === 0) {
-    throw new ContentServiceError(
-      "no_session_data",
-      "No student sessions are available for this export scope.",
-      409
-    );
-  }
-
-  const source = sourceFor(input);
-  const includeRestricted = input.include_restricted_fields === true;
-  const files = [
+function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSession[],
+  supplemental: SupplementalRecords, includeRestricted: boolean) {
+  return [
     ...responseStageExportFiles(sessions.map(session => ({
       session_public_id: session.session_public_id, assessment_public_id: session.assessment.assessment_public_id,
       research_student_id: researchStudentId(session.user.user_id), attempt_number: session.attempt_number,
@@ -2717,8 +2680,6 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       }))),
       turns: session.conversation_turns.map(turn => ({ ...turn, item_public_id: turn.item?.item_public_id ?? null }))
     }))),
-    ...attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
-      pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope }),
     {
       path: "sessions.csv",
       data: csv(SESSIONS_COLUMNS, sessionRows(source, sessions, supplemental))
@@ -2823,14 +2784,57 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: processEventCodebookCsv()
     }
   ];
-  files.push(...researchCoverageFiles(files));
-  if (input.scope === "selected_session") {
-    files.push({
-      path: "session_diagnostic_manifest.json",
-      data: sessionDiagnosticManifest(source, sessions, supplemental)
-    });
+}
+
+async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool: ResearchExportSpool) {
+  try { assertResearchPseudonymizationReadyForExport(); } catch (error) {
+    if (error instanceof ResearchPseudonymizationConfigError) {
+      throw new ContentServiceError(error.code, error.message, 503, {
+        retryable: true,
+        operator_action: "Run research-export:preflight and configure the server-side research pseudonymization key."
+      });
+    }
+    throw error;
   }
-  files.push({ path: "README.txt", data: [
+  const source = sourceFor(input);
+  const includeRestricted = input.include_restricted_fields === true;
+  const emit = async (file: { path: string; data: string }) => {
+    assertAnalysisReadySafety([file], includeRestricted);
+    await spool.append(file);
+  };
+  const attemptObservations: ReturnType<typeof observeAttempts> = [];
+  // A single snapshot, but only one session's full event/profile graph in memory.
+  // Files stay private until the transaction and every integrity check succeed.
+  const snapshotAt = await prisma.$transaction(async (tx) => {
+    const [snapshot] = await tx.$queryRaw<Array<{ snapshot_at: Date }>>`SELECT transaction_timestamp() AS snapshot_at`;
+    const references = await tx.assessmentSession.findMany({
+      where: sessionWhere(input),
+      orderBy: [{ assessment: { title: "asc" } }, { user: { user_id: "asc" } },
+        { attempt_number: "asc" }, { created_at: "asc" }, { id: "asc" }],
+      select: { session_public_id: true }
+    });
+    if (!references.length) throw new ContentServiceError("no_session_data",
+      "No student sessions are available for this export scope.", 409);
+    for (const reference of references) {
+      const sessions = await loadSessions({ ...input, session_public_id: reference.session_public_id }, tx);
+      const supplemental = await loadSupplementalRecords([reference.session_public_id], tx);
+      const chances = await tx.assessmentAttemptChance.findMany({
+        where: { session_public_id: reference.session_public_id },
+        select: { session_public_id: true, policy_version: true, waived_at: true }
+      });
+      attemptObservations.push(...observeAttempts(sessions, chances));
+      for (const file of sessionExportFiles(source, sessions, supplemental, includeRestricted)) await emit(file);
+      if (input.scope === "selected_session") await emit({
+        path: "session_diagnostic_manifest.json", data: sessionDiagnosticManifest(source, sessions, supplemental)
+      });
+    }
+    return snapshot.snapshot_at.toISOString();
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 120_000 });
+  // Comparisons retain compact sealed-attempt evidence, not all process logs.
+  for (const file of attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
+    pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope })) await emit(file);
+  await spool.finishCoverage();
+  await emit({ path: "README.txt", data: [
     "Research dataset v2",
     "Start with data_coverage.csv and its notes to inspect actual populated/blank/zero values by dataset, actor and stage; population is not proof of measurement validity.",
     "Profile projection v1: filter profile_valid_for_learning_analysis before interpreting profile results. Intermediate processing artifacts and fallback records are retained but are not validated learning measurements.",
@@ -2848,6 +2852,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   ].join("\n") + "\n" });
   const manifest = {
     schema_version: "research-dataset-manifest-v1",
+    generation_policy_version: "session-spooled-export-v1",
     export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
     response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     profile_projection_version: PROFILE_PROJECTION_VERSION,
@@ -2867,17 +2872,10 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     timing_contract_version: TIMING_CONTRACT_VERSION,
     timing_source_version: TIMING_SOURCE_VERSION,
     omitted_fields: includeRestricted ? ["raw_provider_payloads", "raw_process_payloads"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
-    entries: files.map((file) => ({
-      path: file.path,
-      sha256: createHash("sha256").update(file.data, "utf8").digest("hex"),
-      bytes: Buffer.byteLength(file.data, "utf8"),
-      rows: file.path.endsWith(".csv") ? serializedFileRecordCount(file) : null
-    }))
+    entries: spool.manifestEntries()
   };
-  if (new Set(files.map((file) => file.path)).size !== files.length) throw new Error("duplicate_research_export_entry");
-  files.push({ path: "research_manifest.json", data: JSON.stringify(manifest, null, 2) });
-  assertAnalysisReadySafety(files, includeRestricted);
 
+  await emit({ path: "research_manifest.json", data: JSON.stringify(manifest, null, 2) });
   const suffix =
     input.scope === "selected_assessment" && input.assessment_public_id
       ? `assessment_${input.assessment_public_id}`
@@ -2893,16 +2891,29 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   return {
     filename: `${suffix}_research_dataset.zip`,
     content_type: "application/zip",
-    buffer: createStoreOnlyZip(files),
-    files,
-    source,
-    row_counts: Object.fromEntries(
-      files.map((file) => [
-        file.path,
-        serializedFileRecordCount(file)
-      ])
-    ),
-    restricted_fields_included: includeRestricted,
-    no_live_provider_call_made: true
+    source, row_counts: spool.rowCounts(),
+    restricted_fields_included: includeRestricted, no_live_provider_call_made: true
   };
+}
+
+// Compatibility API for offline consumers and regression tests. HTTP routes must
+// use the disk-backed writer below, never materialize the complete ZIP in memory.
+export async function buildAnalysisReadyResearchDataBundle(input: AnalysisReadyExportInput) {
+  const spool = await ResearchExportSpool.create(exportStorageDirectory());
+  try {
+    const result = await generateAnalysisReadyFiles(input, spool);
+    const files = await spool.readAll();
+    return { ...result, files, buffer: createStoreOnlyZip(files) };
+  } finally { await spool.dispose(); }
+}
+
+export async function writeAnalysisReadyResearchDataBundle(input: AnalysisReadyExportInput, storageKey: string) {
+  return withResearchExportSlot(async () => {
+    const spool = await ResearchExportSpool.create(exportStorageDirectory());
+    try {
+      const result = await generateAnalysisReadyFiles(input, spool);
+      await spool.publishZip(pathForStorageKey(storageKey));
+      return result;
+    } finally { await spool.dispose(); }
+  });
 }

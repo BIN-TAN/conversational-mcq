@@ -15,6 +15,7 @@ import {
   type MasterExportRow
 } from "./csv";
 import {
+  openExportStream,
   readExportFile,
   storageKeyForExport,
   writeExportFile
@@ -1192,7 +1193,7 @@ export async function getExportJob(exportPublicId: string) {
   return serializeExportJob(job);
 }
 
-export async function getExportDownload(exportPublicId: string) {
+async function getExportDownloadMetadata(exportPublicId: string) {
   const job = await prisma.exportJob.findUnique({
     where: { export_public_id: exportPublicId }
   });
@@ -1212,9 +1213,23 @@ export async function getExportDownload(exportPublicId: string) {
     );
   }
 
+  if (job.expires_at && job.expires_at.getTime() <= Date.now()) {
+    throw new MasterExportServiceError("export_not_available", "This export has expired. Please generate it again.", 410);
+  }
+
   return {
     file_name: job.file_name,
     content_type: job.file_name.endsWith(".zip") ? "application/zip" : "text/csv; charset=utf-8",
-    bytes: await readExportFile(job.storage_key)
+    storage_key: job.storage_key
   };
+}
+
+export async function getExportDownload(exportPublicId: string) {
+  const metadata = await getExportDownloadMetadata(exportPublicId);
+  return { ...metadata, bytes: await readExportFile(metadata.storage_key) };
+}
+
+export async function getExportDownloadStream(exportPublicId: string) {
+  const metadata = await getExportDownloadMetadata(exportPublicId);
+  return { ...metadata, ...await openExportStream(metadata.storage_key) };
 }

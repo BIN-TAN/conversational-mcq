@@ -2,7 +2,7 @@
 
 This is a versioned interpretation policy, not a new student questionnaire or a
 claim of validated learning outcomes. Existing transcripts and profiles are not
-rewritten. Host prompts v7.6 and v7.7 use the original V18R2 contracts with additional
+rewritten. Host prompts v7.6, v7.7 and v7.8 use the original V18R2 contracts with additional
 live-candidate checks.
 
 ## Evidence strength
@@ -32,7 +32,7 @@ as a reference, not as certification of generated instruction.
 ## Confidence is not silently remeasured
 
 The formative phase does not collect a comparable structured confidence rating
-on every turn. Hosts v7.6 and v7.7 therefore preserve the prior `confidence_alignment`.
+on every turn. Hosts v7.6, v7.7 and v7.8 therefore preserve the prior `confidence_alignment`.
 Correctness, assent, and requests for help do not replace that measurement.
 Explicit new self-confidence statements may be captured as
 `self_reported_confidence` observations with current evidence IDs and remain in
@@ -43,7 +43,7 @@ Read-only projection v2 adds `profile_confidence_alignment_scope`:
 | Value | Meaning |
 | --- | --- |
 | `initial_assessment` | Validated baseline profile interpretation |
-| `carried_forward_not_reassessed` | Prior value retained by validated host-v7.6/v7.7 transition; not a new rating |
+| `carried_forward_not_reassessed` | Prior value retained by validated host-v7.6/v7.7/v7.8 transition; not a new rating |
 | `legacy_scope_unrecorded` | Other updated profile; temporal meaning not retrospectively inferred |
 | `unavailable` | No eligible validation provenance, or intermediate/fallback artifact |
 
@@ -93,7 +93,7 @@ observed. A resolved claim is absent from the next active catalog. Automatically
 adding new claims or reactivating historical IDs is not implemented by this
 policy; raw histories are never rewritten to make it appear otherwise.
 
-Host v7.7 reviews current student reasoning alongside the initial profile and
+Hosts v7.7 and v7.8 review current student reasoning alongside the initial profile and
 visible history. When it identifies a supported, still-unresolved misconception
 outside the active catalog, including a previously resolved error that recurs,
 it records an evidence observation with `evidence_type=uncatalogued_misconception`.
@@ -116,6 +116,30 @@ observed or recurring errors. The model can still miss a semantic recurrence;
 reference validation does not prove recognition accuracy. If later evidence
 corrects the error, the model should record the correction rather than retain a
 permanent label. Content accuracy and appropriate escalation require review.
+
+## Concise feedback and evidence-grounded summaries
+
+Host v7.8 defaults to a direct answer and a focused explanation, expanding when
+requested or necessary. It does not impose a word limit or remove useful detail.
+Illustrative numbers must be identified as examples when first introduced.
+
+A learning summary is optional and does not end the conversation. Its supported
+sections are understanding demonstrated, progress supported this time, and
+remaining difficulties. Empty sections and a pending-confirmation category are
+omitted. Existing `evidence_observations` retain the corresponding
+`learning_summary_understanding`, `learning_summary_progress` and
+`learning_summary_remaining` observations. Each requires eligible student
+reasoning references; progress additionally requires distinct earlier and later
+evidence, with the later evidence from the current formative conversation.
+Explanation requests, tutor messages, answer choices alone and mere agreement do
+not establish learning progress. A summary does not independently authorize a
+claim resolution or a profile transition.
+
+Policy v2 checks these reference requirements on new live candidates. They are
+provenance checks, not proof of conceptual correctness or a causal learning
+effect. Historical records retain their original validation and are not
+retroactively rewritten. See `DATA_LOGGING_SPEC.md` for field meanings and the
+distinction between weak but collectable reasoning and demonstrated understanding.
 
 ## Verification scope
 

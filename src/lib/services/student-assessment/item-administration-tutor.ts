@@ -36,9 +36,9 @@ import {
   type FormativeExecutionMode
 } from "@/lib/services/student-assessment/formative-execution-mode";
 
-export const ITEM_ADMINISTRATION_TUTOR_VERSION = "item-administration-tutor-v1";
+export const ITEM_ADMINISTRATION_TUTOR_VERSION = "item-administration-tutor-v2";
 export const ITEM_ADMINISTRATION_TUTOR_AGENT_NAME = "item_administration_tutor_agent";
-export const ITEM_ADMINISTRATION_TUTOR_PROMPT_VERSION = "item-admin-tutor-v1";
+export const ITEM_ADMINISTRATION_TUTOR_PROMPT_VERSION = "item-admin-tutor-v2";
 export const ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION = "item-admin-tutor-output-v1";
 
 const ITEM_ADMINISTRATION_TUTOR_INSTRUCTIONS = `
@@ -55,9 +55,13 @@ Protected initial-administration rules:
 - For answer_request, response_quality must be not_usable.
 - If the student says they do not know the reason, cannot explain, have no idea, or are not sure why, classify insufficient_knowledge, response_quality=low_information, should_advance=true, and next_expected_action=accept_uncertainty.
 - Use low_information only for insufficient_knowledge.
-- Pure affective statements such as "I'm confused" or "This is hard" should be acknowledged and redirected, but should_advance=false unless they also explicitly say they do not know the reason.
+- On-topic uncertainty or difficulty such as "I'm confused", "This answer is confusing", or "I'm not too sure" is a usable limited response. Classify affective_expression; the application preserves the student's words and accepts it with limited evidence. Do not require an exact phrase or rewrite it as an admission of not knowing.
+- A brief, vague, incorrect, or option-derived reason is still response evidence. Use weak_but_usable_reasoning when relevant, even if it only says an option seems simplest or adopts the option's explanation. Collection is not a correctness, originality, or mastery test. Do not demand more detail merely because the reason is weak.
+- If the student says they have no more to add, accept that as weak_but_usable_reasoning and preserve those words; do not make them admit to not knowing.
+- Use incomplete only for a fragment with no interpretable reason or uncertainty; never use it for a content question, procedural request, or gibberish. At most one neutral clarification is permitted for an incomplete response; prior_neutral_clarification_count records this for the current item and stage.
+- Never suggest conceptual distinctions, features to focus on, or a reasoning direction. The application supplies neutral collection messages, not item-specific hints.
 - Procedural questions may get brief process help and should stay on the same step.
-- Gibberish, off-topic text, and incomplete reasoning should not advance.
+- Gibberish and off-topic text should not advance. For incomplete fragments recommend ask_repair; the application enforces the one-clarification limit.
 - Edit requests should not advance and should point the student to editing their response.
 
 For the specific message "What is theta?" during AWAIT_REASON, return exactly:
@@ -158,6 +162,7 @@ export type ItemAdministrationTutorStatePacket = {
   latest_student_message: string;
   correctness_feedback_prohibited: boolean;
   prior_uncertainty: boolean;
+  prior_neutral_clarification_count?: number;
   assessment_interpretation_context?: AssessmentInterpretationContextV1;
 };
 
@@ -651,7 +656,7 @@ function validateTutorOutput(input: {
   };
 }
 
-function canonicalizeTutorOutput(input: {
+export function canonicalizeTutorOutput(input: {
   output: ItemAdministrationTutorOutput;
   state_packet: ItemAdministrationTutorStatePacket;
 }) {
@@ -659,8 +664,6 @@ function canonicalizeTutorOutput(input: {
   const latestStudentMessage = input.state_packet.latest_student_message;
 
   if (
-    input.state_packet.required_evidence_type === "reasoning" &&
-    textLooksLikeContentQuestion(latestStudentMessage) &&
     output.message_classification === "content_question"
   ) {
     output.response_quality = "not_usable";
@@ -685,7 +688,38 @@ function canonicalizeTutorOutput(input: {
     output.next_expected_action = "defer_content_question";
   }
 
+  // Collection accepts limited evidence, not a claim of correct reasoning. Never
+  // auto-accept content requests, edits, off-topic text, gibberish or provider failures.
+  if (output.message_classification === "affective_expression" ||
+      (["incomplete", "continuation"].includes(output.message_classification) &&
+       (input.state_packet.prior_neutral_clarification_count ?? 0) >= 1)) {
+    output.message_classification = "weak_but_usable_reasoning";
+    output.response_quality = "weak_but_usable";
+    output.should_advance = true;
+    output.next_expected_action = "advance";
+  }
+
+  // The model classifies meaning; only these content-neutral messages can be shown
+  // before the initial package is sealed (also applies to protected transfer items).
+  output.response_quality = responseQualityForClassification(output.message_classification);
+  output.next_expected_action = actionForClassification(output.message_classification);
+  output.should_advance = ["advance", "accept_uncertainty"].includes(output.next_expected_action);
+  output.student_facing_message = neutralCollectionMessage(output.message_classification);
   return output;
+}
+
+function neutralCollectionMessage(classification: ItemAdministrationTutorMessageClassification) {
+  switch (classification) {
+    case "content_question":
+    case "answer_request": return CONTENT_DEFER_MESSAGE;
+    case "procedural_question": return "Share your reason in your own way. A brief response is enough, and it is okay to say you are unsure.";
+    case "edit_request": return EDIT_MESSAGE;
+    case "off_topic": return OFF_TOPIC_MESSAGE;
+    case "gibberish": return GIBBERISH_MESSAGE;
+    case "incomplete":
+    case "continuation": return "Could you add what you meant? A brief reason is enough, or you can say you have no more to add.";
+    default: return "Thank you for sharing your current thinking.";
+  }
 }
 
 function tutorResultFromOutput(input: {
@@ -765,9 +799,10 @@ function deterministicTutorResult(input: {
   });
   const lower = lowerText(input.text);
   const base = baseClassification(qualityResult);
-  const classification: ItemAdministrationTutorMessageClassification = isAffectiveOnly(lower)
-    ? "affective_expression"
-    : base;
+  const classification: ItemAdministrationTutorMessageClassification =
+    ["content_question", "answer_request", "procedural_question", "edit_request", "gibberish", "off_topic"].includes(base)
+      ? base
+      : isAffectiveOnly(lower) ? "affective_expression" : base;
   const responseQuality = responseQualityForClassification(classification);
   const nextAction = actionForClassification(classification);
   const shouldAdvance =
@@ -775,6 +810,15 @@ function deterministicTutorResult(input: {
   const studentFacingMessage = messageForClassification(classification, qualityResult);
   const deferredConcernSummary = summaryForDeferredConcern(input.text, classification);
 
+  const output = canonicalizeTutorOutput({ state_packet: input.state_packet, output: {
+    message_classification: classification,
+    response_quality: responseQuality,
+    should_advance: shouldAdvance,
+    next_expected_action: nextAction,
+    student_facing_message: studentFacingMessage,
+    deferred_concern_summary: deferredConcernSummary,
+    should_store_deferred_concern: Boolean(deferredConcernSummary)
+  } });
   return {
     tutor_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
     item_admin_tutor_source: input.item_admin_tutor_source ?? "deterministic_mock",
@@ -784,17 +828,15 @@ function deterministicTutorResult(input: {
     validation_status: qualityResult.validation_status,
     fallback_reason: input.fallback_reason ?? null,
     detected_response_language: qualityResult.detected_response_language,
-    response_quality_result: qualityResult,
-    message_classification: classification,
-    response_quality: responseQuality,
-    should_advance: shouldAdvance,
-    next_expected_action: nextAction,
-    student_facing_message: safeStudentMessage(studentFacingMessage)
-      ? studentFacingMessage
-      : INCOMPLETE_MESSAGE,
+    response_quality_result: { ...qualityResult, output: responseQualityOutputFromTutorOutput(output) },
+    message_classification: output.message_classification,
+    response_quality: output.response_quality,
+    should_advance: output.should_advance,
+    next_expected_action: output.next_expected_action,
+    student_facing_message: output.student_facing_message,
     deferred_concern_summary: deferredConcernSummary,
     store_deferred_concern: Boolean(deferredConcernSummary),
-    safety_validated: safeStudentMessage(studentFacingMessage),
+    safety_validated: safeStudentMessage(output.student_facing_message),
     agent_call_id: input.agent_call_id,
     live_status: input.live_status ?? "deterministic"
   };
@@ -914,6 +956,7 @@ export function buildItemAdministrationTutorStatePacket(input: ItemAdministratio
     student_selected_e: input.selected_option === "E",
     correctness_feedback_prohibited: input.correctness_feedback_prohibited,
     student_previously_indicated_uncertainty: input.prior_uncertainty,
+    prior_neutral_clarification_count: input.prior_neutral_clarification_count ?? 0,
     allowed_behaviors: [
       "classify_message",
       "acknowledge_uncertainty",
@@ -1045,6 +1088,12 @@ export async function runItemAdministrationTutor(input: {
           where: { id: agentCall.id },
           data: {
             ...providerAuditUpdate(providerResult),
+            raw_output: prismaJson({
+              provider_raw_output: redactForAudit(providerResult.raw_output),
+              original_parsed_output: redactForAudit(parsed.success ? parsed.data : null),
+              collection_policy_version: ITEM_ADMINISTRATION_TUTOR_VERSION,
+              prior_neutral_clarification_count: input.state_packet.prior_neutral_clarification_count ?? 0
+            }),
             output_payload: prismaJson(canonicalOutput),
             output_validated: true,
             call_status: "succeeded",

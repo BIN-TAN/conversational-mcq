@@ -76,7 +76,7 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_native_confidence_alignment: validated ? profile.confidence_alignment : null,
     profile_confidence_alignment_scope: !validated ? "unavailable" : role === "baseline"
       ? "initial_assessment" : call?.agent_name === "formative_conversation_agent" &&
-        ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7"].includes(call.prompt_version ?? "")
+        ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7", "formative-conversation-host-v7.8"].includes(call.prompt_version ?? "")
         ? "carried_forward_not_reassessed" : "legacy_scope_unrecorded",
     profile_unavailable_reason: fallback ? "profiling_fallback" :
       intermediate ? "intermediate_artifact" : validated ? null : "validation_provenance_unavailable"
@@ -138,7 +138,7 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   profile_unavailable_reason: "profiling_fallback, intermediate_artifact, validation_provenance_unavailable, or blank for a validated record.",
   profile_dimensions_status: "integrated_dimensions for stored V2 integration artifacts; item_level_dimensions for canonical profiles; unavailable for fallback or unverified provenance. Missing aggregate categories are not reconstructed from per-item judgments.",
   profile_native_confidence_alignment: "Native confidence_alignment from a validated profile. It is not converted to the different legacy confidence_calibration vocabulary.",
-  profile_confidence_alignment_scope: "Read-only provenance: initial_assessment for validated baseline profiles; carried_forward_not_reassessed for validated updated formative profiles from host-v7.6 or host-v7.7; legacy_scope_unrecorded for other updated profiles; unavailable without eligible validation provenance. No confidence change is calculated. Carry-forward preserves the prior value, which may itself be historical; it is not a new confidence measurement.",
+  profile_confidence_alignment_scope: "Read-only provenance: initial_assessment for validated baseline profiles; carried_forward_not_reassessed for validated updated formative profiles from host-v7.6, host-v7.7 or host-v7.8; legacy_scope_unrecorded for other updated profiles; unavailable without eligible validation provenance. No confidence change is calculated. Carry-forward preserves the prior value, which may itself be historical; it is not a new confidence measurement.",
   prior_confidence_alignment_scope: "profile_confidence_alignment_scope of the transition's prior profile; join prior_profile_record_id for source provenance.",
   updated_confidence_alignment_scope: "profile_confidence_alignment_scope of the transition's updated profile; join updated_profile_record_id for source provenance. Repeated values do not represent repeated confidence measurements.",
   misconception_indicator_count: "Length of the canonical indicators array or supported legacy array. Blank for fallback or unrecognized format; zero means an explicitly empty supported array, not missing diagnosis.",

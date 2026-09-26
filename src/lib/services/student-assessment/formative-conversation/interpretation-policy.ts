@@ -6,8 +6,9 @@ import {
   type FormativeConversationV18R2AgentOutput
 } from "./agent-contract-v18r2";
 import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
+import { learningSummaryEvidenceIssues } from "./learning-summary-policy";
 
-export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v1";
+export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v2";
 
 // This projection fixes bookkeeping only. Raw output and every evidence reference survive.
 export function prepareFormativeInterpretationResult(
@@ -62,7 +63,7 @@ export function validateFormativeInterpretation(input: {
   const prior = input.context.current_profile.canonical_profile;
   const recommendation = output.profile_transition_recommendation;
   const updated = recommendation?.updated_profile;
-  const issues: string[] = [];
+  const issues: string[] = learningSummaryEvidenceIssues(output, input.context);
   const uncatalogued = output.evidence_observations.filter(observation =>
     observation.evidence_type === "uncatalogued_misconception"
   );

@@ -1,4 +1,5 @@
-import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { Readable } from "node:stream";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 
@@ -17,7 +18,7 @@ export function storageKeyForExport(exportPublicId: string, extension: "csv" | "
   return `${exportPublicId}.${extension}`;
 }
 
-function pathForStorageKey(storageKey: string) {
+export function pathForStorageKey(storageKey: string) {
   if (!storageKeyPattern.test(storageKey)) {
     throw new Error("Invalid export storage key.");
   }
@@ -44,6 +45,17 @@ export async function writeExportBytes(storageKey: string, contents: Uint8Array)
 
 export async function readExportFile(storageKey: string) {
   return readFile(pathForStorageKey(storageKey));
+}
+
+export async function openExportStream(storageKey: string) {
+  const handle = await open(pathForStorageKey(storageKey), "r");
+  try {
+    const metadata = await handle.stat();
+    const stream = handle.createReadStream({ highWaterMark: 64 * 1024, autoClose: true });
+    return { size: metadata.size, body: Readable.toWeb(stream, {
+      strategy: { highWaterMark: 64 * 1024, size: (chunk: Uint8Array) => chunk.byteLength }
+    }) as ReadableStream<Uint8Array> };
+  } catch (error) { await handle.close(); throw error; }
 }
 
 export async function deleteExportFile(storageKey: string) {

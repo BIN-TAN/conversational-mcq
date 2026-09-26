@@ -3,6 +3,7 @@ export type ContentErrorCode =
   | "not_found"
   | "conflict"
   | "no_session_data"
+  | "research_export_busy"
   | "cannot_modify_published_with_responses"
   | "content_locked_after_student_session"
   | "assessment_has_no_published_concept_units"

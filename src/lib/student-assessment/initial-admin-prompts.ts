@@ -1,6 +1,6 @@
 import type { ChatNativeAssessmentState } from "@/lib/student-assessment/state-machine";
 
-export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v2";
+export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v3";
 
 export type InitialAdminRequiredEvidence =
   | "answer"
@@ -68,10 +68,10 @@ const ANSWER_PROMPTS = [
 ];
 
 const REASONING_PROMPTS = [
-  "What led you to choose {option}? Please explain your reasoning with as much detail as you can.",
-  "Why did {option} seem best to you? Try to include detail about the idea or part of the question that shaped your choice.",
-  "Give your reason for choosing {option}. The more detail you provide, the more useful my feedback can be.",
-  "One or two sentences is enough, but include the detail that mattered most. Why did {option} seem best?"
+  "What led you to choose {option}? A brief reason is enough; it is okay to be unsure.",
+  "Why did {option} seem best to you? Share your current thinking, even if you are unsure.",
+  "What was your reason for choosing {option}? You do not need to invent a reason if you do not know.",
+  "What mattered most when you chose {option}? A short explanation is enough."
 ];
 
 const TEMPTING_PROMPTS = [

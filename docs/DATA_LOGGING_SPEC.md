@@ -1,5 +1,32 @@
 # Data Logging Specification
 
+## Collection and Summary Evidence (2026-09-26)
+
+Item-admin tutor v2 preserves submitted student wording, including limited and
+uncertain reasons. Accepted limited responses have `weak_but_usable_reasoning`
+classification and `weak_but_usable` tutor quality. The legacy response-quality
+projection maps this to `adequate` with `reasoning_signal=weak_but_usable`;
+"adequate" here means collectable, not correct, mastered, or independently reasoned.
+Explicit unknown-reason responses retain their existing low-information category.
+Original model output is retained under `agent_calls.raw_output.original_parsed_output`;
+`output_payload` is the effective neutralized collection output. The same audit
+includes `collection_policy_version` and `prior_neutral_clarification_count`.
+That count uses prior same-item, same-stage rejected incomplete/continuation
+or affective messages, excluding provider/configuration failures. It bounds
+clarification; it is not a learning or engagement measure. Original rejected
+turns and accepted products remain separate. No historical data is rewritten.
+
+Host v7.8 uses existing formative `evidence_observations` for optional learning
+summaries: `learning_summary_understanding`, `learning_summary_progress`, and
+`learning_summary_remaining`. Each entry links canonical student reasoning IDs.
+Progress entries require distinct earlier reasoning and later formative reasoning;
+baseline or answer-only evidence cannot establish gain. These are qualitative AI
+interpretations with provenance, not computed learning-effect measures. They do
+not independently change claim dispositions, update a profile, or end a session.
+Original observations remain in agent/turn audit and existing research exports;
+there is no duplicate summary/mastery table. The policy does not infer correctness
+from IDs alone: substantive accuracy still requires content review and evaluation.
+
 ## Stance-aware interpretation provenance
 
 New initial profiles use `semantic-item-review-v3` and retain item-local
@@ -1630,7 +1657,7 @@ required for this projection.
 
 ### Formative interpretation provenance, projection v2
 
-Hosts v7.6 and v7.7 retain prior `confidence_alignment` rather than interpreting a correct
+Hosts v7.6, v7.7 and v7.8 retain prior `confidence_alignment` rather than interpreting a correct
 answer as a new self-confidence rating. `profile_confidence_alignment_scope`
 distinguishes initial assessment, carry-forward without reassessment, legacy
 unknown scope, and unavailable validation provenance. Transition CSVs include
@@ -1659,3 +1686,17 @@ this does not mint new canonical IDs or silently edit historical profiles.
 Canonical claim counts are not an exhaustive count of these extra observations.
 Review the evidence observations, transcript and teacher-review reason together.
 The observation is an AI interpretation, not a direct behavioral measurement.
+
+### Research dataset generation, session-spooled-export-v1
+
+The HTTP Research dataset generator serializes session-sized chunks to private
+temporary files within one RepeatableRead database snapshot. It compresses and
+downloads by streaming; it does not load the entire archive into RAM. The
+manifest records `generation_policy_version=session-spooled-export-v1`. This is
+an operational generation version, not a new variable definition or data schema.
+Row counts, file bytes, SHA-256, coverage counts, pseudonyms and restricted-field
+rules are preserved. Rows may be grouped by session; join by documented IDs,
+never by CSV row position. Snapshot timeout/failure does not produce a truncated
+successful export. Source student records are unchanged. See
+`RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md` for evidence, verification, cleanup
+behavior and remaining capacity limitations.

@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { strict as nodeAssert } from "node:assert";
 import { parse } from "csv-parse/sync";
 import { canAccessMasterExport } from "../src/lib/services/master-export/api";
 import {
@@ -7,7 +8,8 @@ import {
 } from "../src/lib/services/master-export/csv";
 import {
   createMasterCsvExport,
-  getExportDownload
+  getExportDownload,
+  getExportDownloadStream
 } from "../src/lib/services/master-export/service";
 import { exportStorageDirectory } from "../src/lib/services/master-export/storage";
 import {
@@ -113,7 +115,7 @@ async function main() {
 
     const persistedJob = await prisma.exportJob.findUniqueOrThrow({
       where: { export_public_id: job.export_public_id },
-      select: { storage_key: true, file_name: true }
+      select: { storage_key: true, file_name: true, expires_at: true }
     });
 
     assert(persistedJob.storage_key?.endsWith(".csv"), "Export should have a CSV storage key.");
@@ -123,6 +125,17 @@ async function main() {
     );
 
     const download = await getExportDownload(job.export_public_id);
+    const streamed = await getExportDownloadStream(job.export_public_id);
+    const streamedBytes = Buffer.from(await new Response(streamed.body).arrayBuffer());
+    assert(streamed.size === download.bytes.length && streamedBytes.equals(download.bytes),
+      "Streamed master download must preserve every byte and its Content-Length.");
+    await prisma.exportJob.update({ where: { export_public_id: job.export_public_id }, data: { expires_at: new Date(0) } });
+    try {
+      await nodeAssert.rejects(getExportDownloadStream(job.export_public_id),
+        (error: unknown) => (error as { status: number }).status === 410);
+    } finally {
+      await prisma.exportJob.update({ where: { export_public_id: job.export_public_id }, data: { expires_at: persistedJob.expires_at } });
+    }
     assert(download.file_name === "master_assessment_export.csv", "Download file name mismatch.");
     const rows = parseRows(download.bytes);
     const headerLine = download.bytes.toString("utf8").replace(/^\uFEFF/, "").split(/\r?\n/)[0];

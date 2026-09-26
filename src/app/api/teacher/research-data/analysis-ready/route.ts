@@ -7,8 +7,8 @@ import { logProductionError } from "@/lib/observability/production-safe-logger";
 import { generatePublicId } from "@/lib/services/ids";
 import { requireTeacherResearcher, contentRouteError } from "@/lib/services/content/api";
 import { ContentServiceError } from "@/lib/services/content/errors";
-import { storageKeyForExport, writeExportBytes } from "@/lib/services/master-export/storage";
-import { buildAnalysisReadyResearchDataBundle } from "@/lib/services/teacher-research-data/analysis-ready-export";
+import { storageKeyForExport, openExportStream, deleteExportFile } from "@/lib/services/master-export/storage";
+import { writeAnalysisReadyResearchDataBundle } from "@/lib/services/teacher-research-data/analysis-ready-export";
 import { getResearchExportReadiness } from "@/lib/services/teacher-research-data/readiness";
 
 function studentScopeFingerprint(studentUserId?: string) {
@@ -146,12 +146,11 @@ async function createResearchExport(request: Request, teacherUserDbId: string) {
       }
     });
 
-    const result = await buildAnalysisReadyResearchDataBundle({
+    const result = await writeAnalysisReadyResearchDataBundle({
       teacher_user_db_id: teacherUserDbId,
       ...parsed
-    });
+    }, storageKey);
 
-    await writeExportBytes(storageKey, result.buffer);
     const completed = await prisma.exportJob.update({
       where: { id: job.id },
       data: {
@@ -169,8 +168,9 @@ async function createResearchExport(request: Request, teacherUserDbId: string) {
       }
     });
 
-    return { ok: true as const, job: serializeResearchExportJob(completed), result };
+    return { ok: true as const, job: serializeResearchExportJob(completed), result, storageKey };
   } catch (error) {
+    await deleteExportFile(storageKey).catch(() => undefined);
     const code = error instanceof ContentServiceError ? error.code : "research_export_generation_failed";
     const message = error instanceof ContentServiceError ? error.message : "Research export generation failed. Please retry or contact the course administrator.";
     logProductionError(error, { safe_error_code: code, request_id: requestId });
@@ -256,9 +256,11 @@ export async function GET(request: Request) {
   try {
     const created = await createResearchExport(request, auth.user.user_db_id);
     if (!created.ok) return created.response;
-    return new NextResponse(created.result.buffer, {
+    const download = await openExportStream(created.storageKey);
+    return new NextResponse(download.body, {
       headers: {
         "Content-Type": created.result.content_type,
+        "Content-Length": String(download.size),
         "Content-Disposition": `attachment; filename="${created.result.filename}"`,
         "Cache-Control": "no-store"
       }

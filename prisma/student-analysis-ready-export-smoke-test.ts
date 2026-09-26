@@ -1,7 +1,10 @@
 import { parse } from "csv-parse/sync";
+import { createHash } from "node:crypto";
+import JSZip from "jszip";
 import { PrismaClient } from "@prisma/client";
 import {
   buildAnalysisReadyResearchDataBundle,
+  writeAnalysisReadyResearchDataBundle,
   countSerializedCsvDataRows
 } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import {
@@ -24,6 +27,7 @@ import {
   teacherReviewAssessmentPublicId
 } from "./demo-teacher-review-fixture";
 import { researchStudentId } from "../src/lib/services/teacher-research-data/pseudonymization";
+import { openExportStream, deleteExportFile } from "../src/lib/services/master-export/storage";
 
 const prisma = new PrismaClient();
 
@@ -290,6 +294,36 @@ async function main() {
     const afterAgentCalls = await prisma.agentCall.count();
     assert(beforeAgentCalls === afterAgentCalls, "Research dataset smoke should not create agent calls.");
 
+    const storageKey = `synthetic_streaming_${Date.now()}.zip`;
+    try {
+      const stored = await writeAnalysisReadyResearchDataBundle({ teacher_user_db_id: teacher.id,
+        scope: "selected_assessment", assessment_public_id: teacherReviewAssessmentPublicId }, storageKey);
+      assert(!("buffer" in stored) && !("files" in stored), "HTTP writer must return metadata, not all CSVs or a ZIP buffer.");
+      const download = await openExportStream(storageKey);
+      const bytes = Buffer.from(await new Response(download.body).arrayBuffer());
+      assert(bytes.length === download.size, "Streamed content length should match actual bytes.");
+      const archive = await JSZip.loadAsync(bytes, { checkCRC32: true });
+      const manifest = JSON.parse(await archive.file("research_manifest.json")!.async("string"));
+      assert(manifest.isolation_level === "RepeatableRead", "Batching must retain one consistent database snapshot.");
+      for (const entry of manifest.entries) {
+        const data = await archive.file(entry.path)!.async("nodebuffer");
+        assert(data.length === entry.bytes && createHash("sha256").update(data).digest("hex") === entry.sha256,
+          `Streamed ZIP integrity mismatch: ${entry.path}`);
+        if (entry.path.endsWith(".csv")) {
+          const actualRows = parseCsv<Record<string, string>>(data.toString("utf8"));
+          assert(actualRows.length === stored.row_counts[entry.path] && actualRows.length === entry.rows,
+            `Streamed ZIP row count mismatch: ${entry.path}`);
+          const normalize = (values: Record<string, string>[]) => values.map(row => JSON.stringify(Object.fromEntries(
+            Object.entries(row).filter(([key]) => !["export_run_public_id", "export_generated_at", "snapshot_at", "derived_at"].includes(key))
+          ))).sort();
+          assert(JSON.stringify(normalize(actualRows)) === JSON.stringify(normalize(parseCsv(fileData(result.files, entry.path)))),
+            `Disk-backed and compatibility exports must preserve the same cells: ${entry.path}`);
+        }
+      }
+      const cancelled = await openExportStream(storageKey);
+      await cancelled.body.cancel();
+    } finally { await deleteExportFile(storageKey); }
+
     console.log(
       JSON.stringify(
         {
@@ -301,6 +335,7 @@ async function main() {
           dictionary_rows: dictionaryRows.length,
           process_event_codebook_rows: eventCodebookRows.length,
           restricted_mode_checked: true,
+          disk_backed_export_equivalent: true,
           no_openai_call_occurred: true
         },
         null,

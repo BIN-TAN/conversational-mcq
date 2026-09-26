@@ -1,4 +1,8 @@
 import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { resolveOpenAIModelConfigForRole } from "../src/lib/llm/config";
 import { PrismaClient } from "@prisma/client";
 import {
   assert,
@@ -7,6 +11,8 @@ import {
 } from "./student-mvp-smoke-helpers";
 import {
   recordReasoning,
+  recordConfidence,
+  recordTemptingOption,
   recordSelectedOption,
   startConceptUnitInitialAdministration,
   startOrResumeStudentAssessmentSession
@@ -15,6 +21,7 @@ import {
   ITEM_ADMINISTRATION_TUTOR_AGENT_NAME,
   ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION,
   ItemAdministrationTutorOutputSchema,
+  resolveItemAdministrationTutorRuntimeMode,
   withItemAdministrationTutorProviderForTest,
   type ItemAdministrationTutorOutput
 } from "../src/lib/services/student-assessment/item-administration-tutor";
@@ -197,19 +204,26 @@ async function assertTutorProcessEvidence(input: {
 }
 
 async function main() {
+  const originalCwd = process.cwd();
+  const isolatedCwd = mkdtempSync(join(tmpdir(), "cmcq-injected-item-admin-"));
   process.env.ALLOW_MANUAL_REVIEW_STUDENT_STARTS = "true";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
   await ensureDemoStudentAssessment(prisma);
 
   const prefix = `item_admin_audit_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  const teacher = await prisma.user.findUniqueOrThrow({ where: { user_id_normalized: "teacher_demo" } });
   const student = await createSmokeStudent({
     prisma,
     prefix,
+    teacherDbId: teacher.id,
     accessCode: `${prefix}_access`
   });
   const sessionPublicIds: string[] = [];
 
   try {
+    // The injected provider uses a synthetic configuration, not the developer's
+    // local credentials or production approval bundle. No external calls occur.
+    process.chdir(isolatedCwd);
     await withTemporaryEnv(
       {
         NODE_ENV: "development",
@@ -230,6 +244,9 @@ async function main() {
             provider_request_id: "synthetic_auth_check"
           }),
           async () => {
+        const runtime = await resolveItemAdministrationTutorRuntimeMode();
+        assert(runtime.resolved_source === "live_llm", `Injected provider runtime blocked: ${runtime.blocking_reasons.join(",")}`);
+        resolveOpenAIModelConfigForRole("item_administration_tutor_agent");
         expectFailure(() => findMatchingCallOrThrow([], "content_question"));
 
         const started = await startOrResumeStudentAssessmentSession({
@@ -364,6 +381,46 @@ async function main() {
           expectedSource: "safe_block_after_live_failure",
           expectedClassification: "incomplete"
         });
+
+        const action = { student_user_db_id: student.id, session_public_id: started.session.session_public_id,
+          item_public_id: item.item_public_id };
+        const incomplete: ItemAdministrationTutorOutput = { ...invalidAdvanceOutput,
+          message_classification: "incomplete", response_quality: "not_usable", should_advance: false,
+          next_expected_action: "ask_repair",
+          student_facing_message: "Focus on whether the scores use a reference group or a predefined standard." };
+        await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(incomplete), async () => {
+          const first = await recordReasoning({ ...action, data: { reasoning_text: "That part", client_action_id: `${prefix}_fragment_1` } });
+          assert(first.state.assessment_state === "AWAIT_REASON", "Content requests and failed calls must not count as a neutral clarification.");
+          const shown = await prisma.conversationTurn.findFirstOrThrow({ where: {
+            assessment_session: { session_public_id: action.session_public_id }, actor_type: "agent"
+          }, orderBy: { sequence_index: "desc" } });
+          assert(!shown.message_text?.includes("reference group"), "Do not show provider-authored content hints.");
+          const second = await recordReasoning({ ...action, data: { reasoning_text: "B", client_action_id: `${prefix}_fragment_2` } });
+          assert(second.state.assessment_state === "AWAIT_CONFIDENCE", "One neutral clarification must not become an indefinite rejection loop.");
+          const stored = await prisma.itemResponse.findFirstOrThrow({ where: {
+            item: { item_public_id: item.item_public_id }, concept_unit_session: { assessment_session: { session_public_id: action.session_public_id } }
+          } });
+          assert(stored.reasoning_text === "B", "Never replace a letter response with an invented unknown-reason admission.");
+          const acceptedAudit = await latestTutorCall(action.session_public_id);
+          assert(acceptedAudit.output.response_quality === "weak_but_usable", "Acceptance is not a mastery judgment.");
+          const raw = await prisma.agentCall.findUniqueOrThrow({ where: { id: acceptedAudit.call.id }, select: { raw_output: true } });
+          assert(JSON.stringify(raw.raw_output).includes('"message_classification":"incomplete"'), "Original classification remains in audit.");
+          assert(JSON.stringify(raw.raw_output).includes('"prior_neutral_clarification_count":1'), "Bounded clarification is auditable.");
+        });
+        await recordConfidence({ ...action, data: { confidence_rating: "medium" } });
+        const alternative = item.options.find(option => option.label !== selectedOption)!.label;
+        await recordTemptingOption({ ...action, data: { tempting_option: alternative } });
+        const confused: ItemAdministrationTutorOutput = { ...incomplete, message_classification: "affective_expression" };
+        const finished = await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(confused), () =>
+          recordTemptingOption({ ...action, data: { tempting_option: alternative, tempting_option_reason: "This option confused me.", client_action_id: `${prefix}_tempting_confusion` } }));
+        assert(finished.state.current_item?.item_public_id !== item.item_public_id, "Accepted tempting uncertainty must open the next item.");
+        const submitted = await prisma.itemResponse.findFirstOrThrow({ where: { item: { item_public_id: item.item_public_id },
+          concept_unit_session: { assessment_session: { session_public_id: action.session_public_id } } } });
+        assert(submitted.item_submitted_at, "Progression requires a persisted submission timestamp.");
+        for (const eventType of ["item_submitted", "item_completed"]) {
+          assert(await prisma.processEvent.count({ where: { assessment_session: { session_public_id: action.session_public_id },
+            item: { item_public_id: item.item_public_id }, event_type: eventType } }) === 1, `${eventType} must be recorded once.`);
+        }
           }
         );
       }
@@ -371,6 +428,8 @@ async function main() {
 
     console.log("Student item-admin audit smoke passed. No OpenAI call was made.");
   } finally {
+    process.chdir(originalCwd);
+    rmSync(isolatedCwd, { recursive: true, force: true });
     await cleanupSmokeStudentSessions({
       prisma,
       userDbId: student.id,

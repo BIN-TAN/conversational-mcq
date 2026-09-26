@@ -49,3 +49,31 @@ export function researchCoverageFiles(files: { path: string; data: string }[]) {
     ].join("\n") + "\n" }
   ];
 }
+
+// Session-sized chunks keep raw CSV values out of cohort-wide accumulators.
+export class ResearchCoverageAccumulator {
+  private readonly rows = new Map<string, Record<string, string | number | null>>();
+  private notes = "";
+
+  add(file: { path: string; data: string }) {
+    const report = researchCoverageFiles([file]);
+    this.notes = report[1].data;
+    for (const row of parse(report[0].data, { columns: true }) as Record<string, string>[]) {
+      const key = JSON.stringify([row.dataset, row.group_by, row.group_value, row.variable_name]);
+      const existing = this.rows.get(key);
+      const totals = Object.fromEntries(["row_count", "populated_count", "blank_count", "zero_count", "false_count"]
+        .map(field => [field, Number(existing?.[field] ?? 0) + Number(row[field])]));
+      const count = totals.row_count, populated = totals.populated_count;
+      this.rows.set(key, { ...row, ...totals,
+        populated_percent: count ? Math.round(10000 * populated / count) / 100 : null,
+        coverage_status: !count ? "no_rows" : !populated ? "all_blank" : populated === count ? "populated" : "partly_populated" });
+    }
+  }
+
+  files() {
+    return [
+      { path: "data_coverage.csv", data: stringify([...this.rows.values()], { header: true, columns: COLUMNS, escape_formulas: true }) },
+      { path: "data_coverage_notes.txt", data: this.notes }
+    ];
+  }
+}
