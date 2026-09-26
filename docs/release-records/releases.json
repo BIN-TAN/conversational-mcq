@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-25T20:36:30-06:00",
+  "updated_at": "2026-09-26T11:30:56-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -182,6 +182,74 @@
         "src/lib/services/teacher-research-export/service.ts",
         "src/lib/services/teacher-review/session-detail.ts",
         "prisma/profile-record-projection-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-01",
+      "date": "2026-09-26",
+      "title": "推理证据与形成性教学的系统性校验",
+      "application_commit": "08674229291ae6661c5ff6ff52e70d5b3af0b7e7",
+      "push_status": "已推送配置的 BIN-TAN/conversational-mcq origin main；远程从 2752f92d 更新至 08674229。应用提交含此前累计的验收、立场解释、形成性对话及研究投影修改。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-darvvirl550s738r73ag",
+        "source_commit": "08674229291ae6661c5ff6ff52e70d5b3af0b7e7",
+        "verified_at": "2026-09-26T11:30:56-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-darvvirl550s738r73ag",
+        "evidence": [
+          "Render 显示 Deploy succeeded | Live，完整源提交为 08674229291ae6661c5ff6ff52e70d5b3af0b7e7。部署开始于 2026-09-26 11:24:27 MDT，持续 5 分 12 秒，启动日志在 11:29:39 报告服务 Live。",
+          "Render 依赖检查报告零已知漏洞，生产构建通过；迁移检查显示 65 项既有迁移，无待执行迁移。该依赖结果不等于全面安全认证。",
+          "上线后无缓存健康请求返回 HTTP 200、status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready，服务器时间为 2026-09-26T17:30:28.689Z。该端点不认证 AI 教学质量。",
+          "Web Shell 只读核对运行容器 build/application-build-info.json，完整应用提交一致，构建时间 2026-09-26T17:25:04.470Z，artifact_hash 为 17078be3d889c3c00ecace881bd35d8ad249a8ce77a858eeab40afdb107114ba。",
+          "2026-09-26T17:30:56.746Z 只读检查 /proc，next-server 和 initial-preparation-worker 均在运行。这里只验证进程存在，没有在真实学生账户内新建 AI 任务。",
+          "发布过程中登录入口和一次健康请求返回 502；部署完成后登录页刷新恢复，健康请求为 200。未认定 502 的根因。此次只验证入口及运行状态，没有登录真实学生账户或改写学生资料。"
+        ]
+      },
+      "summary": "将课堂验收、学生对解释的立场、反馈完整性、独立迁移的证据要求、信心来源及复发误解保护集中发布。修改共享契约和保存路径，未按学生或具体案例写特例。103 个文件包含合成测试资料和失败记录；没有新增数据库迁移，没有重写真实学生资料。",
+      "changes": [
+        {"area": "区分选项认同与独立推理", "problem": "复用选项中的解释可能被一概当作无效复述；引用、否定和回顾错误观点也可能被混同为当前认同。", "fix": "semantic-item-review-v3 分别记录原文、命题、立场、解释来源、正确性、范围和封存选项引用。只有特定且被认同的错误解释可形成候选误解，并逐项校验链接及覆盖。", "impact": "认同正确解释可支持识别，但不自动证明独立应用或迁移；不要求仅为措辞新颖而改写，不把文字重合当作不当行为。"},
+        {"area": "完整且可见的教学反馈", "problem": "旧呈现器可能截断句子，关键词式赞扬缺少证据；部分教学内容可能位于未显示的附件而非实际回复。", "fix": "保留完整的已验证消息，提示词预留长度空间，明显未完成的回复进入既有修复流程。形成性教学文字必须进入可见消息，模拟程序只将实际可见回复带入下一轮。", "impact": "不恢复流式未验证回复，不增加首轮逐题提交按钮，保持应用负责状态推进。"},
+        {"area": "形成性解释与信心来源", "problem": "套用刚提供的例子可能被判为最强迁移；答对后可能把原信心解释当作新测量。", "fix": "最强迁移标签要求当前合格学生证据与独立迁移观察共同支持。形成性更新保留原 confidence_alignment，新表达另记观察；教师视图和导出标注来源阶段。", "impact": "引用验证保证可追溯性而非语义真确性；有提示的应用不等于稳定独立迁移。"},
+        {"area": "机械修正与误解反复保护", "problem": "未变字段误标更新导致不必要拒绝；已关闭误解再次出现后可能不在当前活跃目录中。", "fix": "只规范化未变值的更新标记，保留原始输出和前后哈希。实质矛盾继续拒绝并有限重试。host-v7.7 要求目录外误解引用当前证据，若问题仍在且收尾更新画像，则建议教师复核并禁止最强掌握结论。", "impact": "保留学生暂停和停止意图；这是复核保护，不是完整自动重开历史 claim 目录。"},
+        {"area": "研究投影与可复现验收", "problem": "文字摘要容易被当作有题目身份的结构化证据；前一画像来源缺失会污染转变解释；机械指标可能被误当作教学效度。", "fix": "增加证据格式和信心阶段，查询前后来源，不伪造题目 ID。新增隔离数据库、浏览器与导出对照验收；取消按关键词、长度等直接奖励教学质量的规则，独立教学审查单列。", "impact": "保留全部原始资料、版本与失败候选。验收清单是本地审查工具，不是已强制执行的线上部署许可。"}
+      ],
+      "data_impact": [
+        "未重写历史作答、封存包、画像或旧模型判断。新的结构用于之后生成的解释；旧资料不补造立场、独立性或信心测量。无新增迁移。",
+        "semantic-item-review-v3 记录 interpretation_id、student_quote、source_field、proposition、stance、basis、correctness、scope、option_reference 和 rationale。候选误解链接到特定认同的错误命题；复合选项的笼统认同不拆成多个确定信念。",
+        "profile-record-projection-v2 将信心解释区分初始阶段、host-v7.6/v7.7 沿用、旧版未知和不可得；形成性自由文本信心观察不替代原始测量。前后画像各自关联其来源调用。",
+        "题目证据格式区分 structured、narrative、mixed、empty 和 unavailable；数量为实际保存的记录条数，不保证等于不同题目数。无题目身份的文字不虚构关联。",
+        "机械规范化和被拒绝候选保留原始输出、哈希和修正记录。uncatalogued_misconception 保留当前引文及复核理由；正式 claim 数量为零不能解释为没有反复错误。",
+        "测试资料均为合成场景。真实 AI 使用内存上下文，持久化和研究 ZIP 对照使用隔离本地数据库及 mock AI；两类证据不可误报为线上真实 AI 全链路试验。"
+      ],
+      "tests": [
+        {"name": "最终工程验收", "result": "通过", "detail": "node scripts/classroom-acceptance.mjs all：typecheck、lint、生产构建、59/59 核心套件、20/20 导航套件和三组浏览器脚本通过。导航与核心有重叠；lint 保留 5 条既有警告。发布前重算来源 SHA-256 为 59b3c38c864423d4c05877e2e0c9937ed019e3250cf15ddbe24bfe464269d8bf，与最终报告一致。"},
+        {"name": "浏览器与研究资料", "result": "通过所覆盖路径", "detail": "涵盖教师登录及刷新、学生重试、改答和取消、刷新、暂停继续、结束及历史回顾，后台初始反馈准备与失败恢复。阶段行为与数据库、研究 ZIP 对照；校验去重、学生隔离及只读历史不产生活动。使用合成资料和 mock AI，不修改生产学生状态。"},
+        {"name": "最终真实 AI 对话", "result": "13 个接受回复", "detail": "最终 host-v7.7 六组双轮加一组复发收尾专项，15 次实际请求，13 个接受回复，80/80 条条件性机械检查通过。2 个矛盾候选被拒绝后各重试一次。模型 gpt-5.6-sol，medium，输出上限 10000 tokens；该轮含重试延迟约 5.7 至 53.3 秒，中位数 15.1 秒，不含网页和并发等待。"},
+        {"name": "早期调查及对照", "result": "保留各自范围", "detail": "9 月 25 日初始诊断探测 12 次逻辑请求含三个波次，最终 48/48 标签计数检查为同 12 场景的重复而非独立学生。9 月 26 日立场探测 4 次真实请求，原始 2/4 来源验证通过；修复无关文本边界后重验保存输出为 4/4，不算新请求。最终 followup 调查各波次合计 31 次实际请求，不等于 31 个独立案例。详见各保留报告。"},
+        {"name": "发布前定向复核", "result": "通过", "detail": "重新运行 formative-interpretation-policy-smoke-test 和当前 AI 结果重放：12 个接受结果、1 个拒绝候选及下一轮可见消息链一致，零新增模型调用。git diff --check 通过；检查拟提交文件范围，未提交 output、outputs、凭据或学生原始会话。"},
+        {"name": "失败及修正记录", "result": "已保留", "detail": "既有 roster 测试夹具、重复网络防护导入、旧 schema 断言、对象属性顺序断言、模拟档案字段及证据位置、测试引文假设和 CSV 类型声明曾导致检查失败，已修正并保留原结果。最终全量首次因沙箱无法连本地数据库失败，获准重跑通过。旧 v5.3 runtime 未纳入当前套件，由当前 V18R2 覆盖对应流程；不声称所有历史脚本均通过。"}
+      ],
+      "limitations": [
+        "代码和来源契约通过不等于误解识别、教学解释、迁移或学习增益已获科学验证。仍需独立教师评审、代表性学生试用和单独的结果测量；不据此授权自动高后果决策。",
+        "目录外复发已有复核保护，但完整自动 claim 重开尚未实现。语义识别仍可能漏报，不能把没有观察或零 claim 当作无误解证明。",
+        "学科解释仍需抽查；例如用单个学生两次相近分数作一致性示例，不能据此估计或证明测验信度。没有认证每个 AI 例子均严谨。",
+        "未穷尽 30 轮路径、多语言、公平性、辅助技术或课堂规模真实 AI 并发。最终形成性对话样本不重新证明初始诊断准确率。",
+        "本次新增 usability 与 learning value 建议及体验问卷审阅属于后续建议，不作为已经实现、已经验证或已经部署的功能。"
+      ],
+      "references": [
+        "docs/CLASSROOM_ACCEPTANCE.md",
+        "docs/STANCE_AWARE_REASONING.md",
+        "docs/FORMATIVE_INTERPRETATION_POLICY.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/acceptance/runs/2026-09-25/REPORT.md",
+        "docs/acceptance/runs/2026-09-26/REPORT.md",
+        "docs/acceptance/runs/2026-09-26/fresh-followup/REVIEW.md",
+        "docs/acceptance/runs/2026-09-26/fresh-followup/engineering-final.json",
+        "docs/acceptance/runs/2026-09-26/fresh-dialogues-final/READABLE_TRANSCRIPTS.md",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts",
+        "src/lib/services/student-assessment/semantic-item-review.ts"
       ]
     }
   ],
