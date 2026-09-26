@@ -132,8 +132,39 @@ for later full regression runs. The full audit was not run in this task.
 - Admission control is process-local. Multiple web instances would need a shared
   job/lock policy. Simultaneous student AI work still shares the 512 MB container;
   this patch alone cannot certify classroom capacity or zero future OOMs.
-- Docker image build/startup and a post-deployment production export have not yet
-  been verified for these changes. No deployment success is inferred from tests.
+- Production validation and the follow-up runtime budget correction are recorded
+  below. They do not establish classroom-scale concurrency capacity.
+
+## Deployment follow-up and runtime heap budgets
+
+The first application release `19dcb316` went Live on September 26 at 17:10 MDT.
+One standard all-authorized research export completed with 8,468 table records
+and a browser download event. The web and preparation worker stayed running.
+However, a subsequent 20-second cgroup sample reached 536,461,312 bytes, close to
+the 536,870,912-byte limit. This was not a safe capacity margin. A later sample
+showed 513,896,448 bytes of anonymous memory and only 2,048,000 bytes of file
+cache; the pressure could not be explained away as disk cache.
+
+A read-only runtime probe reported a default V8 heap limit of 8,593,080,320 bytes
+inside that 512 MiB cgroup. Build-sized runtime settings can delay collection
+beyond the container's capacity. No heap snapshot was taken, so this observation
+does not identify every allocation or prove the sole cause of the earlier OOM.
+
+`scripts/start-app.mjs` now reads Node's actual constrained-memory value and
+passes explicit heap flags to each production child, overriding inherited
+build-time `NODE_OPTIONS`. The web old-space budget is 37.5% of container memory;
+the worker is 18.75%. At 512 MiB these are 192 and 96 MiB respectively, with
+4 MiB semi-spaces. The remainder is reserved for native allocations, buffers,
+young generations and the supervisor. These are GC budgets, not total RSS caps.
+Development and unavailable constraints retain existing behavior. No paid plan
+change or student-data change is involved. A single oversized session or enough
+concurrent work can still exhaust these budgets and needs capacity planning.
+
+The four `node --test scripts/runtime-memory-budget.test.mjs` checks cover the
+512 MiB allocation, larger-container scaling, dev/unavailable constraints and
+actual child-process precedence over an inherited 8 GiB setting. The exact
+follow-up commit, low-heap regression outcomes and deployment verification are
+recorded in the release ledger.
 
 ## Related assessment work retained locally
 

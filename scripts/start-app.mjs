@@ -1,17 +1,21 @@
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import nextEnv from "@next/env";
+import { runtimeMemoryArguments } from "./runtime-memory-budget.mjs";
 
 const require = createRequire(import.meta.url);
 const [mode = "start", ...args] = process.argv.slice(2);
 if (!["start", "dev"].includes(mode)) throw new Error("Expected start or dev.");
 process.env.NODE_ENV ??= mode === "dev" ? "development" : "production";
 nextEnv.loadEnvConfig(process.cwd(), mode === "dev");
+const constrainedBytes = process.constrainedMemory?.() ?? 0;
+const memory = runtimeMemoryArguments(mode, constrainedBytes);
+if (memory.web.length) console.info("Runtime memory budgets", { constrainedBytes, ...memory });
 
 // The web server and durable worker share a service lifecycle, not an HTTP request.
 const children = [
-  spawn(process.execPath, [require.resolve("next/dist/bin/next"), mode, ...args], { stdio: "inherit" }),
-  spawn(process.execPath, ["--import", "tsx", "prisma/initial-preparation-worker.ts"], { stdio: "inherit" })
+  spawn(process.execPath, [...memory.web, require.resolve("next/dist/bin/next"), mode, ...args], { stdio: "inherit" }),
+  spawn(process.execPath, [...memory.worker, "--import", "tsx", "prisma/initial-preparation-worker.ts"], { stdio: "inherit" })
 ];
 let stopping = false;
 let killTimer;
