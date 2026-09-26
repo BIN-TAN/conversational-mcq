@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-25T16:24:06-06:00",
+  "updated_at": "2026-09-25T20:36:30-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -121,6 +121,68 @@
       ],
       "limitations": ["被引用审计文档是在部署前形成，结尾仍注明当时未 push/deploy；之后的部署核验是独立证据。历史测试不证明所有生产数据完整，也不是大班并发压测。"],
       "references": ["docs/STUDENT_NAVIGATION_AUDIT_2026-09-22.md", "docs/NAVIGATION_RESEARCH_DATA_AUDIT_2026-09-22.md", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md"]
+    },
+    {
+      "id": "CMCQ-20260925-02",
+      "date": "2026-09-25",
+      "title": "测验中画像追踪与研究导出修复",
+      "application_commit": "4278200b2cd9e82851e2779bdccca07ceb1938d0",
+      "push_status": "已推送至配置的 GitHub origin main；远程从 a45b03ab 更新至 4278200b。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-darirhe7bikc739d66fg",
+        "source_commit": "4278200b2cd9e82851e2779bdccca07ceb1938d0",
+        "verified_at": "2026-09-25T20:36:30-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-darirhe7bikc739d66fg",
+        "evidence": [
+          "Render 对应部署显示 Deploy succeeded | Live，源提交为完整应用提交 4278200b2cd9e82851e2779bdccca07ceb1938d0；部署开始于 2026-09-25 20:28:21 MDT，页面记录持续时间 5 分 03 秒。",
+          "Render Web Shell 只读核对运行实例的 build/application-build-info.json：应用提交一致，构建来源为 deployment_build_metadata，构建时间 2026-09-26T02:28:55.714Z。",
+          "公开健康请求返回 HTTP 200、status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready；最后记录的服务器时间为 2026-09-26T02:35:50.470Z。",
+          "Web Shell 读取 /proc 确认 next-server (v15.5.24) 和 prisma/initial-preparation-worker.ts 均在运行；只验证进程存在，不声称执行了新的 AI 准备任务。",
+          "上线后在教师会话页面只读查看历史失败画像，Profile unavailable 与 Reassessment incomplete 均正确出现，页面布局已查看，原始回答仍可审查。没有提交学生消息或改变会话状态。"
+        ]
+      },
+      "summary": "只读审计发现，24 条画像记录实际包括 16 条处理阶段资料、7 条验证通过的初始画像和 1 条失败替代结果，不能视为 24 次学习测量。修复共享分类、教师会话审查及两种研究导出，不删除历史资料，也不重新生成学生画像。应用修改涉及 12 个文件，无新增数据库迁移。",
+      "changes": [
+        {"area": "区分画像与处理阶段资料", "problem": "研究导出曾将所有画像表记录标为 authoritative，混淆整合、计划与正式画像。", "fix": "共享分类器读取来源调用、验证状态和失败标记，输出 baseline、updated、intermediate 角色与 validated、fallback、intermediate、unverified 状态。缺失来源不推断为验证成功。", "impact": "全部历史记录保留；研究时必须结合来源和有效性标记，不能直接以画像表行数作为测量次数。"},
+        {"area": "修正误解计数和判断字段", "problem": "旧导出仅识别数组，当前对象格式的误解指标被错误计为零；摘要读取旧聚合格式而漏掉逐题判断。", "fix": "同时支持旧数组和当前指标目录，分别计算指标数与原子命题数。新增逐题画像证据表，保留原始判断、信心与来源。旧聚合类别留在所属处理资料上，不移植到当前画像。", "impact": "空值与零值区分；失败诊断不能用零误解表示。各字段、计数和来源在数据字典中说明。"},
+        {"area": "不把技术失败解释为学生困难", "problem": "一次画像生成未通过语义验证后的替代记录可能被显示为 Needs more work。", "fix": "教师画像区与会话导出标记 Profile unavailable，保留失败来源及原始学生回答。真正的证据不足与系统未成功生成诊断分开。", "impact": "没有放宽原有诊断验证，也没有以新结论覆盖历史失败。"},
+        {"area": "连接初始画像和后续变化", "problem": "缺少正式转变时，当前指针可能被误看作新的测量；暂停和退出没有明确评估覆盖标记。", "fix": "当前画像使用最近的规范转变结果，否则保留初始画像。新增稳定画像编号及初始、当前、转变前后的连接字段；明确未重新评估、重新评估未完成和已验证重新评估三种状态。", "impact": "保存了对话不等于完成后测。无转变时不能据暂停、退出或时间推断进步或无进步。"}
+      ],
+      "data_impact": [
+        "新增只读投影版本 profile-record-projection-v1。所有原始作答、封存包、调用、画像、时间戳和研究证据保持不变。既有线上记录没有写入、删除或 AI 重跑。",
+        "profile_record_id 为 profile_ 加原数据库编号 SHA-256 的前 24 个十六进制字符。初始、当前、转变前后画像字段使用同一算法，供连接使用；源调用另保留公开编号、agent、prompt 和 schema 版本。",
+        "misconception_indicator_count 为受支持 indicators 或旧数组长度；misconception_claim_count 为规范指标下 claims.length 之和。失败替代、未知格式或缺失命题结构保留空值；明确的空数组才是零。",
+        "profile_item_evidence.csv 保存逐题模型解释及其来源，不重复学生理由全文。原始产品在 item_responses.csv。profile_valid_for_learning_analysis 是来源资格标记，不等于诊断效度或学生掌握的科学证明。",
+        "profile_reassessment_status 在存在规范转变时为 validated_reassessment；否则有学生对话或非活动状态为 reassessment_incomplete，其余为 not_reassessed。这个字段描述证据覆盖，不推断学习成效。",
+        "旧格式导出仍保留原始类别并附加来源标记；重导出修正的是表示和计数，不是对历史学生重新评分。"
+      ],
+      "tests": [
+        {"name": "静态检查与构建", "result": "通过", "detail": "npm run typecheck、npm run lint、npm run build、git diff --check。Lint 保留 5 条未涉及文件的既有警告；本地构建有 webpack 缓存性能提示但成功。初次类型检查发现返回值联合类型需明确，修复后复测通过。"},
+        {"name": "新增画像投影测试", "result": "通过", "detail": "student:profile-record-projection-smoke 覆盖当前和旧格式、未知格式、零与空值、有效来源、失败替代、初始画像选择、稳定编号、暂停退出状态、教师与两种导出一致性，以及读取不产生新画像。使用合成数据，无 AI 调用。"},
+        {"name": "研究导出回归", "result": "通过", "detail": "在新建的临时本地数据库中串行运行 student:analysis-ready-export-smoke、student:research-export-integrity-smoke、student:research-export-format-smoke。检查字典覆盖、行数、连接和受限字段；测试结束删除该临时数据库。"},
+        {"name": "当前对话和画像交接", "result": "通过", "detail": "student:formative-conversation-profile-handoff-smoke 和 operational:formative-conversation-v18r2-runtime-database-smoke 通过。后者运行 9 个子测试，覆盖部分命题解决、保留命题身份、两次连续追加转变、幂等重放、来源、教师导出一致性、转变持久化及导出完整性；模型调用和生成网络请求均为零。"},
+        {"name": "失败检查与复测记录", "result": "已区分修复与限制", "detail": "初次本地连接受沙箱限制，获准后发现开发库缺少 4 个既有迁移，补齐后测试通过。旧导出字典漏掉新字段的检查失败已修复。旧开发库的全量完整性检查另受历史夹具文本影响，隔离数据库中复测通过。旧 student:formative-conversation-runtime-smoke 先因过时 v5.3 预期失败；临时对齐版本后仍因旧误解目录夹具失败，未放宽运行规则，撤销该测试修改并改用当前套件。构建最初受本地进程权限限制，获准重跑成功。"},
+        {"name": "上线验收与验证通道限制", "result": "页面和运行状态通过", "detail": "两次非交互 SSH 检查未返回结果并报告签名警告，未绕过安全检查。改用已登录的 Render Web Shell 核对构建和进程；容器缺少 ps，改读 /proc 后通过。一次命令受交互 shell 历史展开影响，修正写法后执行成功。部署后的额外数据库分类查询没有取得可用结果，因此不列为通过；生产全量 ZIP 未重新生成。"}
+      ],
+      "limitations": [
+        "历史审计中 8 次已完成初始作答对应 38 条回答，其中 7 条有效初始画像覆盖 35 题；另一次 3 题作答存在但画像失败。此修复不会凭空补齐该次诊断，也不会补造尚未发生的正式重新评估。",
+        "本次没有重新发送真实学生资料给 AI，也未进行新的真实模型终止案例或课堂并发压力测试。来源对应和导出正确不等于心理测量效度、完整误解识别或学习增益。",
+        "前置审计一次较大读取未完成，期间 Render 出现实例失败和恢复，因果未确定。本次部署验收限制为小范围只读资料；不声称线上全量 ZIP 已重新生成验证。",
+        "既有旧测试与历史资料的限制保留在记录中；当前套件通过不能替代所有旧脚本或所有学生行为的验证。"
+      ],
+      "references": [
+        "docs/PROFILE_TRACKING_AUDIT_2026-09-25.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/DATA_MODEL.md",
+        "src/lib/services/student-assessment/profile-record.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "src/lib/services/teacher-research-export/service.ts",
+        "src/lib/services/teacher-review/session-detail.ts",
+        "prisma/profile-record-projection-smoke-test.ts"
+      ]
     }
   ],
   "historical_index": [
