@@ -201,6 +201,7 @@ export type SessionDetailResponse = {
       | "teacher_assistance_recommended"
       | null;
     initial_learning_profile: TeacherFormativeLearningProfile | null;
+    profile_reassessment_status?: "validated_reassessment" | "reassessment_incomplete" | "not_reassessed";
     current_learning_profile: TeacherFormativeLearningProfile | null;
     timeline: Array<{
       turn_reference: string;
@@ -349,6 +350,11 @@ export type TeacherStudentProfile = {
 };
 
 export type TeacherFormativeLearningProfile = {
+  profile_record_id?: string;
+  profile_validation_status?: string;
+  profile_valid_for_learning_analysis?: boolean;
+  misconception_indicator_count?: number | null;
+  misconception_claim_count?: number | null;
   profile_type: string;
   assessment_specific_understanding: string;
   combined_evidence_pattern: string;

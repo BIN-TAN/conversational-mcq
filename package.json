@@ -132,6 +132,7 @@
     "student:followup-agent-smoke": "tsx prisma/student-followup-agent-compat-smoke-test.ts",
     "student:research-data-inventory-smoke": "tsx prisma/student-research-data-inventory-smoke-test.ts",
     "student:analysis-ready-export-smoke": "tsx prisma/student-analysis-ready-export-smoke-test.ts",
+    "student:profile-record-projection-smoke": "tsx prisma/profile-record-projection-smoke-test.ts",
     "research-export:preflight": "tsx prisma/research-export-preflight.ts",
     "student:research-export-readiness-smoke": "tsx prisma/student-research-export-readiness-smoke-test.ts",
     "student:research-export-error-ui-smoke": "tsx prisma/student-research-export-error-ui-smoke-test.ts",

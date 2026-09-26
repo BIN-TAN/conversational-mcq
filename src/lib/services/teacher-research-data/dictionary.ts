@@ -1,5 +1,6 @@
 import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
+import { PROFILE_PROVENANCE_COLUMNS, PROFILE_EVIDENCE_COLUMNS, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
@@ -21,6 +22,8 @@ export const ANALYSIS_READY_TABLES = RESEARCH_DATASET_TABLES;
 export type AnalysisReadyTableName = (typeof RESEARCH_DATASET_TABLES)[number];
 
 export const SESSIONS_COLUMNS = [
+  ...PROFILE_PROVENANCE_COLUMNS,
+  ...PROFILE_EVIDENCE_COLUMNS,
   "research_student_id",
   "student_id",
   "student_public_id",
@@ -308,6 +311,11 @@ export const CONVERSATION_TURNS_COLUMNS = [
 ] as const;
 
 export const AGENT_ACTIVITY_RECORDS_COLUMNS = [
+  ...PROFILE_PROVENANCE_COLUMNS,
+  ...PROFILE_EVIDENCE_COLUMNS,
+  "reasoning_quality_category",
+  "confidence_calibration_category",
+  "evidence_profile_schema_version",
   "record_type",
   "authority_status",
   "session_public_id",
@@ -1179,6 +1187,7 @@ function guessDataType(variable: string) {
   if (variable.endsWith("_count") || variable.endsWith("_index") || variable === "attempt_number" || variable === "item_order") return "integer";
   if (variable.endsWith("_pct") || variable.endsWith("_ratio") || variable.endsWith("_proportion")) return "decimal";
   if (
+    variable === "profile_valid_for_learning_analysis" ||
     variable === "no_tempting_option" ||
     variable.startsWith("is_") ||
     variable.startsWith("has_") ||
@@ -1212,6 +1221,10 @@ function isTimingVariable(variable: string) {
 }
 
 function sourceNature(table: string, variable: string): string {
+  if (variable === "profile_native_confidence_alignment") return "persisted_llm_interpretation";
+  if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
+    return "deterministic_derived";
+  }
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
     return "deterministic_derived";
   }
@@ -1449,6 +1462,9 @@ function measuredValueDefinition(table: string, variable: string) {
 }
 
 function definition(table: string, variable: string) {
+  if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
+    if (PROFILE_FIELD_DEFINITIONS[variable]) return PROFILE_FIELD_DEFINITIONS[variable];
+  }
   const overrides: Record<string, string> = {
     attempt_number:
       "Assessment-session attempt number used with session_public_id and item_public_id to distinguish repeated attempts or reruns.",
@@ -2197,7 +2213,7 @@ function allowedValues(variable: string) {
   if (variable === "reveal_trigger") return "initial_package_completed";
   if (variable === "expected_response_mode") return "short_text; free_text";
   if (variable === "assessment_specific_understanding_category" || variable === "latest_student_safe_status") {
-    return "Mostly understood; Still developing; Needs more work; or validated internal diagnostic categories when exported for research.";
+    return "Mostly understood; Still developing; Needs more work; Insufficient evidence; Profile unavailable; or stored internal diagnostic categories. Use profile_valid_for_learning_analysis before interpreting a profile.";
   }
   if (variable === "engagement_review_category" || variable === "engagement_category") return "low_engagement; moderate_engagement; high_engagement; insufficient_evidence; or validated workflow categories";
   if (guessDataType(variable) === "boolean") return "true; false";
@@ -2205,6 +2221,9 @@ function allowedValues(variable: string) {
 }
 
 function sourceServiceOrFunction(table: string, variable: string) {
+  if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
+    return "profileRecordProvenance; profileEvidenceCounts";
+  }
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
     return "researchStudentId";
   }
@@ -2224,6 +2243,9 @@ function sourceServiceOrFunction(table: string, variable: string) {
 }
 
 function sourceCodeReference(table: string, variable: string) {
+  if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
+    return "src/lib/services/student-assessment/profile-record.ts";
+  }
   if (variable === "research_student_id" || variable === "student_id" || variable === "student_public_id") {
     return "src/lib/services/teacher-research-data/pseudonymization.ts:researchStudentId";
   }

@@ -686,6 +686,16 @@ function FormativeLearningProfileSummary({
 }: {
   profile: TeacherFormativeLearningProfile;
 }) {
+  if (profile.profile_valid_for_learning_analysis === false) {
+    return (
+      <div role="status" className="space-y-2 text-sm text-muted">
+        <p className="font-semibold text-ink">Profile unavailable</p>
+        <p>{profile.profile_validation_status === "fallback"
+          ? "The profiling step did not produce a validated result. Student responses are preserved; this is not a judgment of their understanding."
+          : "This record is an intermediate result or has no verified source. It is not a validated learning profile."}</p>
+      </div>
+    );
+  }
   return (
     <div className="space-y-3">
       <dl className="grid gap-x-5 gap-y-3 text-sm sm:grid-cols-2">
@@ -1217,9 +1227,9 @@ export function FormativeConversationEvidenceSection({
                 </ol>
               ) : (
                 <p className="mt-2 text-sm text-muted">
-                  {conversation.status === "active"
-                    ? "No validated profile change yet. The conversation can continue while evidence is insufficient."
-                    : "No validated profile change was recorded."}
+                  {conversation.profile_reassessment_status === "not_reassessed"
+                    ? "Not reassessed yet. Conversation evidence is saved; the initial profile is not a new assessment of current understanding."
+                    : "Reassessment incomplete. Saved responses and conversation evidence remain available; no change in understanding should be inferred."}
                 </p>
               )}
             </section>

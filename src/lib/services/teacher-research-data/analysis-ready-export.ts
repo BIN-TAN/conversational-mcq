@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
@@ -170,6 +171,11 @@ const analysisSessionSelect = {
       student_profiles: {
         orderBy: [{ created_at: "desc" }],
         select: {
+          id: true,
+          based_on_agent_call: { select: profileSourceCallSelect },
+          misconception_indicators: true,
+          process_interpretation_cautions: true,
+          confidence_alignment: true,
           profile_type: true,
           ability_profile: true,
           engagement_profile: true,
@@ -264,18 +270,10 @@ const analysisSessionSelect = {
         }
       },
       initial_student_profile: {
-        select: {
-          integrated_diagnostic_profile: true,
-          evidence_sufficiency: true,
-          created_at: true
-        }
+        include: { based_on_agent_call: { select: profileSourceCallSelect } }
       },
       current_student_profile: {
-        select: {
-          integrated_diagnostic_profile: true,
-          evidence_sufficiency: true,
-          created_at: true
-        }
+        include: { based_on_agent_call: { select: profileSourceCallSelect } }
       },
       conversation_turns: {
         where: {
@@ -359,7 +357,7 @@ const analysisSessionSelect = {
         orderBy: { transitioned_at: "asc" },
         include: {
           prior_student_profile: true,
-          updated_student_profile: true,
+          updated_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
           source_turn: {
             select: {
               sequence_index: true
@@ -440,6 +438,10 @@ type AnalysisSession = Prisma.AssessmentSessionGetPayload<{ select: typeof analy
 type SupplementalRecords = Awaited<ReturnType<typeof loadSupplementalRecords>>;
 
 const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
+  ...PROFILE_PROVENANCE_COLUMNS,
+  "profile_reassessment_status",
+  "initial_profile_record_id",
+  "current_profile_record_id",
   "session_public_id",
   "research_student_id",
   "assessment_public_id",
@@ -555,6 +557,8 @@ const FORMATIVE_CONVERSATION_LLM_COLUMNS = [
 
 const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "transition_public_id",
+  "prior_profile_record_id",
+  "updated_profile_record_id",
   "session_public_id",
   "research_student_id",
   "conversation_public_id",
@@ -883,10 +887,22 @@ function optionsByLabel(value: unknown) {
 }
 
 function latestProfile(session: AnalysisSession) {
-  return session.concept_unit_sessions.flatMap((entry) => entry.student_profiles)[0] ?? null;
+  const candidates = session.concept_unit_sessions.flatMap((entry) => {
+    const conversation = session.formative_conversation_sessions.find(
+      (candidate) => candidate.concept_unit_session_db_id === entry.id
+    );
+    if (conversation) {
+      const transitions = canonicalPersistedFormativeConversationProfileTransitions(conversation.profile_transitions);
+      const current = latestPersistedFormativeConversationProfileTransition(transitions)?.updated_student_profile ?? conversation.initial_student_profile;
+      return current ? [current] : [];
+    }
+    const current = entry.student_profiles.find((profile) => profile.id === entry.latest_student_profile_db_id);
+    return current ? [current] : [];
+  });
+  return candidates.sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0] ?? null;
 }
 
-function evidenceProfileV2(profile: ReturnType<typeof latestProfile>) {
+function evidenceProfileV2(profile: { item_level_evidence: unknown } | null) {
   const evidence = asRecord(profile?.item_level_evidence);
   const profileV2 = asRecord(evidence.evidence_integrated_profile_v2);
   return profileV2.profile_schema_version ? profileV2 : null;
@@ -929,6 +945,7 @@ function answerRevealState(record: Record<string, unknown> | null) {
 
 function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
   if (!profile) return null;
+  if (!profileRecordProvenance(profile).profile_valid_for_learning_analysis) return "Profile unavailable";
   const profileV2 = evidenceProfileV2(profile);
   const summary = asRecord(profileV2?.student_safe_summary);
   if (typeof summary.understanding_label === "string") {
@@ -940,7 +957,7 @@ function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
       return "Mostly understood";
     case "insufficient_evidence_for_formative_decision":
     case "low_engagement_limits_interpretability":
-      return "Needs more work";
+      return "Insufficient evidence";
     default:
       return "Still developing";
   }
@@ -1239,6 +1256,8 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
           : null,
       engagement_review_category: profile?.engagement_profile ?? null,
       latest_student_safe_status: studentSafeStatus(profile),
+      ...(profile ? profileRecordProvenance(profile) : {}),
+      ...(profile ? profileEvidenceCounts(profile) : {}),
       evidence_sufficiency: profile?.evidence_sufficiency ?? null,
       interpretation_limitations: profile
         ? "interpretive_assessment_specific_signal_not_stable_trait"
@@ -1594,7 +1613,13 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
       for (const profile of conceptUnitSession.student_profiles) {
         rows.push({
           record_type: "profile_result",
-          authority_status: "authoritative_profile_record",
+          authority_status: profileRecordProvenance(profile).profile_valid_for_learning_analysis
+            ? "validated_profile_record" : "non_diagnostic_profile_artifact",
+          ...profileRecordProvenance(profile),
+          ...profileEvidenceCounts(profile),
+          reasoning_quality_category: nestedProfileValue(evidenceProfileV2(profile), "reasoning_quality"),
+          confidence_calibration_category: nestedProfileValue(evidenceProfileV2(profile), "confidence_calibration"),
+          evidence_profile_schema_version: profileString(evidenceProfileV2(profile), "profile_schema_version"),
           session_public_id: session.session_public_id,
           research_student_id: researchStudentId(session.user.user_id),
           student_id: researchStudentId(session.user.user_id),
@@ -1608,7 +1633,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
           status: "recorded",
           started_at: iso(profile.created_at),
           completed_at: iso(profile.created_at),
-          limitations: "interpretive_assessment_specific_profile"
+          limitations: profileRecordProvenance(profile).profile_unavailable_reason ?? "interpretive_assessment_specific_profile"
         });
       }
       for (const decision of conceptUnitSession.formative_decisions) {
@@ -1891,6 +1916,16 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
         intervention_count: conversation.interventions.length,
         profile_transition_count:
           canonicalTransitions.length,
+        profile_reassessment_status: profileReassessmentStatus({
+          validated_transition_count: canonicalTransitions.length,
+          student_turn_count: studentFormativeTurnCount,
+          conversation_status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+        }),
+        ...(canonicalCurrentProfile ? profileRecordProvenance(canonicalCurrentProfile) : {}),
+        initial_profile_record_id: conversation.initial_student_profile
+          ? profileRecordIdentity(conversation.initial_student_profile.id) : null,
+        current_profile_record_id: canonicalCurrentProfile
+          ? profileRecordIdentity(canonicalCurrentProfile.id) : null,
         latest_profile_transition_public_id:
           latestTransition?.transition_public_id ?? null,
         validated_formative_outcome:
@@ -2070,6 +2105,8 @@ function formativeConversationProfileTransitionRows(
         );
         return {
         transition_public_id: transition.transition_public_id,
+        prior_profile_record_id: profileRecordIdentity(transition.prior_student_profile.id),
+        updated_profile_record_id: profileRecordIdentity(transition.updated_student_profile.id),
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         conversation_public_id: conversation.conversation_public_id,
@@ -2231,6 +2268,9 @@ function formativeConversationDataDictionaryRows() {
     }
   ];
   const definition = (dataset: string, variable: string) => {
+    if ((variable.startsWith("profile_") || variable.endsWith("_profile_record_id")) && PROFILE_FIELD_DEFINITIONS[variable]) {
+      return PROFILE_FIELD_DEFINITIONS[variable];
+    }
     if (variable === "message_text") {
       return "Exact visible student or tutor message persisted in chronological order.";
     }
@@ -2395,6 +2435,7 @@ function formativeConversationDataDictionaryRows() {
       variable,
       definition: definition(table.dataset, variable),
       source_nature:
+        variable.startsWith("profile_") ? "profile_provenance_projection" :
         table.phase === "profile_transition" ||
         /learning_profile|evidence_sufficiency/.test(variable)
           ? "validated_derived_interpretation"
@@ -2502,6 +2543,8 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "process_events.csv",
         "conversation_turns.csv",
         "agent_activity_records.csv",
+        "profile_item_evidence.csv",
+        "profile_data_dictionary.csv",
         "formative_conversation_sessions.csv",
         "formative_conversation_turns.csv",
         "formative_conversation_events.csv",
@@ -2693,6 +2736,24 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
       data: csv(AGENT_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental))
     },
     {
+      path: "profile_item_evidence.csv",
+      data: csv([
+        "session_public_id", "concept_unit_public_id", ...PROFILE_PROVENANCE_COLUMNS,
+        "item_public_id", "reasoning_quality", "confidence_rating", "created_at"
+      ], sessions.flatMap((session) => session.concept_unit_sessions.flatMap((concept) =>
+        concept.student_profiles.flatMap((profile) => profileItemEvidence(profile).map((evidence) => ({
+          session_public_id: session.session_public_id,
+          concept_unit_public_id: concept.concept_unit.concept_unit_public_id,
+          ...profileRecordProvenance(profile), ...evidence, created_at: iso(profile.created_at)
+        })))
+      )))
+    },
+    {
+      path: "profile_data_dictionary.csv",
+      data: csv(["variable", "definition"], Object.entries(PROFILE_FIELD_DEFINITIONS)
+        .map(([variable, definition]) => ({ variable, definition })))
+    },
+    {
       path: "formative_conversation_sessions.csv",
       data: csv(
         FORMATIVE_CONVERSATION_SESSION_COLUMNS,
@@ -2768,6 +2829,9 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
   files.push({ path: "README.txt", data: [
     "Research dataset v2",
     "Start with data_coverage.csv and its notes to inspect actual populated/blank/zero values by dataset, actor and stage; population is not proof of measurement validity.",
+    "Profile projection v1: filter profile_valid_for_learning_analysis before interpreting profile results. Intermediate processing artifacts and fallback records are retained but are not validated learning measurements.",
+    "profile_item_evidence.csv preserves per-item model judgments from canonical and legacy schemas with profile_record_id and provenance. It does not repeat raw student reasoning. Legacy aggregate categories remain on their original agent_activity_records profile rows; blank current aggregate categories are not inferred or copied from earlier profiles.",
+    "profile_reassessment_status distinguishes a validated reassessment from not reassessed or incomplete reassessment. A paused/ended conversation alone is not a learning outcome. See profile_data_dictionary.csv.",
     "Join session_public_id to sessions.csv. Join item snapshots using both assessment_snapshot_public_id and item_snapshot_public_id.",
     "event_public_id is stable across exports; event_sequence_index is export ordering, not a permanent identity.",
     "Empty CSV cells denote unavailable or inapplicable values, not measured zero or false. Formula-leading text is prefixed with an apostrophe for spreadsheet safety.",
@@ -2782,6 +2846,7 @@ export async function buildAnalysisReadyResearchDataBundle(input: {
     schema_version: "research-dataset-manifest-v1",
     export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
     response_evidence_version: RESPONSE_EVIDENCE_VERSION,
+    profile_projection_version: PROFILE_PROJECTION_VERSION,
     export_run_public_id: source.export_run_public_id,
     export_generated_at: source.export_generated_at,
     app_commit_sha: source.app_commit_sha,

@@ -513,7 +513,18 @@ Profile creation rules:
 
 Idempotency is enforced through `agent_calls.agent_invocation_key`, derived from concept-unit session, response package, profile type, prompt version, schema version, and prompt hash. Retrying the same successful profiling request returns the existing profile instead of creating a duplicate.
 
-Failed, refused, incomplete, invalid-output, or usage-blocked profiling executions do not create `student_profiles`, `formative_decisions`, or `followup_rounds`.
+The later initial-preparation pipeline can persist a conservative fallback
+`student_profiles` row after an unsuccessful profiling execution so the student
+workflow remains resumable. Its `process_interpretation_cautions` contains
+`Fallback-derived profile`, and its source call retains the failure. This is an
+operational placeholder, not a validated diagnosis. Integration and planning can
+also persist intermediate profile artifacts; these are not repeated learning
+measurements. Source-call success alone is insufficient to classify them.
+
+The read-only `profile-record-projection-v1` projection distinguishes validated,
+fallback, intermediate, and unverified records in teacher review and exports.
+Unknown provenance stays unverified. Fallbacks are shown as `Profile unavailable`,
+not as a student learning deficit. Original rows and timestamps are unchanged.
 
 Mock provider profile rows are infrastructure-testing records and should not be interpreted as validated research inferences.
 

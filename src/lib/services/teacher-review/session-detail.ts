@@ -1,4 +1,5 @@
 import type { StudentProfile } from "@prisma/client";
+import { profileRecordProvenance, profileEvidenceCounts, profileReassessmentStatus, profileSourceCallSelect, type ProfileRecord } from "@/lib/services/student-assessment/profile-record";
 import {
   canonicalMisconceptionClaimTexts,
   parseCanonicalMisconceptionClaimCatalog
@@ -71,23 +72,10 @@ function teacherMisconceptionEvidence(value: unknown) {
     : teacherProfileEvidence(value);
 }
 
-function serializeFormativeLearningProfile(
-  profile: Pick<
-    StudentProfile,
-    | "profile_type"
-    | "ability_profile"
-    | "integrated_diagnostic_profile"
-    | "evidence_sufficiency"
-    | "confidence_alignment"
-    | "independence_interpretability"
-    | "misconception_indicators"
-    | "profile_confidence"
-    | "integrated_profile_rationale"
-    | "reasoning_quality_summary"
-    | "created_at"
-  >
-) {
+function serializeFormativeLearningProfile(profile: StudentProfile & ProfileRecord) {
   return {
+    ...profileRecordProvenance(profile),
+    ...profileEvidenceCounts(profile),
     profile_type: profile.profile_type,
     assessment_specific_understanding:
       profile.ability_profile,
@@ -346,8 +334,8 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               }
             }
           },
-          initial_student_profile: true,
-          current_student_profile: true,
+          initial_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
+          current_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
           conversation_turns: {
             where: {
               actor_type: { in: ["student", "agent"] },
@@ -390,8 +378,8 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           profile_transitions: {
             orderBy: { transitioned_at: "asc" },
             include: {
-              prior_student_profile: true,
-              updated_student_profile: true,
+              prior_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
+              updated_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
               source_turn: {
                 select: {
                   sequence_index: true
@@ -638,6 +626,11 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
         paused_at: serializeDate(conversation.paused_at),
         completed_at: serializeDate(conversation.completed_at),
         learning_outcome: learningOutcome,
+        profile_reassessment_status: profileReassessmentStatus({
+          validated_transition_count: canonicalTransitions.length,
+          student_turn_count: studentFormativeTurnCount,
+          conversation_status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+        }),
         initial_learning_profile: conversation.initial_student_profile
           ? serializeFormativeLearningProfile(
               conversation.initial_student_profile

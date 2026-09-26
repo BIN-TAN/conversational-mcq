@@ -1575,3 +1575,43 @@ old package baselines or regenerate their profile interpretations. Researchers
 using older packages should inspect the original transcript and projection
 version. A version in the export manifest describes the export projection, not
 a retroactive upgrade of every historical package inside it.
+
+## Profile Tracking Projection
+
+`profile-record-projection-v1` is an additive, read-only export and review
+projection. It never changes stored answers, source calls, profile timestamps,
+sealed packages, or historical AI interpretations. No database migration is
+required for this projection.
+
+- `profile_record_id` is `profile_` plus the first 24 hexadecimal SHA-256
+  characters of the stored profile ID. Source-call public IDs, agent name,
+  success/validation flags, prompt version and output schema remain attached.
+- `profile_record_role` distinguishes baseline, updated and intermediate.
+  `profile_validation_status` distinguishes validated, intermediate, fallback
+  and unverified. Only non-intermediate, non-fallback profiles backed by a
+  successful validated profiling/conversation call are eligible under
+  `profile_valid_for_learning_analysis`. Eligibility is not scientific validity.
+- Pipeline artifacts are retained in `agent_activity_records.csv`, not counted
+  as repeated learning measurements. `misconception_indicator_count` uses the
+  canonical indicators array or a supported legacy array.
+  `misconception_claim_count` sums canonical `claims.length`. Unrecognized
+  formats and fallback diagnoses stay blank, not zero. An explicitly empty
+  supported array is zero.
+- `profile_item_evidence.csv` retains per-item reasoning judgments and confidence
+  with profile provenance. Original student products remain in
+  `item_responses.csv`. Legacy V2 aggregate categories stay on their own
+  intermediate artifact; they are not copied to a later canonical profile.
+  Native `confidence_alignment` is not silently converted to the different
+  legacy `confidence_calibration` vocabulary.
+- Conversation exports link `initial_profile_record_id` and
+  `current_profile_record_id`; transition exports link `prior_profile_record_id`
+  and `updated_profile_record_id`. Current means the latest canonical transition,
+  or the original baseline if there is none. Reusing the baseline is not a new
+  measurement. `profile_reassessment_status` is `validated_reassessment` when a
+  canonical transition exists, `reassessment_incomplete` after student turns or
+  a non-active lifecycle without a transition, and otherwise `not_reassessed`.
+  Pause, exit and elapsed time never manufacture a new learning outcome.
+- `profile_data_dictionary.csv`, the general dictionary and the legacy JSON
+  dictionary document these fields. Fallbacks display as `Profile unavailable`,
+  not as a student deficit. Original fallback categories remain in raw exports
+  with explicit provenance; analysis must respect their eligibility flag.

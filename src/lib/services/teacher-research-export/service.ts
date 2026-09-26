@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { profileRecordProvenance, profileEvidenceCounts, profileSourceCallSelect, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
 import { buildTeacherSessionDataAudit } from "@/lib/services/teacher-review/session-data-audit";
 import {
   getTeacherReadableTranscript,
@@ -393,8 +394,7 @@ function dataDictionary() {
       evidence_sufficiency: "Evidence sufficiency category.",
       confidence_alignment: "Confidence alignment category.",
       independence_interpretability: "Independent-understanding interpretability category.",
-      misconception_indicator_count: "Count of safe misconception-indicator summary entries; raw IDs are excluded.",
-      item_level_evidence_available: "Whether item-level evidence summary is available.",
+      ...PROFILE_FIELD_DEFINITIONS,
       process_caution_count: "Count of process interpretation cautions.",
       formative_value: "Teacher/research formative-purpose/value category.",
       mapping_followed: "Whether backend mapping was followed after canonicalization.",
@@ -603,7 +603,7 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
             }
           },
           response_packages: { orderBy: [{ created_at: "asc" }] },
-          student_profiles: { orderBy: [{ created_at: "asc" }] },
+          student_profiles: { orderBy: [{ created_at: "asc" }], include: { based_on_agent_call: { select: profileSourceCallSelect } } },
           formative_decisions: { orderBy: [{ created_at: "asc" }] }
         }
       },
@@ -882,13 +882,13 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
         concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
         created_at: iso(profile.created_at),
         profile_type: profile.profile_type,
+        ...profileRecordProvenance(profile),
+        ...profileEvidenceCounts(profile),
         diagnostic_profile: profile.integrated_diagnostic_profile,
         profile_confidence: profile.profile_confidence,
         evidence_sufficiency: profile.evidence_sufficiency,
         confidence_alignment: profile.confidence_alignment,
         independence_interpretability: profile.independence_interpretability,
-        misconception_indicator_count: asArray(profile.misconception_indicators).length,
-        item_level_evidence_available: asArray(profile.item_level_evidence).length > 0,
         process_caution_count: asArray(profile.process_interpretation_cautions).length
       }))
     )
