@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-26T11:30:56-06:00",
+  "updated_at": "2026-09-26T17:22:01-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -250,6 +250,124 @@
         "docs/acceptance/runs/2026-09-26/fresh-dialogues-final/READABLE_TRANSCRIPTS.md",
         "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts",
         "src/lib/services/student-assessment/semantic-item-review.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-02",
+      "date": "2026-09-26",
+      "title": "研究导出内存与课堂反馈改进",
+      "application_commit": "19dcb316e267dbcdf9ed68047e2e32d71e6748e0",
+      "push_status": "已推送配置的 BIN-TAN/conversational-mcq origin main；远程从 da6a2d86 更新至 19dcb316。应用发布共 30 个文件，新增 1058 行、删除 165 行；不包含 output、outputs、凭据或学生原始会话。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-das4ve3l550s73905ij0",
+        "source_commit": "19dcb316e267dbcdf9ed68047e2e32d71e6748e0",
+        "verified_at": "2026-09-26T17:12:36-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-das4ve3l550s73905ij0",
+        "evidence": [
+          "Render 显示 Deploy succeeded | Live，完整源提交为 19dcb316e267dbcdf9ed68047e2e32d71e6748e0；17:05:28 MDT 开始，持续 4 分 54 秒，17:10:22 报告 Live。65 项既有迁移检查通过，无待执行迁移。",
+          "17:10:42 MDT Web Shell 只读核对容器构建信息，提交一致，artifact_hash 为 8c951863efcf6816e982a300c23e764fd2c82a78e956dde627af547259dcdd1c；next-server PID 14 与准备 worker PID 15 正常。17:10:55 无缓存健康请求 HTTP 200，数据库与 schema 均 ready。",
+          "教师登录直接进入 Dashboard。上线后通过页面生成一次 all_authorized、非受限、包含未完成会话的研究包；任务 export_20260926_iakann4 完成，汇总 8468 条表记录，浏览器产生下载事件。未新增学生作答或 AI 调用。",
+          "17:11:42 至 17:12:02 MDT 的 20 秒采样达到 536461312 字节，接近 536870912 字节容器上限。未观察到 OOM 或进程重启，但不能认定容量风险已消失；只读诊断确认运行环境 NODE_OPTIONS=--max-old-space-size=8192。另立后续记录修正运行时预算。"
+        ]
+      },
+      "summary": "针对研究数据下载附近的内存超限重启，以及新课堂记录中反复要求学生改写、反馈过长和学习进步证据不足的问题，修改共享采集、反馈验证、研究导出与下载路径。无新增数据库迁移，不重新评分或生成历史学生画像。",
+      "changes": [
+        {"area": "研究导出与下载内存", "problem": "导出曾同时保留整组会话、全部 CSV 和 ZIP 缓冲区，下载又整包读取。512 MB 服务的研究包在 16:25:25 完成，16:25:29 出现重新启动，与用户下载时崩溃吻合；无故障堆快照，不能证明唯一原因。", "fix": "保持同一 RepeatableRead 数据库快照，改为逐会话读取、CSV 分块落盘、增量计数和哈希、流式压缩及下载。跨次比较保留精简的封存尝试观察，不保留全班完整日志。", "impact": "不减少研究字段，不重写学生资料；下载有字节级背压，完成后才发布 ZIP。Docker 直接启动既有 supervisor，省去额外 npm 父进程，保留网页与准备 worker。"},
+        {"area": "导出失败与重复请求保护", "problem": "重复点击可同时启动昂贵生成；失败过程不应留下可下载的半成品或无限堆积临时内容。", "fix": "单网页进程只允许一个 Research dataset 生成，重复请求返回可重试 429。失败清理临时目录；下一次导出清理超过 24 小时的已识别遗留目录，排除符号链接、无关目录和本进程活动目录。下载拒绝已过期任务。", "impact": "不是跨实例分布式队列，也不是自动后台清理服务。原始数据库记录不删除；磁盘空间和单个超大会话仍需容量管理。"},
+        {"area": "保护初始作答而不陷入反复追问", "problem": "简短、错误或来自选项解释的理由仍有研究价值；反复要求改写或给出概念方向，会干预初始测量并让学生卡住。", "fix": "item-admin tutor v2 接受相关但有限的理由和不确定表达，原文保存。无可解释内容的片段至多一次中立澄清，应用统一生成无内容提示的采集回复。重复内容提问、答案请求、操作请求、编辑、无关文本和乱码不自动当作理由。", "impact": "可收集不代表正确或掌握；单个选项字母不再被改写成学生承认不知道。配置和提供商失败继续作为可恢复阻塞，不伪装成学生困难。"},
+        {"area": "减少重复并保留有价值的讲解", "problem": "自动逐个解释所有干扰项、重复题干和总结会增加阅读负担；自造数值若没有说明可能被当作题目数据。", "fix": "host-v7.8 默认直接回答并聚焦关键解释，必要或学生要求时展开，不设硬字数上限。首次出现的示例数值必须标为举例；持续误解时换解释或查明分歧，而非重复同一长段。", "impact": "继续允许追问和纠正其余误解，不让总结本身触发完成，不改变题目答案或历史分数。提示改进不保证所有生成内容都准确。"},
+        {"area": "有来源的学习小结", "problem": "讲解过某个知识点不等于学生已经理解或进步；用户不需要已讨论尚待确认这一栏。", "fix": "不生成该栏目。可选小结仅包括有证据的理解、本次已有证据支持的进步及仍需处理的具体困难。进步必须引用不同的前后学生推理，后者来自当前形成性对话；不接受老师回复、纯请求、单个答案或跨会话证据。", "impact": "验证来源不等于验证语义正确或因果学习增益。总结不单独解决 claim 或更新画像，保留所有既有误解覆盖与转变校验。"}
+      ],
+      "data_impact": [
+        "学生原始文字、封存包、画像、时间戳和旧 AI 解释保持原样。新策略用于之后的回复；没有生产数据改写、删除或 AI 重跑，没有新迁移。",
+        "item-administration-tutor-v2 保存 effective output 与原始模型解析结果、collection_policy_version、prior_neutral_clarification_count。有限理由对应 weak_but_usable；旧投影中的 adequate 仅代表可以采集，不代表正确或独立理解。",
+        "可选学习小结复用 evidence_observations 的 learning_summary_understanding、learning_summary_progress 和 learning_summary_remaining，链接规范学生证据 ID；不创建重复的掌握表。学习变化仍是带来源的 AI 解释。",
+        "导出 schema 仍为 research-dataset-v2，manifest 增加 generation_policy_version=session-spooled-export-v1。同一快照、假名化、受限字段规则、CSV 行数、字节数及 SHA-256 保留。CSV 可按会话分组，分析应按 ID 连接而非行位置。",
+        "覆盖统计按分块累加总行、非空、空、零和 false 数量，再按既有公式计算比例；不把缺失补成零。快照超过 120 秒即失败，不以成功状态返回截断数据。",
+        "按用户要求保留全部先前尝试及原始过程资料。导出优化只改变生成方式，不新增对学生行为或学习成效的分析结论。"
+      ],
+      "tests": [
+        {"name": "静态检查与生产构建", "result": "通过", "detail": "npm run typecheck、npm run lint、npm run build、git diff --check 通过；83 个静态页面生成完成。Lint 保留 5 条既有未使用变量警告，Webpack 有大字符串缓存性能提示。初次构建因沙箱阻止 tsx 本地 IPC 而未开始编译，获准复测通过。"},
+        {"name": "发布前隔离数据库回归", "result": "14 套通过", "detail": "新建本地临时数据库、迁移及 seed 后串行运行采集小结、item-admin 审计、解释策略、记录质量、初始作答、导航矩阵、V18R2 契约及 pipeline/lifecycle、研究数据、选定会话、master 下载、导出完整性和错误 UI 检查；数据库已删除，外部 AI 网络请求被拦截。包括 45 项采集小结检查、65 个导航场景及持久化导出核对。"},
+        {"name": "低堆上限导出压力样例", "result": "通过", "detail": "node --max-old-space-size=96 --import tsx prisma/research-export-streaming-smoke-test.ts --stress。65,536 行、81,578,264 字节合成 CSV 生成 712,487 字节 ZIP，解压字节数与 SHA-256 一致。发布前复测 RSS 基线 80,756,736 字节、采样峰值 181,829,632 字节、耗时 2892 ms；96 MiB 是 V8 old-space 限制，不是进程总内存。"},
+        {"name": "文件及数据完整性", "result": "通过", "detail": "核对多行 CSV、引号、行数、字典去重、覆盖统计等价、哈希和 ZIP CRC。落盘与兼容导出的数据单元格一致；只排除不同导出各自生成的运行和派生时间。共享下载校验每字节和 Content-Length、取消流、过期拒绝。失败发布清理与遗留目录排除规则通过。"},
+        {"name": "失败检查与复测", "result": "保留记录", "detail": "首次压力校验对 JSZip 旧式 stream 使用 async iteration 失败，改为 native Writable pipeline 后通过；生成本身已成功。首次跨导出比对包含独立生成的 derived_at 而失败，明确排除运行时间并保留其他数据单元格与各自哈希校验后通过。未用修正测试来降低研究数据完整性要求。"}
+      ],
+      "limitations": [
+        "本轮没有新增真实 AI 调用或真实学生全链路试验。提示与证据校验不证明教学内容、误解识别或学习进步已经科学验证。历史的真实 AI 结果不能当作 host-v7.8 的新验证。",
+        "合成文本压缩率高，单进程压力样例不是课堂并发容量证明。一个超大会话和跨次观察仍消耗内存；多人 AI 工作与导出共享 512 MB，不能承诺绝不再超限。",
+        "生成仍在 HTTP 请求内执行，非持久后台导出任务；单进程导出锁不覆盖多实例。旧 raw/master 导出生成未完全分块，只共用流式下载。临时 CSV 与 ZIP 仍需磁盘空间，进程硬终止后的目录需等下次清理。",
+        "新的学习小结验证的是证据资格和链接，不是概念判断本身；仍需教师抽查。没有加入用户明确不需要的已讨论尚待确认分类。",
+        "首次线上导出虽成功，内存仍接近上限，发现 512 MiB 容器继承了 8 GiB V8 old-space 设置。后续预算修正见 CMCQ-20260926-03；本记录不将首次成功误报为容量验收通过。"
+      ],
+      "references": [
+        "docs/RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/FORMATIVE_INTERPRETATION_POLICY.md",
+        "src/lib/services/teacher-research-data/export-spool.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "src/lib/services/master-export/storage.ts",
+        "src/lib/services/student-assessment/item-administration-tutor.ts",
+        "src/lib/services/student-assessment/formative-conversation/learning-summary-policy.ts",
+        "prisma/research-export-streaming-smoke-test.ts",
+        "prisma/student-collection-learning-summary-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-03",
+      "date": "2026-09-26",
+      "title": "小容量容器运行内存预算修正",
+      "application_commit": "108abf11d99a4b391531f74f34f75e6f67c3fb71",
+      "push_status": "已推送配置的 origin main，从 19dcb316 更新至 108abf11。仅增加启动内存预算、定向测试及事件说明，包含前一应用发布全部改进。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-das543rl550s739095l0",
+        "source_commit": "108abf11d99a4b391531f74f34f75e6f67c3fb71",
+        "verified_at": "2026-09-26T17:22:01-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-das543rl550s739095l0",
+        "evidence": [
+          "Render 刷新后显示 Deploy succeeded | Live，源提交为 108abf11d99a4b391531f74f34f75e6f67c3fb71；17:15:27 MDT 开始，页面持续时间 4 分 13 秒，17:19:41 启动日志报告 Live。生产构建和既有迁移检查完成，无新迁移。",
+          "17:19:33 启动日志确认 536870912 字节容器，web old-space=192 MiB、worker=96 MiB，semi-space=4 MiB。17:20:15 只读核对实际 worker 命令、网页进程及容器构建信息，提交一致，artifact_hash 为 a58609317ddbda95b71047112f8b072994cf99c2ac709c8416355e2eb441eb9a。",
+          "17:19:57 及导出后 17:21:36 无缓存健康请求均 HTTP 200、status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。健康检查不验证 AI 语义质量。",
+          "重新通过线上页面生成标准 all_authorized 研究包 export_20260926_f26szb0，包含未完成会话、关闭受限字段，任务 completed。浏览器接收到自动下载事件；17:22:01 对服务器已发布 ZIP 的每个文件独立核对字节数、SHA-256 和 CSV 行数，零失败、零未列出条目。",
+          "最终 ZIP 745369 字节，manifest 所列 34 个内容文件共 4865293 字节；8463 条 CSV 数据行，任务汇总 8468 包括非 CSV 文件计数，不是学生人数。包含 10 会话、42 条题目回答、3216 个过程事件及 499 条对话记录，与生成前页面总量一致。manifest 记录最终应用提交及 session-spooled-export-v1。",
+          "17:20:36 至 17:21:36 每 200 ms 采样覆盖本次生成和下载触发，容器峰值 369934336 字节，约 352.8 MiB，低于 512 MiB 限制；采样最小值 296144896 字节。OOM 计数为零，容器未换，原网页与 worker PID 均存在。监测进程本身也占少量内存；这不是全年峰值或课堂并发容量证明。"
+        ]
+      },
+      "summary": "真实导出验证发现除导出缓冲区外，线上 512 MiB 容器还继承了 8 GiB Node 堆设置。补充应用级启动预算以提前回收可回收对象，不更改收费规格，不降低研究字段或更改学生原文。",
+      "changes": [
+        {"area": "共享容器的 V8 内存预算", "problem": "网页和准备 worker 共用容器，但继承的大堆上限允许垃圾回收延后至操作系统内存接近耗尽。实际 V8 堆上限为 8593080320 字节；故障前没有 heap snapshot，不能认定这解释了全部分配。", "fix": "生产启动读取 process.constrainedMemory，网页 old-space 使用容器容量的 37.5%，worker 使用 18.75%，显式命令参数覆盖继承的 NODE_OPTIONS。512 MiB 下分别为 192 和 96 MiB，semi-space 为 4 MiB。", "impact": "预留其余空间给原生库、Buffer、年轻代和 supervisor；开发及无可用约束的环境保留原行为。预算不是总 RSS 硬上限，不能替代容量规划。"}
+      ],
+      "data_impact": [
+        "不修改 schema、采集变量、CSV 字段、作答、封存包、画像或既有 AI 判断；前一发布的来源与完整性规则全部保留。",
+        "没有使用真实学生账号产生新回答，没有调用外部 AI，没有升级套餐或修改凭据。",
+        "预算不足时 Node 仍可能退出；既有准备任务租约恢复继续有效。研究导出仍需重新生成，不声称已经变成持久后台任务。"
+      ],
+      "tests": [
+        {"name": "运行预算定向检查", "result": "4 项通过", "detail": "node --test scripts/runtime-memory-budget.test.mjs 检查 512 MiB 分配、大容量按比例分配、开发和未知约束不变，以及实际子进程覆盖继承 8192 MiB 设置。node --check scripts/start-app.mjs 与 git diff --check 通过。"},
+        {"name": "低堆网页回归", "result": "14 套通过", "detail": "NODE_OPTIONS='--max-old-space-size=192 --max-semi-space-size=4' 下重跑上一发布 14 套隔离本地数据库测试，包括 65 导航场景及真实持久化研究 ZIP 对照。数据库已删除，外部模型网络被阻止。"},
+        {"name": "低堆准备与恢复", "result": "15 项通过", "detail": "NODE_OPTIONS='--max-old-space-size=96 --max-semi-space-size=4' 下执行 initial-preparation-smoke-test.ts。覆盖提交回滚、并发排他及不同学生并行、租约心跳、重启恢复、有限重试、暂停结束、证据变更拒绝、结果复用和独立 worker 执行。零外部网络或 AI 请求，隔离数据库已清理。"},
+        {"name": "线上全量研究导出与完整性", "result": "通过所覆盖范围", "detail": "页面实际生成标准研究包并触发下载；独立读取服务器 ZIP，34 个内容文件的 SHA-256、字节数和 CSV 行数全部与 manifest 一致，且无未登记内容文件。会话、回答、事件和对话数量与生成前一致。没有下载到本地的文件路径，因此未声称进行了客户端落盘文件的二次哈希校验。"},
+        {"name": "线上导出内存观测", "result": "本次无 OOM 或重启", "detail": "200 ms 间隔、60 秒采样峰值 369934336 字节；此前首版复测的 20 秒样例峰值为 536461312 字节。两者为同一数据规模的先后观测，不是控制其他负载的统计实验。导出后健康与准备 worker 正常。"}
+      ],
+      "limitations": [
+        "低堆测试使用合成数据和 mock AI，不证明真实课堂高并发可在 512 MiB 内稳定运行；大型会话、模型响应、原生缓冲区仍可能超限。",
+        "运行预算适用于 Node 提供有限且至少 256 MiB 的约束环境。未知约束环境保留原行为，需要部署方单独配置。",
+        "本次修正属于运行稳定性，不是新的教学效度评估；前一发布提示词的真实 AI 教学质量仍待独立抽查。",
+        "最终版本已单独核实 Live 和真实导出；浏览器下载事件证明下载已触发，服务器 ZIP 已完整核对，但没有获取客户端落盘文件做二次传输完整性校验。60 秒内存样例不能排除更长时间或并发压力下的超限。"
+      ],
+      "references": [
+        "scripts/start-app.mjs",
+        "scripts/runtime-memory-budget.mjs",
+        "scripts/runtime-memory-budget.test.mjs",
+        "prisma/initial-preparation-smoke-test.ts",
+        "docs/RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md"
       ]
     }
   ],
