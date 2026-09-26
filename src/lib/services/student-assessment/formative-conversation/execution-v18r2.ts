@@ -32,6 +32,20 @@ export type FormativeConversationV18R2FailureClass =
   | "parsed_semantic_contract_failure";
 
 const HashSchema = z.string().regex(/^[a-f0-9]{64}$/u);
+const InterpretationProjectionAuditSchema = z.object({
+  policy_version: z.literal("formative-interpretation-policy-v1"),
+  operation: z.literal("unchanged_updated_fields_marked_retained"),
+  fields: z.array(z.string()),
+  original_sha256: HashSchema,
+  projected_sha256: HashSchema
+}).strict();
+
+function interpretationProjection(raw: unknown) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const envelope = raw as Record<string, unknown>;
+  const parsed = InterpretationProjectionAuditSchema.safeParse(envelope.interpretation_projection);
+  return parsed.success ? { envelope, audit: parsed.data } : null;
+}
 
 export const FormativeConversationV18R2SafeInvalidCandidateSchema = z
   .object({
@@ -75,7 +89,8 @@ export const FormativeConversationV18R2LogicalCallAuditSchema = z
     input_tokens: z.number().int().nonnegative().nullable(),
     output_tokens: z.number().int().nonnegative().nullable(),
     total_tokens: z.number().int().nonnegative().nullable(),
-    invalid_candidate: FormativeConversationV18R2SafeInvalidCandidateSchema.nullable()
+    invalid_candidate: FormativeConversationV18R2SafeInvalidCandidateSchema.nullable(),
+    interpretation_projection: InterpretationProjectionAuditSchema.optional()
   })
   .strict();
 
@@ -195,11 +210,13 @@ function safeInvalidCandidate(input: {
   result: StructuredAgentResult<FormativeConversationV18R2AgentOutput>;
   validation: FormativeConversationV18R2CandidateValidation | null;
 }) {
+  const projection = interpretationProjection(input.result.raw_output);
+  const originalParsed = projection ? projection.envelope.original_parsed_output : input.result.parsed_output;
   const candidateText =
-    responseOutputText(input.result.raw_output) ??
-    (input.result.parsed_output === undefined
+    responseOutputText(projection ? projection.envelope.provider_raw_output : input.result.raw_output) ??
+    (originalParsed === undefined
       ? null
-      : JSON.stringify(input.result.parsed_output));
+      : JSON.stringify(originalParsed));
   const candidateHash = candidateText
     ? createHash("sha256").update(candidateText).digest("hex")
     : null;
@@ -311,12 +328,14 @@ function toAttemptAudit(input: {
   execution: FormativeConversationV18R2LogicalGenerationExecution;
   evaluation: ReturnType<typeof candidateEvaluation>;
 }) {
+  const projection = interpretationProjection(input.execution.result.raw_output);
   const telemetry = input.execution.result.transport_telemetry;
   const fetchInvoked = telemetry?.fetch_invoked === true;
   const providerResponseCompleted =
     telemetry?.response_body_completed === true ||
     telemetry?.response_body_received === true;
   return FormativeConversationV18R2LogicalCallAuditSchema.parse({
+    ...(projection ? { interpretation_projection: projection.audit } : {}),
     sequence: input.sequence,
     kind: input.kind,
     logical_call_id: input.execution.logical_call_id,

@@ -1,0 +1,10 @@
+{
+  "version": "sha256-v1",
+  "files": {
+    "original-dialogues.json": "ffcda0e2d5fb03099ec83aab326a5d60b2d9f63fb6272aa93b62867d10b10bc3",
+    "projection-recheck.json": "9e5d3f0a509dc552c9d6545e6252deff47fb2b2d6d18f6bd273f4bf2459a6e46",
+    "harness-preflight-error.json": "aaa50371bab4f7d70d511ae8172e2659a5455c79e5a79aa5efed71a6841dbeb2",
+    "summary.json": "3258245f5b9e9c35f4565cae30764e26297aaea368f8f74b4a402fe7f3df1769",
+    "READABLE_TRANSCRIPTS.md": "79d25013a7eadb3d871f123ca24e32871b8fc6eb1ca5228ea09fdf44527becf0"
+  }
+}

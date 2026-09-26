@@ -1,5 +1,6 @@
 import type { AgentCall, StudentProfile } from "@prisma/client";
 import { serializeDate } from "@/lib/services/teacher-review/serializers";
+import { profileRecordProvenance } from "@/lib/services/student-assessment/profile-record";
 
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -62,6 +63,7 @@ export type StudentProfileWithAgentCall = StudentProfile & {
 
 export function serializeStudentProfileForTeacher(profile: StudentProfileWithAgentCall) {
   return {
+    ...profileRecordProvenance(profile),
     profile_type: profile.profile_type,
     ability_profile: profile.ability_profile,
     ability_pattern_flags: profile.ability_pattern_flags,

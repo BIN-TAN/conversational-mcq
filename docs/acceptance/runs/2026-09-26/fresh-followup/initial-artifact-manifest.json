@@ -1,0 +1,12 @@
+{
+  "version": "sha256-v1",
+  "files": {
+    "recurrence-before-safeguard.json": "179f606071108c6698fa1d1f890b0818cb4d562f2c375c119ab3d16924b96d17",
+    "recurrence-closure-after-safeguard.json": "36cd890a6a18dd9fd3832a917d0cbd47281f331cf7067a70ed5a8ebe1573bd7b",
+    "engineering-earlier-full.json": "42d41807622717cf5bad0a0cd74196ab70be227b02c61c1b2d4dfec08824b231",
+    "engineering-earlier-server.json": "3d96f67cd79abb2c04844dcaa665e7489cd868d6281fa3687623387bbae4ac12",
+    "engineering-typecheck-failed.json": "2438d5f57c17eefa46b979af97666448d2bd5fa45cd0afdefd106970f433d7cf",
+    "typecheck-failed.log": "5af3672d1847af89685a6d80841f962b67aa8b8eccac8d138408df24a9e4a69b",
+    "engineering-database-inaccessible.json": "021fe902e45e41d8e07c057e15eb4ac0df2eedd9ecaaf35817fd4586d86c44c2"
+  }
+}

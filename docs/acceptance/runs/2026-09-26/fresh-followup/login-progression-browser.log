@@ -1,0 +1,8 @@
+PASS: instructor entry, first sign-in redirects to dashboard, refresh stays signed in
+PASS: lost reply retry, deferred content question, uncertainty, cancel edit, changed answer, reload, pause/resume
+PASS: package edit/cancel/save/reload, end cancel/confirm, and read-only history
+PASS: persisted browser responses, revisions, completion counts, retry outcomes and research ZIP agree
+PASS: mobile edit advances, reload recovers old stuck state, no horizontal overflow or browser errors
+Screenshots: /var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-login-progression-iHhD7j
+
+

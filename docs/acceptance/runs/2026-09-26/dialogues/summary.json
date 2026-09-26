@@ -1,0 +1,201 @@
+{
+  "version": "classroom-dialogue-report-v1",
+  "synthetic_only": true,
+  "unique_scenarios": 6,
+  "unique_student_turns": 12,
+  "provider_requests": 15,
+  "provider_responses_completed": 15,
+  "accepted_evaluation_executions_including_rechecks": 14,
+  "invalid_candidates_requiring_regeneration": [
+    {
+      "category": "parsed_semantic_contract_failure",
+      "paths": [
+        "profile_transition_recommendation.updated_profile.evidence_sufficiency:profile_transition_updated_field_unchanged",
+        "profile_transition_recommendation.updated_profile.independence_interpretability:profile_transition_updated_field_unchanged",
+        "profile_transition_recommendation.updated_profile.integrated_profile_confidence:profile_transition_updated_field_unchanged",
+        "profile_transition_recommendation.updated_profile.profile_confidence:profile_transition_updated_field_unchanged"
+      ]
+    }
+  ],
+  "final_mechanical_checks": 36,
+  "final_mechanical_checks_passed": 36,
+  "final_turn_latency_ms": {
+    "min": 3990,
+    "median": 9982,
+    "max": 39080
+  },
+  "total_input_tokens": 149938,
+  "total_output_tokens": 18264,
+  "production_data_changed": false,
+  "app_changes": false,
+  "deployed": false,
+  "semantic_validity_certified": false,
+  "review_warning": "Mechanical acceptance and non-independent developer content review are not independent pedagogical validation or evidence of learning gains.",
+  "final_rows": [
+    {
+      "case_id": "false_explanation_then_assent",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "false_explanation_then_assent",
+      "turn": 2,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "correct_adoption_then_application",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "correct_adoption_then_application",
+      "turn": 2,
+      "source_file": "projection-recheck.json",
+      "outcome": "sound_understanding",
+      "lifecycle": "complete",
+      "claim_dispositions": [
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_aab95b887578e61299606899",
+          "disposition": "resolved",
+          "evidence_basis": "conversation_evidence",
+          "evidence_summary": "The student explained that consistent hiring-test scores could reflect vocabulary rather than job skill and that validity requires evidence supporting the intended job-performance interpretation.",
+          "evidence_ids": [
+            "ev_a08a4d575b1a2839825113a3"
+          ]
+        },
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_b234a4a150e3e5d3b132f298",
+          "disposition": "resolved",
+          "evidence_basis": "conversation_evidence",
+          "evidence_summary": "The student used SEM to form a range of uncertainty and explicitly rejected interpreting the range as proof of an exact true score.",
+          "evidence_ids": [
+            "ev_a08a4d575b1a2839825113a3"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "rejected_temptation_then_uncertainty",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "rejected_temptation_then_uncertainty",
+      "turn": 2,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "compound_agreement_then_disambiguation",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "compound_agreement_then_disambiguation",
+      "turn": 2,
+      "source_file": "projection-recheck.json",
+      "outcome": "largely_improved_understanding",
+      "lifecycle": "continue",
+      "claim_dispositions": [
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_aab95b887578e61299606899",
+          "disposition": "resolved",
+          "evidence_basis": "conversation_evidence",
+          "evidence_summary": "The student explicitly rejects reliability as sufficient proof of validity and states that evidence is needed for the intended use.",
+          "evidence_ids": [
+            "ev_fe2fd396076a6d2b49f0109a"
+          ]
+        },
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_b234a4a150e3e5d3b132f298",
+          "disposition": "retained",
+          "evidence_basis": "combined",
+          "evidence_summary": "The student explicitly continues to believe that SEM permits calculation of an exact true score.",
+          "evidence_ids": [
+            "ev_fe2fd396076a6d2b49f0109a"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "one_error_corrected_other_persists",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "largely_improved_understanding",
+      "lifecycle": "continue",
+      "claim_dispositions": [
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_aab95b887578e61299606899",
+          "disposition": "resolved",
+          "evidence_basis": "conversation_evidence",
+          "evidence_summary": "The student explains that stable scores can consistently measure the wrong thing and therefore do not alone justify the intended interpretation.",
+          "evidence_ids": [
+            "ev_dcf253edef74cdf908f3af16"
+          ]
+        },
+        {
+          "identity_version": "misconception-claim-identity-v1",
+          "indicator_id": "mi_51774f28ddde8de917ab056b",
+          "claim_id": "mc_b234a4a150e3e5d3b132f298",
+          "disposition": "retained",
+          "evidence_basis": "combined",
+          "evidence_summary": "The student explicitly continues to state that SEM identifies the exact true score.",
+          "evidence_ids": [
+            "ev_dcf253edef74cdf908f3af16"
+          ]
+        }
+      ]
+    },
+    {
+      "case_id": "one_error_corrected_other_persists",
+      "turn": 2,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "direct_help_then_pause",
+      "turn": 1,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "continue",
+      "claim_dispositions": []
+    },
+    {
+      "case_id": "direct_help_then_pause",
+      "turn": 2,
+      "source_file": "original-dialogues.json",
+      "outcome": "continue_conversation",
+      "lifecycle": "pause",
+      "claim_dispositions": []
+    }
+  ]
+}

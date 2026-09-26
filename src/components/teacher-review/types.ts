@@ -311,6 +311,7 @@ export type SessionDetailResponse = {
 };
 
 export type TeacherStudentProfile = {
+  profile_confidence_alignment_scope?: string;
   profile_type: string;
   ability_profile: string;
   ability_pattern_flags: unknown;
@@ -350,6 +351,7 @@ export type TeacherStudentProfile = {
 };
 
 export type TeacherFormativeLearningProfile = {
+  profile_confidence_alignment_scope?: string;
   profile_record_id?: string;
   profile_validation_status?: string;
   profile_valid_for_learning_analysis?: boolean;

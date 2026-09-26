@@ -1,0 +1,133 @@
+{
+  "version": "classroom-acceptance-run-v1",
+  "source_commit": "2752f92d523e8c0a43d984209d638818815406ed",
+  "source_sha256": "2aaeaf583ca9158344553c6217957df4669373417e3fd50380932bf88a9ae4fc",
+  "source_unchanged": true,
+  "phase": "all",
+  "results": [
+    {
+      "name": "typecheck",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 2896,
+      "log_sha256": "6aed79b3e821208a1a9310736904dcbca19f77dad1ca1623b50eae31501a2395"
+    },
+    {
+      "name": "lint",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 14171,
+      "log_sha256": "2b44b08504de1f5ab6f478a28893fb686bb27e0f5e803cfde0732555dd770f7f"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_acceptance_bd9332e10c-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1163,
+      "log_sha256": "b10d5376587c356797a90281106e20758a81234b43616fb93b7ae5217d968d9d"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_acceptance_bd9332e10c-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 260,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "classroom-audit",
+      "passed": false,
+      "exit_code": 1,
+      "duration_ms": 46369,
+      "log_sha256": "76d44dbc4bf28664be3195ff1ce5e670f57104570304687d5321ab9ab22e0640"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_9af68ac1a1-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 970,
+      "log_sha256": "5783112299d4d0d9001bc2f0264960c5ad3f3f8cb1c8063e8c653d0bc3c33413"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_9af68ac1a1-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 230,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "navigation-audit",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 65005,
+      "log_sha256": "5604e23dc3b669ce42fe8998da57b3edf40b19b0ee36a6459efd7970747f71f3"
+    },
+    {
+      "name": "production-build",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 61924,
+      "log_sha256": "3acbdd0724da8d32192654f86299719e59a43e55ffc288ccaeeff845dc77d2c8"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_a0faee56fc-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1107,
+      "log_sha256": "fcc6efaf5b9989a44192d0524fac306f926e45c85ae49b3ea770b5b5bae84a1a"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_a0faee56fc-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 206,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "login-progression-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 20567,
+      "log_sha256": "a5109c2fdc7f7ed3b7afbfa271ef5359f7209632adcf239c8f448dd7dabc0033"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_ux_44f21242e3-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1003,
+      "log_sha256": "f413f55b512d23076fdad218e8a430fd99c2eaaa28b0613caf31dfe3f8b15e2b"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_ux_44f21242e3-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 173,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "response-stage-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 8361,
+      "log_sha256": "a08dca6c85795b6f88119c3a9ce2b4b3a67d6b88760f6e81ff922c4d6011a347"
+    },
+    {
+      "name": "initial-preparation-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 13600,
+      "log_sha256": "9377521cf48e57c3cc7e3b84f05ce2f3585655dd40d35170ecee1d2f13d6483f"
+    }
+  ],
+  "completed_at": "2026-09-26T05:19:05.777Z",
+  "provider_calls": 0,
+  "high_stakes_status": "blocked_pending_independent_validation",
+  "unverified": [
+    "current-live-model diagnostic and instructional quality",
+    "independent content and key review",
+    "target-population validity and decision precision",
+    "classroom-scale full browser/provider load",
+    "fairness and accessibility with representative students",
+    "learning and transfer",
+    "human review and appeal"
+  ]
+}

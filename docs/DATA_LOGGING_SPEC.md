@@ -1,5 +1,17 @@
 # Data Logging Specification
 
+## Stance-aware interpretation provenance
+
+New initial profiles use `semantic-item-review-v3` and retain item-local
+interpretation IDs, exact student quotes, source fields, proposition accuracy,
+endorsement/rejection/uncertainty/quotation, evidence basis, scope, sealed option
+references, rationale and rule version. Candidate misconceptions link to eligible
+endorsed interpretations; historical records are not rewritten. These nested
+diagnostic records complement raw product/process data, not replace them.
+`docs/STANCE_AWARE_REASONING.md` documents the fields, normalization, validation,
+persistence path, evidence limitations and test protocol. They are model
+interpretations, not direct observations or automatically established beliefs.
+
 ## Goal
 
 The three-chance policy adds an `assessment_attempt_chances` ledger. It records
@@ -1615,3 +1627,35 @@ required for this projection.
   dictionary document these fields. Fallbacks display as `Profile unavailable`,
   not as a student deficit. Original fallback categories remain in raw exports
   with explicit provenance; analysis must respect their eligibility flag.
+
+### Formative interpretation provenance, projection v2
+
+Hosts v7.6 and v7.7 retain prior `confidence_alignment` rather than interpreting a correct
+answer as a new self-confidence rating. `profile_confidence_alignment_scope`
+distinguishes initial assessment, carry-forward without reassessment, legacy
+unknown scope, and unavailable validation provenance. Transition CSVs include
+the corresponding prior/updated scope, using each stored source call. Explicit
+free-text confidence remains an observation and original transcript evidence.
+
+`item_level_evidence_count` counts stored entries, not unique items.
+`item_level_evidence_format` distinguishes linked item records from narrative
+summaries. Only actual item-ID records set `item_level_evidence_available=true`;
+narrative-only formative profiles are not falsely advertised as item-joinable.
+
+Unchanged values accidentally marked updated may receive a deterministic
+bookkeeping correction, never a new substantive interpretation. Preserve the
+original candidate, both hashes, corrected field names, and every evidence ID.
+Rejected original candidates and projection metadata survive successful retries.
+See `FORMATIVE_INTERPRETATION_POLICY.md` for exact rules and limitations.
+
+Host v7.7 also uses evidence observations of type `uncatalogued_misconception`
+for a supported unresolved new/recurring error outside the retained claim
+catalog. References must identify current post-profile student evidence, not
+historical endorsement alone. If the model proposes a profile transition with
+such an observation, the live validator requires teacher assistance with reason
+`uncatalogued_misconception_requires_review` and disallows the strongest transfer
+categories. Existing observation/source-call exports preserve the evidence;
+this does not mint new canonical IDs or silently edit historical profiles.
+Canonical claim counts are not an exhaustive count of these extra observations.
+Review the evidence observations, transcript and teacher-review reason together.
+The observation is an AI interpretation, not a direct behavioral measurement.

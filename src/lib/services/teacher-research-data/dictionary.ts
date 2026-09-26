@@ -1221,6 +1221,7 @@ function isTimingVariable(variable: string) {
 }
 
 function sourceNature(table: string, variable: string): string {
+  if (variable.endsWith("confidence_alignment_scope")) return "deterministic_derived";
   if (variable === "profile_native_confidence_alignment") return "persisted_llm_interpretation";
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "deterministic_derived";
@@ -1462,7 +1463,7 @@ function measuredValueDefinition(table: string, variable: string) {
 }
 
 function definition(table: string, variable: string) {
-  if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
+  if (variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     if (PROFILE_FIELD_DEFINITIONS[variable]) return PROFILE_FIELD_DEFINITIONS[variable];
   }
   const overrides: Record<string, string> = {

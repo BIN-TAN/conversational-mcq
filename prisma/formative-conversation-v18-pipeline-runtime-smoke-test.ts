@@ -563,7 +563,7 @@ async function main() {
     const profilingCall = initialProfile.based_on_agent_call;
     assert(profilingCall);
     assert.equal(profilingCall.schema_version, "student-profile-output-v4");
-    assert.equal(profilingCall.prompt_version, "student-profiling-v5");
+    assert.equal(profilingCall.prompt_version, "student-profiling-v6");
     assert.equal(profilingCall.call_status, "succeeded");
     assert.equal(profilingCall.output_validated, true);
     const profileOutput = ProductionStudentProfileOutput.parse(

@@ -1,0 +1,14 @@
+PASS progress endpoint requires authentication
+http_submission_acknowledgement_ms=122
+PASS longer preparation is explained before submission and during waiting without a completion-time guarantee
+PASS HTTP submission returns without AI work; saved responses are reviewable and controls are unlocked
+PASS reload resumes read-only polling without another submission
+PASS temporary connection failure recovers without resubmitting or generating
+PASS mobile 320/390 and desktop 1440 waiting and review layout
+PASS failed preparation has an explicit retry using the same saved job
+PASS validated opening appears automatically after the independent worker finishes
+PASS real browser typing and synthetic paste aggregates survive reload, database capture, and research CSV export without raw input text
+PASS normal production launcher starts and stops the supervised web/worker service
+{"passed":10,"screenshots":"/var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-preparation-ux-SwN4c9","provider_calls":0}
+
+

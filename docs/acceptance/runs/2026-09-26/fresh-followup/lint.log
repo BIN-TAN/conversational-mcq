@@ -1,0 +1,24 @@
+
+> conversational-mcq@0.1.0 lint
+> eslint .
+
+
+/Users/binbin/Documents/Conversational MCQ/prisma/formative-conversation-v18-fixture-materialize.ts
+  38:44  warning  'index' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/binbin/Documents/Conversational MCQ/prisma/operational-formative-conversation-v18-materialize.ts
+  9:3  warning  'FORMATIVE_CONVERSATION_V18_CANDIDATE_VERSION' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/binbin/Documents/Conversational MCQ/prisma/operational-formative-conversation-v18r2-ux-polish-canary-materialize.ts
+  18:3  warning  'v18r2UxCanaryFileSha256' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/binbin/Documents/Conversational MCQ/src/lib/operational/formative-conversation-v5-evaluation-v18/candidate-runner.ts
+  37:8  warning  'FormativeConversationV18AgentOutput' is defined but never used  @typescript-eslint/no-unused-vars
+
+/Users/binbin/Documents/Conversational MCQ/src/lib/operational/formative-conversation-v5-evaluation-v18/package.ts
+  19:3  warning  'FORMATIVE_CONVERSATION_V5_EVALUATION_ROOT' is defined but never used  @typescript-eslint/no-unused-vars
+
+✖ 5 problems (0 errors, 5 warnings)
+
+
+

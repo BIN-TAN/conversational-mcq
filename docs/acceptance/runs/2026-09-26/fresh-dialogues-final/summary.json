@@ -1,0 +1,48 @@
+{
+  "version": "fresh-dialogue-report-v1",
+  "synthetic_only": true,
+  "actual_live_provider": true,
+  "production_data_changed": false,
+  "deployed": false,
+  "original_sha256": "58728b566e455d42a783170149ffbb93b49b70f356bee907ae0f05eab5895751",
+  "correction_sha256": null,
+  "accepted_executions_including_rechecks": 12,
+  "prompt_version": "formative-conversation-host-v7.7",
+  "prompt_sha256": "51830d9228adbfdd7c5c8a310e3e35c234266a814c7fa26552cc3fb7d156c6d6",
+  "config": {
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 10000
+  },
+  "unique_scenarios": 6,
+  "tested_student_turns": 12,
+  "expected_student_turns": 12,
+  "accepted_turns": 12,
+  "http_requests_dispatched": 13,
+  "provider_responses_completed": 13,
+  "mechanical_checks": 72,
+  "mechanical_checks_passed": 72,
+  "normalizations": 1,
+  "rejected_candidates": [
+    {
+      "case_id": "supported_example_then_numeric_substitution",
+      "turn": 2,
+      "failure_class": "parsed_semantic_contract_failure",
+      "issues": [
+        "profile_transition_recommendation.updated_profile.process_interpretation_cautions:profile_transition_retained_field_changed"
+      ]
+    }
+  ],
+  "source_unchanged_during_live_run": true,
+  "latency_ms_including_regeneration": {
+    "min": 5669,
+    "median": 14589,
+    "max": 39404
+  },
+  "total_input_tokens": 138611,
+  "total_output_tokens": 16726,
+  "semantic_validity_certified": false,
+  "independent_human_review": "pending",
+  "scope": "production tutor request, validators and bounded semantic regeneration; synthetic in-memory context, not full web/database or initial profiling pipeline",
+  "warning": "Prewritten synthetic student inputs; actual generated tutor messages. These checks are not a semantic accuracy rate, student learning trial, production load test, or live database run."
+}

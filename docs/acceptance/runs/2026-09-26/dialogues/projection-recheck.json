@@ -1,0 +1,2351 @@
+{
+  "version": "classroom-dialogue-probe-v2",
+  "synthetic_only": true,
+  "real_student_data_used": false,
+  "intended_scope": "production tutor request, validators and bounded semantic regeneration; synthetic in-memory context, not full web/database or initial profiling pipeline",
+  "criteria_frozen_at": "2026-09-26T09:53:12.665Z",
+  "cases": [
+    {
+      "id": "false_explanation_then_assent",
+      "messages": [
+        "I still agree with option B: high reliability proves that the intended interpretation is valid. Its explanation is my reason.",
+        "Okay, yes, I understand now."
+      ],
+      "expected": [
+        "Treat false-explanation adoption as meaningful evidence, not copying; correct reliability versus validity.",
+        "Generic agreement must not resolve either baseline claim or establish mastery."
+      ],
+      "forbid_sound": [
+        true,
+        true
+      ],
+      "must_retain": [
+        [],
+        [
+          0,
+          1
+        ]
+      ],
+      "pause": false
+    },
+    {
+      "id": "correct_adoption_then_application",
+      "messages": [
+        "I now accept option A's explanation: consistency alone does not establish validity. I agree with that explanation, rather than B. I have not worked out SEM yet.",
+        "For a hiring test, consistent scores could reflect vocabulary rather than job skill, so I would need evidence about the intended job-performance interpretation. For an observed score of 76 and SEM of 3, 73 to 79 is a range of uncertainty, not proof that the exact true score is 73, 76, or 79."
+      ],
+      "expected": [
+        "Recognize the corrected position without dismissing borrowed wording; no independent-transfer claim; retain untested SEM.",
+        "Acknowledge substantive application of both concepts; do not demand novel wording or ignore either corrected explanation."
+      ],
+      "forbid_sound": [
+        true,
+        false
+      ],
+      "must_retain": [
+        [
+          1
+        ],
+        []
+      ],
+      "pause": false
+    },
+    {
+      "id": "rejected_temptation_then_uncertainty",
+      "messages": [
+        "B was tempting because repeated scores looked convincing, but I reject its claim that consistency proves validity. I am describing why it tempted me, not saying I still believe it.",
+        "I am unsure about SEM. Does it really tell me one exact true score? I am asking, not claiming that it does."
+      ],
+      "expected": [
+        "Interpret negation and past temptation correctly; do not label the current statement as endorsing B.",
+        "Answer the question and distinguish uncertainty from a newly asserted false belief; prior SEM error is unverified, not confirmed by the question."
+      ],
+      "forbid_sound": [
+        true,
+        true
+      ],
+      "must_retain": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "pause": false
+    },
+    {
+      "id": "compound_agreement_then_disambiguation",
+      "messages": [
+        "I agree with the explanation that high reliability proves validity and SEM gives an exact true score. I have not separated the two parts in my mind.",
+        "Now I reject the first part: consistent scores still need evidence for the intended use. I still think SEM lets us calculate an exact true score, though."
+      ],
+      "expected": [
+        "Keep the two existing baseline errors distinct; clarify the compound statement without claiming extra independent evidence for every clause.",
+        "Acknowledge only the first correction, address the remaining SEM error, and do not declare global mastery."
+      ],
+      "forbid_sound": [
+        true,
+        true
+      ],
+      "must_retain": [
+        [
+          0,
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "pause": false
+    },
+    {
+      "id": "one_error_corrected_other_persists",
+      "messages": [
+        "I changed my view of reliability: stable scores can consistently measure the wrong thing, so they do not by themselves justify the intended interpretation. But SEM still tells us the exact true score.",
+        "If the observed score is 76 and SEM is 3, I still think the exact true score must be 73. Subtracting the error should remove it, right?"
+      ],
+      "expected": [
+        "Credit the reliability correction and focus on the independent SEM misconception; do not repeat the entire reliability lesson.",
+        "Explain why SEM is an uncertainty estimate rather than the signed error for this student; retain the unresolved claim."
+      ],
+      "forbid_sound": [
+        true,
+        true
+      ],
+      "must_retain": [
+        [
+          1
+        ],
+        [
+          1
+        ]
+      ],
+      "pause": false
+    },
+    {
+      "id": "direct_help_then_pause",
+      "messages": [
+        "I am frustrated. Please just explain both ideas in plain language with one example. Do not quiz me right now.",
+        "I am tired and want to pause now. Please do not give me another question."
+      ],
+      "expected": [
+        "Provide helpful direct instruction without a mandatory comprehension question or diagnosis of disengagement.",
+        "Respect stopping intent with a pause recommendation; do not invent improvement or ask another question."
+      ],
+      "forbid_sound": [
+        true,
+        true
+      ],
+      "must_retain": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          1
+        ]
+      ],
+      "pause": true
+    }
+  ],
+  "cases_sha256": "7e0b6c03e77c06eaf5965221bd4badc938d66c48f914b3e33f19939e9c287e38",
+  "config": {
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 10000
+  },
+  "prompt_version": "formative-conversation-host-v7.5",
+  "prompt_sha256": "ac745d120d8c6ff8fa1f84583b65c3fd8a2caf20348fdffa20f8b046b0878196",
+  "source_hashes": {
+    "prisma/classroom-dialogue-canary.ts": "d2626a62954d22e5baa112d193fd72182b822c62283d567416ddf890228d0ad2",
+    "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts": "e61646520241fbed735dbd7842da3efae2eec63aa9814ae4f7b9e6bd46941174",
+    "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18r2.ts": "2bd52d6488e749a20610e8bc515167e4a9cff207971197496e3f0ad8932ec49e",
+    "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts": "27b1561c4dc98b7d4150be6995974ddc91e17f745e4db5570e8545205dffc0ef",
+    "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts": "03f051a0ff9deb2c23701a358cd6b067e20fcad403359f860e22f9e9c3e8841e",
+    "src/lib/services/student-assessment/formative-conversation/runtime.ts": "8aecd1cd2d84591c57e8b67160baf329c990bd709cc6917ece42e9f56628e5dd",
+    "prisma/formative-conversation-v18r2-test-fixtures.ts": "8fde6569abac980a02154f3d6930a7a63f4b709fbc296c3f4277ea079f42df06",
+    "prisma/formative-conversation-v18-test-fixtures.ts": "f68a68e50eb51c6706daae8adf980e0a1a49544ee63a0b0cfd7d248bf4b1cfc6"
+  },
+  "source_unchanged": true,
+  "max_logical_calls": 4,
+  "corrected_projection_parent_sha256": "ffcda0e2d5fb03099ec83aab326a5d60b2d9f63fb6272aa93b62867d10b10bc3",
+  "visible_projection": "student_visible_message_only_matching_runtime_persistence",
+  "provider_adapter_invocations": 3,
+  "http_requests_dispatched": 3,
+  "provider_responses_completed": 3,
+  "manual_review_status": "pending_non_independent_review",
+  "results": [
+    {
+      "case_id": "correct_adoption_then_application",
+      "turn": 2,
+      "expected": "Acknowledge substantive application of both concepts; do not demand novel wording or ignore either corrected explanation.",
+      "context": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "context_version": "formative-conversation-context-v4",
+        "conversation_public_id": "synthetic-dialogue-correct_adoption_then_application",
+        "assessment_public_id": "fcv18_test_assessment",
+        "concept_unit_public_id": "fcv18_test_measurement",
+        "latest_student_message": "For a hiring test, consistent scores could reflect vocabulary rather than job skill, so I would need evidence about the intended job-performance interpretation. For an observed score of 76 and SEM of 3, 73 to 79 is a range of uncertainty, not proof that the exact true score is 73, 76, or 79.",
+        "visible_transcript": [
+          {
+            "sequence_index": 1,
+            "actor": "tutor",
+            "message_text": "Let us use your assessment reasoning to examine reliability, validity, and score uncertainty.",
+            "created_at": "2026-08-14T00:00:01.000Z"
+          },
+          {
+            "sequence_index": 2,
+            "actor": "student",
+            "message_text": "I now accept option A's explanation: consistency alone does not establish validity. I agree with that explanation, rather than B. I have not worked out SEM yet.",
+            "created_at": "2026-08-14T00:00:02.000Z"
+          },
+          {
+            "sequence_index": 3,
+            "actor": "tutor",
+            "message_text": "You’ve now recognized the key reliability–validity distinction: **consistent scores are not automatically valid scores**. That corrects the direction of your earlier reasoning, although applying the distinction to a new situation would give stronger evidence that it is secure.\n\nFor **SEM**, think of it as a measure of the usual uncertainty around an observed score—not as an error amount that can be subtracted to reveal the exact true score.\n\nFor example, suppose someone scores 80 and the SEM is 3. We cannot say, “The error was exactly 3, so the true score is 77.” The measurement error could have moved the observed score either upward or downward, and its exact size for this person is unknown. Instead, the SEM helps us form a range of plausible scores under the measurement model. A rough one-SEM range would be 77–83; wider ranges can be used when greater confidence is wanted.\n\nSo the key contrast is:\n\n- **Incorrect:** observed score − SEM = exact true score.\n- **Correct:** SEM estimates how much observed scores may fluctuate because of measurement error.\n\nTo work it through: a person has an observed score of 72 and the SEM is 4. What can you reasonably conclude, and what can you *not* conclude, about that person’s true score?",
+            "created_at": "2026-08-14T00:00:03.000Z"
+          },
+          {
+            "sequence_index": 4,
+            "actor": "student",
+            "message_text": "For a hiring test, consistent scores could reflect vocabulary rather than job skill, so I would need evidence about the intended job-performance interpretation. For an observed score of 76 and SEM of 3, 73 to 79 is a range of uncertainty, not proof that the exact true score is 73, 76, or 79.",
+            "created_at": "2026-08-14T00:00:04.000Z"
+          }
+        ],
+        "administered_items": [
+          {
+            "item_public_id": "measurement_reliability",
+            "item_number": 1,
+            "item_stem": "A hiring test has highly consistent scores. What does this establish?",
+            "options": [
+              {
+                "label": "A",
+                "text": "Consistency alone does not establish validity for the intended interpretation and use."
+              },
+              {
+                "label": "B",
+                "text": "High reliability automatically proves validity for the intended use."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "A",
+            "concise_explanation": "Reliability concerns consistency; validity concerns evidence supporting the intended score interpretation and use.",
+            "administered": true
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "item_number": 2,
+            "item_stem": "What can a standard error of measurement tell us about an observed score?",
+            "options": [
+              {
+                "label": "A",
+                "text": "It estimates score uncertainty; it does not identify an exact individual true score."
+              },
+              {
+                "label": "B",
+                "text": "It identifies the exact true score by subtracting the error from the observed score."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "A",
+            "concise_explanation": "SEM is not the signed error in an individual's observed score. It describes measurement uncertainty under the measurement model.",
+            "administered": true
+          }
+        ],
+        "assessment_specification": null,
+        "assessment_response_evidence": [
+          {
+            "item_public_id": "measurement_reliability",
+            "selected_option": "B",
+            "correctness": "incorrect",
+            "written_reasoning": "The reliability coefficient proves the scores are valid for the intended use.",
+            "confidence": "high",
+            "revision_summary": null,
+            "tempting_option": "B",
+            "tempting_option_reason": "Consistency seems like proof that the interpretation is valid.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "selected_option": "B",
+            "correctness": "incorrect",
+            "written_reasoning": "SEM gives the exact true score.",
+            "confidence": "high",
+            "revision_summary": null,
+            "tempting_option": "B",
+            "tempting_option_reason": "The error adjustment seems exact.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          }
+        ],
+        "assessment_process_evidence": [
+          {
+            "event_type": "package_submitted",
+            "event_category": "assessment",
+            "event_source": "student",
+            "item_public_id": null,
+            "occurred_at": "2026-08-13T23:59:00.000Z",
+            "visibility_duration_ms": null,
+            "pause_duration_ms": null
+          }
+        ],
+        "initial_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "Submitted assessment evidence."
+          ],
+          "unresolved_evidence": [
+            "High reliability automatically proves validity for the intended use.",
+            "Standard error of measurement identifies an exact true score."
+          ],
+          "evidence_limitations": [
+            "Formative understanding must be established from student-authored conversation evidence."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "misconception_based_understanding",
+            "ability_pattern_flags": [
+              "misconception_indicator_present"
+            ],
+            "engagement_profile": "adequate_engagement",
+            "engagement_pattern_flags": [
+              "complete_response_package"
+            ],
+            "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_likely",
+            "misconception_indicators": [
+              "High reliability automatically proves validity for the intended use.",
+              "Standard error of measurement identifies an exact true score."
+            ],
+            "item_level_evidence": [
+              "Assessment reasoning conflates reliability with validity.",
+              "Assessment reasoning treats SEM as exact."
+            ],
+            "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+            "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "The initial profile is grounded in submitted assessment evidence.",
+            "recommended_next_evidence": [
+              "Seek an independent application of the reliability-validity distinction.",
+              "Ask the student to explain what SEM does and does not establish."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+            "indicators": [
+              {
+                "indicator_id": "mi_51774f28ddde8de917ab056b",
+                "indicator_text": "Measurement statistics are treated as definitive proof.",
+                "source_evidence_refs": [
+                  "ev_0994bbd58cb3a95b42078380",
+                  "ev_eb52d4c33b6798fb9e6c07f8"
+                ],
+                "indicator_confidence": "high",
+                "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+                "claims": [
+                  {
+                    "claim_id": "mc_aab95b887578e61299606899",
+                    "claim_text": "High reliability automatically proves validity for the intended use.",
+                    "source_evidence_refs": [
+                      "ev_eb52d4c33b6798fb9e6c07f8"
+                    ]
+                  },
+                  {
+                    "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                    "claim_text": "Standard error of measurement identifies an exact true score.",
+                    "source_evidence_refs": [
+                      "ev_0994bbd58cb3a95b42078380"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "current_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "Submitted assessment evidence."
+          ],
+          "unresolved_evidence": [
+            "High reliability automatically proves validity for the intended use.",
+            "Standard error of measurement identifies an exact true score."
+          ],
+          "evidence_limitations": [
+            "Formative understanding must be established from student-authored conversation evidence."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "misconception_based_understanding",
+            "ability_pattern_flags": [
+              "misconception_indicator_present"
+            ],
+            "engagement_profile": "adequate_engagement",
+            "engagement_pattern_flags": [
+              "complete_response_package"
+            ],
+            "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_likely",
+            "misconception_indicators": [
+              "High reliability automatically proves validity for the intended use.",
+              "Standard error of measurement identifies an exact true score."
+            ],
+            "item_level_evidence": [
+              "Assessment reasoning conflates reliability with validity.",
+              "Assessment reasoning treats SEM as exact."
+            ],
+            "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+            "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "The initial profile is grounded in submitted assessment evidence.",
+            "recommended_next_evidence": [
+              "Seek an independent application of the reliability-validity distinction.",
+              "Ask the student to explain what SEM does and does not establish."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+            "indicators": [
+              {
+                "indicator_id": "mi_51774f28ddde8de917ab056b",
+                "indicator_text": "Measurement statistics are treated as definitive proof.",
+                "source_evidence_refs": [
+                  "ev_0994bbd58cb3a95b42078380",
+                  "ev_eb52d4c33b6798fb9e6c07f8"
+                ],
+                "indicator_confidence": "high",
+                "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+                "claims": [
+                  {
+                    "claim_id": "mc_aab95b887578e61299606899",
+                    "claim_text": "High reliability automatically proves validity for the intended use.",
+                    "source_evidence_refs": [
+                      "ev_eb52d4c33b6798fb9e6c07f8"
+                    ]
+                  },
+                  {
+                    "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                    "claim_text": "Standard error of measurement identifies an exact true score.",
+                    "source_evidence_refs": [
+                      "ev_0994bbd58cb3a95b42078380"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "allowed_misconception_claim_catalog": {
+          "identity_version": "misconception-claim-identity-v1",
+          "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+          "indicators": [
+            {
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "indicator_text": "Measurement statistics are treated as definitive proof.",
+              "source_evidence_refs": [
+                "ev_0994bbd58cb3a95b42078380",
+                "ev_eb52d4c33b6798fb9e6c07f8"
+              ],
+              "indicator_confidence": "high",
+              "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+              "claims": [
+                {
+                  "claim_id": "mc_aab95b887578e61299606899",
+                  "claim_text": "High reliability automatically proves validity for the intended use.",
+                  "source_evidence_refs": [
+                    "ev_eb52d4c33b6798fb9e6c07f8"
+                  ]
+                },
+                {
+                  "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                  "claim_text": "Standard error of measurement identifies an exact true score.",
+                  "source_evidence_refs": [
+                    "ev_0994bbd58cb3a95b42078380"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "allowed_evidence_catalog": {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+          "evidence": [
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_911bda5c68fff4f1fcf8785d",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored incorrect."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_eb52d4c33b6798fb9e6c07f8",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "The reliability coefficient proves the scores are valid for the intended use."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_f09306bccc9380d32e8d4f33",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: high."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_7b2655ede55d8871ae349de4",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option B. Consistency seems like proof that the interpretation is valid."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_d98c964594eba92ba326ca2c",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored incorrect."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_0994bbd58cb3a95b42078380",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "SEM gives the exact true score."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_f39a8e95c07c93b60b072f81",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: high."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_5e47b700a4d16803d513c219",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option B. The error adjustment seems exact."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_7a6846edf40eeba10cf29f59",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "assessment_process_observation",
+              "source_role": "platform_observation",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": null,
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Observed package_submitted (assessment, student) at 2026-08-13T23:59:00.000Z."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_5235a6b447ef14173d13834e",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "formative_student_turn",
+              "source_role": "student",
+              "evidence_stage": "formative_conversation",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": "synthetic-dialogue-correct_adoption_then_application",
+              "item_public_id": null,
+              "source_sequence_index": 2,
+              "source_ordinal": null,
+              "content": "I now accept option A's explanation: consistency alone does not establish validity. I agree with that explanation, rather than B. I have not worked out SEM yet."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_a08a4d575b1a2839825113a3",
+              "evidence_scope_id": "es_4151cfe22f5c6461920d2581",
+              "evidence_kind": "formative_student_turn",
+              "source_role": "student",
+              "evidence_stage": "formative_conversation",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": "synthetic-dialogue-correct_adoption_then_application",
+              "item_public_id": null,
+              "source_sequence_index": 4,
+              "source_ordinal": null,
+              "content": "For a hiring test, consistent scores could reflect vocabulary rather than job skill, so I would need evidence about the intended job-performance interpretation. For an observed score of 76 and SEM of 3, 73 to 79 is a range of uncertainty, not proof that the exact true score is 73, 76, or 79."
+            }
+          ]
+        },
+        "profile_history": [],
+        "telemetry_summary": {
+          "observable_student_turn_count": 2,
+          "observable_tutor_turn_count": 2,
+          "lifecycle_event_count": 2,
+          "latest_activity_at": "2026-08-14T00:00:04.000Z",
+          "total_input_tokens": 0,
+          "total_output_tokens": 0
+        },
+        "formative_lifecycle": {
+          "student_turn_index": 2,
+          "max_student_turns": 30,
+          "final_allowed_turn": false,
+          "another_student_turn_available": true
+        },
+        "teacher_guidance": [],
+        "intervention_history": [],
+        "memory": null,
+        "safety_boundary": {
+          "boundary_version": "formative-conversation-safety-boundary-v1",
+          "administered_item_public_ids": [
+            "measurement_reliability",
+            "standard_error_measurement"
+          ],
+          "unadministered_item_protection_required": true,
+          "hidden_prompts_excluded": true,
+          "raw_teacher_notes_excluded": true,
+          "credentials_excluded": true
+        }
+      },
+      "input_sha256": "14f1ea321ba42e178bd2375dd4550bfa4c213bd13dd1a86167a709fc25f9ee81",
+      "accepted": true,
+      "output": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "outcome": "sound_understanding",
+        "student_visible_message": "You have now applied both ideas correctly:\n\n- **Reliability is consistency, not proof of validity.** Your vocabulary example shows why a consistent hiring test still needs evidence that its scores support the intended job-performance interpretation.\n- **SEM describes uncertainty, not an exact correction.** You correctly interpreted 73–79 as a rough one-SEM range around 76, not as proof of any exact true score.\n\nYour examples directly correct both conclusions from the assessment and show that you can use the distinctions in context.",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "evidence_type": "independent_application",
+            "observation": "The student applied the reliability–validity distinction to a hiring context, explaining that consistent scores could reflect vocabulary rather than job skill and identifying the need for evidence supporting the intended interpretation.",
+            "evidence_ids": [
+              "ev_a08a4d575b1a2839825113a3"
+            ]
+          },
+          {
+            "evidence_type": "conceptual_application",
+            "observation": "The student calculated a one-SEM range and correctly characterized it as uncertainty rather than proof of an exact true score.",
+            "evidence_ids": [
+              "ev_a08a4d575b1a2839825113a3"
+            ]
+          }
+        ],
+        "profile_transition_recommendation": {
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "recommended": true,
+          "proposed_outcome": "sound_understanding",
+          "rationale": "The latest student-authored evidence accurately applies both administered concepts and directly distinguishes each initial misconception from the correct reasoning.",
+          "canonical_evidence_ids": [
+            "ev_a08a4d575b1a2839825113a3"
+          ],
+          "updated_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "robust_transfer_ready_understanding",
+            "ability_pattern_flags": [
+              "independent_application_across_both_administered_concepts",
+              "distinguishes_uncertainty_from_definitive_proof"
+            ],
+            "engagement_profile": "productive_engagement",
+            "engagement_pattern_flags": [
+              "addresses_multiple_concepts_with_relevant_reasoning"
+            ],
+            "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The student independently applied the reliability–validity distinction to a hiring context and correctly interpreted SEM as score uncertainty rather than an exact error adjustment.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_likely",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "Reliability item: explains why consistency could reflect vocabulary rather than job skill and identifies the need for evidence supporting the intended job-performance interpretation.",
+              "SEM item: computes 76 plus or minus 3 as 73–79 and identifies this as a range of uncertainty rather than an exact true-score determination."
+            ],
+            "reasoning_quality_summary": "The student's reasoning is conceptually accurate, appropriately qualified, and applied across both administered measurement topics.",
+            "engagement_summary": "The student addressed both outstanding concepts in a focused response and provided relevant reasoning for each.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "Current formative evidence replaces both initial mistaken conclusions with accurate contextual applications.",
+            "recommended_next_evidence": [
+              "If further enrichment is desired, apply reliability, validity, and score uncertainty together in a more complex measurement decision."
+            ]
+          },
+          "field_evidence": [
+            {
+              "profile_fields": [
+                "ability_profile",
+                "ability_pattern_flags",
+                "integrated_diagnostic_profile",
+                "integrated_profile_rationale",
+                "misconception_indicators",
+                "item_level_evidence",
+                "reasoning_quality_summary",
+                "rationale",
+                "recommended_next_evidence"
+              ],
+              "disposition": "updated_from_conversation_evidence",
+              "evidence_basis": "conversation_evidence",
+              "rationale": "The student accurately applied both target distinctions and directly rejected the earlier definitive-proof interpretations.",
+              "evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ]
+            },
+            {
+              "profile_fields": [
+                "engagement_profile",
+                "engagement_pattern_flags",
+                "engagement_summary"
+              ],
+              "disposition": "updated_from_conversation_evidence",
+              "evidence_basis": "conversation_evidence",
+              "rationale": "The student productively addressed both administered concepts with concise, relevant reasoning.",
+              "evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ]
+            },
+            {
+              "profile_fields": [
+                "integrated_profile_confidence",
+                "evidence_sufficiency",
+                "independence_interpretability",
+                "profile_confidence"
+              ],
+              "disposition": "retained_evidence_remains_valid",
+              "evidence_basis": "prior_profile_evidence",
+              "rationale": "The prior high confidence, strong evidence-sufficiency judgment, and likely independence assessment remain valid and are not changed by this transition.",
+              "evidence_ids": []
+            },
+            {
+              "profile_fields": [
+                "confidence_alignment"
+              ],
+              "disposition": "retained_evidence_remains_valid",
+              "evidence_basis": "prior_profile_evidence",
+              "rationale": "No new confidence rating was supplied, so the existing confidence-alignment field is retained rather than reinterpreted from conceptual performance alone.",
+              "evidence_ids": []
+            },
+            {
+              "profile_fields": [
+                "process_interpretation_cautions"
+              ],
+              "disposition": "retained_evidence_remains_valid",
+              "evidence_basis": "prior_profile_evidence",
+              "rationale": "The existing caution against interpreting process observations as learner traits remains valid.",
+              "evidence_ids": []
+            }
+          ],
+          "misconception_claim_dispositions": [
+            {
+              "identity_version": "misconception-claim-identity-v1",
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "claim_id": "mc_aab95b887578e61299606899",
+              "disposition": "resolved",
+              "evidence_basis": "conversation_evidence",
+              "evidence_summary": "The student explained that consistent hiring-test scores could reflect vocabulary rather than job skill and that validity requires evidence supporting the intended job-performance interpretation.",
+              "evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ]
+            },
+            {
+              "identity_version": "misconception-claim-identity-v1",
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "claim_id": "mc_b234a4a150e3e5d3b132f298",
+              "disposition": "resolved",
+              "evidence_basis": "conversation_evidence",
+              "evidence_summary": "The student used SEM to form a range of uncertainty and explicitly rejected interpreting the range as proof of an exact true score.",
+              "evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ]
+            }
+          ]
+        },
+        "teacher_assistance_recommendation": {
+          "recommended": false,
+          "reason_code": null
+        },
+        "lifecycle_recommendation": "complete"
+      },
+      "checks": [
+        {
+          "name": "no_premature_sound_understanding",
+          "pass": true
+        },
+        {
+          "name": "unresolved_claims_not_resolved",
+          "pass": true
+        },
+        {
+          "name": "pause_intent_respected",
+          "pass": true
+        }
+      ],
+      "attempts": [
+        {
+          "sequence": 1,
+          "kind": "base",
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "sound_understanding",
+            "student_visible_message": "You’ve now applied both ideas correctly:\n\n- **Reliability is consistency, not proof of validity.** Your vocabulary example shows why separate evidence is needed to support the intended job-performance interpretation.\n- **SEM describes uncertainty, not an exact correction.** You correctly treated 73–79 as a rough one-SEM range around 76, rather than claiming that any point in the range must be the exact true score.\n\nThat is a clear correction of both ideas from the assessment, supported by your own applications.",
+            "teaching_artifact": null,
+            "evidence_observations": [
+              {
+                "evidence_type": "independent_application",
+                "observation": "The student applied the reliability–validity distinction to a hiring test, explaining that score consistency could arise from vocabulary rather than the intended job skill and that validity requires evidence for the intended interpretation.",
+                "evidence_ids": [
+                  "ev_a08a4d575b1a2839825113a3"
+                ]
+              },
+              {
+                "evidence_type": "conceptual_explanation",
+                "observation": "The student correctly interpreted a one-SEM interval as a range expressing uncertainty and explicitly rejected treating the interval or SEM as identifying an exact true score.",
+                "evidence_ids": [
+                  "ev_a08a4d575b1a2839825113a3"
+                ]
+              }
+            ],
+            "profile_transition_recommendation": {
+              "recommendation_version": "formative-conversation-profile-recommendation-v4",
+              "recommended": true,
+              "proposed_outcome": "sound_understanding",
+              "rationale": "The latest student-authored evidence independently applies both administered concepts and directly discriminates each earlier misconception from the correct reasoning.",
+              "canonical_evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ],
+              "updated_profile": {
+                "schema_version": "formative-conversation-learning-profile-v1",
+                "ability_profile": "robust_transfer_ready_understanding",
+                "ability_pattern_flags": [
+                  "independent_application_across_both_administered_concepts",
+                  "distinguishes_estimate_from_definitive_proof"
+                ],
+                "engagement_profile": "productive_engagement",
+                "engagement_pattern_flags": [
+                  "addresses_multiple_concepts_with_relevant_reasoning"
+                ],
+                "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer",
+                "integrated_profile_confidence": "high",
+                "integrated_profile_rationale": "The student independently applied the reliability–validity distinction to a hiring context and correctly interpreted SEM as uncertainty rather than an exact individual error adjustment.",
+                "evidence_sufficiency": "strong",
+                "confidence_alignment": "well_calibrated",
+                "independence_interpretability": "independent_understanding_likely",
+                "misconception_indicators": [],
+                "item_level_evidence": [
+                  "Reliability item: explains why consistency may reflect vocabulary rather than job skill and identifies the need for validity evidence about job-performance interpretation.",
+                  "SEM item: computes 76 ± 3 as 73–79 and correctly characterizes it as uncertainty rather than an exact true-score determination."
+                ],
+                "reasoning_quality_summary": "The reasoning is conceptually accurate, qualified appropriately, and applied across both administered measurement topics.",
+                "engagement_summary": "The student addressed both outstanding concepts in a focused response and supplied relevant reasoning for each.",
+                "process_interpretation_cautions": [
+                  "Process observations are descriptive and not learner traits."
+                ],
+                "profile_confidence": "high",
+                "rationale": "Current formative evidence reverses both initial claims through accurate application rather than bare agreement alone.",
+                "recommended_next_evidence": [
+                  "If further enrichment is desired, apply reliability, validity, and score uncertainty to a more complex measurement decision."
+                ]
+              },
+              "field_evidence": [
+                {
+                  "profile_fields": [
+                    "ability_profile",
+                    "ability_pattern_flags",
+                    "integrated_diagnostic_profile",
+                    "integrated_profile_confidence",
+                    "integrated_profile_rationale",
+                    "evidence_sufficiency",
+                    "confidence_alignment",
+                    "independence_interpretability",
+                    "misconception_indicators",
+                    "item_level_evidence",
+                    "reasoning_quality_summary",
+                    "profile_confidence",
+                    "rationale",
+                    "recommended_next_evidence"
+                  ],
+                  "disposition": "updated_from_conversation_evidence",
+                  "evidence_basis": "conversation_evidence",
+                  "rationale": "The student independently and accurately applied both target distinctions, resolving the earlier conceptual errors and supporting a robust understanding judgment.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "profile_fields": [
+                    "engagement_profile",
+                    "engagement_pattern_flags",
+                    "engagement_summary"
+                  ],
+                  "disposition": "updated_from_conversation_evidence",
+                  "evidence_basis": "combined",
+                  "rationale": "The student productively addressed both outstanding topics with concise, relevant reasoning.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "profile_fields": [
+                    "process_interpretation_cautions"
+                  ],
+                  "disposition": "retained_evidence_remains_valid",
+                  "evidence_basis": "prior_profile_evidence",
+                  "rationale": "The existing caution against interpreting process observations as learner traits remains valid.",
+                  "evidence_ids": []
+                }
+              ],
+              "misconception_claim_dispositions": [
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_aab95b887578e61299606899",
+                  "disposition": "resolved",
+                  "evidence_basis": "conversation_evidence",
+                  "evidence_summary": "The student explained that consistent hiring-test scores could reflect vocabulary rather than job skill and that validity requires evidence supporting the intended job-performance interpretation.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                  "disposition": "resolved",
+                  "evidence_basis": "conversation_evidence",
+                  "evidence_summary": "The student used the SEM to form a range of uncertainty and explicitly rejected interpreting it as proof of an exact true score.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                }
+              ]
+            },
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "complete"
+          },
+          "latency_ms": 23601,
+          "usage": {
+            "input_tokens": 10087,
+            "output_tokens": 1992,
+            "total_tokens": 12079,
+            "reasoning_tokens": 734,
+            "cached_input_tokens": 5526,
+            "raw": {
+              "input_tokens": 10087,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 5526
+              },
+              "output_tokens": 1992,
+              "output_tokens_details": {
+                "reasoning_tokens": 734
+              },
+              "total_tokens": 12079
+            }
+          },
+          "error_category": null
+        },
+        {
+          "sequence": 2,
+          "kind": "semantic_regeneration",
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "sound_understanding",
+            "student_visible_message": "You have now applied both ideas correctly:\n\n- **Reliability is consistency, not proof of validity.** Your vocabulary example shows why a consistent hiring test still needs evidence that its scores support the intended job-performance interpretation.\n- **SEM describes uncertainty, not an exact correction.** You correctly interpreted 73–79 as a rough one-SEM range around 76, not as proof of any exact true score.\n\nYour examples directly correct both conclusions from the assessment and show that you can use the distinctions in context.",
+            "teaching_artifact": null,
+            "evidence_observations": [
+              {
+                "evidence_type": "independent_application",
+                "observation": "The student applied the reliability–validity distinction to a hiring context, explaining that consistent scores could reflect vocabulary rather than job skill and identifying the need for evidence supporting the intended interpretation.",
+                "evidence_ids": [
+                  "ev_a08a4d575b1a2839825113a3"
+                ]
+              },
+              {
+                "evidence_type": "conceptual_application",
+                "observation": "The student calculated a one-SEM range and correctly characterized it as uncertainty rather than proof of an exact true score.",
+                "evidence_ids": [
+                  "ev_a08a4d575b1a2839825113a3"
+                ]
+              }
+            ],
+            "profile_transition_recommendation": {
+              "recommendation_version": "formative-conversation-profile-recommendation-v4",
+              "recommended": true,
+              "proposed_outcome": "sound_understanding",
+              "rationale": "The latest student-authored evidence accurately applies both administered concepts and directly distinguishes each initial misconception from the correct reasoning.",
+              "canonical_evidence_ids": [
+                "ev_a08a4d575b1a2839825113a3"
+              ],
+              "updated_profile": {
+                "schema_version": "formative-conversation-learning-profile-v1",
+                "ability_profile": "robust_transfer_ready_understanding",
+                "ability_pattern_flags": [
+                  "independent_application_across_both_administered_concepts",
+                  "distinguishes_uncertainty_from_definitive_proof"
+                ],
+                "engagement_profile": "productive_engagement",
+                "engagement_pattern_flags": [
+                  "addresses_multiple_concepts_with_relevant_reasoning"
+                ],
+                "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer",
+                "integrated_profile_confidence": "high",
+                "integrated_profile_rationale": "The student independently applied the reliability–validity distinction to a hiring context and correctly interpreted SEM as score uncertainty rather than an exact error adjustment.",
+                "evidence_sufficiency": "strong",
+                "confidence_alignment": "overconfident",
+                "independence_interpretability": "independent_understanding_likely",
+                "misconception_indicators": [],
+                "item_level_evidence": [
+                  "Reliability item: explains why consistency could reflect vocabulary rather than job skill and identifies the need for evidence supporting the intended job-performance interpretation.",
+                  "SEM item: computes 76 plus or minus 3 as 73–79 and identifies this as a range of uncertainty rather than an exact true-score determination."
+                ],
+                "reasoning_quality_summary": "The student's reasoning is conceptually accurate, appropriately qualified, and applied across both administered measurement topics.",
+                "engagement_summary": "The student addressed both outstanding concepts in a focused response and provided relevant reasoning for each.",
+                "process_interpretation_cautions": [
+                  "Process observations are descriptive and not learner traits."
+                ],
+                "profile_confidence": "high",
+                "rationale": "Current formative evidence replaces both initial mistaken conclusions with accurate contextual applications.",
+                "recommended_next_evidence": [
+                  "If further enrichment is desired, apply reliability, validity, and score uncertainty together in a more complex measurement decision."
+                ]
+              },
+              "field_evidence": [
+                {
+                  "profile_fields": [
+                    "ability_profile",
+                    "ability_pattern_flags",
+                    "integrated_diagnostic_profile",
+                    "integrated_profile_rationale",
+                    "misconception_indicators",
+                    "item_level_evidence",
+                    "reasoning_quality_summary",
+                    "rationale",
+                    "recommended_next_evidence"
+                  ],
+                  "disposition": "updated_from_conversation_evidence",
+                  "evidence_basis": "conversation_evidence",
+                  "rationale": "The student accurately applied both target distinctions and directly rejected the earlier definitive-proof interpretations.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "profile_fields": [
+                    "engagement_profile",
+                    "engagement_pattern_flags",
+                    "engagement_summary"
+                  ],
+                  "disposition": "updated_from_conversation_evidence",
+                  "evidence_basis": "conversation_evidence",
+                  "rationale": "The student productively addressed both administered concepts with concise, relevant reasoning.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "profile_fields": [
+                    "integrated_profile_confidence",
+                    "evidence_sufficiency",
+                    "independence_interpretability",
+                    "profile_confidence"
+                  ],
+                  "disposition": "retained_evidence_remains_valid",
+                  "evidence_basis": "prior_profile_evidence",
+                  "rationale": "The prior high confidence, strong evidence-sufficiency judgment, and likely independence assessment remain valid and are not changed by this transition.",
+                  "evidence_ids": []
+                },
+                {
+                  "profile_fields": [
+                    "confidence_alignment"
+                  ],
+                  "disposition": "retained_evidence_remains_valid",
+                  "evidence_basis": "prior_profile_evidence",
+                  "rationale": "No new confidence rating was supplied, so the existing confidence-alignment field is retained rather than reinterpreted from conceptual performance alone.",
+                  "evidence_ids": []
+                },
+                {
+                  "profile_fields": [
+                    "process_interpretation_cautions"
+                  ],
+                  "disposition": "retained_evidence_remains_valid",
+                  "evidence_basis": "prior_profile_evidence",
+                  "rationale": "The existing caution against interpreting process observations as learner traits remains valid.",
+                  "evidence_ids": []
+                }
+              ],
+              "misconception_claim_dispositions": [
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_aab95b887578e61299606899",
+                  "disposition": "resolved",
+                  "evidence_basis": "conversation_evidence",
+                  "evidence_summary": "The student explained that consistent hiring-test scores could reflect vocabulary rather than job skill and that validity requires evidence supporting the intended job-performance interpretation.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                },
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                  "disposition": "resolved",
+                  "evidence_basis": "conversation_evidence",
+                  "evidence_summary": "The student used SEM to form a range of uncertainty and explicitly rejected interpreting the range as proof of an exact true score.",
+                  "evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ]
+                }
+              ]
+            },
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "complete"
+          },
+          "latency_ms": 15479,
+          "usage": {
+            "input_tokens": 13877,
+            "output_tokens": 1672,
+            "total_tokens": 15549,
+            "reasoning_tokens": 310,
+            "cached_input_tokens": 0,
+            "raw": {
+              "input_tokens": 13877,
+              "input_tokens_details": {
+                "cache_write_tokens": 5610,
+                "cached_tokens": 0
+              },
+              "output_tokens": 1672,
+              "output_tokens_details": {
+                "reasoning_tokens": 310
+              },
+              "total_tokens": 15549
+            }
+          },
+          "error_category": null
+        }
+      ],
+      "audit": {
+        "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+        "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
+        "planned_base_logical_calls": 1,
+        "logical_calls_entered": 2,
+        "pre_dispatch_request_rejections": 0,
+        "http_requests_dispatched": 2,
+        "provider_responses_completed": 2,
+        "provider_attempts": 2,
+        "transport_retries": 0,
+        "incomplete_output_recovery_calls": 0,
+        "semantic_regeneration_calls": 1,
+        "parsed_candidates": 2,
+        "semantically_accepted_candidates": 1,
+        "attempts": [
+          {
+            "sequence": 1,
+            "kind": "base",
+            "logical_call_id": "correct_adoption_then_application:1:bd7c9a2e-7ad4-4384-a38e-882b5c4c2fe0:1",
+            "canonical_request_hash": "7bf14a7c5abdb4d42bf593f36cee884f612a47b8380e876902262fe8a2b39648",
+            "result_status": "completed",
+            "failure_class": "parsed_semantic_contract_failure",
+            "accepted": false,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 0,
+            "provider_request_id": "req_117cab29ef444adaabcf5cc6c0d666af",
+            "provider_response_id": "resp_07acde4cfcb39be2016ab79609382c87d09ef9e345f422ef29",
+            "client_request_id": "correct_adoption_then_application:1:bd7c9a2e-7ad4-4384-a38e-882b5c4c2fe0",
+            "incomplete_reason": null,
+            "latency_ms": 23601,
+            "input_tokens": 10087,
+            "output_tokens": 1992,
+            "total_tokens": 12079,
+            "invalid_candidate": {
+              "candidate_hash": "5cebbdc18486d4788f0727aa05cdf0b35506b3ad5e7b69505ab952f177c3e18a",
+              "candidate_json": {
+                "contract_version": "formative-conversation-agent-contract-v4",
+                "outcome": "sound_understanding",
+                "student_visible_message": "You’ve now applied both ideas correctly:\n\n- **Reliability is consistency, not proof of validity.** Your vocabulary example shows why separate evidence is needed to support the intended job-performance interpretation.\n- **SEM describes uncertainty, not an exact correction.** You correctly treated 73–79 as a rough one-SEM range around 76, rather than claiming that any point in the range must be the exact true score.\n\nThat is a clear correction of both ideas from the assessment, supported by your own applications.",
+                "teaching_artifact": null,
+                "evidence_observations": [
+                  {
+                    "evidence_type": "independent_application",
+                    "observation": "The student applied the reliability–validity distinction to a hiring test, explaining that score consistency could arise from vocabulary rather than the intended job skill and that validity requires evidence for the intended interpretation.",
+                    "evidence_ids": [
+                      "ev_a08a4d575b1a2839825113a3"
+                    ]
+                  },
+                  {
+                    "evidence_type": "conceptual_explanation",
+                    "observation": "The student correctly interpreted a one-SEM interval as a range expressing uncertainty and explicitly rejected treating the interval or SEM as identifying an exact true score.",
+                    "evidence_ids": [
+                      "ev_a08a4d575b1a2839825113a3"
+                    ]
+                  }
+                ],
+                "profile_transition_recommendation": {
+                  "recommendation_version": "formative-conversation-profile-recommendation-v4",
+                  "recommended": true,
+                  "proposed_outcome": "sound_understanding",
+                  "rationale": "The latest student-authored evidence independently applies both administered concepts and directly discriminates each earlier misconception from the correct reasoning.",
+                  "canonical_evidence_ids": [
+                    "ev_a08a4d575b1a2839825113a3"
+                  ],
+                  "updated_profile": {
+                    "schema_version": "formative-conversation-learning-profile-v1",
+                    "ability_profile": "robust_transfer_ready_understanding",
+                    "ability_pattern_flags": [
+                      "independent_application_across_both_administered_concepts",
+                      "distinguishes_estimate_from_definitive_proof"
+                    ],
+                    "engagement_profile": "productive_engagement",
+                    "engagement_pattern_flags": [
+                      "addresses_multiple_concepts_with_relevant_reasoning"
+                    ],
+                    "integrated_diagnostic_profile": "robust_understanding_ready_for_transfer",
+                    "integrated_profile_confidence": "high",
+                    "integrated_profile_rationale": "The student independently applied the reliability–validity distinction to a hiring context and correctly interpreted SEM as uncertainty rather than an exact individual error adjustment.",
+                    "evidence_sufficiency": "strong",
+                    "confidence_alignment": "well_calibrated",
+                    "independence_interpretability": "independent_understanding_likely",
+                    "misconception_indicators": [],
+                    "item_level_evidence": [
+                      "Reliability item: explains why consistency may reflect vocabulary rather than job skill and identifies the need for validity evidence about job-performance interpretation.",
+                      "SEM item: computes 76 ± 3 as 73–79 and correctly characterizes it as uncertainty rather than an exact true-score determination."
+                    ],
+                    "reasoning_quality_summary": "The reasoning is conceptually accurate, qualified appropriately, and applied across both administered measurement topics.",
+                    "engagement_summary": "The student addressed both outstanding concepts in a focused response and supplied relevant reasoning for each.",
+                    "process_interpretation_cautions": [
+                      "Process observations are descriptive and not learner traits."
+                    ],
+                    "profile_confidence": "high",
+                    "rationale": "Current formative evidence reverses both initial claims through accurate application rather than bare agreement alone.",
+                    "recommended_next_evidence": [
+                      "If further enrichment is desired, apply reliability, validity, and score uncertainty to a more complex measurement decision."
+                    ]
+                  },
+                  "field_evidence": [
+                    {
+                      "profile_fields": [
+                        "ability_profile",
+                        "ability_pattern_flags",
+                        "integrated_diagnostic_profile",
+                        "integrated_profile_confidence",
+                        "integrated_profile_rationale",
+                        "evidence_sufficiency",
+                        "confidence_alignment",
+                        "independence_interpretability",
+                        "misconception_indicators",
+                        "item_level_evidence",
+                        "reasoning_quality_summary",
+                        "profile_confidence",
+                        "rationale",
+                        "recommended_next_evidence"
+                      ],
+                      "disposition": "updated_from_conversation_evidence",
+                      "evidence_basis": "conversation_evidence",
+                      "rationale": "The student independently and accurately applied both target distinctions, resolving the earlier conceptual errors and supporting a robust understanding judgment.",
+                      "evidence_ids": [
+                        "ev_a08a4d575b1a2839825113a3"
+                      ]
+                    },
+                    {
+                      "profile_fields": [
+                        "engagement_profile",
+                        "engagement_pattern_flags",
+                        "engagement_summary"
+                      ],
+                      "disposition": "updated_from_conversation_evidence",
+                      "evidence_basis": "combined",
+                      "rationale": "The student productively addressed both outstanding topics with concise, relevant reasoning.",
+                      "evidence_ids": [
+                        "ev_a08a4d575b1a2839825113a3"
+                      ]
+                    },
+                    {
+                      "profile_fields": [
+                        "process_interpretation_cautions"
+                      ],
+                      "disposition": "retained_evidence_remains_valid",
+                      "evidence_basis": "prior_profile_evidence",
+                      "rationale": "The existing caution against interpreting process observations as learner traits remains valid.",
+                      "evidence_ids": []
+                    }
+                  ],
+                  "misconception_claim_dispositions": [
+                    {
+                      "identity_version": "misconception-claim-identity-v1",
+                      "indicator_id": "mi_51774f28ddde8de917ab056b",
+                      "claim_id": "mc_aab95b887578e61299606899",
+                      "disposition": "resolved",
+                      "evidence_basis": "conversation_evidence",
+                      "evidence_summary": "The student explained that consistent hiring-test scores could reflect vocabulary rather than job skill and that validity requires evidence supporting the intended job-performance interpretation.",
+                      "evidence_ids": [
+                        "ev_a08a4d575b1a2839825113a3"
+                      ]
+                    },
+                    {
+                      "identity_version": "misconception-claim-identity-v1",
+                      "indicator_id": "mi_51774f28ddde8de917ab056b",
+                      "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                      "disposition": "resolved",
+                      "evidence_basis": "conversation_evidence",
+                      "evidence_summary": "The student used the SEM to form a range of uncertainty and explicitly rejected interpreting it as proof of an exact true score.",
+                      "evidence_ids": [
+                        "ev_a08a4d575b1a2839825113a3"
+                      ]
+                    }
+                  ]
+                },
+                "teacher_assistance_recommendation": {
+                  "recommended": false,
+                  "reason_code": null
+                },
+                "lifecycle_recommendation": "complete"
+              },
+              "candidate_text": null,
+              "validation_status": "semantic_contract_invalid",
+              "validation_issue_paths": [
+                "profile_transition_recommendation.updated_profile.evidence_sufficiency:profile_transition_updated_field_unchanged",
+                "profile_transition_recommendation.updated_profile.independence_interpretability:profile_transition_updated_field_unchanged",
+                "profile_transition_recommendation.updated_profile.integrated_profile_confidence:profile_transition_updated_field_unchanged",
+                "profile_transition_recommendation.updated_profile.profile_confidence:profile_transition_updated_field_unchanged"
+              ]
+            }
+          },
+          {
+            "sequence": 2,
+            "kind": "semantic_regeneration",
+            "logical_call_id": "correct_adoption_then_application:1:bd7c9a2e-7ad4-4384-a38e-882b5c4c2fe0:2",
+            "canonical_request_hash": "7d19b57972a2e43f157222dff6c76aa522d57f43a0347041fd2caeba8ef418c8",
+            "result_status": "completed",
+            "failure_class": null,
+            "accepted": true,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 1,
+            "provider_request_id": "req_92d35673a5264e3da0f8ae0fdc8e94f3",
+            "provider_response_id": "resp_050f60b75abf5ace016ab79620a06487d0a00b52f4bbdecb0a",
+            "client_request_id": "correct_adoption_then_application:1:bd7c9a2e-7ad4-4384-a38e-882b5c4c2fe0:semantic-regeneration:1",
+            "incomplete_reason": null,
+            "latency_ms": 15479,
+            "input_tokens": 13877,
+            "output_tokens": 1672,
+            "total_tokens": 15549,
+            "invalid_candidate": null
+          }
+        ]
+      },
+      "synthetic_timestamp_warning": "Transcript timestamps are fixture values, not student response latencies."
+    },
+    {
+      "case_id": "compound_agreement_then_disambiguation",
+      "turn": 2,
+      "expected": "Acknowledge only the first correction, address the remaining SEM error, and do not declare global mastery.",
+      "context": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "context_version": "formative-conversation-context-v4",
+        "conversation_public_id": "synthetic-dialogue-compound_agreement_then_disambiguation",
+        "assessment_public_id": "fcv18_test_assessment",
+        "concept_unit_public_id": "fcv18_test_measurement",
+        "latest_student_message": "Now I reject the first part: consistent scores still need evidence for the intended use. I still think SEM lets us calculate an exact true score, though.",
+        "visible_transcript": [
+          {
+            "sequence_index": 1,
+            "actor": "tutor",
+            "message_text": "Let us use your assessment reasoning to examine reliability, validity, and score uncertainty.",
+            "created_at": "2026-08-14T00:00:01.000Z"
+          },
+          {
+            "sequence_index": 2,
+            "actor": "student",
+            "message_text": "I agree with the explanation that high reliability proves validity and SEM gives an exact true score. I have not separated the two parts in my mind.",
+            "created_at": "2026-08-14T00:00:02.000Z"
+          },
+          {
+            "sequence_index": 3,
+            "actor": "tutor",
+            "message_text": "Those are **two separate ideas**, and each needs its own correction:\n\n- **Reliability asks:** Are the scores reasonably consistent? A test can be consistently wrong or consistently measure the wrong thing. For example, a scale that always adds 5 kg is consistent, but its readings are not accurate. Likewise, high test reliability is useful, but it does **not prove validity** for a hiring decision. Validity requires evidence that the scores support that particular interpretation and use.\n- **SEM asks:** About how much uncertainty surrounds an observed score? It is not a known, signed error that can be subtracted to uncover someone’s exact true score. If a person scores 80, the SEM helps describe a plausible range around 80 under the measurement model; it does **not identify one exact true score**.\n\nA short way to keep them apart is: **reliability concerns consistency; validity concerns justified interpretation and use; SEM concerns uncertainty.**\n\nTo separate the two claims, how would you now complete these statements?\n\n1. High reliability establishes ___, but does not by itself establish ___.\n2. SEM estimates ___, but does not reveal ___.",
+            "created_at": "2026-08-14T00:00:03.000Z"
+          },
+          {
+            "sequence_index": 4,
+            "actor": "student",
+            "message_text": "Now I reject the first part: consistent scores still need evidence for the intended use. I still think SEM lets us calculate an exact true score, though.",
+            "created_at": "2026-08-14T00:00:04.000Z"
+          }
+        ],
+        "administered_items": [
+          {
+            "item_public_id": "measurement_reliability",
+            "item_number": 1,
+            "item_stem": "A hiring test has highly consistent scores. What does this establish?",
+            "options": [
+              {
+                "label": "A",
+                "text": "Consistency alone does not establish validity for the intended interpretation and use."
+              },
+              {
+                "label": "B",
+                "text": "High reliability automatically proves validity for the intended use."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "A",
+            "concise_explanation": "Reliability concerns consistency; validity concerns evidence supporting the intended score interpretation and use.",
+            "administered": true
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "item_number": 2,
+            "item_stem": "What can a standard error of measurement tell us about an observed score?",
+            "options": [
+              {
+                "label": "A",
+                "text": "It estimates score uncertainty; it does not identify an exact individual true score."
+              },
+              {
+                "label": "B",
+                "text": "It identifies the exact true score by subtracting the error from the observed score."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "A",
+            "concise_explanation": "SEM is not the signed error in an individual's observed score. It describes measurement uncertainty under the measurement model.",
+            "administered": true
+          }
+        ],
+        "assessment_specification": null,
+        "assessment_response_evidence": [
+          {
+            "item_public_id": "measurement_reliability",
+            "selected_option": "B",
+            "correctness": "incorrect",
+            "written_reasoning": "The reliability coefficient proves the scores are valid for the intended use.",
+            "confidence": "high",
+            "revision_summary": null,
+            "tempting_option": "B",
+            "tempting_option_reason": "Consistency seems like proof that the interpretation is valid.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          },
+          {
+            "item_public_id": "standard_error_measurement",
+            "selected_option": "B",
+            "correctness": "incorrect",
+            "written_reasoning": "SEM gives the exact true score.",
+            "confidence": "high",
+            "revision_summary": null,
+            "tempting_option": "B",
+            "tempting_option_reason": "The error adjustment seems exact.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          }
+        ],
+        "assessment_process_evidence": [
+          {
+            "event_type": "package_submitted",
+            "event_category": "assessment",
+            "event_source": "student",
+            "item_public_id": null,
+            "occurred_at": "2026-08-13T23:59:00.000Z",
+            "visibility_duration_ms": null,
+            "pause_duration_ms": null
+          }
+        ],
+        "initial_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "Submitted assessment evidence."
+          ],
+          "unresolved_evidence": [
+            "High reliability automatically proves validity for the intended use.",
+            "Standard error of measurement identifies an exact true score."
+          ],
+          "evidence_limitations": [
+            "Formative understanding must be established from student-authored conversation evidence."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "misconception_based_understanding",
+            "ability_pattern_flags": [
+              "misconception_indicator_present"
+            ],
+            "engagement_profile": "adequate_engagement",
+            "engagement_pattern_flags": [
+              "complete_response_package"
+            ],
+            "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_likely",
+            "misconception_indicators": [
+              "High reliability automatically proves validity for the intended use.",
+              "Standard error of measurement identifies an exact true score."
+            ],
+            "item_level_evidence": [
+              "Assessment reasoning conflates reliability with validity.",
+              "Assessment reasoning treats SEM as exact."
+            ],
+            "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+            "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "The initial profile is grounded in submitted assessment evidence.",
+            "recommended_next_evidence": [
+              "Seek an independent application of the reliability-validity distinction.",
+              "Ask the student to explain what SEM does and does not establish."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+            "indicators": [
+              {
+                "indicator_id": "mi_51774f28ddde8de917ab056b",
+                "indicator_text": "Measurement statistics are treated as definitive proof.",
+                "source_evidence_refs": [
+                  "ev_d1cbc6bd7b3af9b83a7820fe",
+                  "ev_dd4de9a6fcbf6ca8247e2de4"
+                ],
+                "indicator_confidence": "high",
+                "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+                "claims": [
+                  {
+                    "claim_id": "mc_aab95b887578e61299606899",
+                    "claim_text": "High reliability automatically proves validity for the intended use.",
+                    "source_evidence_refs": [
+                      "ev_dd4de9a6fcbf6ca8247e2de4"
+                    ]
+                  },
+                  {
+                    "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                    "claim_text": "Standard error of measurement identifies an exact true score.",
+                    "source_evidence_refs": [
+                      "ev_d1cbc6bd7b3af9b83a7820fe"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "current_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "Submitted assessment evidence."
+          ],
+          "unresolved_evidence": [
+            "High reliability automatically proves validity for the intended use.",
+            "Standard error of measurement identifies an exact true score."
+          ],
+          "evidence_limitations": [
+            "Formative understanding must be established from student-authored conversation evidence."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "misconception_based_understanding",
+            "ability_pattern_flags": [
+              "misconception_indicator_present"
+            ],
+            "engagement_profile": "adequate_engagement",
+            "engagement_pattern_flags": [
+              "complete_response_package"
+            ],
+            "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The assessment evidence supports two distinct misconception claims.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_likely",
+            "misconception_indicators": [
+              "High reliability automatically proves validity for the intended use.",
+              "Standard error of measurement identifies an exact true score."
+            ],
+            "item_level_evidence": [
+              "Assessment reasoning conflates reliability with validity.",
+              "Assessment reasoning treats SEM as exact."
+            ],
+            "reasoning_quality_summary": "The reasoning clearly states the two initial misconceptions.",
+            "engagement_summary": "The student supplied answers, reasoning, and confidence.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "The initial profile is grounded in submitted assessment evidence.",
+            "recommended_next_evidence": [
+              "Seek an independent application of the reliability-validity distinction.",
+              "Ask the student to explain what SEM does and does not establish."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+            "indicators": [
+              {
+                "indicator_id": "mi_51774f28ddde8de917ab056b",
+                "indicator_text": "Measurement statistics are treated as definitive proof.",
+                "source_evidence_refs": [
+                  "ev_d1cbc6bd7b3af9b83a7820fe",
+                  "ev_dd4de9a6fcbf6ca8247e2de4"
+                ],
+                "indicator_confidence": "high",
+                "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+                "claims": [
+                  {
+                    "claim_id": "mc_aab95b887578e61299606899",
+                    "claim_text": "High reliability automatically proves validity for the intended use.",
+                    "source_evidence_refs": [
+                      "ev_dd4de9a6fcbf6ca8247e2de4"
+                    ]
+                  },
+                  {
+                    "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                    "claim_text": "Standard error of measurement identifies an exact true score.",
+                    "source_evidence_refs": [
+                      "ev_d1cbc6bd7b3af9b83a7820fe"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "allowed_misconception_claim_catalog": {
+          "identity_version": "misconception-claim-identity-v1",
+          "profile_scope_id": "mp_0ece310466f04a75e4446acf",
+          "indicators": [
+            {
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "indicator_text": "Measurement statistics are treated as definitive proof.",
+              "source_evidence_refs": [
+                "ev_d1cbc6bd7b3af9b83a7820fe",
+                "ev_dd4de9a6fcbf6ca8247e2de4"
+              ],
+              "indicator_confidence": "high",
+              "indicator_rationale": "The submitted assessment reasoning supports two atomic claims.",
+              "claims": [
+                {
+                  "claim_id": "mc_aab95b887578e61299606899",
+                  "claim_text": "High reliability automatically proves validity for the intended use.",
+                  "source_evidence_refs": [
+                    "ev_dd4de9a6fcbf6ca8247e2de4"
+                  ]
+                },
+                {
+                  "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                  "claim_text": "Standard error of measurement identifies an exact true score.",
+                  "source_evidence_refs": [
+                    "ev_d1cbc6bd7b3af9b83a7820fe"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "allowed_evidence_catalog": {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_279eae98584877254d5f9620",
+          "evidence": [
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_a2dcaf849bb08de03400c535",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored incorrect."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_dd4de9a6fcbf6ca8247e2de4",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "The reliability coefficient proves the scores are valid for the intended use."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_41d6bd61f17e1e3e33398ce5",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: high."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_6a0dcb547ac455375efc90f4",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "measurement_reliability",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option B. Consistency seems like proof that the interpretation is valid."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_ab214f45d122e55c90be6be2",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored incorrect."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_d1cbc6bd7b3af9b83a7820fe",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "SEM gives the exact true score."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_53f0dcc674b4ec5b8d1521d1",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: high."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_39686662ea885173c742e0fa",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "standard_error_measurement",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option B. The error adjustment seems exact."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_2c5bcc18b99b32a1b94de56a",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "assessment_process_observation",
+              "source_role": "platform_observation",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": null,
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Observed package_submitted (assessment, student) at 2026-08-13T23:59:00.000Z."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_c3d71c86062db3c31168295f",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "formative_student_turn",
+              "source_role": "student",
+              "evidence_stage": "formative_conversation",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": "synthetic-dialogue-compound_agreement_then_disambiguation",
+              "item_public_id": null,
+              "source_sequence_index": 2,
+              "source_ordinal": null,
+              "content": "I agree with the explanation that high reliability proves validity and SEM gives an exact true score. I have not separated the two parts in my mind."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_fe2fd396076a6d2b49f0109a",
+              "evidence_scope_id": "es_279eae98584877254d5f9620",
+              "evidence_kind": "formative_student_turn",
+              "source_role": "student",
+              "evidence_stage": "formative_conversation",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": "synthetic-dialogue-compound_agreement_then_disambiguation",
+              "item_public_id": null,
+              "source_sequence_index": 4,
+              "source_ordinal": null,
+              "content": "Now I reject the first part: consistent scores still need evidence for the intended use. I still think SEM lets us calculate an exact true score, though."
+            }
+          ]
+        },
+        "profile_history": [],
+        "telemetry_summary": {
+          "observable_student_turn_count": 2,
+          "observable_tutor_turn_count": 2,
+          "lifecycle_event_count": 2,
+          "latest_activity_at": "2026-08-14T00:00:04.000Z",
+          "total_input_tokens": 0,
+          "total_output_tokens": 0
+        },
+        "formative_lifecycle": {
+          "student_turn_index": 2,
+          "max_student_turns": 30,
+          "final_allowed_turn": false,
+          "another_student_turn_available": true
+        },
+        "teacher_guidance": [],
+        "intervention_history": [],
+        "memory": null,
+        "safety_boundary": {
+          "boundary_version": "formative-conversation-safety-boundary-v1",
+          "administered_item_public_ids": [
+            "measurement_reliability",
+            "standard_error_measurement"
+          ],
+          "unadministered_item_protection_required": true,
+          "hidden_prompts_excluded": true,
+          "raw_teacher_notes_excluded": true,
+          "credentials_excluded": true
+        }
+      },
+      "input_sha256": "1312df829ceb09c3aff251b51ce06f0eafa08377316a3423f19997130a9f65de",
+      "accepted": true,
+      "output": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "outcome": "largely_improved_understanding",
+        "student_visible_message": "You have now made the reliability–validity distinction correctly: **consistent scores still require separate evidence supporting their intended interpretation and use.**\n\nThe remaining issue is that SEM gives the **typical size of measurement error**, not the particular signed error in one person’s score. In classical test theory:\n\n`observed score = true score + error`\n\nSuppose an observed score is 80 and the SEM is 4. The 4 does not mean that this person’s error was exactly +4 or −4, so we cannot subtract it and declare that the true score is 76 or 84. It tells us that scores typically vary by about that amount under the measurement model, allowing us to describe a **range of plausible scores**. The exact true score remains unknown.\n\nAnother way to put it: SEM is like a statement about the usual amount of uncertainty in a measurement—not a label revealing exactly how wrong this particular measurement was.\n\nFor the example with an observed score of 80 and an SEM of 4, what could you report about uncertainty, and what exact claim could you not make?",
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "evidence_type": "misconception_discrimination",
+            "observation": "The student explicitly rejects the claim that consistent scores alone establish validity and states that evidence is still needed for the intended use.",
+            "evidence_ids": [
+              "ev_fe2fd396076a6d2b49f0109a"
+            ]
+          },
+          {
+            "evidence_type": "persisting_misconception",
+            "observation": "The student continues to endorse the claim that SEM permits calculation of an exact true score.",
+            "evidence_ids": [
+              "ev_fe2fd396076a6d2b49f0109a"
+            ]
+          }
+        ],
+        "profile_transition_recommendation": {
+          "recommendation_version": "formative-conversation-profile-recommendation-v4",
+          "recommended": true,
+          "proposed_outcome": "largely_improved_understanding",
+          "rationale": "The student has meaningfully corrected the reliability–validity misconception while explicitly retaining the separate misconception that SEM identifies an exact true score.",
+          "canonical_evidence_ids": [
+            "ev_fe2fd396076a6d2b49f0109a"
+          ],
+          "updated_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "partial_understanding",
+            "ability_pattern_flags": [
+              "reliability_validity_distinction_demonstrated",
+              "sem_exact_true_score_misconception_present"
+            ],
+            "engagement_profile": "productive_engagement",
+            "engagement_pattern_flags": [
+              "responds_to_conceptual_feedback",
+              "explicitly_separates_compound_claims"
+            ],
+            "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+            "integrated_profile_confidence": "high",
+            "integrated_profile_rationale": "The student now distinguishes reliability from validity but continues to treat SEM as an exact individual error adjustment.",
+            "evidence_sufficiency": "strong",
+            "confidence_alignment": "overconfident",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [
+              "Standard error of measurement identifies an exact true score."
+            ],
+            "item_level_evidence": [
+              "The student states that consistent scores still require evidence for the intended use.",
+              "The student continues to state that SEM permits calculation of an exact true score."
+            ],
+            "reasoning_quality_summary": "The student successfully separates and corrects one part of the earlier compound belief, but the SEM reasoning remains incorrect.",
+            "engagement_summary": "The student directly evaluates both claims and clearly identifies which position changed and which remained.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "high",
+            "rationale": "Current conversation evidence supports meaningful but incomplete improvement across the two administered measurement concepts.",
+            "recommended_next_evidence": [
+              "Ask the student to distinguish a plausible score range from an exact true-score calculation using a numerical SEM example."
+            ]
+          },
+          "field_evidence": [
+            {
+              "profile_fields": [
+                "ability_profile",
+                "ability_pattern_flags",
+                "engagement_profile",
+                "engagement_pattern_flags",
+                "integrated_profile_rationale",
+                "independence_interpretability",
+                "misconception_indicators",
+                "item_level_evidence",
+                "reasoning_quality_summary",
+                "engagement_summary",
+                "rationale",
+                "recommended_next_evidence"
+              ],
+              "disposition": "updated_from_conversation_evidence",
+              "evidence_basis": "conversation_evidence",
+              "rationale": "The student explicitly corrected the reliability–validity claim, separated it from the SEM claim, and continued to endorse the latter.",
+              "evidence_ids": [
+                "ev_fe2fd396076a6d2b49f0109a"
+              ]
+            },
+            {
+              "profile_fields": [
+                "integrated_diagnostic_profile",
+                "integrated_profile_confidence",
+                "evidence_sufficiency",
+                "confidence_alignment",
+                "process_interpretation_cautions",
+                "profile_confidence"
+              ],
+              "disposition": "retained_evidence_remains_valid",
+              "evidence_basis": "prior_profile_evidence",
+              "rationale": "The remaining explicit misconception and existing evidence continue to support these profile fields.",
+              "evidence_ids": []
+            }
+          ],
+          "misconception_claim_dispositions": [
+            {
+              "identity_version": "misconception-claim-identity-v1",
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "claim_id": "mc_aab95b887578e61299606899",
+              "disposition": "resolved",
+              "evidence_basis": "conversation_evidence",
+              "evidence_summary": "The student explicitly rejects reliability as sufficient proof of validity and states that evidence is needed for the intended use.",
+              "evidence_ids": [
+                "ev_fe2fd396076a6d2b49f0109a"
+              ]
+            },
+            {
+              "identity_version": "misconception-claim-identity-v1",
+              "indicator_id": "mi_51774f28ddde8de917ab056b",
+              "claim_id": "mc_b234a4a150e3e5d3b132f298",
+              "disposition": "retained",
+              "evidence_basis": "combined",
+              "evidence_summary": "The student explicitly continues to believe that SEM permits calculation of an exact true score.",
+              "evidence_ids": [
+                "ev_fe2fd396076a6d2b49f0109a"
+              ]
+            }
+          ]
+        },
+        "teacher_assistance_recommendation": {
+          "recommended": false,
+          "reason_code": null
+        },
+        "lifecycle_recommendation": "continue"
+      },
+      "checks": [
+        {
+          "name": "no_premature_sound_understanding",
+          "pass": true
+        },
+        {
+          "name": "unresolved_claims_not_resolved",
+          "pass": true
+        },
+        {
+          "name": "pause_intent_respected",
+          "pass": true
+        }
+      ],
+      "attempts": [
+        {
+          "sequence": 1,
+          "kind": "base",
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "largely_improved_understanding",
+            "student_visible_message": "You have now made the reliability–validity distinction correctly: **consistent scores still require separate evidence supporting their intended interpretation and use.**\n\nThe remaining issue is that SEM gives the **typical size of measurement error**, not the particular signed error in one person’s score. In classical test theory:\n\n`observed score = true score + error`\n\nSuppose an observed score is 80 and the SEM is 4. The 4 does not mean that this person’s error was exactly +4 or −4, so we cannot subtract it and declare that the true score is 76 or 84. It tells us that scores typically vary by about that amount under the measurement model, allowing us to describe a **range of plausible scores**. The exact true score remains unknown.\n\nAnother way to put it: SEM is like a statement about the usual amount of uncertainty in a measurement—not a label revealing exactly how wrong this particular measurement was.\n\nFor the example with an observed score of 80 and an SEM of 4, what could you report about uncertainty, and what exact claim could you not make?",
+            "teaching_artifact": null,
+            "evidence_observations": [
+              {
+                "evidence_type": "misconception_discrimination",
+                "observation": "The student explicitly rejects the claim that consistent scores alone establish validity and states that evidence is still needed for the intended use.",
+                "evidence_ids": [
+                  "ev_fe2fd396076a6d2b49f0109a"
+                ]
+              },
+              {
+                "evidence_type": "persisting_misconception",
+                "observation": "The student continues to endorse the claim that SEM permits calculation of an exact true score.",
+                "evidence_ids": [
+                  "ev_fe2fd396076a6d2b49f0109a"
+                ]
+              }
+            ],
+            "profile_transition_recommendation": {
+              "recommendation_version": "formative-conversation-profile-recommendation-v4",
+              "recommended": true,
+              "proposed_outcome": "largely_improved_understanding",
+              "rationale": "The student has meaningfully corrected the reliability–validity misconception while explicitly retaining the separate misconception that SEM identifies an exact true score.",
+              "canonical_evidence_ids": [
+                "ev_fe2fd396076a6d2b49f0109a"
+              ],
+              "updated_profile": {
+                "schema_version": "formative-conversation-learning-profile-v1",
+                "ability_profile": "partial_understanding",
+                "ability_pattern_flags": [
+                  "reliability_validity_distinction_demonstrated",
+                  "sem_exact_true_score_misconception_present"
+                ],
+                "engagement_profile": "productive_engagement",
+                "engagement_pattern_flags": [
+                  "responds_to_conceptual_feedback",
+                  "explicitly_separates_compound_claims"
+                ],
+                "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+                "integrated_profile_confidence": "high",
+                "integrated_profile_rationale": "The student now distinguishes reliability from validity but continues to treat SEM as an exact individual error adjustment.",
+                "evidence_sufficiency": "strong",
+                "confidence_alignment": "overconfident",
+                "independence_interpretability": "independent_understanding_uncertain",
+                "misconception_indicators": [
+                  "Standard error of measurement identifies an exact true score."
+                ],
+                "item_level_evidence": [
+                  "The student states that consistent scores still require evidence for the intended use.",
+                  "The student continues to state that SEM permits calculation of an exact true score."
+                ],
+                "reasoning_quality_summary": "The student successfully separates and corrects one part of the earlier compound belief, but the SEM reasoning remains incorrect.",
+                "engagement_summary": "The student directly evaluates both claims and clearly identifies which position changed and which remained.",
+                "process_interpretation_cautions": [
+                  "Process observations are descriptive and not learner traits."
+                ],
+                "profile_confidence": "high",
+                "rationale": "Current conversation evidence supports meaningful but incomplete improvement across the two administered measurement concepts.",
+                "recommended_next_evidence": [
+                  "Ask the student to distinguish a plausible score range from an exact true-score calculation using a numerical SEM example."
+                ]
+              },
+              "field_evidence": [
+                {
+                  "profile_fields": [
+                    "ability_profile",
+                    "ability_pattern_flags",
+                    "engagement_profile",
+                    "engagement_pattern_flags",
+                    "integrated_profile_rationale",
+                    "independence_interpretability",
+                    "misconception_indicators",
+                    "item_level_evidence",
+                    "reasoning_quality_summary",
+                    "engagement_summary",
+                    "rationale",
+                    "recommended_next_evidence"
+                  ],
+                  "disposition": "updated_from_conversation_evidence",
+                  "evidence_basis": "conversation_evidence",
+                  "rationale": "The student explicitly corrected the reliability–validity claim, separated it from the SEM claim, and continued to endorse the latter.",
+                  "evidence_ids": [
+                    "ev_fe2fd396076a6d2b49f0109a"
+                  ]
+                },
+                {
+                  "profile_fields": [
+                    "integrated_diagnostic_profile",
+                    "integrated_profile_confidence",
+                    "evidence_sufficiency",
+                    "confidence_alignment",
+                    "process_interpretation_cautions",
+                    "profile_confidence"
+                  ],
+                  "disposition": "retained_evidence_remains_valid",
+                  "evidence_basis": "prior_profile_evidence",
+                  "rationale": "The remaining explicit misconception and existing evidence continue to support these profile fields.",
+                  "evidence_ids": []
+                }
+              ],
+              "misconception_claim_dispositions": [
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_aab95b887578e61299606899",
+                  "disposition": "resolved",
+                  "evidence_basis": "conversation_evidence",
+                  "evidence_summary": "The student explicitly rejects reliability as sufficient proof of validity and states that evidence is needed for the intended use.",
+                  "evidence_ids": [
+                    "ev_fe2fd396076a6d2b49f0109a"
+                  ]
+                },
+                {
+                  "identity_version": "misconception-claim-identity-v1",
+                  "indicator_id": "mi_51774f28ddde8de917ab056b",
+                  "claim_id": "mc_b234a4a150e3e5d3b132f298",
+                  "disposition": "retained",
+                  "evidence_basis": "combined",
+                  "evidence_summary": "The student explicitly continues to believe that SEM permits calculation of an exact true score.",
+                  "evidence_ids": [
+                    "ev_fe2fd396076a6d2b49f0109a"
+                  ]
+                }
+              ]
+            },
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "continue"
+          },
+          "latency_ms": 30465,
+          "usage": {
+            "input_tokens": 9926,
+            "output_tokens": 2572,
+            "total_tokens": 12498,
+            "reasoning_tokens": 1295,
+            "cached_input_tokens": 5526,
+            "raw": {
+              "input_tokens": 9926,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 5526
+              },
+              "output_tokens": 2572,
+              "output_tokens_details": {
+                "reasoning_tokens": 1295
+              },
+              "total_tokens": 12498
+            }
+          },
+          "error_category": null
+        }
+      ],
+      "audit": {
+        "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+        "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
+        "planned_base_logical_calls": 1,
+        "logical_calls_entered": 1,
+        "pre_dispatch_request_rejections": 0,
+        "http_requests_dispatched": 1,
+        "provider_responses_completed": 1,
+        "provider_attempts": 1,
+        "transport_retries": 0,
+        "incomplete_output_recovery_calls": 0,
+        "semantic_regeneration_calls": 0,
+        "parsed_candidates": 1,
+        "semantically_accepted_candidates": 1,
+        "attempts": [
+          {
+            "sequence": 1,
+            "kind": "base",
+            "logical_call_id": "compound_agreement_then_disambiguation:1:0dc8c973-c0fa-40c9-8147-20431872826f:1",
+            "canonical_request_hash": "e5e7111b6e71a408926776d72a6916b7334f5835a778c1c4278000150dbe3be2",
+            "result_status": "completed",
+            "failure_class": null,
+            "accepted": true,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 1,
+            "provider_request_id": "req_41c66b0fc4f34338a71668b35e310f87",
+            "provider_response_id": "resp_0e6aa2575657f50a016ab79630030887d09f65d70ea9d4e13c",
+            "client_request_id": "compound_agreement_then_disambiguation:1:0dc8c973-c0fa-40c9-8147-20431872826f",
+            "incomplete_reason": null,
+            "latency_ms": 30465,
+            "input_tokens": 9926,
+            "output_tokens": 2572,
+            "total_tokens": 12498,
+            "invalid_candidate": null
+          }
+        ]
+      },
+      "synthetic_timestamp_warning": "Transcript timestamps are fixture values, not student response latencies."
+    }
+  ]
+}

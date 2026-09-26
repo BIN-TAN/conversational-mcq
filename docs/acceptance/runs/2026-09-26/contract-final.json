@@ -1,0 +1,344 @@
+{
+  "version": "stance-contract-tests-v1",
+  "started_at": "2026-09-26T09:23:13.754Z",
+  "completed_at": "2026-09-26T09:23:13.768Z",
+  "interpretation_version": "semantic-item-review-v3",
+  "synthetic_only": true,
+  "evidence_scope": "Mechanical provenance and consistency; does not test semantic correctness of model interpretations.",
+  "source_hashes": {
+    "prisma/stance-evidence-smoke-test.ts": "cf76631398e3231f3b813d37bb099e9c615d23bd4ad5c23bd9d5d004f35371fe",
+    "src/lib/services/student-assessment/semantic-item-review.ts": "59b2d4f1879ba5a7137d3158fb48a19d2b582e3447a1acf4b0553f754941cfd5",
+    "src/lib/services/student-assessment/evidence-integrated-profile.ts": "fb8439428857decc3c7a09bc3d10f081ca0f58f9a39679e58ff60a7d2b4c79e3",
+    "src/lib/agents/prompts/student-profiling/v1.ts": "f6d8eb367593d40d628b7232ac80eebfd3da138b2cd51526c2043d36b1ad70b2"
+  },
+  "checks": [
+    {
+      "id": "endorsed-error-valid",
+      "rationale": "A quoted student endorsement can support a linked option proposition without inventing a student quote.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "rejected-not-error",
+      "rationale": "Rejection cannot support a current misconception.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "uncertain-not-error",
+      "rationale": "Uncertainty cannot support a current misconception.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "quotation-not-error",
+      "rationale": "Quotation without endorsement cannot support a current misconception.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "compound-not-atomic",
+      "rationale": "Broad compound agreement cannot establish each constituent belief.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "correct-not-error",
+      "rationale": "A supported proposition cannot be a misconception.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "selection-not-error",
+      "rationale": "An answer-only observation is not reasoning evidence.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "givens-not-error",
+      "rationale": "Restating supplied facts alone is not a conceptual misconception.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "missing-option-ref",
+      "rationale": "Adopting a supplied explanation requires its source.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "wrong-option-ref",
+      "rationale": "The referenced label must exist in this sealed item.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "wrong-option-quote",
+      "rationale": "An existing label must also match its quoted content.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "blank-option-quote",
+      "rationale": "Whitespace is not a source quote.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "invented-student-quote",
+      "rationale": "Option wording cannot be substituted for the student's own words.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "wrong-student-field",
+      "rationale": "A reasoning observation must not be attributed to the tempting field.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "wrong-claim-link",
+      "rationale": "A claim must link to the actual supporting interpretation.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "rewritten-claim",
+      "rationale": "A linked claim must preserve the reviewed proposition.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "omitted-endorsed-error",
+      "rationale": "An eligible reviewed error must not vanish from coverage.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "duplicate-claim",
+      "rationale": "One observation must not inflate the misconception count.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "duplicate-interpretation",
+      "rationale": "Ambiguous observation IDs cannot ground a claim.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "missing-new-metadata",
+      "rationale": "New live diagnostics must not silently revert to the old contract.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "rejected-observation-preserved",
+      "rationale": "Non-endorsed propositions remain observations, not deleted evidence.",
+      "expected": "rejected",
+      "actual": "rejected",
+      "passed": true
+    },
+    {
+      "id": "uncertain-observation-preserved",
+      "rationale": "Non-endorsed propositions remain observations, not deleted evidence.",
+      "expected": "uncertain",
+      "actual": "uncertain",
+      "passed": true
+    },
+    {
+      "id": "quoted-observation-preserved",
+      "rationale": "Non-endorsed propositions remain observations, not deleted evidence.",
+      "expected": "quoted",
+      "actual": "quoted",
+      "passed": true
+    },
+    {
+      "id": "legacy-readable",
+      "rationale": "Stored prior diagnostics remain readable without fabricated stance metadata.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "legacy-not-new",
+      "rationale": "Historical readability is not permission to generate incomplete new records.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "no-invented-proposition-for-irrelevance",
+      "rationale": "Off-topic instructions need not be recast as beliefs about the assessed concept.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "substantive-review-needs-observation",
+      "rationale": "The irrelevant exception must not permit supported reasoning without an observation.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "legacy-version-honest",
+      "rationale": "A legacy diagnosis must not acquire the current interpretation version.",
+      "expected": "semantic-item-review-legacy-or-unavailable",
+      "actual": "semantic-item-review-legacy-or-unavailable",
+      "passed": true
+    },
+    {
+      "id": "cross-item-reference-rejected",
+      "rationale": "Options from a different item cannot ground the observation.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "changed-snapshot-rejected",
+      "rationale": "A changed option must not validate against the original reference.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "recognition-quality-cap",
+      "rationale": "The application must not upgrade supplied explanation endorsement to independently precise reasoning.",
+      "expected": "accurate_but_concise",
+      "actual": "accurate_but_concise",
+      "passed": true
+    },
+    {
+      "id": "recognition-limit-retained",
+      "rationale": "Teachers/researchers need the distinction even when the answer is correct.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "recognition-not-strong",
+      "rationale": "Recognizing a supplied explanation is not strong independent explanatory evidence.",
+      "expected": "adequate",
+      "actual": "adequate",
+      "passed": true
+    },
+    {
+      "id": "profile-roundtrip",
+      "rationale": "Versioned interpretations survive the persisted-profile JSON contract.",
+      "expected": {
+        "item_public_id": "stance-item",
+        "reasoning_judgment": "supported_precise",
+        "reasoning_quote": "I agree with B's explanation.",
+        "explanation": "The supplied correct explanation was adopted; independent application remains unobserved.",
+        "interpretation_version": "semantic-item-review-v3",
+        "interpretations": [
+          {
+            "interpretation_id": "belief-a",
+            "source_field": "reasoning",
+            "student_quote": "I agree with B's explanation.",
+            "proposition": "High alpha does not establish leadership validity.",
+            "stance": "endorsed",
+            "basis": "supplied_explanation",
+            "correctness": "supported",
+            "scope": "specific_proposition",
+            "option_reference": {
+              "label": "B",
+              "quote": "High alpha does not establish leadership validity."
+            },
+            "rationale": "An explicit reference adopts this single explanation."
+          }
+        ],
+        "misconceptions": []
+      },
+      "actual": {
+        "item_public_id": "stance-item",
+        "reasoning_judgment": "supported_precise",
+        "reasoning_quote": "I agree with B's explanation.",
+        "explanation": "The supplied correct explanation was adopted; independent application remains unobserved.",
+        "misconceptions": [],
+        "interpretation_version": "semantic-item-review-v3",
+        "interpretations": [
+          {
+            "interpretation_id": "belief-a",
+            "source_field": "reasoning",
+            "student_quote": "I agree with B's explanation.",
+            "proposition": "High alpha does not establish leadership validity.",
+            "stance": "endorsed",
+            "basis": "supplied_explanation",
+            "correctness": "supported",
+            "scope": "specific_proposition",
+            "option_reference": {
+              "label": "B",
+              "quote": "High alpha does not establish leadership validity."
+            },
+            "rationale": "An explicit reference adopts this single explanation."
+          }
+        ]
+      },
+      "passed": true
+    },
+    {
+      "id": "agent-source-link",
+      "rationale": "Review provenance is traceable to the generating call.",
+      "expected": "synthetic-call",
+      "actual": "synthetic-call",
+      "passed": true
+    },
+    {
+      "id": "teacher-only-record",
+      "rationale": "Detailed interpretations and quoted option references are not projected into the student summary.",
+      "expected": false,
+      "actual": false,
+      "passed": true
+    },
+    {
+      "id": "strict-provider-schema",
+      "rationale": "The current structured-output schema must compile for the provider.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "legacy-schema-readable",
+      "rationale": "The legacy parser remains backward-compatible.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    },
+    {
+      "id": "canonical-handoff-version",
+      "rationale": "The separate canonical profiling call must record the revised policy version too.",
+      "expected": "student-profiling-v6",
+      "actual": "student-profiling-v6",
+      "passed": true
+    },
+    {
+      "id": "canonical-handoff-policy",
+      "rationale": "Verify policy wiring, not model semantic accuracy: the canonical handoff must receive stance and recognition limits.",
+      "expected": true,
+      "actual": true,
+      "passed": true
+    }
+  ]
+}

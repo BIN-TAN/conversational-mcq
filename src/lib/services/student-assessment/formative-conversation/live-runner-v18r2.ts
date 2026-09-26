@@ -28,7 +28,7 @@ import {
   FormativeConversationUnavailableError,
   formativeConversationUnavailableFromConfiguration
 } from "./availability";
-import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
+import { prepareFormativeInterpretationResult, validateFormativeInterpretation } from "./interpretation-policy";
 import {
   executeFormativeConversationV18R2,
   type FormativeConversationV18R2LogicalGenerationExecution
@@ -39,7 +39,7 @@ import type {
 } from "./runtime";
 
 export const FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION =
-  "formative-conversation-host-v7.4" as const;
+  "formative-conversation-host-v7.7" as const;
 
 export const FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -156,9 +156,58 @@ When students request detailed explanations or a study guide, help them without 
 turn. Keep explaining, practicing and demonstrating independent understanding distinct. A copied
 tutor prompt, a request for explanation, or simply agreeing is not evidence that an error is resolved.
 Correct option-only practice answers support recognition, not necessarily an explanation or transfer.
+Judge meaning and stance, not originality of wording. Explicit adoption of reasoning already in an option is
+meaningful recognition evidence, even in the same words; it is not automatically irrelevant repetition. Adoption
+of a false explanation may support a candidate misconception. Quoting, questioning, or rejecting that explanation
+does not establish current endorsement. Interpret a tempting-option reason in its full context and retain any
+self-correction. Bare agreement with a multi-claim option does not independently establish every constituent claim.
+Distinguish the proposition's accuracy from the student's stance and from evidence of independent application.
+Record these distinctions and limitations in evidence_observations with the actual canonical student evidence IDs;
+never quote supplied option/tutor wording as if the student generated it. Initial stance-aware semantic reviews,
+when present, retain their provenance and recognition limits; absent legacy metadata means unknown, not rejection.
+An endorsed supplied explanation can improve recognition evidence without establishing independent mastery.
+For resolving a specific misconception, look for current evidence that discriminates that error from the target
+reasoning, not a generic "yes" or a tutor's own explanation. Ask a brief targeted check only when that distinction
+matters; do not force new wording, repetitive quizzes, or require transfer merely to accept a correct explanation.
+Separate recognition, supported application/near transfer, and independent transfer in evidence_observations.
+A correct explanation or near application can resolve a specific claim and support sound_understanding with
+mostly_correct_understanding. It does not by itself support robust_transfer_ready_understanding or
+robust_understanding_ready_for_transfer. Reserve those strongest categories for independently justified application
+beyond the supplied options, worked examples, and immediate tutor scaffolding. For either upgrade, include an
+independent_transfer_application observation citing the same current student evidence as the upgraded field.
+Explain concretely what is novel and independently justified and note the sampling limits. Merely changing the
+numbers in the tutor's worked example is supported application, not robust transfer. Do not add compulsory tests
+to obtain a stronger category. profile_confidence expresses confidence in the limited judgment, not broad mastery.
+
+confidence_alignment refers to the earlier assessment confidence evidence, not current self-confidence.
+Retain current_profile.canonical_profile.confidence_alignment unchanged in formative transitions. Correctness,
+agreement, or uncertainty cannot retroactively remeasure that rating. A new free-text self-confidence statement
+can be recorded as a self_reported_confidence observation with current student evidence IDs, but is not a
+replacement calibrated rating. Explicitly note in the transition rationale that confidence was not reassessed.
+
+All content needed by the student must appear in student_visible_message. This interface does not render
+teaching_artifact separately: return teaching_artifact=null rather than generating duplicate or invisible content.
+Keep explanations accurate when simplifying. Validity concerns evidence and theory supporting a specified score
+interpretation and use, not merely whether a test seems useful. SEM estimates measurement uncertainty, not a
+known signed individual error. A score plus/minus SEM is not a guaranteed true-score bound; any probability
+interpretation needs appropriate model/distribution assumptions and a stated confidence level.
 If a reply is only partly correct, acknowledge that part rather than saying "Exactly" before correcting it.
 Track every supported misconception across student-directed topic changes; untested claims remain
 unverified, not resolved. Do not repeat prior teaching unless needed for the current question.
+
+The current claim catalog contains retained claims, not a complete lifetime history. Check earlier
+reasoning in the initial profile and visible transcript for a previously resolved error that reappears.
+When current student-authored evidence supports an unresolved new or recurring misconception outside
+the allowed catalog, record evidence_type=uncatalogued_misconception, describe the exact endorsed claim
+and its relationship to prior reasoning, and cite eligible post-profile student evidence IDs. A quotation,
+question, rejected temptation, or uncertainty alone is not such evidence. Do not silently discard this
+error, invent claim IDs, or put unsupported free-text claims into the canonical misconception list.
+Continue useful teaching when turns remain, and respect a request to pause. If recommending a profile
+transition while the uncatalogued error is still unresolved, use teacher_assistance_recommended with
+reason_code=uncatalogued_misconception_requires_review. Preserve the concern and evidence limitations in
+the profile rationale, process_interpretation_cautions, and recommended_next_evidence. Do not declare
+global sound understanding or strongest transfer categories just because all catalogued claims are closed.
+If later student evidence genuinely corrects it, record that correction; do not permanently label the student.
 
 The evidence_stage field is provenance, not a semantic judgment. baseline_assessment evidence may
 explain the prior profile but cannot prove a later change or resolve a misconception. A resolved claim
@@ -335,7 +384,7 @@ export function createLiveFormativeConversationV18R2AgentRunner(): FormativeConv
         const semanticExecution = await executeFormativeConversationV18R2({
           base_request: baseRequest,
           validate_candidate(output) {
-            const validation = validateFormativeConversationV18R2CandidateAcceptance({
+            const validation = validateFormativeInterpretation({
               candidate: output,
               context
             });
@@ -365,11 +414,12 @@ export function createLiveFormativeConversationV18R2AgentRunner(): FormativeConv
                 result.status === "completed" &&
                 result.parsed_output !== undefined
             });
-            return logicalExecutionFromTransport({ request, transport });
+            const execution = logicalExecutionFromTransport({ request, transport });
+            return { ...execution, result: prepareFormativeInterpretationResult(execution.result, context) };
           }
         });
         const result = semanticExecution.result;
-        const accepted = validateFormativeConversationV18R2CandidateAcceptance({
+        const accepted = validateFormativeInterpretation({
           candidate: result.parsed_output,
           context
         });

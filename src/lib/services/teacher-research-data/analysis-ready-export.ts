@@ -356,7 +356,7 @@ const analysisSessionSelect = {
       profile_transitions: {
         orderBy: { transitioned_at: "asc" },
         include: {
-          prior_student_profile: true,
+          prior_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
           updated_student_profile: { include: { based_on_agent_call: { select: profileSourceCallSelect } } },
           source_turn: {
             select: {
@@ -568,6 +568,7 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "prior_learning_profile",
   "prior_evidence_sufficiency",
   "prior_confidence_alignment",
+  "prior_confidence_alignment_scope",
   "prior_misconception_indicators",
   "prior_misconception_claim_catalog",
   "prior_profile_created_at",
@@ -575,6 +576,7 @@ const FORMATIVE_CONVERSATION_PROFILE_TRANSITION_COLUMNS = [
   "updated_learning_profile",
   "updated_evidence_sufficiency",
   "updated_confidence_alignment",
+  "updated_confidence_alignment_scope",
   "updated_misconception_indicators",
   "updated_misconception_claim_catalog",
   "misconception_claim_dispositions",
@@ -2120,6 +2122,7 @@ function formativeConversationProfileTransitionRows(
           transition.prior_student_profile.evidence_sufficiency,
         prior_confidence_alignment:
           transition.prior_student_profile.confidence_alignment,
+        prior_confidence_alignment_scope: profileRecordProvenance(transition.prior_student_profile).profile_confidence_alignment_scope,
         prior_misconception_indicators: JSON.stringify(
           transition.prior_student_profile.misconception_indicators
         ),
@@ -2139,6 +2142,7 @@ function formativeConversationProfileTransitionRows(
           transition.updated_student_profile.evidence_sufficiency,
         updated_confidence_alignment:
           transition.updated_student_profile.confidence_alignment,
+        updated_confidence_alignment_scope: profileRecordProvenance(transition.updated_student_profile).profile_confidence_alignment_scope,
         updated_misconception_indicators: JSON.stringify(
           transition.updated_student_profile.misconception_indicators
         ),
@@ -2268,7 +2272,7 @@ function formativeConversationDataDictionaryRows() {
     }
   ];
   const definition = (dataset: string, variable: string) => {
-    if ((variable.startsWith("profile_") || variable.endsWith("_profile_record_id")) && PROFILE_FIELD_DEFINITIONS[variable]) {
+    if ((variable.startsWith("profile_") || variable.endsWith("_profile_record_id") || variable.endsWith("confidence_alignment_scope")) && PROFILE_FIELD_DEFINITIONS[variable]) {
       return PROFILE_FIELD_DEFINITIONS[variable];
     }
     if (variable === "message_text") {
@@ -2435,7 +2439,7 @@ function formativeConversationDataDictionaryRows() {
       variable,
       definition: definition(table.dataset, variable),
       source_nature:
-        variable.startsWith("profile_") ? "profile_provenance_projection" :
+        variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") ? "profile_provenance_projection" :
         table.phase === "profile_transition" ||
         /learning_profile|evidence_sufficiency/.test(variable)
           ? "validated_derived_interpretation"

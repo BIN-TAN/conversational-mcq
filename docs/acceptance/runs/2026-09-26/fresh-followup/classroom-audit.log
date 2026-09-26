@@ -1,0 +1,365 @@
+PASS dependency-security-smoke-test.ts
+PASS classroom-acceptance-smoke-test.ts
+PASS stance-evidence-smoke-test.ts
+PASS formative-interpretation-policy-smoke-test.ts
+PASS student-transcript-quality-regression.ts
+PASS profile-record-projection-smoke-test.ts
+PASS student-analysis-ready-export-smoke-test.ts
+PASS student-formative-conversation-profile-handoff-smoke-test.ts
+PASS classroom-data-integrity-smoke-test.ts
+PASS student-formative-conversation-foundation-smoke-test.ts
+PASS student-initial-admin-smoke-test.ts
+PASS student-assessment-start-resume-conflict-smoke-test.ts
+PASS student-attempt-lifecycle-smoke-test.ts
+PASS student-conversational-flow-smoke-test.ts
+PASS student-package-review-edit-smoke-test.ts
+PASS student-package-feedback-recovery-smoke-test.ts
+PASS student-logging-smoke-test.ts
+PASS student-formative-privacy-smoke-test.ts
+PASS student-dynamic-initial-item-count-smoke-test.ts
+PASS student-process-event-specificity-smoke-test.ts
+PASS student-item-timing-contract-smoke-test.ts
+PASS student-visibility-timing-smoke-test.ts
+PASS student-resumed-session-timing-smoke-test.ts
+PASS auth-account-status-smoke-test.ts
+PASS auth-llm-config-isolation-smoke-test.ts
+PASS teacher-student-account-smoke-test.ts
+PASS teacher-batch-cleanup-runtime-database-smoke-test.ts
+PASS content-governance-smoke-test.ts
+PASS content-revision-runtime-database-smoke-test.ts
+PASS teacher-evidence-centered-item-design-smoke-test.ts
+PASS teacher-evidence-centered-item-design-runtime-smoke-test.ts
+PASS teacher-item-design-material-upload-smoke-test.ts
+PASS teacher-mcq-import-smoke-test.ts
+PASS teacher-mcq-review-ui-smoke-test.ts
+PASS teacher-mcq-formatting-assistant-smoke-test.ts
+PASS teacher-mcq-diagnostic-assistant-smoke-test.ts
+PASS teacher-mcq-docx-import-smoke-test.ts
+PASS roster-import-smoke-test.ts
+PASS teacher-student-password-reset-ui-smoke-test.ts
+PASS teacher-student-batch-deletion-contract-smoke-test.ts
+PASS teacher-batch-cleanup-contract-smoke-test.ts
+PASS teacher-navigation-smoke-test.ts
+PASS teacher-mcq-authoring-navigation-smoke-test.ts
+PASS student-formative-waiting-attempt-review-smoke-test.ts
+PASS student-research-export-format-smoke-test.ts
+PASS student-research-export-integrity-smoke-test.ts
+PASS student-research-export-readiness-smoke-test.ts
+PASS student-research-export-error-ui-smoke-test.ts
+PASS student-data-dictionary-privacy-smoke-test.ts
+PASS student-data-dictionary-timing-smoke-test.ts
+PASS formative-conversation-v18r2-contract-smoke-test.ts
+PASS formative-conversation-v18r2-pipeline-runtime-smoke-test.ts
+PASS formative-conversation-v18r2-lifecycle-runtime-smoke-test.ts
+PASS formative-conversation-v17-transition-runtime-smoke-test.ts
+PASS student-teacher-bulk-export-smoke-test.ts
+PASS student-teacher-readable-transcript-smoke-test.ts
+PASS student-selected-session-export-smoke-test.ts
+PASS research-process-delivery-smoke-test.ts
+PASS research-data-quality-audit.ts
+{
+  "results": [
+    {
+      "file": "dependency-security-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 468
+    },
+    {
+      "file": "classroom-acceptance-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 389
+    },
+    {
+      "file": "stance-evidence-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 176
+    },
+    {
+      "file": "formative-interpretation-policy-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 139
+    },
+    {
+      "file": "student-transcript-quality-regression.ts",
+      "passed": true,
+      "duration_ms": 182
+    },
+    {
+      "file": "profile-record-projection-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 944
+    },
+    {
+      "file": "student-analysis-ready-export-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1449
+    },
+    {
+      "file": "student-formative-conversation-profile-handoff-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 569
+    },
+    {
+      "file": "classroom-data-integrity-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1416
+    },
+    {
+      "file": "student-formative-conversation-foundation-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 476
+    },
+    {
+      "file": "student-initial-admin-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1223
+    },
+    {
+      "file": "student-assessment-start-resume-conflict-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 689
+    },
+    {
+      "file": "student-attempt-lifecycle-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 730
+    },
+    {
+      "file": "student-conversational-flow-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 865
+    },
+    {
+      "file": "student-package-review-edit-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1698
+    },
+    {
+      "file": "student-package-feedback-recovery-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1666
+    },
+    {
+      "file": "student-logging-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1493
+    },
+    {
+      "file": "student-formative-privacy-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 53
+    },
+    {
+      "file": "student-dynamic-initial-item-count-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 3932
+    },
+    {
+      "file": "student-process-event-specificity-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 71
+    },
+    {
+      "file": "student-item-timing-contract-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 57
+    },
+    {
+      "file": "student-visibility-timing-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 57
+    },
+    {
+      "file": "student-resumed-session-timing-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 58
+    },
+    {
+      "file": "auth-account-status-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 494
+    },
+    {
+      "file": "auth-llm-config-isolation-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 333
+    },
+    {
+      "file": "teacher-student-account-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 9063
+    },
+    {
+      "file": "teacher-batch-cleanup-runtime-database-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 3319
+    },
+    {
+      "file": "content-governance-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 318
+    },
+    {
+      "file": "content-revision-runtime-database-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 2495
+    },
+    {
+      "file": "teacher-evidence-centered-item-design-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 277
+    },
+    {
+      "file": "teacher-evidence-centered-item-design-runtime-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 481
+    },
+    {
+      "file": "teacher-item-design-material-upload-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 166
+    },
+    {
+      "file": "teacher-mcq-import-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 522
+    },
+    {
+      "file": "teacher-mcq-review-ui-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 54
+    },
+    {
+      "file": "teacher-mcq-formatting-assistant-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 457
+    },
+    {
+      "file": "teacher-mcq-diagnostic-assistant-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 466
+    },
+    {
+      "file": "teacher-mcq-docx-import-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 500
+    },
+    {
+      "file": "roster-import-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 371
+    },
+    {
+      "file": "teacher-student-password-reset-ui-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 53
+    },
+    {
+      "file": "teacher-student-batch-deletion-contract-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 52
+    },
+    {
+      "file": "teacher-batch-cleanup-contract-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 52
+    },
+    {
+      "file": "teacher-navigation-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 51
+    },
+    {
+      "file": "teacher-mcq-authoring-navigation-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 212
+    },
+    {
+      "file": "student-formative-waiting-attempt-review-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 54
+    },
+    {
+      "file": "student-research-export-format-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 53
+    },
+    {
+      "file": "student-research-export-integrity-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 683
+    },
+    {
+      "file": "student-research-export-readiness-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 799
+    },
+    {
+      "file": "student-research-export-error-ui-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 50
+    },
+    {
+      "file": "student-data-dictionary-privacy-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1249
+    },
+    {
+      "file": "student-data-dictionary-timing-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 755
+    },
+    {
+      "file": "formative-conversation-v18r2-contract-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 152
+    },
+    {
+      "file": "formative-conversation-v18r2-pipeline-runtime-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1939
+    },
+    {
+      "file": "formative-conversation-v18r2-lifecycle-runtime-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 4898
+    },
+    {
+      "file": "formative-conversation-v17-transition-runtime-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 1122
+    },
+    {
+      "file": "student-teacher-bulk-export-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 418
+    },
+    {
+      "file": "student-teacher-readable-transcript-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 281
+    },
+    {
+      "file": "student-selected-session-export-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 657
+    },
+    {
+      "file": "research-process-delivery-smoke-test.ts",
+      "passed": true,
+      "duration_ms": 68
+    },
+    {
+      "file": "research-data-quality-audit.ts",
+      "passed": true,
+      "duration_ms": 3371
+    }
+  ],
+  "passed": 59,
+  "total": 59,
+  "historical_test_blockers": [
+    "student-formative-conversation-runtime-smoke-test.ts: obsolete v5.3 assertion and pre-canonical-claim fixtures; unchanged, superseded here by current V18R2 runtime/lifecycle tests"
+  ]
+}
+
+

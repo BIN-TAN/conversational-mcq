@@ -1,0 +1,24 @@
+{
+  "version": "sha256-v1",
+  "files": {
+    "REVIEW.md": "2651193c547d3e006f4afb72df029163f127f62450051f8e1d1536753ee1b67e",
+    "classroom-audit.log": "e3ce6cafef7e188ba65cf5abb0e5fd80b2a79c755eca26a6007daf61d27fac7f",
+    "engineering-database-inaccessible.json": "021fe902e45e41d8e07c057e15eb4ac0df2eedd9ecaaf35817fd4586d86c44c2",
+    "engineering-earlier-full.json": "42d41807622717cf5bad0a0cd74196ab70be227b02c61c1b2d4dfec08824b231",
+    "engineering-earlier-server.json": "3d96f67cd79abb2c04844dcaa665e7489cd868d6281fa3687623387bbae4ac12",
+    "engineering-final.json": "2cecf0a87e21d4e408194683b91c6eb1cacc6c616e95e8a4b3e271287491a4a7",
+    "engineering-typecheck-failed.json": "2438d5f57c17eefa46b979af97666448d2bd5fa45cd0afdefd106970f433d7cf",
+    "initial-artifact-manifest.json": "526c859e372439d6fee0b62a40037c09503d407115c735caec96a30a99c7d7cf",
+    "initial-preparation-browser.log": "70cf381e07a4eb511738a043f5fbb81f890641c5a30cb4dcd7d0fe0bb2ac37c8",
+    "lint.log": "0ef56eb8719a46e59d4bf33836907732187f4120feaa98787daaa1605dad28b3",
+    "login-progression-browser.log": "a304d7db68bc5aedf80c402e7468f7570df98ee381a0b177c863b9da2023e7f1",
+    "navigation-audit.log": "44c7f1dc4b6cb08a93dfe13142b48c5ec206c85d04722312c9ee8989506042b5",
+    "production-build.log": "12239c12b31182eb1edfad90e492d3adc1c250b758950feb9733424788e95620",
+    "recurrence-before-safeguard.json": "179f606071108c6698fa1d1f890b0818cb4d562f2c375c119ab3d16924b96d17",
+    "recurrence-closure-after-safeguard.json": "36cd890a6a18dd9fd3832a917d0cbd47281f331cf7067a70ed5a8ebe1573bd7b",
+    "response-stage-browser.log": "80c9967107eafcdf3d31f92d2fa8cb3d7efde0e5a25b4fc9ef2e5e01bfc5f78d",
+    "summary.json": "15b57025bbdd3235bfb71df393dbdccbb8a96530a627fe1f4d8afd0b9774d2ce",
+    "typecheck-failed.log": "5af3672d1847af89685a6d80841f962b67aa8b8eccac8d138408df24a9e4a69b",
+    "typecheck.log": "6aed79b3e821208a1a9310736904dcbca19f77dad1ca1623b50eae31501a2395"
+  }
+}

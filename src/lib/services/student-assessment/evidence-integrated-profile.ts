@@ -96,7 +96,9 @@ export const EvidenceLimitationSchema = z.enum([
   "prerequisite_quantitative_skill_barrier_possible",
   "construct_identification_unclear",
   "instrumentation_incomplete",
-  "transfer_not_yet_observed"
+  "transfer_not_yet_observed",
+  "recognition_without_independent_explanation",
+  "endorsement_scope_unclear"
 ]);
 export type EvidenceLimitation = z.infer<typeof EvidenceLimitationSchema>;
 
@@ -670,7 +672,11 @@ function analyzeReasoning(input: {
     limitations: ["construct_identification_unclear"],
     sufficiency: "limited"
   };
-  const quality: ReasoningQuality = review.misconceptions.length ? "misconception_based" : {
+  const reasoningInterpretations = review.interpretations?.filter(entry => entry.source_field === "reasoning") ?? [];
+  const recognitionOnly = reasoningInterpretations.some(entry => entry.stance === "endorsed" && entry.basis === "supplied_explanation") &&
+    !reasoningInterpretations.some(entry => entry.stance === "endorsed" && entry.basis === "student_explanation" && entry.correctness === "supported");
+  const ambiguousScope = reasoningInterpretations.some(entry => entry.scope === "compound_unspecified");
+  let quality: ReasoningQuality = review.misconceptions.length ? "misconception_based" : {
     supported_precise: "well_supported_and_precise",
     supported_concise: "accurate_but_concise",
     partial: "partially_supported",
@@ -678,11 +684,16 @@ function analyzeReasoning(input: {
     insufficient: "insufficient_reasoning_evidence",
     irrelevant: "irrelevant_or_construct_irrelevant"
   }[review.reasoning_judgment] as ReasoningQuality;
+  if (recognitionOnly && quality === "well_supported_and_precise") quality = "accurate_but_concise";
+  if (ambiguousScope && ["well_supported_and_precise", "accurate_but_concise"].includes(quality)) quality = "partially_supported";
+  const limitations: EvidenceLimitation[] = quality === "internally_inconsistent" ? ["contradictory_responses"]
+    : quality === "irrelevant_or_construct_irrelevant" ? ["construct_identification_unclear"] : [];
+  if (recognitionOnly) limitations.push("recognition_without_independent_explanation");
+  if (ambiguousScope) limitations.push("endorsement_scope_unclear");
   return {
     quality,
     interpretation: review.explanation,
-    limitations: quality === "internally_inconsistent" ? ["contradictory_responses"]
-      : quality === "irrelevant_or_construct_irrelevant" ? ["construct_identification_unclear"] : [],
+    limitations,
     sufficiency: quality === "well_supported_and_precise" ? "strong"
       : ["insufficient_reasoning_evidence", "irrelevant_or_construct_irrelevant"].includes(quality) ? "limited" : "adequate"
   };
@@ -1199,7 +1210,8 @@ export function buildEvidenceIntegratedProfileBundle(input: {
   const profile: EvidenceIntegratedProfileV2 = {
     profile_schema_version: EVIDENCE_INTEGRATED_PROFILE_SCHEMA_VERSION,
     semantic_review_audit: {
-      version: SEMANTIC_ITEM_REVIEW_VERSION,
+      version: reviewValidation.reviews.length && reviewValidation.reviews.every(review => review.interpretation_version === SEMANTIC_ITEM_REVIEW_VERSION)
+        ? SEMANTIC_ITEM_REVIEW_VERSION : "semantic-item-review-legacy-or-unavailable",
       status: reviewValidation.valid ? "validated" : "unavailable",
       issues: reviewValidation.issues,
       source_agent_call_id: input.source_agent_call_public_id ?? null
@@ -1247,7 +1259,11 @@ export function buildEvidenceIntegratedProfileBundle(input: {
     evidence_limitations: [...limitationCodes].map((code) => ({
       code,
       description:
-        code === "limited_elaboration"
+        code === "recognition_without_independent_explanation"
+          ? "Explicit endorsement of a supplied explanation supports recognition, not independently generated explanation or transfer."
+          : code === "endorsement_scope_unclear"
+            ? "Broad agreement with a compound option does not establish the student's position on each constituent claim."
+          : code === "limited_elaboration"
           ? "Some reasoning is concise, so the next interaction should check precision rather than assume misunderstanding."
           : code === "transfer_not_yet_observed"
             ? "The initial package has not yet observed transfer to a new item."

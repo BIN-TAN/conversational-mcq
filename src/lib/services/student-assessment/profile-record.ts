@@ -2,18 +2,18 @@ import { createHash } from "node:crypto";
 import { parseCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 
-export const PROFILE_PROJECTION_VERSION = "profile-record-projection-v1";
+export const PROFILE_PROJECTION_VERSION = "profile-record-projection-v2";
 export const PROFILE_PROVENANCE_COLUMNS = [
   "profile_projection_version", "profile_record_id", "profile_record_role",
   "profile_validation_status", "profile_valid_for_learning_analysis",
   "profile_source_agent_call_public_id", "profile_source_agent_name",
   "profile_source_call_status", "profile_source_output_validated",
   "profile_source_prompt_version", "profile_source_schema_version", "profile_unavailable_reason",
-  "profile_dimensions_status", "profile_native_confidence_alignment"
+  "profile_dimensions_status", "profile_native_confidence_alignment", "profile_confidence_alignment_scope"
 ] as const;
 export const PROFILE_EVIDENCE_COLUMNS = [
   "misconception_indicator_count", "misconception_claim_count", "item_level_evidence_count",
-  "item_level_evidence_available"
+  "item_level_evidence_available", "item_level_evidence_format"
 ] as const;
 
 export const profileSourceCallSelect = {
@@ -74,6 +74,10 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_dimensions_status: status === "fallback" || status === "unverified" ? "unavailable"
       : evidence.evidence_integrated_profile_v2 ? "integrated_dimensions" : "item_level_dimensions",
     profile_native_confidence_alignment: validated ? profile.confidence_alignment : null,
+    profile_confidence_alignment_scope: !validated ? "unavailable" : role === "baseline"
+      ? "initial_assessment" : call?.agent_name === "formative_conversation_agent" &&
+        ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7"].includes(call.prompt_version ?? "")
+        ? "carried_forward_not_reassessed" : "legacy_scope_unrecorded",
     profile_unavailable_reason: fallback ? "profiling_fallback" :
       intermediate ? "intermediate_artifact" : validated ? null : "validation_provenance_unavailable"
   };
@@ -88,12 +92,17 @@ export function profileEvidenceCounts(profile: ProfileRecord) {
   const v2 = asRecord(evidence.evidence_integrated_profile_v2);
   const itemEvidence = Array.isArray(profile.item_level_evidence)
     ? profile.item_level_evidence : Array.isArray(v2.item_evidence) ? v2.item_evidence : null;
+  const linkedCount = itemEvidence?.filter(entry => typeof asRecord(entry).item_public_id === "string").length ?? 0;
+  const narrativeCount = itemEvidence?.filter(entry => typeof entry === "string").length ?? 0;
   return {
     misconception_indicator_count: unavailable ? null : catalog?.indicators.length ?? legacy?.length ?? null,
     misconception_claim_count: unavailable ? null : catalog
       ? catalog.indicators.reduce((sum, indicator) => sum + indicator.claims.length, 0) : null,
     item_level_evidence_count: unavailable ? null : itemEvidence?.length ?? null,
-    item_level_evidence_available: !unavailable && Boolean(itemEvidence?.length)
+    item_level_evidence_available: !unavailable && linkedCount > 0,
+    item_level_evidence_format: unavailable || !itemEvidence ? "unavailable" : itemEvidence.length === 0 ? "empty"
+      : linkedCount === itemEvidence.length ? "structured_item_records"
+        : narrativeCount === itemEvidence.length ? "narrative_summaries" : "mixed_or_unrecognized"
   };
 }
 
@@ -129,10 +138,14 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   profile_unavailable_reason: "profiling_fallback, intermediate_artifact, validation_provenance_unavailable, or blank for a validated record.",
   profile_dimensions_status: "integrated_dimensions for stored V2 integration artifacts; item_level_dimensions for canonical profiles; unavailable for fallback or unverified provenance. Missing aggregate categories are not reconstructed from per-item judgments.",
   profile_native_confidence_alignment: "Native confidence_alignment from a validated profile. It is not converted to the different legacy confidence_calibration vocabulary.",
+  profile_confidence_alignment_scope: "Read-only provenance: initial_assessment for validated baseline profiles; carried_forward_not_reassessed for validated updated formative profiles from host-v7.6 or host-v7.7; legacy_scope_unrecorded for other updated profiles; unavailable without eligible validation provenance. No confidence change is calculated. Carry-forward preserves the prior value, which may itself be historical; it is not a new confidence measurement.",
+  prior_confidence_alignment_scope: "profile_confidence_alignment_scope of the transition's prior profile; join prior_profile_record_id for source provenance.",
+  updated_confidence_alignment_scope: "profile_confidence_alignment_scope of the transition's updated profile; join updated_profile_record_id for source provenance. Repeated values do not represent repeated confidence measurements.",
   misconception_indicator_count: "Length of the canonical indicators array or supported legacy array. Blank for fallback or unrecognized format; zero means an explicitly empty supported array, not missing diagnosis.",
   misconception_claim_count: "Sum of claims.length across canonical indicators. Blank for fallback or legacy records without atomic claims; indicators and claims are distinct units.",
-  item_level_evidence_count: "Length of the canonical item evidence array or V2 item_evidence array. Blank for fallback or unavailable schema; no row is manufactured for missing evidence.",
-  item_level_evidence_available: "True when a supported non-fallback item-evidence array has at least one row; not a guarantee of complete item coverage.",
+  item_level_evidence_count: "Number of stored evidence entries, not necessarily number of linked items. May count narrative summaries; inspect item_level_evidence_format. Blank for fallback or unavailable schema; no row is manufactured for missing evidence.",
+  item_level_evidence_available: "True only when a non-fallback evidence array has at least one structured record with an item_public_id. Narrative-only formative summaries are not advertised as joinable item records; not a guarantee of complete coverage.",
+  item_level_evidence_format: "structured_item_records when every stored entry has item_public_id; narrative_summaries when every entry is text; mixed_or_unrecognized otherwise; empty for an explicit empty array; unavailable for fallback or missing schema. Narrative summaries remain in original profiles and canonical snapshots, not fabricated per-item rows.",
   profile_reassessment_status: "validated_reassessment when at least one canonical transition exists; otherwise reassessment_incomplete after student turns or a non-active lifecycle, and not_reassessed before either. No learning outcome is inferred from pause/exit.",
   reasoning_quality: "Stored per-item model interpretation, not rescored or aggregated during export. Compare only with its source schema and validation status.",
   confidence_rating: "Confidence retained in the profile's item evidence; original student products are in item_responses.csv.",

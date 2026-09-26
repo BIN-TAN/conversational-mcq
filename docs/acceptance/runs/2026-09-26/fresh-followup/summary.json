@@ -1,0 +1,34 @@
+{
+  "version": "fresh-followup-summary-v1",
+  "synthetic_only": true,
+  "production_data_changed": false,
+  "committed": false,
+  "pushed": false,
+  "deployed": false,
+  "prompt_version": "formative-conversation-host-v7.7",
+  "prompt_sha256": "51830d9228adbfdd7c5c8a310e3e35c234266a814c7fa26552cc3fb7d156c6d6",
+  "final_primary_scenarios": 6,
+  "additional_closure_scenarios": 1,
+  "final_accepted_outputs": 13,
+  "final_http_requests": 15,
+  "final_checks": 80,
+  "final_passed_checks": 80,
+  "final_candidate_regenerations": 2,
+  "all_followup_http_requests": 31,
+  "latency_ms_including_regeneration": {
+    "min": 5669,
+    "median": 15103,
+    "max": 53284
+  },
+  "final_input_tokens": 163802,
+  "final_output_tokens": 20994,
+  "engineer_source_sha256": "59b3c38c864423d4c05877e2e0c9937ed019e3250cf15ddbe24bfe464269d8bf",
+  "source_unchanged": true,
+  "independent_human_review": "pending",
+  "limits": [
+    "Semantic claim recognition is not guaranteed by reference checks",
+    "Automatic canonical claim reactivation is not implemented; supported uncatalogued errors are evidence-linked teacher-review concerns",
+    "Live AI tests are in-memory; database and browser tests use isolated synthetic mocks",
+    "Initial profiling accuracy and classroom-scale AI load were not evaluated here"
+  ]
+}

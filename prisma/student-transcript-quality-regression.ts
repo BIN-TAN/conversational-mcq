@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { zodTextFormat } from "openai/helpers/zod";
 import { buildEvidenceIntegratedProfileBundle } from "../src/lib/services/student-assessment/evidence-integrated-profile";
-import { SemanticItemReviewSchema, validateSemanticItemReviews, type SemanticItemReview } from "../src/lib/services/student-assessment/semantic-item-review";
+import { CurrentSemanticItemReviewSchema, validateSemanticItemReviews, type SemanticItemReview } from "../src/lib/services/student-assessment/semantic-item-review";
 import { buildInitialAdminPrompt } from "../src/lib/student-assessment/initial-admin-prompts";
 import { reconstructReadableStudentAction } from "../src/lib/services/teacher-review/readable-transcript";
 import { validateFormativeConversationStudentOutputFormat } from "../src/lib/services/student-assessment/formative-conversation/output-format";
@@ -54,7 +54,7 @@ supportedPayload.item_responses[0].reasoning_text_final = "Items must covary; co
 const supported = buildEvidenceIntegratedProfileBundle({ response_package_payload: supportedPayload, semantic_item_reviews: [{ ...review, reasoning_judgment: "supported_concise", reasoning_quote: supportedPayload.item_responses[0].reasoning_text_final, explanation: "The reason distinguishes co-variation from common correct responses.", misconceptions: [] }] });
 assert.equal(supported.profile.reasoning_quality.value, "accurate_but_concise");
 assert.equal(supported.profile.assessment_specific_understanding.value, "sound_understanding");
-assert.doesNotThrow(() => zodTextFormat(z.object({ semantic_item_reviews: z.array(SemanticItemReviewSchema) }).strict(), "semantic_review_test"));
+assert.doesNotThrow(() => zodTextFormat(z.object({ semantic_item_reviews: z.array(CurrentSemanticItemReviewSchema) }).strict(), "semantic_review_test"));
 
 const neutral = ["A", "E"].flatMap(selectedOption => ["", "I am unsure what intervals mean.", "I know the reason."].map(latestStudentResponse =>
   buildInitialAdminPrompt({ kind: "confidence_prompt", assessmentState: "AWAIT_CONFIDENCE", selectedOption, latestStudentResponse }).prompt_text));

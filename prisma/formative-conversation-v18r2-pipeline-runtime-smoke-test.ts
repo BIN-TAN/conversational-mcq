@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { parse } from "csv-parse/sync";
+import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import { executeAgent } from "../src/lib/agents/execute-agent";
 import { prisma } from "../src/lib/db";
 import {
@@ -377,7 +379,8 @@ async function main() {
             conversation_public_id: student.conversation_public_id
           },
           include: {
-            assessment_session: { select: { user_db_id: true } },
+            assessment_session: { select: { user_db_id: true, session_public_id: true,
+              assessment: { select: { created_by_user_db_id: true } } } },
             conversation_turns: { orderBy: { sequence_index: "asc" } },
             message_receipts: true,
             agent_calls: {
@@ -452,6 +455,20 @@ async function main() {
         assert.equal(output.profile_transition_recommendation, null);
       }
       assert.equal(conversation.profile_transitions.length, 1);
+      const researchBundle = await buildAnalysisReadyResearchDataBundle({
+        teacher_user_db_id: conversation.assessment_session.assessment.created_by_user_db_id,
+        scope: "selected_session", session_public_id: conversation.assessment_session.session_public_id
+      });
+      const transitionFile = researchBundle.files.find(file => file.path === "formative_conversation_profile_transitions.csv");
+      assert(transitionFile);
+      const exportedTransitions = parse(String(transitionFile.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
+      assert.equal(exportedTransitions.length, 1);
+      assert.equal(exportedTransitions[0].prior_confidence_alignment_scope, "initial_assessment", "Prior call provenance must be loaded, not exported as unavailable");
+      assert.equal(exportedTransitions[0].updated_confidence_alignment_scope, "legacy_scope_unrecorded", "Historical host-v7.1 fixture must not masquerade as current confidence policy");
+      const scopeDictionary = researchBundle.files.find(file => file.path === "formative_conversation_data_dictionary.csv")!;
+      const dictionaryRows = parse(String(scopeDictionary.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
+      assert.equal(dictionaryRows.find(row => row.variable === "prior_confidence_alignment_scope")?.source_nature, "profile_provenance_projection");
+      assert(dictionaryRows.find(row => row.variable === "updated_confidence_alignment_scope")?.definition.includes("not represent repeated confidence"));
       const transition = conversation.profile_transitions[0]!;
       const snapshot =
         FormativeConversationV18PersistedProfileSnapshotSchema.parse(

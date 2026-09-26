@@ -1,0 +1,24 @@
+Audit output: /var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-navigation-audit-ZAYX6X
+PASS student-navigation-matrix-test (38.82s)
+PASS classroom-progression-regression-test (1.453s)
+PASS student-state-machine-smoke-test (1.926s)
+PASS student-initial-admin-smoke-test (1.477s)
+PASS student-conversational-flow-smoke-test (0.711s)
+PASS student-dynamic-initial-item-count-smoke-test (4.387s)
+PASS student-package-review-edit-smoke-test (1.497s)
+PASS student-package-feedback-recovery-smoke-test (1.767s)
+PASS student-assessment-start-resume-conflict-smoke-test (0.731s)
+PASS student-attempt-lifecycle-smoke-test (0.809s)
+PASS initial-preparation-smoke-test (4s)
+PASS student-demo-recovery-smoke-test (0.935s)
+PASS student-formative-conversation-foundation-smoke-test (0.5s)
+PASS formative-conversation-v18r2-pipeline-runtime-smoke-test (1.955s)
+PASS formative-conversation-v18r2-lifecycle-runtime-smoke-test (4.864s)
+PASS formative-misconception-coverage-regression-test (0.077s)
+PASS student-formative-waiting-attempt-review-smoke-test (0.053s)
+PASS student-research-export-integrity-smoke-test (1.209s)
+PASS student-teacher-readable-transcript-smoke-test (0.304s)
+PASS student-selected-session-export-smoke-test (0.78s)
+20/20 suites passed. /var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-navigation-audit-ZAYX6X
+
+

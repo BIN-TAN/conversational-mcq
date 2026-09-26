@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "checks": [
+    "browser-ready stages, first input, rejection, accepted retry, confidence and next item",
+    "reload preserves observations and separates monotonic clocks",
+    "explicit pause without overwriting prior response evidence",
+    "delivery deduplication and rejection of client-forged outcome events",
+    "student isolation and read-only history does not generate process activity",
+    "teacher desktop/mobile, database and research ZIP agree; no live provider calls"
+  ],
+  "output": "/var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-response-stage-Pba49j",
+  "stage_visits": 9,
+  "provider_calls": 0
+}
+Test artifacts: /var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-response-stage-Pba49j
+
+

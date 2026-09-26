@@ -725,7 +725,7 @@ function FormativeLearningProfileSummary({
         </div>
         <div>
           <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
-            Confidence pattern
+            {confidenceScopeLabel(profile.profile_confidence_alignment_scope)}
           </dt>
           <dd className="mt-1 text-ink">
             {label(profile.confidence_alignment)}
@@ -2286,6 +2286,13 @@ function ResponsePackagesSection({ data }: { data: ResponsePackagesResponse }) {
   );
 }
 
+function confidenceScopeLabel(scope?: string) {
+  if (scope === "initial_assessment") return "Initial confidence alignment";
+  if (scope === "carried_forward_not_reassessed") return "Prior confidence alignment (not reassessed)";
+  if (scope === "unavailable") return "Confidence alignment (unverified)";
+  return "Confidence alignment (scope unrecorded)";
+}
+
 function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
   return (
     <div className="mt-4 space-y-4">
@@ -2295,7 +2302,7 @@ function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
         <Fact labelText="Integrated diagnostic profile" value={<StatusPill value={profile.integrated_diagnostic_profile} tone="warn" />} />
         <Fact labelText="Integrated confidence" value={profile.integrated_profile_confidence} />
         <Fact labelText="Evidence sufficiency" value={profile.evidence_sufficiency} />
-        <Fact labelText="Confidence alignment" value={profile.confidence_alignment} />
+        <Fact labelText={confidenceScopeLabel(profile.profile_confidence_alignment_scope)} value={profile.confidence_alignment} />
         <Fact labelText="Independence interpretability" value={profile.independence_interpretability} />
         <Fact labelText="Profile confidence" value={profile.profile_confidence} />
         <Fact labelText="Created" value={formatDate(profile.created_at)} />

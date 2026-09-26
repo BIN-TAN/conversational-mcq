@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
+import { CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
 import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
 import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./formative-conversation/availability";
@@ -133,7 +133,7 @@ export const ChatNativeFormativeProfileOutputSchema = z.object({
 }).strict();
 
 export const ChatNativeLiveFormativeProfileOutputSchema = ChatNativeFormativeProfileOutputSchema.extend({
-  semantic_item_reviews: z.array(SemanticItemReviewSchema).min(1).max(12)
+  semantic_item_reviews: z.array(CurrentSemanticItemReviewSchema).min(1).max(12)
 });
 
 export type ChatNativeFormativeProfileOutput = z.infer<
@@ -185,9 +185,9 @@ const CHAT_NATIVE_PROFILE_AGENT_NAME = "formative_value_and_planning_agent";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME = "followup_agent";
 const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
-const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v2";
+const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v4";
 const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v1";
-const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v2";
+const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v3";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
 export const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after a protected initial item package.
@@ -200,14 +200,45 @@ Review EVERY administered item in semantic_item_reviews, once per exact item_pub
 Judge the reasoning against the item stem, options, learning objective, and teacher diagnostic context.
 Correct answer choice does not prove correct reasoning; incorrect choice alone does not prove a misconception.
 Length, vocabulary, confidence, uncertainty words and response speed do not establish conceptual correctness.
-Use supported_precise or supported_concise only for conceptually supported explanations, partial for mixed evidence,
-contradictory for conflicting claims, insufficient for missing or uninterpretable evidence, and irrelevant for off-topic text.
+Use supported_precise or supported_concise only for conceptually supported explanations. Use partial when at least
+one relevant conceptual inference is correct but another needed inference is missing or incorrect. Merely restating
+givens without interpreting them is not a conceptual inference. This is NOT an originality test: an explanation
+already present in an option can express a meaningful inference that the student explicitly endorses.
+Use contradictory when endorsed substantive reasoning conflicts with the concept and contains no supported
+conceptual inference; repeating a true given fact alone does not make it partial. Use insufficient for missing or uninterpretable
+evidence, and irrelevant for off-topic text. These labels concern the reasoning, not a student's general ability.
 Quote an exact excerpt of reasoning_text_final in reasoning_quote; use an empty string only when no usable reasoning exists.
 List EVERY distinct supported misconception, including in tempting_option_reason, with its proposition, source_field,
 and an exact evidence_quote from that student's corresponding text. Do not infer a misconception merely from asking
 a question, reporting uncertainty, choosing a distractor, or repeating a task request. A partially correct explanation
 can have a specific error: preserve both. Teacher misconception hypotheses are not observed student misconceptions.
-Do not use a model-generated explanation or copied instructional request as independent evidence of student understanding.
+Record interpretation_version=semantic-item-review-v3 and interpretations of the substantive propositions in both
+reasoning and tempting-option text. Each needs an item-local interpretation_id, exact student_quote, source_field,
+proposition, stance (endorsed/rejected/uncertain/quoted), basis, correctness, scope and a concise rationale.
+correctness judges the proposition itself; stance judges the student's CURRENT commitment to it in the full response.
+Negation, contrast, and self-correction matter: "A was tempting, but I reject it because..." does NOT endorse A.
+An explanation offered for a tempting option may endorse it, question it, or report a rejected earlier belief; do not
+assume the stance from the field name. Record rejected false propositions without diagnosing them as current errors.
+Use basis=supplied_explanation when the student explicitly adopts or discusses reasoning supplied in an option,
+with option_reference containing its exact label and quote from this item's sealed included_items options.
+The student_quote must remain the student's actual words, even if only "I agree with B"; never substitute option text.
+Use basis=student_explanation for a student-provided inference/application, fact_restatement for givens alone, and
+answer_only for a letter/choice without an expressed explanation or explicit adoption. Other bases may reference
+an option when relevant; otherwise option_reference=null. Wording overlap does not establish copying or misconduct.
+Explicit endorsement of a correct single-proposition option explanation supports recognition (supported_concise),
+not independently generated reasoning or transfer. Explicit endorsement of a false single-proposition explanation
+supports a candidate misconception even if the student reused its words. Do not demand paraphrasing merely for novelty.
+Bare agreement with a compound option is scope=compound_unspecified: preserve the whole referenced position, but
+do not infer separate belief/mastery for every clause; use an appropriately cautious judgment pending clarification.
+Use scope=specific_proposition when the response supports the particular proposition, including explicit separate
+endorsement of several claims. A quoted explanation without commitment is quoted, not endorsed.
+Each misconception must link to one interpretation_id, copy its proposition/source_field/student_quote exactly into
+proposition/source_field/evidence_quote, and be endorsed + contradicted + specific_proposition with explanatory basis.
+Include every interpretation meeting those conditions exactly once; exclude rejected, uncertain, merely quoted,
+answer-only and compound-unspecified positions from current misconception claims. Preserve them as observations.
+These are candidate diagnoses, not facts about stable beliefs. An empty claim list means no supported claim, not
+proof of no misconceptions. Do not label uncertainty or limited evidence as a new misconception.
+Do not use a copied instructional request or tutor explanation as independent evidence of student understanding.
 Item reviews are teacher/research-only diagnostics; do not insert hidden answers into student-facing text.
 
 Student-facing text must:
@@ -221,7 +252,11 @@ Student-facing text must:
 - not include student-facing profile status labels; the application computes exactly one visible status: Mostly understood OR Still developing OR Needs more work;
 - not reveal answer keys, correctness, correct options, distractor rationale, or distractor metadata;
 - focus on one activity the student can answer next.
-- keep the post-package feedback concise enough for 3 to 5 short sentences.
+- write complete sentences, with normal sentence-ending punctuation; never cut a sentence to meet a limit;
+- keep student_facing_pattern_statement to 1 or 2 short sentences, aiming for at most 220 characters,
+  comfortably below its 350-character schema limit; do not repeat the next activity there;
+- make student_facing_followup_prompt one focused activity, aiming for at most 400 characters,
+  comfortably below its 650-character schema limit; shorten by rewriting, never by truncating.
 
 Use only these enum labels:
 - formative_need: diagnosis, feedback, scaffolding, confidence_calibration, scaffolding_and_feedback, diagnosis_and_feedback
@@ -902,42 +937,6 @@ type DeferredStudentConcern = {
   source_stage: string | null;
 };
 
-function studentFacingPhrase(value: unknown) {
-  if (typeof value !== "string") {
-    return "";
-  }
-
-  return removeRigidVisibleHeadingPrefixes(value).trim().replace(/\s+/g, " ")
-    .replace(/\bThe student needs to\b/gi, "You may need to")
-    .replace(/\bThe student needs\b/gi, "You may need")
-    .replace(/\bThe student asked\b/gi, "You asked")
-    .replace(/\bThe student\b/gi, "You")
-    .replace(/\bstudents\b/gi, "you")
-    .replace(/\btheir\b/gi, "your")
-    .replace(/\bthey\b/gi, "you")
-    .replace(/\bthem\b/gi, "you")
-    .replace(/\blearner\b/gi, "you")
-    .replace(/\bexaminee\b/gi, "you")
-    .replace(/\bThe response\b/gi, "Your response")
-    .replace(/\bThe answers\b/gi, "Your answers")
-    .replace(/\bThe activity\b/gi, "This activity");
-}
-
-function compactStudentFacingPhrase(value: unknown, maxLength: number) {
-  const phrase = studentFacingPhrase(value);
-
-  if (phrase.length <= maxLength) {
-    return phrase;
-  }
-
-  const firstSentence = phrase.match(/^.*?[.!?](?:\s|$)/)?.[0]?.trim();
-  const candidate = firstSentence && firstSentence.length >= 20 ? firstSentence : phrase;
-
-  return candidate.length <= maxLength
-    ? candidate
-    : `${candidate.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
-}
-
 function concernSummaryFromText(text: string, quality: string | null): DeferredStudentConcern | null {
   const lower = text.toLowerCase();
   const concernType: DeferredStudentConcern["concern_type"] =
@@ -1228,87 +1227,13 @@ function deterministicTargetedFeedbackOutput(message = ""): ChatNativeTargetedFe
   };
 }
 
-function nextActivityPurpose(output: ChatNativeFormativeProfileOutput) {
-  const combined = `${output.main_issue} ${output.student_facing_followup_prompt}`.toLowerCase();
-
-  if (/\b(theta|ability|latent trait)\b/.test(combined) && /\b(difficulty|discrimination|parameter|item)\b/.test(combined)) {
-    return "The next activity is meant to help you separate item parameters from theta as a person-location estimate.";
-  }
-
-  return `The next activity is meant to help with this focus: ${studentFacingPhrase(output.main_issue)}`;
-}
-
-function reasoningDetailStatement(output: ChatNativeFormativeProfileOutput) {
-  const alignment = studentFacingPhrase(output.answer_reasoning_alignment);
-  const lower = alignment.toLowerCase();
-
-  if (/\b(vague|more explicit|partial|not enough|needs?|detail)\b/.test(lower)) {
-    return "Your explanations were useful, and adding a little more detail about why an option fits or does not fit would help me give more precise feedback.";
-  }
-
-  return `Your explanations gave useful evidence. ${alignment}`;
-}
-
-function variationIndex(output: ChatNativeFormativeProfileOutput) {
-  const basis = `${output.main_issue}|${output.student_facing_followup_prompt}|${output.student_facing_pattern_statement}`;
-  let total = 0;
-
-  for (const char of basis) {
-    total += char.charCodeAt(0);
-  }
-
-  return total % 3;
-}
-
-function concernSentence(concern: DeferredStudentConcern | undefined) {
-  if (!concern) {
-    return null;
-  }
-
-  if (/what theta means/i.test(concern.safe_summary)) {
-    return "Since you asked what theta means, we can now make that clearer: theta is the person's estimated location on the latent trait scale.";
-  }
-
-  if (/item parameters|difficulty|discrimination/i.test(concern.safe_summary)) {
-    return "Since you asked about item parameters, we can now connect that question to the difference between an item feature and a person's theta.";
-  }
-
-  if (concern.concern_type === "uncertainty") {
-    return "You also signaled uncertainty earlier, so the next step is meant to make the key distinction easier to explain.";
-  }
-
-  return `You also raised a question about ${concern.safe_summary}, and we can address that now that the initial responses are complete.`;
-}
-
-function studentFacingPostPackageSummary(
-  output: ChatNativeFormativeProfileOutput,
-  deferredConcerns: DeferredStudentConcern[] = []
-) {
-  const concern = deferredConcerns[0];
-  const openings = [
-    "I have enough from your initial responses to choose a focused next step.",
-    "Your initial responses give us a useful starting point for feedback.",
-    "Now that the initial questions are complete, we can work on the main idea that needs attention."
-  ];
-  const pattern = compactStudentFacingPhrase(output.student_facing_pattern_statement, 220);
-  const mainIssue = compactStudentFacingPhrase(output.main_issue, 180);
-  const sentences = [
-    openings[variationIndex(output)],
-    pattern,
-    `The part to strengthen is ${mainIssue.charAt(0).toLowerCase()}${mainIssue.slice(1)}`,
-    reasoningDetailStatement(output),
-    concernSentence(concern),
-    nextActivityPurpose(output)
-  ].filter((line): line is string => Boolean(line));
-
-  return sentences.slice(0, 4).join(" ");
+function studentFacingPostPackageSummary(output: ChatNativeFormativeProfileOutput) {
+  // Keep the validated message intact; template praise and clipping can alter its meaning.
+  return output.student_facing_pattern_statement.trim();
 }
 
 function studentFacingText(output: ChatNativeFormativeProfileOutput) {
-  return `${studentFacingPostPackageSummary(output)}\n\n${compactStudentFacingPhrase(
-    output.student_facing_followup_prompt,
-    450
-  )}`;
+  return `${studentFacingPostPackageSummary(output)}\n\n${output.student_facing_followup_prompt.trim()}`;
 }
 
 function targetedFeedbackStudentFacingText(output: ChatNativeTargetedFeedbackOutput) {
@@ -1586,7 +1511,7 @@ async function logRepeatedFormativeInvalidResponse(input: {
   });
 }
 
-function validateStudentFacingOutput(input: {
+export function validateChatNativeProfileStudentOutput(input: {
   output: ChatNativeFormativeProfileOutput;
   correct_options: string[];
 }) {
@@ -1606,7 +1531,7 @@ function validateStudentFacingOutput(input: {
     {
       field_path: "student_facing_text",
       text: visibleText,
-      max_length: 1000
+      max_length: 1002
     }
   ];
 
@@ -1619,6 +1544,17 @@ function validateStudentFacingOutput(input: {
           message: "student-facing text is missing"
         })
       );
+    }
+
+    // An obvious unfinished ending must reach the existing repair/failure path,
+    // not be silently clipped or completed by the application. This is not a grammar/meaning test.
+    if (!/[.!?\u3002\uff01\uff1f\u061f\u0964\u0965][)\]}'"\u2019\u201d*_]*$/u.test(field.text.trim()) ||
+        /(?:\.{3}|\u2026)[)\]}'"\u2019\u201d*_]*$/u.test(field.text.trim())) {
+      issues.push(safeValidationIssue({
+        field_path: field.field_path,
+        rule_code: "student_message_incomplete",
+        message: "student-facing message must end with a complete sentence, not a truncated fragment"
+      }));
     }
 
     addCommonStudentFacingTextIssues({
@@ -1660,7 +1596,7 @@ function validateStudentFacingOutput(input: {
     );
   }
 
-  return { ok: issues.length === 0, issues };
+  return { ok: issues.length === 0, issues, student_facing_text: visibleText };
 }
 
 function validateTargetedFeedbackOutput(input: {
@@ -2551,7 +2487,7 @@ async function callProviderOrMock(input: {
 
   if (!liveCallAllowed) {
     const output = deterministicMockOutput();
-    const validation = validateStudentFacingOutput({
+    const validation = validateChatNativeProfileStudentOutput({
       output,
       correct_options: input.correct_options
     });
@@ -2624,10 +2560,10 @@ async function callProviderOrMock(input: {
     const normalizedOutput = canonicalizeFormativeProfileOutput(providerResult.parsed_output);
     const parsed = ChatNativeLiveFormativeProfileOutputSchema.safeParse(normalizedOutput);
     const validation: { ok: boolean; issues: SafeValidationIssue[] } = parsed.success
-      ? validateStudentFacingOutput({ output: parsed.data, correct_options: input.correct_options })
+      ? validateChatNativeProfileStudentOutput({ output: parsed.data, correct_options: input.correct_options })
       : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };
     if (parsed.success) {
-      const review = validateSemanticItemReviews(jsonRecord(input.provider_input).response_package, parsed.data.semantic_item_reviews);
+      const review = validateSemanticItemReviews(jsonRecord(input.provider_input).response_package, parsed.data.semantic_item_reviews, true);
       if (!review.valid) {
         validation.ok = false;
         validation.issues.push(...review.issues.map(message => safeValidationIssue({
@@ -3583,10 +3519,7 @@ async function persistProfileDecisionAndActivity(input: {
 
     const postPackageSummary = evidenceBundle
       ? postPackageSummaryFromBundle(evidenceBundle)
-      : studentFacingPostPackageSummary(
-          input.output,
-          input.deferred_student_concerns ?? []
-        );
+      : studentFacingPostPackageSummary(input.output);
 
     await tx.conversationTurn.create({
       data: {
@@ -3604,7 +3537,7 @@ async function persistProfileDecisionAndActivity(input: {
           visibility_status: usesFormativeConversation ? "internal" : "shown",
           summary_version: evidenceBundle
             ? "student-facing-post-package-feedback-v2"
-            : "student-facing-post-package-summary-v1",
+            : "student-facing-post-package-summary-v2",
           presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
           deferred_student_concerns: input.deferred_student_concerns ?? [],
           validation_status: input.validation_status,

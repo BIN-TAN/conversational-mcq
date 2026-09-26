@@ -1,0 +1,8 @@
+
+> conversational-mcq@0.1.0 typecheck
+> tsc --noEmit
+
+prisma/formative-conversation-v18r2-pipeline-runtime-smoke-test.ts(466,20): error TS2571: Object is of type 'unknown'.
+prisma/formative-conversation-v18r2-pipeline-runtime-smoke-test.ts(467,20): error TS2571: Object is of type 'unknown'.
+
+

@@ -317,7 +317,14 @@ class SyntheticFormativeProvider implements LlmProvider {
         reasoning_judgment: "partial",
         reasoning_quote: mode === "bad_semantic_quote" ? "Not written by this synthetic student." : item.reasoning_text_final,
         explanation: "Synthetic semantic review for provider-boundary validation.",
-        misconceptions: []
+        misconceptions: [],
+        interpretation_version: "semantic-item-review-v3",
+        interpretations: [{
+          interpretation_id: "synthetic-observation", source_field: "reasoning", student_quote: item.reasoning_text_final,
+          proposition: "Synthetic limited-evidence fixture, not an educational judgment.", stance: "uncertain",
+          basis: "student_explanation", correctness: "undetermined", scope: "specific_proposition",
+          option_reference: null, rationale: "Exercises persisted source attribution; a mock is not a semantic reference standard."
+        }]
       })) });
     }
 
@@ -681,12 +688,18 @@ async function assertValidProfileAndTargetedFeedbackSucceed() {
           });
           const saved = savedProfiles.find(profile => (profile.item_level_evidence as Record<string, unknown> | null)?.evidence_integrated_profile_v2);
           assert(saved, "Initial semantic profile should remain available alongside later canonical profiles.");
-          const evidence = saved.item_level_evidence as { evidence_integrated_profile_v2: { semantic_review_audit: { status: string; source_agent_call_id: string }; item_evidence: Array<{ semantic_review: { reasoning_quote: string } }> } };
+          const evidence = saved.item_level_evidence as { evidence_integrated_profile_v2: { semantic_review_audit: { status: string; source_agent_call_id: string }; item_evidence: Array<{ semantic_review: { reasoning_quote: string; interpretation_version: string; interpretations: Array<{ student_quote: string; stance: string; rationale: string }> } }> } };
           const sourceCall = await prisma.agentCall.findUniqueOrThrow({ where: { id: evidence.evidence_integrated_profile_v2.semantic_review_audit.source_agent_call_id } });
           assert(sourceCall.provider === "openai", `Synthetic provider must exercise live validation, not mock fallback: ${sourceCall.provider}`);
           assert(evidence.evidence_integrated_profile_v2.semantic_review_audit.status === "validated", `Reviewed evidence must be persisted, not only returned by the provider: ${JSON.stringify(evidence.evidence_integrated_profile_v2.semantic_review_audit)}`);
           assert(Boolean(evidence.evidence_integrated_profile_v2.semantic_review_audit.source_agent_call_id), "Profile must retain the source call.");
           assert(evidence.evidence_integrated_profile_v2.item_evidence.every(item => item.semantic_review.reasoning_quote), "Every item must retain its quoted student evidence.");
+          assert(evidence.evidence_integrated_profile_v2.item_evidence.every(item =>
+            item.semantic_review.interpretation_version === "semantic-item-review-v3" &&
+            item.semantic_review.interpretations[0]?.student_quote === item.semantic_review.reasoning_quote &&
+            item.semantic_review.interpretations[0]?.stance === "uncertain" &&
+            Boolean(item.semantic_review.interpretations[0]?.rationale)),
+          "Stance, original student quote, rationale and rule version must survive actual database persistence.");
           if (process.argv.includes("--initial-profile-only")) return;
 
           const response = await submitFormativeActivityResponse({

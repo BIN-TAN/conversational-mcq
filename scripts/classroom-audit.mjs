@@ -9,6 +9,13 @@ assert(database.pathname.startsWith("/conversational_mcq_classroom_audit_"), "di
 
 const files = [
   "dependency-security-smoke-test.ts",
+  "classroom-acceptance-smoke-test.ts",
+  "stance-evidence-smoke-test.ts",
+  "formative-interpretation-policy-smoke-test.ts",
+  "student-transcript-quality-regression.ts",
+  "profile-record-projection-smoke-test.ts",
+  "student-analysis-ready-export-smoke-test.ts",
+  "student-formative-conversation-profile-handoff-smoke-test.ts",
   "classroom-data-integrity-smoke-test.ts",
   "student-formative-conversation-foundation-smoke-test.ts",
   "student-initial-admin-smoke-test.ts",
@@ -64,7 +71,9 @@ const files = [
 
 const env = {
   ...process.env,
-  NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import ${pathToFileURL(resolve("scripts/classroom-audit-network-guard.mjs")).href}`.trim(),
+  NODE_OPTIONS: (process.env.NODE_OPTIONS ?? "").includes(pathToFileURL(resolve("scripts/classroom-audit-network-guard.mjs")).href)
+    ? process.env.NODE_OPTIONS
+    : `${process.env.NODE_OPTIONS ?? ""} --import ${pathToFileURL(resolve("scripts/classroom-audit-network-guard.mjs")).href}`.trim(),
   DATABASE_URL: database.href,
   E2E_DATABASE_URL: database.href,
   NODE_ENV: "test",
@@ -90,7 +99,7 @@ for (const file of files) {
   console.log(`${passed ? "PASS" : "FAIL"} ${file}`);
   if (!passed) {
     // Inputs are synthetic. Limit failure output; never print process environment.
-    console.log((result.stdout + result.stderr).slice(-6000));
+    console.log(((result.stdout ?? "") + (result.stderr ?? "") + (result.error?.message ?? "")).slice(-6000));
   }
 }
 console.log(JSON.stringify({

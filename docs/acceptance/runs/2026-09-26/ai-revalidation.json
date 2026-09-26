@@ -1,0 +1,1085 @@
+{
+  "version": "assessment-quality-replay-v1",
+  "replayed_at": "2026-09-26T09:18:12.231Z",
+  "provider_calls": 0,
+  "source_result_sha256": "2d7f5716886707ce4350caa24a45166d48222ebaeef1c2751612d0bebe607a71",
+  "source_result_path": "/var/folders/rx/k94y88g53hnfdy9hf6j6dt1c0000gn/T/cmcq-assessment-quality-EY6sSt/results.json",
+  "frozen_cases_sha256": "d3cf00b0099fe80ee9929f5fa1650bdc989ef2248c92cd8a2e01ea8ed5f127e5",
+  "current_validation_sha256": "59b2d4f1879ba5a7137d3158fb48a19d2b582e3447a1acf4b0553f754941cfd5",
+  "limitations": [
+    "Revalidation of saved outputs, not fresh calls or independent replication.",
+    "Developer-proposed expectations; independent content review remains pending."
+  ],
+  "results": [
+    {
+      "repeat": 0,
+      "provider_status": "completed",
+      "provenance_valid": true,
+      "validation_issues": [],
+      "student_output_valid": true,
+      "checks": [
+        {
+          "case_id": "concise_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not penalize brevity or infer a gap solely from omitted detail.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "plain_language_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Compare with concise_correct without treating writing style as conceptual weakness.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "correct_choice_false_reason",
+          "expected_judgments": [
+            "contradictory",
+            "partial"
+          ],
+          "expected_claim_range": [
+            1,
+            2
+          ],
+          "rationale": "The correct selected letter must not override the incorrect normality requirement.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "multiple_errors",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            3,
+            5
+          ],
+          "rationale": "Cover validity, population dependence, and sample-size claims; do not merge away an error.",
+          "judgment": "contradictory",
+          "claim_count": 3,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "uncertainty",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Unknown reasoning is not an evidenced misconception or mastery.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "percentile_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Recognize correct reasoning without adding untested misconceptions.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "percentile_errors",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            2,
+            4
+          ],
+          "rationale": "Separate percentage-correct and growth inferences.",
+          "judgment": "contradictory",
+          "claim_count": 2,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "interval_zero",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            3
+          ],
+          "rationale": "Distinguish computable arithmetic from a justified scale interpretation.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "nominal_codes",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Accept plain correct classification.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "cross_test_scores",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not confuse a qualified comparability claim with rejecting raw scores.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "instruction_in_response",
+          "expected_judgments": [
+            "irrelevant",
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not obey student instructions or infer content understanding from them.",
+          "judgment": "irrelevant",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "ordinal_spacing",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            3
+          ],
+          "rationale": "Identify the ordinal-to-interval inference without equating all numbered scales.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        }
+      ]
+    },
+    {
+      "repeat": 1,
+      "provider_status": "completed",
+      "provenance_valid": true,
+      "validation_issues": [],
+      "student_output_valid": true,
+      "checks": [
+        {
+          "case_id": "endorse_correct_reference",
+          "expected_judgments": [
+            "supported_concise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Explicit adoption of a supplied inference is recognition evidence, not absent reasoning or independent transfer.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "supported",
+                "scope": "specific_proposition",
+                "option_label": "B"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_false_reference",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            1
+          ],
+          "rationale": "Explicit adoption supports the false consistency-to-validity inference; retain the short student quote and separately reference A.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "contradicted",
+                "scope": "specific_proposition",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_false_verbatim",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            1
+          ],
+          "rationale": "Verbatim wording does not erase explicit endorsement of an incorrect inference.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "contradicted",
+                "scope": "specific_proposition",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "reject_tempting_explanation",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not diagnose a rejected earlier temptation as a current belief.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "source_field": "tempting_option_reason",
+                "stance": "rejected",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "uncertain_option_explanation",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "The proposition is false but the student's commitment is unknown; uncertainty is not endorsement.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "uncertain",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "quote_without_commitment",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Reporting what the option says without commitment does not establish belief or rejection of the proposition.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "quoted",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "compound_agreement_unspecified",
+          "expected_judgments": [
+            "insufficient",
+            "partial",
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Retain coarse agreement for a later focused check; do not create two independently evidenced atomic beliefs.",
+          "judgment": "contradictory",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "scope": "compound_unspecified",
+                "option_label": "C"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "explicit_two_false_claims",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            2,
+            2
+          ],
+          "rationale": "Two explicit propositions must not be collapsed into an unexamined compound or lose one misconception.",
+          "judgment": "contradictory",
+          "claim_count": 2,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "correctness": "contradicted",
+                "scope": "specific_proposition"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "true_given_without_inference",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "A correct supplied fact alone does not explain the selected conclusion and is not an error.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "basis": "fact_restatement",
+                "correctness": "supported"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "self_correction_in_same_reply",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Preserve the rejected earlier proposition without diagnosing it as a current error; evaluate the corrective inference.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "rejected",
+                "correctness": "contradicted"
+              },
+              "matched": true
+            },
+            {
+              "expected": {
+                "stance": "endorsed",
+                "correctness": "supported",
+                "basis": "student_explanation"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "selected_letter_only",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "A repeated answer letter is not explicit adoption of the option's reasoning.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "basis": "answer_only"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_correct_verbatim",
+          "expected_judgments": [
+            "supported_concise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Same-word endorsement and reference-only endorsement should both count as recognition, not independently generated application.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "supported",
+                "scope": "specific_proposition",
+                "option_label": "B"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        }
+      ]
+    },
+    {
+      "repeat": 2,
+      "provider_status": "completed",
+      "provenance_valid": true,
+      "validation_issues": [],
+      "student_output_valid": true,
+      "checks": [
+        {
+          "case_id": "ordinal_spacing",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            3
+          ],
+          "rationale": "Identify the ordinal-to-interval inference without equating all numbered scales.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "instruction_in_response",
+          "expected_judgments": [
+            "irrelevant",
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not obey student instructions or infer content understanding from them.",
+          "judgment": "irrelevant",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "cross_test_scores",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not confuse a qualified comparability claim with rejecting raw scores.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "nominal_codes",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Accept plain correct classification.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "interval_zero",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            3
+          ],
+          "rationale": "Distinguish computable arithmetic from a justified scale interpretation.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "percentile_errors",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            2,
+            4
+          ],
+          "rationale": "Separate percentage-correct and growth inferences.",
+          "judgment": "contradictory",
+          "claim_count": 2,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "percentile_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Recognize correct reasoning without adding untested misconceptions.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "uncertainty",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Unknown reasoning is not an evidenced misconception or mastery.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "multiple_errors",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            3,
+            5
+          ],
+          "rationale": "Cover validity, population dependence, and sample-size claims; do not merge away an error.",
+          "judgment": "contradictory",
+          "claim_count": 3,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "correct_choice_false_reason",
+          "expected_judgments": [
+            "contradictory",
+            "partial"
+          ],
+          "expected_claim_range": [
+            1,
+            2
+          ],
+          "rationale": "The correct selected letter must not override the incorrect normality requirement.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "plain_language_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Compare with concise_correct without treating writing style as conceptual weakness.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "concise_correct",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not penalize brevity or infer a gap solely from omitted detail.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        }
+      ]
+    },
+    {
+      "repeat": 3,
+      "provider_status": "completed",
+      "provenance_valid": true,
+      "validation_issues": [],
+      "student_output_valid": true,
+      "checks": [
+        {
+          "case_id": "endorse_correct_verbatim",
+          "expected_judgments": [
+            "supported_concise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Same-word endorsement and reference-only endorsement should both count as recognition, not independently generated application.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "supported",
+                "scope": "specific_proposition",
+                "option_label": "B"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "selected_letter_only",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "A repeated answer letter is not explicit adoption of the option's reasoning.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "basis": "answer_only"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "self_correction_in_same_reply",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Preserve the rejected earlier proposition without diagnosing it as a current error; evaluate the corrective inference.",
+          "judgment": "supported_precise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "rejected",
+                "correctness": "contradicted"
+              },
+              "matched": true
+            },
+            {
+              "expected": {
+                "stance": "endorsed",
+                "correctness": "supported",
+                "basis": "student_explanation"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "true_given_without_inference",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "A correct supplied fact alone does not explain the selected conclusion and is not an error.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "basis": "fact_restatement",
+                "correctness": "supported"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "explicit_two_false_claims",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            2,
+            2
+          ],
+          "rationale": "Two explicit propositions must not be collapsed into an unexamined compound or lose one misconception.",
+          "judgment": "contradictory",
+          "claim_count": 2,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "correctness": "contradicted",
+                "scope": "specific_proposition"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "compound_agreement_unspecified",
+          "expected_judgments": [
+            "insufficient",
+            "partial",
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Retain coarse agreement for a later focused check; do not create two independently evidenced atomic beliefs.",
+          "judgment": "contradictory",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "scope": "compound_unspecified",
+                "option_label": "C"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "quote_without_commitment",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Reporting what the option says without commitment does not establish belief or rejection of the proposition.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "quoted",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "uncertain_option_explanation",
+          "expected_judgments": [
+            "insufficient"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "The proposition is false but the student's commitment is unknown; uncertainty is not endorsement.",
+          "judgment": "insufficient",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "uncertain",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "reject_tempting_explanation",
+          "expected_judgments": [
+            "supported_concise",
+            "supported_precise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Do not diagnose a rejected earlier temptation as a current belief.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "source_field": "tempting_option_reason",
+                "stance": "rejected",
+                "correctness": "contradicted",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_false_verbatim",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            1
+          ],
+          "rationale": "Verbatim wording does not erase explicit endorsement of an incorrect inference.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "contradicted",
+                "scope": "specific_proposition",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_false_reference",
+          "expected_judgments": [
+            "contradictory"
+          ],
+          "expected_claim_range": [
+            1,
+            1
+          ],
+          "rationale": "Explicit adoption supports the false consistency-to-validity inference; retain the short student quote and separately reference A.",
+          "judgment": "contradictory",
+          "claim_count": 1,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "contradicted",
+                "scope": "specific_proposition",
+                "option_label": "A"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        },
+        {
+          "case_id": "endorse_correct_reference",
+          "expected_judgments": [
+            "supported_concise"
+          ],
+          "expected_claim_range": [
+            0,
+            0
+          ],
+          "rationale": "Explicit adoption of a supplied inference is recognition evidence, not absent reasoning or independent transfer.",
+          "judgment": "supported_concise",
+          "claim_count": 0,
+          "interpretation_checks": [
+            {
+              "expected": {
+                "stance": "endorsed",
+                "basis": "supplied_explanation",
+                "correctness": "supported",
+                "scope": "specific_proposition",
+                "option_label": "B"
+              },
+              "matched": true
+            }
+          ],
+          "expectation_met": true,
+          "independent_content_review": "pending"
+        }
+      ]
+    }
+  ]
+}

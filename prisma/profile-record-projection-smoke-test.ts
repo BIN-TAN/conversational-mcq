@@ -37,6 +37,12 @@ async function main() {
   assert.equal(profileRecordProvenance(unit).profile_validation_status, "validated");
   assert.equal(profileEvidenceCounts(unit).misconception_indicator_count, 1);
   assert.equal(profileEvidenceCounts(unit).misconception_claim_count, 2);
+  assert.equal(profileEvidenceCounts(unit).item_level_evidence_format, "structured_item_records");
+  const narrative = { ...unit, item_level_evidence: ["A formative interpretation without a stable item link."] };
+  assert.equal(profileEvidenceCounts(narrative).item_level_evidence_available, false);
+  assert.equal(profileEvidenceCounts(narrative).item_level_evidence_count, 1);
+  assert.equal(profileEvidenceCounts(narrative).item_level_evidence_format, "narrative_summaries");
+  assert.equal(profileItemEvidence(narrative).length, 0);
   assert.equal(profileEvidenceCounts({ ...unit, misconception_indicators: ["legacy"] }).misconception_indicator_count, 1);
   assert.equal(profileEvidenceCounts({ ...unit, misconception_indicators: { unsupported: [] } }).misconception_indicator_count, null);
   assert.equal(profileEvidenceCounts({ ...unit, misconception_indicators: [] }).misconception_indicator_count, 0);
@@ -95,6 +101,7 @@ async function main() {
     const bundle = await readBundle();
     assert.equal(rows(bundle, "sessions.csv")[0].profile_record_id, profileRecordProvenance({ ...unit, id: initial.id }).profile_record_id, "Canonical baseline beats a later intermediate pointer");
     assert.equal(rows(bundle, "sessions.csv")[0].profile_native_confidence_alignment, "well_calibrated");
+    assert.equal(rows(bundle, "sessions.csv")[0].profile_confidence_alignment_scope, "initial_assessment");
     const artifacts = rows(bundle, "agent_activity_records.csv").filter((row) => row.record_type === "profile_result");
     assert.equal(artifacts.length, 2);
     assert.equal(artifacts.filter((row) => row.profile_valid_for_learning_analysis === "true").length, 1);
@@ -127,6 +134,20 @@ async function main() {
     assert.equal(detail.formative_conversations[0].initial_learning_profile?.profile_validation_status, "fallback");
     assert.equal(detail.formative_conversations[0].profile_reassessment_status, "reassessment_incomplete");
     assert.equal(await prisma.studentProfile.count({ where: { concept_unit_session_db_id: fixture.conceptUnitSession.id } }), 3, "Read/export cannot mutate profiles");
+    const formativeCall = await prisma.agentCall.create({ data: {
+      assessment_session_db_id: fixture.session.id, concept_unit_session_db_id: fixture.conceptUnitSession.id,
+      agent_name: "formative_conversation_agent", agent_version: "test", model_name: "mock", provider: "mock",
+      prompt_version: "formative-conversation-host-v7.6", schema_version: "formative-conversation-agent-contract-v4",
+      input_payload: {}, call_status: "succeeded", output_validated: true
+    } });
+    const carried = await prisma.studentProfile.create({ data: { ...base, profile_type: "updated", based_on_agent_call_db_id: formativeCall.id } });
+    const carriedBundle = await readBundle();
+    const carriedArtifact = rows(carriedBundle, "agent_activity_records.csv").find(row => row.profile_record_id === profileRecordProvenance({ ...unit, id: carried.id }).profile_record_id);
+    assert.equal(carriedArtifact?.profile_confidence_alignment_scope, "carried_forward_not_reassessed");
+    const carriedLegacy = await buildTeacherResearchBulkExport({ session_public_id: fixture.session.session_public_id });
+    const carriedRows = String(carriedLegacy.files.find(entry => entry.path === "misconception_diagnosis_or_profile_packets.jsonl")!.data).trim().split("\n").map(line => JSON.parse(line));
+    assert.equal(carriedRows.find(row => row.profile_record_id === carriedArtifact!.profile_record_id)?.profile_confidence_alignment_scope, "carried_forward_not_reassessed");
+    assert.equal(await prisma.studentProfile.count({ where: { concept_unit_session_db_id: fixture.conceptUnitSession.id } }), 4, "Scope projection must not create or rewrite profiles");
     console.log("PASS profile projection: formats, provenance, canonical selection, fallback, receipts-free opening, ended reassessment, current and legacy exports, teacher parity, and no profile mutation");
   } finally {
     await prisma.formativeConversationSession.deleteMany({ where: { assessment_session_db_id: fixture.session.id } });

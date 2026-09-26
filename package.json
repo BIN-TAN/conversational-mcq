@@ -4,6 +4,12 @@
   "private": true,
   "scripts": {
     "classroom:audit": "node scripts/classroom-audit.mjs",
+    "classroom:acceptance": "node scripts/classroom-acceptance.mjs",
+    "classroom:acceptance:check": "node --import tsx scripts/check-classroom-acceptance.ts",
+    "classroom:acceptance:smoke": "node --import tsx prisma/classroom-acceptance-smoke-test.ts",
+    "classroom:stance-evidence": "node --import tsx prisma/stance-evidence-smoke-test.ts",
+    "classroom:assessment-quality:replay": "node --import tsx scripts/replay-assessment-quality.ts",
+    "classroom:assessment-quality": "node --import tsx prisma/assessment-quality-canary.ts",
     "classroom:ux-smoke": "node scripts/classroom-ux-smoke.mjs",
     "security:dependencies": "node scripts/dependency-security-check.mjs",
     "security:dependency-smoke": "node --import tsx prisma/dependency-security-smoke-test.ts",
