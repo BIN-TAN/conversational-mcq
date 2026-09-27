@@ -1,6 +1,42 @@
 # Data Logging Specification
 
-## Initial Feedback Technical Continuation (2026-09-27)
+## Initial Feedback Technical Termination (2026-09-27)
+
+`initial_feedback_terminated` records a confirmed student end after the current
+topic's persisted preparation job failed. The session becomes `student_exited`,
+not `completed`, with no completion timestamp or next-topic creation. The server
+derives the technical reason from its failed job, not a client reason string.
+The event carries `policy_version=initial-feedback-failure-termination-v1`,
+`job_public_id`, `failure_reason`, `actor_type=student`, `destination=end_attempt`,
+`learning_support_completed=false`, `from_phase` and `to_phase=student_exited`.
+Standard attempt-end and session-exit events share the reason
+`initial_feedback_unavailable`. Replays do not duplicate termination events.
+
+No original products, failed jobs/calls, sealed packages or historical profiles
+are overwritten. Teacher review reasons are preserved and extended. Research
+`sessions.csv` uses `attempt_lifecycle_status=ended_by_student`,
+`formative_activity_completion_status=incomplete_technical_failure`,
+`assessment_completion_reason=ended_after_initial_feedback_failure`,
+`selected_navigation_destination=end_attempt`, and includes
+`initial_feedback_unavailable` in `session_limitations`. Termination alone does
+not populate `activity_skip_reason`. These are operational statuses, not student
+deficits or learning outcomes. Teacher Process data labels the event as ending
+after AI feedback failed. Existing historical skip events retain their meaning.
+
+The global initial-feedback allowance uses the approved runtime policy
+`initial_feedback_max_output_tokens=30000`, replacing individual grants.
+`agent_calls.max_output_tokens` stores the effective ceiling sent to the provider.
+`input_payload.runtime_budget` uses `policy_version=initial-feedback-budget-v2`,
+`approval_scope=all_students`, `grant_id=null`, `approved_runtime_hash`, and
+`base_max_output_tokens` / `effective_max_output_tokens`. Actual token use is
+separate. This metadata stays in the audit, not the model's assessment input.
+No historical limits or calls are backfilled. It affects initial-feedback
+generation, not all agent roles, input context, chat-turn counts or spending caps.
+
+## Historical Initial Feedback Technical Continuation (2026-09-27)
+
+This endpoint is retired. The following describes retained historical records,
+not an action offered to new attempts.
 
 `initial_feedback_skipped` is an authoritative backend event for an explicit
 student choice after failed AI preparation. It is not a missing student response,

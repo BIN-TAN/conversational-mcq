@@ -6957,6 +6957,8 @@ export async function endStudentAssessmentAttempt(input: {
         id: true,
         session_public_id: true,
         attempt_number: true,
+        current_concept_unit_db_id: true,
+        needs_review_reason: true,
         current_phase: true,
         status: true,
         completed_at: true,
@@ -7091,7 +7093,25 @@ export async function endStudentAssessmentAttempt(input: {
     }
 
     const now = new Date();
-    const reason = input.reason?.trim() || "student_requested_end";
+    // Resolve the technical reason from persisted work, never a client claim.
+    const failedPreparation = await tx.workflowJob.findFirst({ where: {
+      assessment_session_db_id: session.id, job_type: "prepare_initial_conversation", status: "failed",
+      concept_unit_session: { concept_unit_db_id: session.current_concept_unit_db_id ?? "00000000-0000-0000-0000-000000000000" }
+    }, select: { job_public_id: true, concept_unit_session_db_id: true, last_error_category: true } });
+    const reason = failedPreparation ? "initial_feedback_unavailable" : input.reason?.trim() || "student_requested_end";
+    if (failedPreparation?.concept_unit_session_db_id) {
+      await tx.conceptUnitSession.update({ where: { id: failedPreparation.concept_unit_session_db_id },
+        data: { followup_status: "incomplete" } });
+      await tx.assessmentSession.update({ where: { id: session.id }, data: { needs_review: true,
+        needs_review_reason: [session.needs_review_reason,
+          "Initial AI feedback unavailable; student ended the attempt with learning support incomplete."].filter(Boolean).join("\n") } });
+      await txLogProcessEvent(tx, { assessment_session_db_id: session.id,
+        concept_unit_session_db_id: failedPreparation.concept_unit_session_db_id,
+        event_type: "initial_feedback_terminated", event_category: "workflow", event_source: "backend",
+        payload: { policy_version: "initial-feedback-failure-termination-v1", job_public_id: failedPreparation.job_public_id,
+          failure_reason: failedPreparation.last_error_category, actor_type: "student", destination: "end_attempt",
+          learning_support_completed: false, from_phase: session.current_phase, to_phase: "student_exited" }, occurred_at: now });
+    }
 
     await txLogProcessEvent(tx, {
       assessment_session_db_id: session.id,

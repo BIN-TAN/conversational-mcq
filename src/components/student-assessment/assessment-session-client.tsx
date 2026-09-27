@@ -6,7 +6,6 @@ import { ModalDialog } from "@/components/ui/modal-dialog";
 import {
   AlertTriangle,
   ArrowLeft,
-  ArrowRight,
   Loader2,
   LogOut,
   MessageSquareText,
@@ -30,7 +29,6 @@ import {
   chooseStudentActivityRuntimeAction,
   chooseProgression,
   completeInitialConceptUnit,
-  continueWithoutFeedback,
   completeReadyItem,
   endAssessmentAttempt,
   exitSession,
@@ -2737,21 +2735,6 @@ export function AssessmentSessionClient({
     }
   }
 
-  async function handleContinueWithoutFeedback() {
-    if (!state?.current_concept_unit || isBusy) return;
-    setIsBusy(true);
-    setError(null);
-    setFailedAction(null);
-    try {
-      const result = await continueWithoutFeedback(state.session_public_id, state.current_concept_unit.concept_unit_public_id);
-      setState(result.state);
-      setActivityRuntime(result.state.activity_runtime ?? null);
-      await refreshSecondaryData(result.state.session_public_id);
-    } catch (errorValue) {
-      handleError(errorValue, "Continue without AI feedback", () => { void handleContinueWithoutFeedback(); });
-    } finally { setIsBusy(false); }
-  }
-
   async function handleRetryFormativeConversationResponse() {
     const conversation = state?.formative_conversation;
     const response = conversation?.assistant_response;
@@ -3365,7 +3348,9 @@ export function AssessmentSessionClient({
     }
 
     const confirmed = window.confirm(
-      "End this attempt?\n\nYou can end this attempt now. You can come back only if your instructor allows another attempt."
+      state?.preparation?.status === "failed"
+        ? "End this attempt?\n\nYour submitted responses will remain saved, but learning support is incomplete. This attempt cannot be resumed. Contact your teacher if you need another chance."
+        : "End this attempt?\n\nYour submitted responses will remain saved. This attempt cannot be resumed. You can start again if you have a remaining chance."
     );
 
     if (!confirmed) {
@@ -3754,13 +3739,13 @@ export function AssessmentSessionClient({
           <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
         </button>
       ) : null}
-      {state.preparation.can_continue ? (
+      {state.preparation.status === "failed" && state.can_end_attempt ? (
         <div className="mt-3">
-          <button type="button" className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-50"
-            data-testid="continue-without-feedback" disabled={isBusy} onClick={() => void handleContinueWithoutFeedback()}>
-            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /> Continue without AI feedback
+          <button type="button" className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-800 disabled:opacity-50"
+            data-testid="end-after-feedback-failure" disabled={isBusy} onClick={() => void handleEndAttempt()}>
+            <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" /> End attempt
           </button>
-          <p className="mt-2 text-sm text-muted">Your answers will stay saved. Learning support for this topic will remain incomplete for your teacher to review.</p>
+          <p className="mt-2 text-sm text-muted">Your responses are saved. You can retry or end this attempt and contact your teacher. Ending will leave learning support incomplete.</p>
         </div>
       ) : null}
       {state.preparation.status === "failed" && !state.preparation.can_retry ? (

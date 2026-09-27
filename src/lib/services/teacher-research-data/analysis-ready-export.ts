@@ -1046,7 +1046,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       ? null
       : latestActivityAttempt;
     const activitySkippedEvent = lastEvent(sessionEvents, ["formative_activity_skipped"]);
-    const feedbackUnavailableEvent = lastEvent(sessionEvents, ["initial_feedback_skipped"]);
+    const feedbackUnavailableEvent = lastEvent(sessionEvents, ["initial_feedback_skipped", "initial_feedback_terminated"]);
     const teacherEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_teacher"]);
     const studentEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_student"]);
     const completionEvent = lastEvent(sessionEvents, [
@@ -1149,7 +1149,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         ? "FORMATIVE_CONVERSATION"
         : activeActivityAttempt?.status ?? null,
       formative_activity_completion_status: formativeActivityCompletionStatus,
-      activity_skip_reason: feedbackUnavailableEvent ? "initial_feedback_unavailable" : activitySkippedEvent
+      activity_skip_reason: feedbackUnavailableEvent?.event_type === "initial_feedback_skipped" ? "initial_feedback_unavailable" : activitySkippedEvent
         ? payloadString(activitySkippedEvent.payload, ["skip_reason", "reason"]) ?? "student_selected_skip_activity"
         : null,
       selected_navigation_destination: payloadString((feedbackUnavailableEvent ?? activitySkippedEvent)?.payload, [
@@ -1158,7 +1158,8 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         "destination_type"
       ]),
       assessment_completion_reason:
-        (payloadString(completionEvent?.payload, ["reason"]) === "initial_feedback_unavailable" ? "initial_feedback_unavailable" : completionEvent?.event_type) ??
+        (feedbackUnavailableEvent?.event_type === "initial_feedback_terminated" ? "ended_after_initial_feedback_failure" :
+          payloadString(completionEvent?.payload, ["reason"]) === "initial_feedback_unavailable" ? "initial_feedback_unavailable" : completionEvent?.event_type) ??
         (attemptLifecycleStatus === "completed" ? "session_completed" : terminalReason),
       attempt_policy_version:
         payloadString(attemptStartedEvent?.payload, ["attempt_policy_version"]) ??

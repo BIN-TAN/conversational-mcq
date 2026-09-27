@@ -543,11 +543,6 @@ export function fetchPreparationStatus(sessionPublicId: string, signal?: AbortSi
   }), signal);
 }
 
-export function continueWithoutFeedback(sessionPublicId: string, conceptUnitPublicId: string) {
-  return post(`/api/student/sessions/${sessionPublicId}/concept-units/${conceptUnitPublicId}/continue-without-feedback`, {},
-    (value) => ({ state: StudentSessionStateSchema.parse((value as { state: unknown }).state) }));
-}
-
 export function exitSession(sessionPublicId: string) {
   return post(
     `/api/student/sessions/${sessionPublicId}/exit`,

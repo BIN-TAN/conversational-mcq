@@ -5,7 +5,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ApprovedCandidateManifestSchema, LEGACY_GPT54_APPROVED_RUNTIME_HASH, PROFILING_V6_HASH,
   approvedOperationalRoleNamesForManifest, activateOperationalApprovalBundle, prepareProfilingRepairAmendment,
-  resolveActiveOperationalApproval, verifyApprovedCandidateArtifacts } from "../src/lib/operational/active-approval-bundle";
+  resolveActiveOperationalApproval, verifyApprovedCandidateArtifacts, prepareGlobalFeedbackBudgetAmendment } from "../src/lib/operational/active-approval-bundle";
 import { modelUpgradeCandidateRuntimeHash } from "../src/lib/operational/model-upgrade-candidate-identity";
 import { ScopedFeedbackBudgetSchema, selectInitialFeedbackBudget } from "../src/lib/operational/scoped-feedback-budget";
 import { getPromptForAgent } from "../src/lib/agents/prompts/registry";
@@ -70,6 +70,38 @@ try {
   check(() => assert.equal(readFileSync(parent.manifest_path, "utf8"), parentBefore));
   check(() => assert.equal(prepared.evidence.human_review.semantic_review_confirmed, false));
   check(() => assert.notEqual(prepared.evidence.runtime_candidate_hash, parentHash));
+  const scopedBundle = activateOperationalApprovalBundle({ ...verifyArgs, expectedSourceProviderRunId: prepared.evidence.source_provider_run_id,
+    expectedDerivedEvaluationId: prepared.evidence.derived_evaluation_id, confirmation: "activate approved gpt-5.6 operational candidate v2",
+    outputDirectory: path.join(root, "scoped-active") });
+  const scopedParent = resolveActiveOperationalApproval({ bundlePath: scopedBundle.bundle_path, env: {} });
+  assert(scopedParent?.kind === "derived_approval");
+  const globalArgs = { parent: scopedParent, expectedParentHash: prepared.evidence.runtime_candidate_hash,
+    validationEvidencePath: validationPath, authorizationReference: "SYNTHETIC GLOBAL FIXTURE ONLY" };
+  const global = prepareGlobalFeedbackBudgetAmendment({ ...globalArgs, outputDirectory: path.join(root, "global") });
+  const globalVerify = { approvedManifestPath: global.manifestPath, approvalEvidencePath: global.evidencePath,
+    expectedRuntimeHash: global.evidence.runtime_candidate_hash, expectedEvaluationProtocolHash: global.evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: global.evidence.approval_evidence_hash };
+  const globalManifest = verifyApprovedCandidateArtifacts(globalVerify).manifest;
+  check(() => assert.equal(globalManifest.runtime_policy.initial_feedback_max_output_tokens, 30000));
+  check(() => assert.equal(globalManifest.runtime_policy.initial_feedback_budget_grants, undefined));
+  check(() => assert.deepEqual(globalManifest.roles, scopedParent.manifest.roles));
+  for (let student = 0; student < 3; student++) for (let assessment = 0; assessment < 2; assessment++) {
+    const selection = selectInitialFeedbackBudget({ base, grants: [], globalMaxOutputTokens: 30000,
+      session: { user_db_id: randomUUID(), assessment_db_id: randomUUID() }, approvedRuntimeHash: global.evidence.runtime_candidate_hash });
+    check(() => assert.equal(selection.model_config.max_output_tokens, 30000));
+    check(() => assert.equal(selection.audit.approval_scope, "all_students"));
+    check(() => assert.equal(selection.audit.grant_id, null));
+  }
+  check(() => assert.throws(() => selectInitialFeedbackBudget({ base, grants: [grant], session, globalMaxOutputTokens: 30000, approvedRuntimeHash: parentHash })));
+  check(() => assert.equal(global.evidence.human_review.semantic_review_confirmed, false));
+  check(() => assert.throws(() => prepareGlobalFeedbackBudgetAmendment({ ...globalArgs, authorizationReference: "", outputDirectory: path.join(root, "unauthorized") })));
+  const invalidGlobal = structuredClone(globalManifest);
+  invalidGlobal.roles.student_profiling_agent!.max_output_tokens = 30000;
+  writeFileSync(global.manifestPath, JSON.stringify(invalidGlobal));
+  check(() => assert.throws(() => verifyApprovedCandidateArtifacts(globalVerify)));
+  writeFileSync(global.manifestPath, JSON.stringify(globalManifest));
+  writeFileSync(path.join(root, "global", "validation.json"), "{}");
+  check(() => assert.throws(() => verifyApprovedCandidateArtifacts(globalVerify)));
   check(() => assert.throws(() => prepareProfilingRepairAmendment({ ...args, expectedParentHash: "x".repeat(64), outputDirectory: path.join(root, "wrong") })));
   const tampered = structuredClone(verified.manifest);
   tampered.roles.formative_value_and_planning_agent!.max_output_tokens = 30000;

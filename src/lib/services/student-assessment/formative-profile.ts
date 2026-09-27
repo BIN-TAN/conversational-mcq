@@ -2478,6 +2478,7 @@ async function callProviderOrMock(input: {
             select: { user_db_id: true, assessment_db_id: true }
           });
           const selected = selectInitialFeedbackBudget({ base: modelConfig, session,
+            globalMaxOutputTokens: approval.manifest.runtime_policy.initial_feedback_max_output_tokens,
             grants: approval.manifest.runtime_policy.initial_feedback_budget_grants ?? [],
             approvedRuntimeHash: approval.record.runtime_candidate_hash });
           modelConfig = selected.model_config;

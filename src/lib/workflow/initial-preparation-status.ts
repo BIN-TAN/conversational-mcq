@@ -24,7 +24,7 @@ export async function getInitialPreparationStatus(session: {
       : paused ? "paused" as const : job.status === "pending" ? "queued" as const
       : job.status === "running" ? "preparing" as const : job.status === "retryable" ? "retrying" as const : job.status,
     can_retry: !terminal && !paused && recoverable,
-    can_continue: !terminal && !paused && recoverable,
+    can_continue: false,
     failure_reason: failed ? job.last_error_category === "output_token_limit" ? "output_token_limit" as const
       : job.last_error_category === "preparation_source_conflict" ? "source_conflict" as const
       : "unavailable" as const : null

@@ -23,6 +23,7 @@ const eventLabels: Record<string, string> = {
   package_review_opened: "Responses opened for review",
   package_submitted: "Response package submitted",
   initial_feedback_skipped: "Student continued after AI feedback was unavailable",
+  initial_feedback_terminated: "Student ended the attempt after AI feedback failed",
   attempt_paused: "Assessment paused",
   session_paused: "Assessment paused",
   attempt_resumed: "Assessment resumed",

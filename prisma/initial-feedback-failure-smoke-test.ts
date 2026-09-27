@@ -5,10 +5,9 @@ import { parse } from "csv-parse/sync";
 import { prisma } from "../src/lib/db";
 import { createResponseCollectionFixture, cleanupResponseCollectionFixture } from "./response-collection-smoke-fixture";
 import { cleanupSmokeStudentSessions } from "./student-mvp-smoke-helpers";
-import { submitInitialConceptUnitForPreparation, getStudentSessionState, startConceptUnitInitialAdministration } from "../src/lib/services/student-assessment/service";
+import { submitInitialConceptUnitForPreparation, getStudentSessionState, startConceptUnitInitialAdministration, endStudentAssessmentAttempt } from "../src/lib/services/student-assessment/service";
 import { processInitialPreparationJob } from "../src/lib/workflow/initial-preparation";
 import { getOwnedInitialPreparationStatus } from "../src/lib/workflow/initial-preparation-status";
-import { continueWithoutInitialFeedback } from "../src/lib/workflow/continue-without-feedback";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import { processEventLabel } from "../src/lib/services/teacher-review/process-data-summary";
 
@@ -61,51 +60,55 @@ async function evidence(id: string) {
 async function main() {
 try {
   const f = await fixture("single");
-  await assert.rejects(continueWithoutInitialFeedback(f.input));
-  await assert.rejects(continueWithoutInitialFeedback({ ...f.input, student_user_db_id: f.teacher.id }));
+  await assert.rejects(endStudentAssessmentAttempt({ ...f.input, student_user_db_id: f.teacher.id }));
   assert.equal(await fail(f, true), "failed");
   const status = (await getOwnedInitialPreparationStatus(f.input)).preparation;
   assert.equal(status?.failure_reason, "output_token_limit");
-  assert.equal(status?.can_continue, true);
+  assert.equal(status?.can_continue, false);
   assert.equal(status?.can_retry, true);
   const failedJob = await prisma.workflowJob.findUniqueOrThrow({ where: { id: f.job.id } });
   assert.equal(failedJob.attempt_count, 1);
   assert.equal(failedJob.max_attempts, 3);
-  pass("token exhaustion stops automatic repeats immediately; authorized retry and continuation remain available");
+  pass("token exhaustion stops automatic repeats; explicit retry stays available, continuation is disabled");
   await prisma.assessmentSession.update({ where: { id: f.session.id }, data: { status: "paused" } });
   assert.equal((await getOwnedInitialPreparationStatus(f.input)).preparation?.can_continue, false);
-  await assert.rejects(continueWithoutInitialFeedback(f.input));
   await prisma.assessmentSession.update({ where: { id: f.session.id }, data: { status: "active" } });
   const before = await evidence(f.session.id);
-  const results = await Promise.all(Array.from({ length: 4 }, () => continueWithoutInitialFeedback(f.input)));
-  assert.equal(results.filter(r => !r.already_continued).length, 1);
+  await prisma.assessmentSession.update({ where: { id: f.session.id }, data: { needs_review_reason: "Prior review concern" } });
+  const results = await Promise.all(Array.from({ length: 4 }, () => endStudentAssessmentAttempt(f.input)));
+  assert.equal(results.filter(r => r.end_status === "ended_by_student").length, 1);
   assert.deepEqual(await evidence(f.session.id), before);
   assert.deepEqual(await prisma.workflowJob.findUniqueOrThrow({ where: { id: f.job.id } }), failedJob);
   const state = await getStudentSessionState(f.input);
-  assert.equal(state.assessment_state, "SESSION_COMPLETE");
-  assert.equal(state.preparation?.status, "skipped");
+  assert.equal(state.preparation?.status, "cancelled");
   const persisted = await prisma.assessmentSession.findUniqueOrThrow({ where: { id: f.session.id } });
   assert.equal(persisted.needs_review, true);
+  assert(persisted.needs_review_reason?.includes("Prior review concern"));
+  assert.equal(persisted.status, "student_exited");
+  assert.equal(persisted.completed_at, null);
   const unit = await prisma.conceptUnitSession.findUniqueOrThrow({ where: { id: f.conceptUnitSession.id } });
   assert.equal(unit.followup_status, "incomplete");
   assert.equal(unit.followup_completed_at, null);
   assert.equal(await prisma.studentProfile.count({ where: { concept_unit_session_db_id: unit.id } }), 0);
   assert.equal(await prisma.formativeConversationProfileTransition.count({ where: { formative_conversation_session: { assessment_session_db_id: f.session.id } } }), 0);
-  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: f.session.id, event_type: "initial_feedback_skipped" } }), 1);
+  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: f.session.id, event_type: "initial_feedback_terminated" } }), 1);
+  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: f.session.id, event_type: { in: ["initial_feedback_skipped", "session_completed"] } } }), 0);
   await assert.rejects(submitInitialConceptUnitForPreparation(f.input));
-  pass("one idempotent technical continuation preserves sealed products and failed calls, creates no profile or learning gain, and marks support incomplete");
+  pass("one idempotent termination preserves products and failed calls; no completion, profile or learning gain; existing review flags retained");
 
   const bundle = await buildAnalysisReadyResearchDataBundle({ teacher_user_db_id: f.teacher.id, scope: "selected_session",
     session_public_id: f.session.session_public_id, include_incomplete_sessions: true });
   const events = parse(bundle.files.find(file => file.path === "process_events.csv")!.data, { columns: true, skip_empty_lines: true }) as { event_type: string }[];
-  assert.equal(events.filter(row => row.event_type === "initial_feedback_skipped").length, 1);
+  assert.equal(events.filter(row => row.event_type === "initial_feedback_terminated").length, 1);
   const sessions = parse(bundle.files.find(file => file.path === "sessions.csv")!.data, { columns: true, skip_empty_lines: true }) as Record<string, string>[];
   assert.equal(sessions[0].formative_activity_completion_status, "incomplete_technical_failure");
-  assert.equal(sessions[0].activity_skip_reason, "initial_feedback_unavailable");
-  assert.equal(sessions[0].assessment_completion_reason, "initial_feedback_unavailable");
+  assert.equal(sessions[0].activity_skip_reason, "");
+  assert.equal(sessions[0].assessment_completion_reason, "ended_after_initial_feedback_failure");
+  assert.equal(sessions[0].attempt_lifecycle_status, "ended_by_student");
+  assert.equal(sessions[0].selected_navigation_destination, "end_attempt");
   assert.equal(sessions[0].session_limitations, "initial_feedback_unavailable");
-  assert.equal(processEventLabel("initial_feedback_skipped"), "Student continued after AI feedback was unavailable");
-  pass("technical continuation is retained in research CSV and readable teacher process data");
+  assert.equal(processEventLabel("initial_feedback_terminated"), "Student ended the attempt after AI feedback failed");
+  pass("research CSV distinguishes technical termination from completion and skipped activities");
 
   const multi = await fixture("multiple_topics");
   const next = await prisma.conceptUnit.create({ data: {
@@ -123,24 +126,20 @@ try {
       administration_rules: item.administration_rules as Prisma.InputJsonValue } });
   }
   assert.equal(await fail(multi, true), "failed");
-  await continueWithoutInitialFeedback(multi.input);
-  assert.equal((await getStudentSessionState(multi.input)).assessment_state, "SESSION_START");
-  assert.equal((await getStudentSessionState(multi.input)).preparation, null);
-  await startConceptUnitInitialAdministration({ ...multi.input, concept_unit_public_id: next.concept_unit_public_id });
-  assert.equal((await getStudentSessionState(multi.input)).current_concept_unit?.concept_unit_public_id, next.concept_unit_public_id);
-  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: multi.session.id, event_type: "item_presented" } }), 1);
-  assert.equal((await continueWithoutInitialFeedback(multi.input)).already_continued, true);
-  pass("multi-topic continuation reaches the next real item and replay cannot skip another topic");
+  await endStudentAssessmentAttempt(multi.input);
+  await assert.rejects(startConceptUnitInitialAdministration({ ...multi.input, concept_unit_public_id: next.concept_unit_public_id }));
+  assert.equal(await prisma.conceptUnitSession.count({ where: { assessment_session_db_id: multi.session.id, concept_unit_db_id: next.id } }), 0);
+  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: multi.session.id, event_type: "item_presented" } }), 0);
+  assert.equal((await endStudentAssessmentAttempt(multi.input)).end_status, "already_ended");
+  pass("termination ends the whole attempt, never starts a later topic, and cannot resume on replay");
 
   const corrupt = await fixture("corrupt");
   await prisma.workflowJob.update({ where: { id: corrupt.job.id }, data: { status: "failed", last_error_category: "preparation_source_conflict" } });
   assert.equal((await getOwnedInitialPreparationStatus(corrupt.input)).preparation?.can_continue, false);
-  await assert.rejects(continueWithoutInitialFeedback(corrupt.input));
-  await prisma.workflowJob.update({ where: { id: corrupt.job.id }, data: { last_error_category: "preparation_failed", payload: {
-    ...(corrupt.job.payload as Prisma.JsonObject), response_package_hash: "tampered"
-  } } });
-  await assert.rejects(continueWithoutInitialFeedback(corrupt.input));
-  pass("source conflicts and tampered sealed evidence cannot be bypassed");
+  assert.equal((await getOwnedInitialPreparationStatus(corrupt.input)).preparation?.can_retry, false);
+  await endStudentAssessmentAttempt(corrupt.input);
+  assert.equal((await prisma.assessmentSession.findUniqueOrThrow({ where: { id: corrupt.session.id } })).status, "student_exited");
+  pass("source conflicts require teacher review but do not prevent a student from ending safely");
 
   const transient = await fixture("transient");
   await prisma.agentCall.create({ data: { assessment_session_db_id: transient.session.id,
@@ -154,12 +153,13 @@ try {
 
   const race = await fixture("race");
   await fail(race, true);
-  const raced = await Promise.allSettled([continueWithoutInitialFeedback(race.input), submitInitialConceptUnitForPreparation(race.input)]);
-  assert.equal(raced.filter(r => r.status === "fulfilled").length, 1);
+  const raced = await Promise.allSettled([endStudentAssessmentAttempt(race.input), submitInitialConceptUnitForPreparation(race.input)]);
+  assert.equal(raced[0].status, "fulfilled");
   const racedJob = await prisma.workflowJob.findUniqueOrThrow({ where: { id: race.job.id } });
-  const skips = await prisma.processEvent.count({ where: { assessment_session_db_id: race.session.id, event_type: "initial_feedback_skipped" } });
-  assert.equal(racedJob.status === "pending", skips === 0);
-  pass("concurrent retry and continue cannot both commit conflicting destinations");
+  assert(["failed", "cancelled"].includes(racedJob.status));
+  assert.equal((await prisma.assessmentSession.findUniqueOrThrow({ where: { id: race.session.id } })).status, "student_exited");
+  assert.equal(await prisma.processEvent.count({ where: { assessment_session_db_id: race.session.id, event_type: "initial_feedback_skipped" } }), 0);
+  pass("concurrent retry and end leaves no runnable work or next-topic destination");
   assert.equal(networkCalls, 0);
   console.log(JSON.stringify({ passed, external_provider_calls: 0 }));
 } finally {
