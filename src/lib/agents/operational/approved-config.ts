@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { listAgentPrompts } from "@/lib/agents/prompts/registry";
+import { STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION } from "@/lib/agents/student-profiling/semantic-validation";
 import {
   liveModelRoleEnvSources,
   modelConfigCompatibilityIssues,
@@ -589,6 +590,10 @@ function verifyDerivedApprovedOperationalConfig(
     ["TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS", env.TOPIC_DIALOGUE_MAX_STUDENT_MESSAGE_CHARS, manifest.runtime_policy.topic_dialogue_policy.maximum_student_message_characters],
     ["TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS", env.TOPIC_DIALOGUE_ALLOW_ASSESSMENT_SYSTEM_QUESTIONS, manifest.runtime_policy.topic_dialogue_policy.assessment_system_questions_allowed]
   ];
+  const approvedConsistencyVersion = manifest.configuration_fingerprint.deterministic_guard_versions.student_profile_evidence_consistency;
+  if (approvedConsistencyVersion && approvedConsistencyVersion !== STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION) {
+    issues.push({ code: "profile_evidence_validator_mismatch", message: "The profiling evidence validator does not match its approval." });
+  }
   for (const [name, actual, approved] of policyAssertions) {
     if (explicitlyConfigured(name) && actual !== approved) {
       issues.push({

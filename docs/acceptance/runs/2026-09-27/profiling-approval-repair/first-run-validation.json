@@ -1,0 +1,111 @@
+{
+  "version": "profiling-v6-scoped-budget-validation-v1",
+  "synthetic_only": true,
+  "real_student_data_used": false,
+  "profiling_prompt_hash": "d9778ba1809c54f84ceb0d91c9f36e22897e8f9a9113768f42a5c728ce1430e8",
+  "initial_feedback_prompt_hash": "a4813193fbfad117f06d461fd21642c0126bf8da3dfa30d994769b8d946a64e6",
+  "regression_passed": true,
+  "regression_logs": [
+    {
+      "test": "stance-evidence-smoke-test",
+      "sha256": "e34bc5a6055621ded5c6b53017a521f5effc6ad9e7c124c33fb7ed593abba4de"
+    },
+    {
+      "test": "student-profiling-semantic-validation-smoke-test",
+      "sha256": "fefe2c8d14219f6e1ca8362ae49744d4d7a7ef5e97a9af378a8e57dadda2608a"
+    },
+    {
+      "test": "profiling-repair-smoke-test",
+      "sha256": "211ac790cc7bbc3c25fab8eaefc5f5b4d7679974e2bf02916b7118ebca42f303"
+    }
+  ],
+  "calls": [
+    {
+      "role": "formative_value_and_planning_agent",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 30000,
+      "item_count": 3,
+      "status": "completed",
+      "checks_passed": true,
+      "latency_ms": 20789,
+      "usage": {
+        "input_tokens": 2907,
+        "output_tokens": 1726,
+        "total_tokens": 4633,
+        "reasoning_tokens": 956,
+        "cached_input_tokens": 0,
+        "raw": {
+          "input_tokens": 2907,
+          "input_tokens_details": {
+            "cache_write_tokens": 2904,
+            "cached_tokens": 0
+          },
+          "output_tokens": 1726,
+          "output_tokens_details": {
+            "reasoning_tokens": 956
+          },
+          "total_tokens": 4633
+        }
+      }
+    },
+    {
+      "role": "formative_value_and_planning_agent",
+      "model": "gpt-5.6-sol",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 30000,
+      "item_count": 12,
+      "status": "completed",
+      "checks_passed": true,
+      "latency_ms": 24075,
+      "usage": {
+        "input_tokens": 3864,
+        "output_tokens": 2713,
+        "total_tokens": 6577,
+        "reasoning_tokens": 493,
+        "cached_input_tokens": 2535,
+        "raw": {
+          "input_tokens": 3864,
+          "input_tokens_details": {
+            "cache_write_tokens": 1326,
+            "cached_tokens": 2535
+          },
+          "output_tokens": 2713,
+          "output_tokens_details": {
+            "reasoning_tokens": 493
+          },
+          "total_tokens": 6577
+        }
+      }
+    },
+    {
+      "role": "student_profiling_agent",
+      "model": "gpt-5.6-terra",
+      "reasoning_effort": "medium",
+      "max_output_tokens": 4000,
+      "item_count": 3,
+      "status": "completed",
+      "checks_passed": false,
+      "latency_ms": 17784,
+      "usage": {
+        "input_tokens": 4439,
+        "output_tokens": 1558,
+        "total_tokens": 5997,
+        "reasoning_tokens": 466,
+        "cached_input_tokens": 0,
+        "raw": {
+          "input_tokens": 4439,
+          "input_tokens_details": {
+            "cache_write_tokens": 4436,
+            "cached_tokens": 0
+          },
+          "output_tokens": 1558,
+          "output_tokens_details": {
+            "reasoning_tokens": 466
+          },
+          "total_tokens": 5997
+        }
+      }
+    }
+  ]
+}

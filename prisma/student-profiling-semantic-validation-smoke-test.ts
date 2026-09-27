@@ -370,6 +370,15 @@ function main() {
 
   const unresolvedItems = items(["correct", "incorrect", "correct"]);
   expectValid({
+    caseId: "local_misconception_does_not_resolve_package_conflict",
+    providerInput: profileInput({ initial: unresolvedItems }),
+    output: profileOutput({ itemFixtures: unresolvedItems, overrides: {
+      ability_profile: "partial_understanding",
+      integrated_diagnostic_profile: "conflicting_evidence_needs_clarification"
+    } }),
+    classification: "mixed_unresolved"
+  });
+  expectValid({
     caseId: "true_unresolved_conflict",
     providerInput: profileInput({ initial: unresolvedItems }),
     output: profileOutput({

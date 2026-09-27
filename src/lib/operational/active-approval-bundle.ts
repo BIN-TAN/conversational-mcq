@@ -14,11 +14,15 @@ import {
   modelUpgradeCandidateRuntimeSnapshot
 } from "./model-upgrade-candidate-identity";
 import { stableHash } from "./stable-hash";
+import { ScopedFeedbackBudgetSchema, type ScopedFeedbackBudget } from "./scoped-feedback-budget";
 
 export const ACTIVE_APPROVAL_BUNDLE_VERSION = "operational-active-approval-bundle-v1";
 export const ACTIVE_APPROVAL_RESOLVER_VERSION = "operational-active-approval-resolver-v1";
 export const OPERATIONAL_MODEL_UPGRADE_ACTIVATION_VERSION = "operational-model-upgrade-activation-v1";
 export const PLANNING_BUDGET_AMENDMENT_VERSION = "operational-planning-budget-amendment-v1";
+export const PROFILING_REPAIR_AMENDMENT_VERSION = "profiling-v6-scoped-budget-amendment-v1";
+const PROFILING_V5_HASH = "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626";
+export const PROFILING_V6_HASH = "d9778ba1809c54f84ceb0d91c9f36e22897e8f9a9113768f42a5c728ce1430e8";
 export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
   "operational-approved-runtime-local-materialization-v1";
 export const LEGACY_GPT54_APPROVED_RUNTIME_HASH =
@@ -57,6 +61,7 @@ const RoleConfigSchema = z.object({
 }).strict();
 
 const RuntimePolicySchema = z.object({
+  initial_feedback_budget_grants: z.array(ScopedFeedbackBudgetSchema).max(100).optional(),
   provider_timeout_ms: z.number().int().positive(),
   provider_max_retries: z.number().int().nonnegative(),
   role_live_toggles: z.object({
@@ -404,7 +409,9 @@ export function verifyApprovedCandidateArtifacts(input: {
       ? ["approved_manifest_artifact_path_mismatch"] : []),
     ...(evidence.approval_command_version === PLANNING_BUDGET_AMENDMENT_VERSION
       ? planningBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
-      : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
+      : evidence.approval_command_version === PROFILING_REPAIR_AMENDMENT_VERSION
+        ? profilingRepairAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
+        : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
   if (issues.length > 0) {
     throw new OperationalApprovalBundleError(
@@ -538,6 +545,114 @@ export function preparePlanningBudgetAmendment(input: {
     expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
     expectedApprovalEvidenceHash: evidence.approval_evidence_hash
   });
+  return { manifestPath, evidencePath, evidence };
+}
+
+// This is a narrowly bounded operator amendment, not a claim of a new full human
+// semantic evaluation. Only the reviewed prompt, consistency guard and one grant change.
+function profilingRepairAmendmentIssues(manifest: ApprovedCandidateManifest, evidence: OperationalApprovalEvidence, depth: number) {
+  const amendment = z.object({
+    parent_manifest: FileReferenceSchema, parent_evidence: FileReferenceSchema,
+    validation_evidence: FileReferenceSchema,
+    parent_runtime_hash: z.string().length(64), parent_protocol_hash: z.string().length(64),
+    parent_approval_hash: z.string().length(64), grant: ScopedFeedbackBudgetSchema
+  }).strict().parse(evidence.profiling_repair_amendment);
+  for (const file of [amendment.parent_manifest, amendment.parent_evidence, amendment.validation_evidence]) {
+    if (!path.isAbsolute(file.path) || sha256File(file.path) !== file.sha256) throw new Error("Profiling amendment evidence integrity mismatch.");
+  }
+  const parent = verifyApprovedCandidateArtifacts({
+    approvedManifestPath: amendment.parent_manifest.path, approvalEvidencePath: amendment.parent_evidence.path,
+    expectedRuntimeHash: amendment.parent_runtime_hash, expectedEvaluationProtocolHash: amendment.parent_protocol_hash,
+    expectedApprovalEvidenceHash: amendment.parent_approval_hash, approvalDepth: depth + 1
+  });
+  const expected = structuredClone(parent.manifest);
+  const old = expected.configuration_fingerprint.role_version_metadata.student_profiling_agent;
+  const parentMatches = old.prompt_version === "student-profiling-v5" && old.prompt_hash === PROFILING_V5_HASH &&
+    old.schema_version === "student-profile-output-v4" && !expected.runtime_policy.initial_feedback_budget_grants;
+  Object.assign(old, { prompt_version: "student-profiling-v6", prompt_hash: PROFILING_V6_HASH });
+  expected.configuration_fingerprint.deterministic_guard_versions.student_profile_evidence_consistency = "student-profile-evidence-consistency-v2";
+  expected.runtime_policy.initial_feedback_budget_grants = [amendment.grant];
+  const validation = z.object({
+    version: z.literal("profiling-v6-scoped-budget-validation-v1"), synthetic_only: z.literal(true),
+    real_student_data_used: z.literal(false), profiling_prompt_hash: z.literal(PROFILING_V6_HASH),
+    regression_passed: z.literal(true),
+    calls: z.array(z.object({
+      role: RoleNameSchema, model: z.string(), reasoning_effort: z.string(), max_output_tokens: z.number(),
+      item_count: z.number(), status: z.literal("completed"), checks_passed: z.literal(true)
+    }))
+  }).parse(JSON.parse(readFileSync(amendment.validation_evidence.path, "utf8")));
+  const planning = approvedCandidateRoleConfig(manifest, "formative_value_and_planning_agent");
+  const profiling = approvedCandidateRoleConfig(manifest, "student_profiling_agent");
+  const passedCall = (role: ApprovedOperationalRoleName, config: z.infer<typeof RoleConfigSchema>, tokens: number, size: number) =>
+    validation.calls.some(call => call.role === role && call.model === config.model_name &&
+      call.reasoning_effort === config.reasoning_effort && call.max_output_tokens === tokens && call.item_count === size);
+  const review = evidence.human_review;
+  return [
+    ...(!parentMatches ? ["profiling_amendment_unexpected_parent"] : []),
+    ...(stableHash(expected) !== stableHash(manifest) ? ["profiling_amendment_changed_other_settings"] : []),
+    ...(review.decision !== "approve" || review.scope !== "profiling_v6_and_scoped_initial_feedback_budget" ||
+      review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
+      typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
+      ? ["profiling_amendment_authorization_missing"] : []),
+    ...(evidence.source_artifact_sha256 !== amendment.validation_evidence.sha256 ||
+      evidence.source_evaluation_protocol_hash !== parent.evidence.evaluation_protocol_hash ||
+      evidence.rollback_hash !== parent.evidence.rollback_hash || evidence.evaluation_protocol_hash !== stableHash(amendment)
+      ? ["profiling_amendment_provenance_mismatch"] : []),
+    ...(![3, 12].every(size => passedCall("formative_value_and_planning_agent", planning, 30000, size)) ||
+      !passedCall("student_profiling_agent", profiling, profiling.max_output_tokens, 3)
+      ? ["profiling_amendment_validation_incomplete"] : [])
+  ];
+}
+
+export function prepareProfilingRepairAmendment(input: {
+  parent: ActiveDerivedOperationalApproval; expectedParentHash: string; validationEvidencePath: string;
+  outputDirectory: string; authorizationReference: string; grant: ScopedFeedbackBudget;
+}) {
+  const { parent } = input;
+  if (parent.record.runtime_candidate_hash !== input.expectedParentHash || !input.authorizationReference.trim()) {
+    throw new Error("Expected parent and explicit authorization are required.");
+  }
+  const grant = ScopedFeedbackBudgetSchema.parse(input.grant);
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false });
+  const manifest = structuredClone(parent.manifest);
+  Object.assign(manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent,
+    { prompt_version: "student-profiling-v6", prompt_hash: PROFILING_V6_HASH });
+  manifest.configuration_fingerprint.deterministic_guard_versions.student_profile_evidence_consistency = "student-profile-evidence-consistency-v2";
+  manifest.runtime_policy.initial_feedback_budget_grants = [grant];
+  const manifestPath = path.join(directory, "approved-candidate-manifest.json");
+  const validationPath = path.join(directory, "validation.json");
+  copyFileSync(input.validationEvidencePath, validationPath);
+  const amendment = {
+    parent_manifest: { path: parent.manifest_path, sha256: sha256File(parent.manifest_path) },
+    parent_evidence: { path: parent.approval_evidence_path, sha256: sha256File(parent.approval_evidence_path) },
+    validation_evidence: { path: validationPath, sha256: sha256File(validationPath) },
+    parent_runtime_hash: parent.record.runtime_candidate_hash, parent_protocol_hash: parent.record.evaluation_protocol_hash,
+    parent_approval_hash: parent.record.approval_evidence_hash, grant
+  };
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
+  const identity = {
+    source_provider_run_id: `profiling-repair:${amendment.validation_evidence.sha256}`,
+    derived_evaluation_id: `${PROFILING_REPAIR_AMENDMENT_VERSION}:${runtimeHash}`,
+    runtime_candidate_hash: runtimeHash, source_evaluation_protocol_hash: parent.evidence.evaluation_protocol_hash,
+    evaluation_protocol_hash: stableHash(amendment), human_review: {
+      decision: "approve", scope: "profiling_v6_and_scoped_initial_feedback_budget", operator_authorized: true,
+      semantic_review_confirmed: false, authorization_reference: input.authorizationReference,
+      limitations: "Operator-authorized narrow amendment with automated regression and synthetic live checks. Not an independent human semantic evaluation or evidence of classroom validity. Unchanged roles retain parent approval."
+    }
+  };
+  const evidence: OperationalApprovalEvidence = {
+    ...identity, approval_command_version: PROFILING_REPAIR_AMENDMENT_VERSION, approved_at: new Date().toISOString(),
+    source_artifact_sha256: amendment.validation_evidence.sha256, approval_evidence_hash: stableHash(identity),
+    exact_operational_approved_config_hash: runtimeHash, rollback_hash: parent.evidence.rollback_hash,
+    approved_manifest_artifact_path: manifestPath, profiling_repair_amendment: amendment
+  };
+  const evidencePath = path.join(directory, "approval-evidence.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
+  verifyApprovedCandidateArtifacts({ approvedManifestPath: manifestPath, approvalEvidencePath: evidencePath,
+    expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: evidence.approval_evidence_hash });
   return { manifestPath, evidencePath, evidence };
 }
 

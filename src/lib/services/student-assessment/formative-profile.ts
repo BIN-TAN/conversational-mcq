@@ -3,6 +3,8 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
+import { resolveActiveOperationalApproval } from "@/lib/operational/active-approval-bundle";
+import { selectInitialFeedbackBudget } from "@/lib/operational/scoped-feedback-budget";
 import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
 import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./formative-conversation/availability";
 import { FormativeValueSchema } from "@/lib/domain/enums";
@@ -2457,6 +2459,7 @@ async function callProviderOrMock(input: {
   let modelName = "mock-chat-native-formative-profile";
   let liveCallAllowed = false;
   let modelConfig: AgentModelConfig | null = null;
+  let budgetAudit: ReturnType<typeof selectInitialFeedbackBudget>["audit"] | null = null;
 
   const executionPlan = resolveTopicDialogueExecutionPlan(input.execution_mode);
   if (executionPlan.adapter === "configured_live_runtime") {
@@ -2468,6 +2471,18 @@ async function callProviderOrMock(input: {
 
       if (liveCallAllowed) {
         modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
+        const approval = resolveActiveOperationalApproval();
+        if (approval?.kind === "derived_approval") {
+          const session = await prisma.assessmentSession.findUniqueOrThrow({
+            where: { id: input.assessment_session_db_id },
+            select: { user_db_id: true, assessment_db_id: true }
+          });
+          const selected = selectInitialFeedbackBudget({ base: modelConfig, session,
+            grants: approval.manifest.runtime_policy.initial_feedback_budget_grants ?? [],
+            approvedRuntimeHash: approval.record.runtime_candidate_hash });
+          modelConfig = selected.model_config;
+          budgetAudit = selected.audit;
+        }
         modelName = modelConfig.model_name;
       }
     } catch (error) {
@@ -2490,7 +2505,8 @@ async function callProviderOrMock(input: {
     max_output_tokens: modelConfig?.max_output_tokens ?? null,
     prompt_version: CHAT_NATIVE_PROFILE_PROMPT_VERSION,
     schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION,
-    input_payload: prismaJson(redactForAudit(input.provider_input)),
+    input_payload: prismaJson(redactForAudit({ ...jsonRecord(input.provider_input),
+      ...(budgetAudit ? { runtime_budget: budgetAudit } : {}) })),
     live_call_allowed: liveCallAllowed,
     call_status: "started",
     started_at: startedAt

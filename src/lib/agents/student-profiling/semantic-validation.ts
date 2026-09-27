@@ -5,7 +5,7 @@ type StudentProfileOutput = AgentOutputByName["student_profiling_agent"];
 type JsonRecord = Record<string, unknown>;
 
 export const STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION =
-  "student-profile-evidence-consistency-v1" as const;
+  "student-profile-evidence-consistency-v2" as const;
 
 export const studentProfileEvidenceConsistencyValues = [
   "coherent",
@@ -195,6 +195,11 @@ function outputSupportsDominantInterpretation(
   groundedItemReferences: Set<string>,
   groundedMisconceptionReferences: Set<string>
 ) {
+  // A grounded local misconception can coexist with conflicting responses.
+  // Its presence is not evidence that the package-level conflict is resolved.
+  if (output.integrated_diagnostic_profile === "conflicting_evidence_needs_clarification") {
+    return false;
+  }
   const groundedOutputReferences = output.item_level_evidence
     .map((item) => item.item_public_id)
     .filter(

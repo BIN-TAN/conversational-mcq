@@ -1,5 +1,10 @@
 # Initial feedback budget and instructional evidence boundaries
 
+**Status clarification:** This describes the earlier proposed class-wide 10,000
+amendment, not proof that it became active. The subsequent authorized scope is
+one student/test at 30,000, with other role-wide budgets unchanged. See
+`PROFILING_APPROVAL_REPAIR_2026-09-27.md` and the verified deployment ledger.
+
 ## Observed problem
 
 Synthetic live-provider checks completed a three-item initial package with a
