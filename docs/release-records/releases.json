@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-26T21:42:33-06:00",
+  "updated_at": "2026-09-26T23:04:00-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -427,6 +427,70 @@
         "prisma/student-formative-live-validation-smoke-test.ts",
         "docs/DATA_LOGGING_SPEC.md",
         "docs/INITIAL_PREPARATION_RETRY_INCIDENT_2026-09-26.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-05",
+      "date": "2026-09-26",
+      "title": "初始反馈额度与教学证据边界修复",
+      "application_commit": "17c73d8127f4dc5224e4c0c03f0a14bf95b9feec",
+      "push_status": "已推送 origin/main，远端完整提交核对一致；未提交无关 output 或 outputs 文件。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-das9umnf3r2c73aob2gg",
+        "source_commit": "17c73d8127f4dc5224e4c0c03f0a14bf95b9feec",
+        "verified_at": "2026-09-26T23:04:00-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-das9umnf3r2c73aob2gg",
+        "evidence": [
+          "Render 于 22:45:14 MDT 开始构建指定提交，22:49:32 启动日志报告 Live；刷新后的服务页面显示同一部署为 Live。SSH 的 RENDER_GIT_COMMIT 与完整应用提交一致。",
+          "build/application-build-info.json 记录相同应用提交，构建时间 2026-09-27T04:45:56.034Z，artifact_hash 为 a8d53a392c70f5d0acbf06a007312107c540b24ea514ff56356a248353fa1384。22:56:16 MDT 公开健康检查成功，status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。",
+          "只读确认 initial-preparation-worker.ts PID 15 正在运行，old-space=96 MiB、semi-space=4 MiB。健康与进程检查不等于 AI 配置或教学质量已全部通过。",
+          "10000 token 预算修订已在独立持久目录暂存，旧配置未覆盖。原配置与暂存配置的广义批准校验均报告 student_profiling_agent 的 prompt_version 和 prompt_hash 两项既有不匹配；定向规划角色解析成功，但不能据此称整体 readiness 通过。",
+          "带上述已知警告的生产配置保存被风险审查阻止，未保存、未触发第二次部署；随后取消了四项未保存环境编辑。运行中批准配置哈希仍为 5a2b689cb61b3ea771254a1fbc059eba95260c71092282e7ada78a704ce841f6，初始规划额度仍为 3000。已请求针对该风险的明确批准，尚未收到答复。",
+          "22:58 MDT 根据教师要求，为一个失败的学生准备任务执行一次有审计的技术重试，保留原学生尝试编号。22:59:04 任务再次 failed；新调用明确记录 incomplete_reason=max_output_tokens，output_tokens=3000，max_output_tokens=3000。没有宣称学生已恢复，也没有继续循环重试。"
+        ]
+      },
+      "summary": "初始反馈重试审计及教学证据边界修改已上线；较大输出额度的代码与批准修订工具已部署，但生产配置切换被阻止，当前仍使用 3000 上限。一次真实技术恢复确认输出额度耗尽，学生尚未恢复；原回答及研究记录完整保留。",
+      "changes": [
+        {"area": "初始反馈容量", "problem": "合成 12 题初始反馈在 3000 输出 token 上限时未完成；部署后真实恢复也明确记录 max_output_tokens。", "fix": "仅将初始反馈规划角色的默认上限提高至 10000，并提供可追溯的预算修订；生产批准清单仍覆盖该默认值，修订尚未激活。", "impact": "模型、reasoning effort、其他角色预算和输出验证保持不变。激活后可能增加较长测验的用量和等待时间；目前不能报告线上额度问题已解决。"},
+        {"area": "保留批准配置来源", "problem": "生产运行时锁定于已有批准清单，单改环境额度会被配置验证拒绝。", "fix": "新增严格限定的预算修订流程。验证原批准、文件哈希、同模型容量证据及唯一允许的 3000 到 10000 差异；保留旧批准与回滚材料。", "impact": "预算授权不冒充新的人类语义审查，不将旧完整评估说成在新额度下重新运行。其他模型或角色修改均被拒绝。"},
+        {"area": "失败原因可审计", "problem": "既有初始反馈失败记录未明确保存供应商的 incomplete_reason，难以区分额度耗尽与其他原因。", "fix": "将安全原因保存到已有 agent_calls.incomplete_reason 字段及验证诊断；缺少 raw output 时补入安全失败元数据。只接受 max_output_tokens、content_filter，其他原因记为 unspecified。", "impact": "不虚构历史缺失值，不将未完成反馈显示给学生，不删除失败调用。"},
+        {"area": "教学结论与证据匹配", "problem": "先前合成示例将一个人的相近分数用于暗示总体信度证据，结论超过示例能支持的范围。", "fix": "Host v7.9 要求区分个人一致性与群体信度；教学示例须明确假定已有适当研究，而非用一个例子估计信度、证明因果或证明普遍迁移。", "impact": "保留旧版本识别和 confidence_alignment 的历史含义；不因后续回答正确就改写最初信心。"}
+      ],
+      "data_impact": [
+        "无数据库迁移。原始作答、封存包、历史画像、失败调用与原 attempt_number 不因代码部署而改写。",
+        "新的安全 incomplete_reason 使用现有研究字段；旧记录的原因缺失仍保持缺失。运行时配置哈希与 prompt version 用于区分之后生成的数据。",
+        "技术重试与 WorkflowOverride、workflow_retry_requested 事件在同一事务中登记，明确教师请求和操作原因；技术次数由 9/9 增至 10/10，不是新学生尝试。未删除、重编号或返还学生机会，没有改写学生最后活动时间。",
+        "重试后四条 ItemResponse 及一个 ResponsePackage 的完整记录 SHA-256 分别与重试前一致；此档案仅记录数量与核验结果，不包含学生身份、会话 ID 或原始回答。旧失败调用保留，新失败调用保存明确额度原因。"
+      ],
+      "tests": [
+        {"name": "完整工程与浏览器回归", "result": "通过", "detail": "62 个 classroom suites、20 个 navigation suites（含 65 场景矩阵）及三个浏览器套件通过。包含 typecheck、lint 和生产构建；套件计数存在重叠，不作为独立实验数相加。"},
+        {"name": "最终元数据补充复测", "result": "通过", "detail": "完整回归后补入专用 incomplete_reason 字段，再次通过 typecheck、lint、生产构建及四类低内存测试。Lint 零错误、五条既有警告；构建生成 83 页面，保留 Webpack 缓存与既有未使用导入警告。"},
+        {"name": "内存受限的数据与恢复检查", "result": "最终通过，保留一次超时", "detail": "old-space 96 MiB、semi-space 4 MiB 下，初始准备、provider 边界、持久化审计和 65536 行研究导出通过。中间一次 provider 边界运行在首条恢复断言通过后超时；原因未确认，换新隔离数据库重跑约 40 秒通过。保留失败与复测记录，不抹去超时。"},
+        {"name": "真实模型六场景", "result": "12 回合通过机械检查", "detail": "v7.9 六个双回合场景共 14 次真实 provider 调用，12 条回复通过全部 72 个冻结检查。两个候选被来源或保留字段验证拒绝后重新生成；离线回放重现 12 次接受和两次拒绝。中位延迟 17.059 秒，最大 50.108 秒。人工独立审查仍待开展。"},
+        {"name": "预算修订防护", "result": "定向检查通过", "detail": "验证原批准来源、仅改变初始规划额度、暂存不切换当前配置，并拒绝模型变更、其他角色额度变更、超过 10000、缺少授权、虚构语义审查及篡改证据。"},
+        {"name": "旧批准夹具限制", "result": "未通过，已记录", "detail": "较宽的历史 activation fixture 因 student_profiling_agent 的 prompt version/hash/schema 三项过时而失败。未修改的 HEAD 版脚本同样复现；没有放宽断言。新的 planning-budget-only 检查单独通过。"},
+        {"name": "初始反馈真实容量样例", "result": "10000 上限样例通过", "detail": "上一轮保留的四次调用显示：3 题在两个额度均通过；12 题在 3000 未完成，在 10000 完成并通过 schema 和逐题解释检查。不是全流程、所有题量或真实学生回答的保证。"},
+        {"name": "生产配置 readiness", "result": "存在阻断，未切换配置", "detail": "当前和暂存批准配置均有 profiling prompt version/hash 两项不匹配。原完整历史测试有三项过时与此生产两项结果分开记录；未放宽审批校验或改写旧批准证据。"},
+        {"name": "教师请求的单次技术恢复", "result": "未恢复，明确额度原因", "detail": "原始四条回答和一个封存包哈希不变，恢复操作及事件已登记。新规划调用达到 3000 输出上限而 incomplete；没有显示未完成输出，没有生成重复回答或新学生尝试。"}
+      ],
+      "limitations": [
+        "工程与机械检查不等于教学效度、模型语义准确率、学习收益或全课堂并发验证。后续仍需教师监督及代表性学生试用。",
+        "暂存预算修订保留原语义批准来源；未激活，未重跑原全部模型升级评估，也不声称取得新的独立人类语义批准。生产配置警告仍待解决或明确风险批准。",
+        "单次合成例子的改进不保证模型永不做出过强解释。真实学生恢复必须根据实际后台结果单独报告。",
+        "保存了本地超时和旧夹具失败，不报告所有历史脚本均通过。没有重新解释或补造历史研究资料。",
+        "用户要求的学生恢复尚未完成。只进行一次非破坏性准备重试，没有删除原尝试或返还机会；需要先处理当前额度与批准配置问题，不能要求学生反复新开尝试解决。"
+      ],
+      "references": [
+        "docs/INITIAL_FEEDBACK_BUDGET_AMENDMENT_2026-09-27.md",
+        "docs/acceptance/runs/2026-09-27/initial-feedback-fix/REPORT.md",
+        "docs/acceptance/runs/2026-09-26/post-deployment-simulation/REPORT.md",
+        "src/lib/operational/active-approval-bundle.ts",
+        "prisma/operational-planning-budget-amend.ts",
+        "src/lib/services/student-assessment/formative-profile.ts",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts"
       ]
     }
   ],
