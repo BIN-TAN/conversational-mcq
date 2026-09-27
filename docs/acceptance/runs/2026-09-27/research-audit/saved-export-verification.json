@@ -1,0 +1,393 @@
+{
+  "read_only": true,
+  "existing_artifacts": [
+    {
+      "created_at": "2026-09-26T23:20:41.608Z",
+      "artifact_available": true,
+      "manifest_snapshot": "2026-09-26T23:20:46.469Z",
+      "app_commit": "108abf11d99a4b391531f74f34f75e6f67c3fb71",
+      "scope": "all_authorized",
+      "zip_crc_verified": true,
+      "checks": [
+        {
+          "path": "response_stage_visits.csv",
+          "pass": true
+        },
+        {
+          "path": "item_behavior_summary.csv",
+          "pass": true
+        },
+        {
+          "path": "response_stage_events.csv",
+          "pass": true
+        },
+        {
+          "path": "response_revision_history.csv",
+          "pass": true
+        },
+        {
+          "path": "feedback_exposure_events.csv",
+          "pass": true
+        },
+        {
+          "path": "response_stage_data_dictionary.csv",
+          "pass": true
+        },
+        {
+          "path": "response_stage_notes.txt",
+          "pass": true
+        },
+        {
+          "path": "sessions.csv",
+          "pass": true
+        },
+        {
+          "path": "item_responses.csv",
+          "pass": true
+        },
+        {
+          "path": "process_events.csv",
+          "pass": true
+        },
+        {
+          "path": "conversation_turns.csv",
+          "pass": true
+        },
+        {
+          "path": "agent_activity_records.csv",
+          "pass": true
+        },
+        {
+          "path": "profile_item_evidence.csv",
+          "pass": true
+        },
+        {
+          "path": "profile_data_dictionary.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_sessions.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_turns.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_events.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_llm_calls.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_profile_transitions.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_interventions.csv",
+          "pass": true
+        },
+        {
+          "path": "formative_conversation_data_dictionary.csv",
+          "pass": true
+        },
+        {
+          "path": "assessment_content.csv",
+          "pass": true
+        },
+        {
+          "path": "assessment_summary.csv",
+          "pass": true
+        },
+        {
+          "path": "research_data_dictionary.csv",
+          "pass": true
+        },
+        {
+          "path": "process_event_codebook.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_records.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_submission_items.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_paired_changes.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_class_summaries.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_data_dictionary.csv",
+          "pass": true
+        },
+        {
+          "path": "attempt_comparison_notes.txt",
+          "pass": true
+        },
+        {
+          "path": "data_coverage.csv",
+          "pass": true
+        },
+        {
+          "path": "data_coverage_notes.txt",
+          "pass": true
+        },
+        {
+          "path": "README.txt",
+          "pass": true
+        },
+        {
+          "path": "session_foreign_keys",
+          "pass": true
+        },
+        {
+          "path": "response_snapshot_keys",
+          "pass": true
+        }
+      ],
+      "rows": {
+        "response_stage_visits.csv": 192,
+        "item_behavior_summary.csv": 43,
+        "response_stage_events.csv": 1401,
+        "response_revision_history.csv": 3,
+        "feedback_exposure_events.csv": 0,
+        "response_stage_data_dictionary.csv": 121,
+        "sessions.csv": 10,
+        "item_responses.csv": 42,
+        "process_events.csv": 3216,
+        "conversation_turns.csv": 499,
+        "agent_activity_records.csv": 192,
+        "profile_item_evidence.csv": 73,
+        "profile_data_dictionary.csv": 33,
+        "formative_conversation_sessions.csv": 8,
+        "formative_conversation_turns.csv": 74,
+        "formative_conversation_events.csv": 218,
+        "formative_conversation_llm_calls.csv": 41,
+        "formative_conversation_profile_transitions.csv": 0,
+        "formative_conversation_interventions.csv": 0,
+        "formative_conversation_data_dictionary.csv": 170,
+        "assessment_content.csv": 42,
+        "assessment_summary.csv": 10,
+        "research_data_dictionary.csv": 440,
+        "process_event_codebook.csv": 228,
+        "attempt_records.csv": 10,
+        "attempt_submission_items.csv": 38,
+        "attempt_paired_changes.csv": 0,
+        "attempt_class_summaries.csv": 20,
+        "attempt_data_dictionary.csv": 64,
+        "data_coverage.csv": 1275
+      },
+      "coverage": [
+        {
+          "dataset": "response_stage_visits.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "time_to_first_action_ms",
+          "row_count": "192",
+          "populated_count": "185",
+          "blank_count": "7",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "96.35",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "response_stage_visits.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "time_to_accepted_submission_ms",
+          "row_count": "192",
+          "populated_count": "181",
+          "blank_count": "11",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "94.27",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "response_stage_visits.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "system_wait_ms",
+          "row_count": "192",
+          "populated_count": "192",
+          "blank_count": "0",
+          "zero_count": "7",
+          "false_count": "0",
+          "populated_percent": "100",
+          "coverage_status": "populated"
+        },
+        {
+          "dataset": "response_stage_visits.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "hidden_duration_ms",
+          "row_count": "192",
+          "populated_count": "191",
+          "blank_count": "1",
+          "zero_count": "174",
+          "false_count": "0",
+          "populated_percent": "99.48",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "first_action_ms",
+          "row_count": "43",
+          "populated_count": "42",
+          "blank_count": "1",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "97.67",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "reasoning_start_latency_ms",
+          "row_count": "43",
+          "populated_count": "41",
+          "blank_count": "2",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "95.35",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "reasoning_time_ms",
+          "row_count": "43",
+          "populated_count": "41",
+          "blank_count": "2",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "95.35",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "confidence_time_ms",
+          "row_count": "43",
+          "populated_count": "41",
+          "blank_count": "2",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "95.35",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "system_wait_ms",
+          "row_count": "43",
+          "populated_count": "43",
+          "blank_count": "0",
+          "zero_count": "1",
+          "false_count": "0",
+          "populated_percent": "100",
+          "coverage_status": "populated"
+        },
+        {
+          "dataset": "item_behavior_summary.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "hidden_duration_ms",
+          "row_count": "43",
+          "populated_count": "42",
+          "blank_count": "1",
+          "zero_count": "29",
+          "false_count": "0",
+          "populated_percent": "97.67",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "formative_conversation_turns.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "response_time_ms",
+          "row_count": "74",
+          "populated_count": "74",
+          "blank_count": "0",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "100",
+          "coverage_status": "populated"
+        },
+        {
+          "dataset": "formative_conversation_turns.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "typing_duration_ms",
+          "row_count": "74",
+          "populated_count": "33",
+          "blank_count": "41",
+          "zero_count": "0",
+          "false_count": "0",
+          "populated_percent": "44.59",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "formative_conversation_turns.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "edit_count",
+          "row_count": "74",
+          "populated_count": "33",
+          "blank_count": "41",
+          "zero_count": "4",
+          "false_count": "0",
+          "populated_percent": "44.59",
+          "coverage_status": "partly_populated"
+        },
+        {
+          "dataset": "formative_conversation_turns.csv",
+          "group_by": "all_rows",
+          "group_value": "all",
+          "variable_name": "paste_event_count",
+          "row_count": "74",
+          "populated_count": "33",
+          "blank_count": "41",
+          "zero_count": "26",
+          "false_count": "0",
+          "populated_percent": "44.59",
+          "coverage_status": "partly_populated"
+        }
+      ],
+      "timing_quality": {
+        "valid": 190,
+        "partial": 2
+      },
+      "timing_limitations": {
+        "blank": 190,
+        "server_outcome_missing": 1,
+        "visit_end_missing": 1
+      },
+      "profile_validity": {
+        "validated": 7,
+        "intermediate": 16,
+        "fallback": 1
+      },
+      "reassessment": {
+        "reassessment_incomplete": 7,
+        "not_reassessed": 1
+      }
+    }
+  ]
+}

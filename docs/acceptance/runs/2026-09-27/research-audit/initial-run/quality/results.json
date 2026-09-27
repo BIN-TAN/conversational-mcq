@@ -1,0 +1,286 @@
+{
+  "status": "passed",
+  "fixture_counts": {
+    "sessions": 1,
+    "submitted_items": 8,
+    "exported_items": 8,
+    "exported_events": 127
+  },
+  "passed": 28,
+  "failed": 0,
+  "provider_calls": 0,
+  "model_auth_requests": 0,
+  "real_dispatch_checkpoints": 0,
+  "network_attempts": 0,
+  "cleanup_succeeded": true,
+  "results": [
+    {
+      "name": "concurrent ambiguous-delivery retries persist once",
+      "passed": true,
+      "observed": {
+        "persisted_count": 1,
+        "submitted_retries": 8
+      }
+    },
+    {
+      "name": "actual ZIP CRC, entry bytes and coverage match the export",
+      "passed": true,
+      "observed": {
+        "entries": 35
+      }
+    },
+    {
+      "name": "all eight completed item rows are retained",
+      "passed": true,
+      "observed": {
+        "sessions": 1,
+        "submitted_items": 8,
+        "exported_items": 8,
+        "exported_events": 127
+      }
+    },
+    {
+      "name": "initial package summary counts all eight completed items",
+      "passed": true,
+      "observed": {
+        "actual": "8",
+        "completed": "8",
+        "expected": 8
+      }
+    },
+    {
+      "name": "one accepted confidence action counts once per item",
+      "passed": true,
+      "observed": [
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1",
+        "1"
+      ]
+    },
+    {
+      "name": "response snapshot foreign keys resolve to content",
+      "passed": true,
+      "observed": {
+        "resolved": 8,
+        "total": 8
+      }
+    },
+    {
+      "name": "process event snapshot foreign keys resolve to content",
+      "passed": true,
+      "observed": {
+        "resolved": 124,
+        "total": 124
+      }
+    },
+    {
+      "name": "all six supported item options survive content export",
+      "passed": true,
+      "observed": {
+        "option_columns": [
+          "option_a_text",
+          "option_b_text",
+          "option_c_text",
+          "option_d_text",
+          "option_e_text",
+          "option_f_text"
+        ],
+        "administered_options": 6
+      }
+    },
+    {
+      "name": "non-applicable tempting-option boolean remains null",
+      "passed": true,
+      "observed": {
+        "event_type": "typing_activity_summary",
+        "actual": "",
+        "expected": "empty"
+      }
+    },
+    {
+      "name": "captured typing and paste details reach normalized export",
+      "passed": true,
+      "observed": {
+        "typing_key_count_column_present": true,
+        "paste_length_band_column_present": true,
+        "persisted_key_count": 17
+      }
+    },
+    {
+      "name": "CSV multiline text round-trips with formula neutralization",
+      "passed": true,
+      "observed": {
+        "formula_neutralized": true,
+        "row_count": 8
+      }
+    },
+    {
+      "name": "all session foreign keys resolve",
+      "passed": true,
+      "observed": {
+        "files": 35
+      }
+    },
+    {
+      "name": "returned CSV row counts equal parsed counts",
+      "passed": true,
+      "observed": {
+        "files": 35
+      }
+    },
+    {
+      "name": "ordinary export excludes raw account identifiers",
+      "passed": true,
+      "observed": {
+        "files_checked": 35
+      }
+    },
+    {
+      "name": "ordinary item content excludes restricted key columns",
+      "passed": true,
+      "observed": {
+        "restricted_columns_absent": true
+      }
+    },
+    {
+      "name": "standard ZIP contains a reproducibility manifest",
+      "passed": true,
+      "observed": {
+        "files": [
+          "response_stage_visits.csv",
+          "item_behavior_summary.csv",
+          "response_stage_events.csv",
+          "response_revision_history.csv",
+          "feedback_exposure_events.csv",
+          "response_stage_data_dictionary.csv",
+          "response_stage_notes.txt",
+          "sessions.csv",
+          "item_responses.csv",
+          "process_events.csv",
+          "conversation_turns.csv",
+          "agent_activity_records.csv",
+          "profile_item_evidence.csv",
+          "profile_data_dictionary.csv",
+          "formative_conversation_sessions.csv",
+          "formative_conversation_turns.csv",
+          "formative_conversation_events.csv",
+          "formative_conversation_llm_calls.csv",
+          "formative_conversation_profile_transitions.csv",
+          "formative_conversation_interventions.csv",
+          "formative_conversation_data_dictionary.csv",
+          "assessment_content.csv",
+          "assessment_summary.csv",
+          "research_data_dictionary.csv",
+          "process_event_codebook.csv",
+          "attempt_records.csv",
+          "attempt_submission_items.csv",
+          "attempt_paired_changes.csv",
+          "attempt_class_summaries.csv",
+          "attempt_data_dictionary.csv",
+          "attempt_comparison_notes.txt",
+          "data_coverage.csv",
+          "data_coverage_notes.txt",
+          "README.txt",
+          "research_manifest.json"
+        ],
+        "row_counts_only_returned_to_caller": true
+      }
+    },
+    {
+      "name": "manifest hashes and coverage match all other ZIP entries",
+      "passed": true,
+      "observed": {
+        "listed": 34,
+        "actual": 34
+      }
+    },
+    {
+      "name": "event public identity survives a delayed earlier event",
+      "passed": true,
+      "observed": {}
+    },
+    {
+      "name": "explicit restricted export retains scored outcome",
+      "passed": true,
+      "observed": {
+        "rows": 8
+      }
+    },
+    {
+      "name": "deactivation preserves historical response rows and pseudonym",
+      "passed": true,
+      "observed": {
+        "rows": 8
+      }
+    },
+    {
+      "name": "overlapping idle thresholds do not exceed elapsed time",
+      "passed": true,
+      "observed": {
+        "idle_ms": 300000,
+        "elapsed_ms": 300000,
+        "expected_idle_ms": 300000
+      }
+    },
+    {
+      "name": "hidden time while paused is not subtracted from active windows again",
+      "passed": true,
+      "observed": {
+        "active_ms": 120000,
+        "visible_ms": 120000,
+        "expected_visible_ms": 120000
+      }
+    },
+    {
+      "name": "absent visibility instrumentation is not reported as measured visible time",
+      "passed": true,
+      "observed": {
+        "visible_ms": null,
+        "quality": "partial"
+      }
+    },
+    {
+      "name": "unmeasured active interaction stays null",
+      "passed": true,
+      "observed": {
+        "active_interaction_ms": null
+      }
+    },
+    {
+      "name": "documented active typing sum includes all valid summaries",
+      "passed": true,
+      "observed": {
+        "actual_ms": 5000,
+        "expected_ms": 5000
+      }
+    },
+    {
+      "name": "rejected telemetry HTTP requests are surfaced as failed delivery",
+      "passed": true,
+      "observed": {
+        "simulated_http_status": 500,
+        "client_reported_success": false
+      }
+    },
+    {
+      "name": "refused beacon is surfaced as failed delivery",
+      "passed": true,
+      "observed": {
+        "simulated_beacon_accepted": false,
+        "client_reported_success": false
+      }
+    },
+    {
+      "name": "no provider or model-auth request attempted",
+      "passed": true,
+      "observed": {
+        "attempted_fetch_requests": 0
+      }
+    }
+  ]
+}

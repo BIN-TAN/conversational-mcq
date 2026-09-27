@@ -8,11 +8,13 @@ const SAFE_PAYLOAD_KEYS = new Set(["key_count", "backspace_count", "enter_key_co
 
 type Pending = { event: FrontendProcessEvent; queued_at: number };
 SAFE_TYPES.add("response_stage_observation");
+for (const type of ["package_results_shown", "item_correctness_status_shown", "formative_feedback_shown"]) SAFE_TYPES.add(type);
+for (const key of ["content_id", "content_kind", "turn_id", "source_turn_sequence_index", "conversation_public_id", "display_event_contract_version", "observation_method", "minimum_visible_ms"]) SAFE_PAYLOAD_KEYS.add(key);
 for (const key of ["observation_version", "stage_visit_id", "response_stage", "response_phase", "observation_kind", "monotonic_ms", "observation_sequence", "submission_id", "result", "input_length", "input_change_count"]) SAFE_PAYLOAD_KEYS.add(key);
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem" | "removeItem">;
 
 // Only aggregate instrumentation enters this queue, never response text or
-// feedback payloads. Session storage retains unacknowledged events on reload.
+// feedback text. Display identifiers are safe; unacknowledged events survive reload.
 export function createProcessEventDelivery(input: {
   sessionId: string;
   tabId: string;
@@ -40,10 +42,12 @@ export function createProcessEventDelivery(input: {
       browser_tab_id: event.browser_tab_id ?? input.tabId,
       client_occurred_at: event.client_occurred_at ?? new Date(now()).toISOString(),
       item_public_id: event.item_public_id,
+      concept_unit_public_id: event.concept_unit_public_id,
+      event_category: event.event_category,
       pause_duration_ms: event.pause_duration_ms,
       visibility_duration_ms: event.visibility_duration_ms,
       payload: Object.fromEntries(Object.entries(event.payload ?? {}).filter(([name, value]) =>
-        SAFE_PAYLOAD_KEYS.has(name) && (typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && value.length <= 80))))
+        SAFE_PAYLOAD_KEYS.has(name) && (typeof value === "boolean" || (typeof value === "number" && Number.isFinite(value)) || (typeof value === "string" && value.length <= (name === "content_id" ? 400 : 80)))))
     };
   }
 

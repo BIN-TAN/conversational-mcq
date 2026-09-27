@@ -41,6 +41,7 @@ export type FrontendProcessEvent = {
     | "navigation_event"
     | "refresh_recovery"
     | "package_results_shown"
+    | "formative_feedback_shown"
     | "item_correctness_status_shown"
     | "profile_feedback_shown"
     | "student_communication_shown"
@@ -53,6 +54,7 @@ export type FrontendProcessEvent = {
     | "topic_dialogue_response_shown"
     | "progression_choices_shown";
   event_category?: string;
+  concept_unit_public_id?: string;
   item_public_id?: string;
   visibility_duration_ms?: number;
   pause_duration_ms?: number;
@@ -205,7 +207,7 @@ export function sendFormativeConversationEvent(input: {
 
 export function updateFormativeConversationLifecycle(input: {
   sessionPublicId: string;
-  action: "pause" | "resume" | "end";
+  action: "pause" | "resume" | "end" | "finish";
 }): Promise<StudentFormativeConversation | null> {
   return post(
     `/api/student/sessions/${input.sessionPublicId}/formative-conversation/lifecycle`,

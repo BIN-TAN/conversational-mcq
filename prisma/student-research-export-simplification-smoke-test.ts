@@ -68,15 +68,41 @@ async function main() {
       assessment_public_id: teacherReviewAssessmentPublicId
     });
     const expectedFiles = [
+      "response_stage_visits.csv",
+      "item_behavior_summary.csv",
+      "response_stage_events.csv",
+      "response_revision_history.csv",
+      "feedback_exposure_events.csv",
+      "response_stage_data_dictionary.csv",
+      "response_stage_notes.txt",
       "sessions.csv",
       "item_responses.csv",
       "process_events.csv",
       "conversation_turns.csv",
       "agent_activity_records.csv",
+      "profile_item_evidence.csv",
+      "profile_data_dictionary.csv",
+      "formative_conversation_sessions.csv",
+      "formative_conversation_turns.csv",
+      "formative_conversation_events.csv",
+      "formative_conversation_llm_calls.csv",
+      "formative_conversation_profile_transitions.csv",
+      "formative_conversation_interventions.csv",
+      "formative_conversation_data_dictionary.csv",
       "assessment_content.csv",
       "assessment_summary.csv",
       "research_data_dictionary.csv",
-      "process_event_codebook.csv"
+      "process_event_codebook.csv",
+      "attempt_records.csv",
+      "attempt_submission_items.csv",
+      "attempt_paired_changes.csv",
+      "attempt_class_summaries.csv",
+      "attempt_data_dictionary.csv",
+      "attempt_comparison_notes.txt",
+      "data_coverage.csv",
+      "data_coverage_notes.txt",
+      "README.txt",
+      "research_manifest.json"
     ];
     assert(result.filename.includes("research_dataset.zip"), "Research dataset filename should be explicit.");
     assert(result.files.map((file) => file.path).join("|") === expectedFiles.join("|"), "Unexpected research dataset file list.");

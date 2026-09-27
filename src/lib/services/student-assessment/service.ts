@@ -12,6 +12,7 @@ import {
   type ItemResponse
 } from "@prisma/client";
 import { z } from "zod";
+import { FEEDBACK_DISPLAY_VERSION, feedbackContentId } from "@/lib/student-assessment-ui/feedback-display";
 import { prisma } from "@/lib/db";
 import { recordFormativeConversationLifecycleEvent } from "./formative-conversation/telemetry";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
@@ -297,6 +298,7 @@ const frontendEventTypes = [
   "navigation_event",
   "refresh_recovery",
   "package_results_shown",
+  "formative_feedback_shown",
   "item_correctness_status_shown",
   "profile_feedback_shown",
   "next_interaction_shown",
@@ -359,6 +361,7 @@ type PackageCompletionOutcome = {
 };
 
 const displayAcknowledgementEventTypes = new Set<(typeof frontendEventTypes)[number]>([
+  "formative_feedback_shown",
   "package_results_shown",
   "item_correctness_status_shown",
   "profile_feedback_shown",
@@ -6682,12 +6685,56 @@ export async function ingestFrontendProcessEvents(input: {
             ? payloadRecord.content_id.trim()
             : null;
 
-        if (displayEventContractVersion !== DISPLAY_EVENT_CONTRACT_VERSION || !contentId) {
+        if (![DISPLAY_EVENT_CONTRACT_VERSION, FEEDBACK_DISPLAY_VERSION].includes(displayEventContractVersion ?? "") || !contentId) {
           throw new StudentAssessmentServiceError(
             "validation_failed",
             "Display acknowledgement metadata is incomplete.",
             400
           );
+        }
+
+        if (event.event_type === "formative_feedback_shown" && displayEventContractVersion !== FEEDBACK_DISPLAY_VERSION) {
+          throw new StudentAssessmentServiceError("validation_failed", "Tutor display observations require the current contract.", 400);
+        }
+        if (displayEventContractVersion === FEEDBACK_DISPLAY_VERSION) {
+          if (!event.client_event_id || !event.browser_tab_id || !event.client_occurred_at ||
+              !event.concept_unit_public_id || !eventConceptUnitSession ||
+              payloadRecord.observation_method !== "partial_viewport_500ms" || payloadRecord.minimum_visible_ms !== 500) {
+            throw new StudentAssessmentServiceError("validation_failed", "Feedback display context is incomplete.", 400);
+          }
+          let content: string;
+          if (event.event_type === "formative_feedback_shown") {
+            const sequence = payloadRecord.source_turn_sequence_index;
+            if (!Number.isSafeInteger(sequence) || Number(sequence) <= 0 || event.item_public_id) {
+              throw new StudentAssessmentServiceError("validation_failed", "Invalid tutor display reference.", 400);
+            }
+            const turn = await tx.conversationTurn.findFirst({ where: {
+              assessment_session_db_id: session.id, concept_unit_session_db_id: eventConceptUnitSession.id,
+              sequence_index: Number(sequence), actor_type: "agent", message_text: { not: null },
+              formative_conversation_session: { conversation_public_id: String(payloadRecord.conversation_public_id ?? "") }
+            }, select: { id: true } });
+            if (!turn || studentTurnId(turn.id) !== payloadRecord.turn_id || payloadRecord.content_kind !== "formative_tutor_message") {
+              throw new StudentAssessmentServiceError("validation_failed", "Tutor display reference does not belong to this conversation.", 400);
+            }
+            content = `turn:${payloadRecord.turn_id}`;
+          } else if (event.event_type === "item_correctness_status_shown" || event.event_type === "package_results_shown") {
+            const itemDisplay = event.event_type === "item_correctness_status_shown";
+            if ((itemDisplay ? !item : Boolean(item)) || payloadRecord.content_kind !== (itemDisplay ? "item_feedback" : "package_summary")) {
+              throw new StudentAssessmentServiceError("validation_failed", "Feedback display kind is invalid.", 400);
+            }
+            const released = await tx.itemResponse.findFirst({ where: {
+              concept_unit_session_db_id: eventConceptUnitSession.id,
+              ...(itemDisplay ? { item_db_id: item!.id } : {}),
+              answer_explanation_revealed: true, item_submitted_at: { not: null }
+            }, select: { id: true } });
+            if (!released) throw new StudentAssessmentServiceError("validation_failed", "Feedback is not released for this context.", 400);
+            content = itemDisplay ? `item:${event.item_public_id}` : "initial-results";
+          } else {
+            throw new StudentAssessmentServiceError("validation_failed", "Unsupported current display observation.", 400);
+          }
+          if (contentId !== feedbackContentId(input.session_public_id, event.concept_unit_public_id, content)) {
+            throw new StudentAssessmentServiceError("validation_failed", "Feedback content identity is invalid.", 400);
+          }
         }
 
         const existingAcknowledgement = await tx.processEvent.findFirst({
@@ -6707,10 +6754,14 @@ export async function ingestFrontendProcessEvents(input: {
           continue;
         }
 
-        if (event.event_type === "package_results_shown" && eventConceptUnitSession) {
+        if (eventConceptUnitSession && (
+          (event.event_type === "package_results_shown" && displayEventContractVersion === DISPLAY_EVENT_CONTRACT_VERSION) ||
+          (event.event_type === "item_correctness_status_shown" && displayEventContractVersion === FEEDBACK_DISPLAY_VERSION && item)
+        )) {
           await tx.itemResponse.updateMany({
             where: {
               concept_unit_session_db_id: eventConceptUnitSession.id,
+              ...(displayEventContractVersion === FEEDBACK_DISPLAY_VERSION ? { item_db_id: item!.id } : {}),
               answer_explanation_revealed: true,
               student_display_acknowledged_at: null
             },

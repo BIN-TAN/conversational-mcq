@@ -13,6 +13,7 @@ export type SessionListRow = {
   attempt_number: number;
   session_status: string;
   current_phase: string;
+  formative_conversation_status?: string | null;
   workflow_mode_snapshot: string;
   response_collection_mode_snapshot: string;
   assessment_response_collection_mode: string;

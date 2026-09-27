@@ -1,0 +1,177 @@
+[
+  {
+    "path": "response_stage_visits.csv",
+    "records": 0,
+    "sha256": "43b619e77edf39af055e7e964220fc277ab0f706aaba9b8a040e3c07d745d574"
+  },
+  {
+    "path": "item_behavior_summary.csv",
+    "records": 8,
+    "sha256": "df41f460da0f0070d9d9c80bf0cda9527445ef8a38e4b8341325648df106ba5b"
+  },
+  {
+    "path": "response_stage_events.csv",
+    "records": 0,
+    "sha256": "88618c4a1a6ae50499bca74fbfb11b7e5c87693377b2aca1f34a3731710c9c68"
+  },
+  {
+    "path": "response_revision_history.csv",
+    "records": 0,
+    "sha256": "f037473f29d1820b55b0f8c97e849c56f388cf12525cb8f335a183ea2b9a3ab7"
+  },
+  {
+    "path": "feedback_exposure_events.csv",
+    "records": 0,
+    "sha256": "81a0aa97845897d6f2422385df384bc8ebb359882c75ced20eef34205729be69"
+  },
+  {
+    "path": "response_stage_data_dictionary.csv",
+    "records": 121,
+    "sha256": "8eec352234e326ebfd16c274a0c2bc79b328626b60c37614d78410c7f410745a"
+  },
+  {
+    "path": "response_stage_notes.txt",
+    "records": 1,
+    "sha256": "f313f679d5102cde7dd91f990f330f3b4f0323bb0cdbcd07193c28221193fea5"
+  },
+  {
+    "path": "sessions.csv",
+    "records": 1,
+    "sha256": "71660d89a3010ce829ffe65a8048da6d99d6c27b3f0ba2e74bedf95a237b1cba"
+  },
+  {
+    "path": "item_responses.csv",
+    "records": 8,
+    "sha256": "72bbd643596a40911445b943e59f9800d804cfb8fc4853e84253014d1aac2535"
+  },
+  {
+    "path": "process_events.csv",
+    "records": 127,
+    "sha256": "b4ba8c7d3043e7a9463a605ff7567e78cc4204b3f6cdde4e32f33a82d3fb2190"
+  },
+  {
+    "path": "conversation_turns.csv",
+    "records": 66,
+    "sha256": "718f67db6539433f8c79e3ccf08b606cd335523efdadd6c896579c99f41101cf"
+  },
+  {
+    "path": "agent_activity_records.csv",
+    "records": 0,
+    "sha256": "38c39e0553114cbfa0d5cc3f1bebd8cc80ca161e0c70887a979e2c92db99df6c"
+  },
+  {
+    "path": "profile_item_evidence.csv",
+    "records": 0,
+    "sha256": "f6f4670a61ea9446e29ac0a7e00a7f4fea02d61713c3787f0bda04781c9dee5e"
+  },
+  {
+    "path": "profile_data_dictionary.csv",
+    "records": 33,
+    "sha256": "a76c1d09db7fd4bf2d1ba8fb9b3f292489a7176b1e417725bc46596b15a32664"
+  },
+  {
+    "path": "formative_conversation_sessions.csv",
+    "records": 0,
+    "sha256": "0ecb6c01b968f992d879270f5167519cef81bb12f66199157ba68d2f1ab53826"
+  },
+  {
+    "path": "formative_conversation_turns.csv",
+    "records": 0,
+    "sha256": "8554e7a9e4386fbdc7a3bb54f848ffc3abc9b95354ec091619a361585c8fe8e8"
+  },
+  {
+    "path": "formative_conversation_events.csv",
+    "records": 0,
+    "sha256": "7b0aa2d105f941e73f6efbc59f0d640dccacd34129ad1052540f28fcde67e180"
+  },
+  {
+    "path": "formative_conversation_llm_calls.csv",
+    "records": 0,
+    "sha256": "5359e0432920ebcc8ba141da04054f49d215cec2b7d6a3f0cb3eda8d4fa0bcbb"
+  },
+  {
+    "path": "formative_conversation_profile_transitions.csv",
+    "records": 0,
+    "sha256": "cd6e583cb71ff10e30940d01f4406f8d82232da191f068026b5844d9bbc23646"
+  },
+  {
+    "path": "formative_conversation_interventions.csv",
+    "records": 0,
+    "sha256": "7611b7d86ab54853b7ca97ade436d766ffcb0d2b7d3565df6ba6db8ec8f59ba1"
+  },
+  {
+    "path": "formative_conversation_data_dictionary.csv",
+    "records": 170,
+    "sha256": "dba1fd119dbf6abeed57d3d719cfbf2a8c4489f991739ff49c6eb0659f657949"
+  },
+  {
+    "path": "assessment_content.csv",
+    "records": 8,
+    "sha256": "bf53090c7f9301434bbdec20e3f711abf103d691a15498013d8c598fbd479985"
+  },
+  {
+    "path": "assessment_summary.csv",
+    "records": 1,
+    "sha256": "509750f0ba7fbe6780f6485717a903416ef940f8465303733af65210a5ff0bb7"
+  },
+  {
+    "path": "research_data_dictionary.csv",
+    "records": 440,
+    "sha256": "a7d32d31b08bba21db297e3de905243c31bb5b4e0165fdea62aab8ce53faae62"
+  },
+  {
+    "path": "process_event_codebook.csv",
+    "records": 230,
+    "sha256": "4b527c77c123bc7fdbc274fda4d08d2bda2374a2223adee25cc18aa0b6979251"
+  },
+  {
+    "path": "attempt_records.csv",
+    "records": 1,
+    "sha256": "c9717c8df6d6f87d627c2fcc4b71e4295948c9fe0d423c0f80952f47cc91d333"
+  },
+  {
+    "path": "attempt_submission_items.csv",
+    "records": 0,
+    "sha256": "020c47c597fe819dbe8b3ee6175ab002fc2fc650a0d290a282538ac569b3e20e"
+  },
+  {
+    "path": "attempt_paired_changes.csv",
+    "records": 0,
+    "sha256": "e25b3aa588647dd168bf2b0accbf0abd07cc705e3dc2c6b83fea317f95066b14"
+  },
+  {
+    "path": "attempt_class_summaries.csv",
+    "records": 4,
+    "sha256": "57ebcc5505e7f8e4c352ca7836f02c8829ebb5b26ab5a24722158cacac1d5d47"
+  },
+  {
+    "path": "attempt_data_dictionary.csv",
+    "records": 64,
+    "sha256": "b194fc1a92405a6e58adbe5577691007e061574aee36afe6dea9842af1304741"
+  },
+  {
+    "path": "attempt_comparison_notes.txt",
+    "records": 1,
+    "sha256": "b8e92c11adc6324312ab8e87b6a3e57d40378011d2fc409d181fa9ecd4867b3b"
+  },
+  {
+    "path": "data_coverage.csv",
+    "records": 839,
+    "sha256": "ea2ba1069c6f0278ad4242677ce6beb3d526638e60de0ae53752dac989796f75"
+  },
+  {
+    "path": "data_coverage_notes.txt",
+    "records": 1,
+    "sha256": "cdd61b259a62251428ae521d1672ec6a26373d64d7344badaa592208681b2bed"
+  },
+  {
+    "path": "README.txt",
+    "records": 1,
+    "sha256": "f928e5428fad8bf441bc9f7d791cb73db3a9cbf6076edb3c15aed0bc5abac3da"
+  },
+  {
+    "path": "research_manifest.json",
+    "records": 1,
+    "sha256": "7cbd4b4287cd30855eea289d2f9acf01341d67f76a85202cf32b717a3de53109"
+  }
+]

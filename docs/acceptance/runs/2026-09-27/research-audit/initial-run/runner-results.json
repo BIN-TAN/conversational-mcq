@@ -1,0 +1,161 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1148,
+      "log_sha256": "8fe067d3eb06605583b2fb44e3c4e771673a40a7515d0ec4dfdcf90dc5f9e137"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 186,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "research-data-quality-audit",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 2345,
+      "log_sha256": "d0acaa78188ff7db82ee32c8ade2675fe845e2ca1ddb878cb3e70f0624e6a7e8"
+    },
+    {
+      "label": "student-analysis-ready-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1682,
+      "log_sha256": "ae7cb07de504b5866c54ad15537a652941de62b2aff99448c3e8257923374da4"
+    },
+    {
+      "label": "student-selected-session-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 664,
+      "log_sha256": "02b741615511b9fafb8c6741d4e9be9d896c79b15ec6d3578b989449a75dd83b"
+    },
+    {
+      "label": "student-research-export-integrity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 703,
+      "log_sha256": "281c45d42e84036357623526f1e30faabfd460135cfaaaea98dabe47333ed804"
+    },
+    {
+      "label": "student-research-export-readiness-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 861,
+      "log_sha256": "e5c84a2302f4d84bc59444e59f2572d1b1d975a5edb4736058fdc5149ea5beca"
+    },
+    {
+      "label": "research-export-streaming-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 92,
+      "log_sha256": "e79250a2dbfa9fdcc23c6dee50103d18bdf0feefe683eb6e0912f2fdc466ba48"
+    },
+    {
+      "label": "research-process-coverage-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 126,
+      "log_sha256": "78012a223a19785d4df549264e99bce5536970d2570f79e4bab8fd0ffc92bcd9"
+    },
+    {
+      "label": "research-process-delivery-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 68,
+      "log_sha256": "5d376bb736cc786304fc7c70bba5db284352eed54af801e459ea1fba3a3295fc"
+    },
+    {
+      "label": "student-research-export-format-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 50,
+      "log_sha256": "6039c571b5881f80f9cd63a9f49680d0fba666d33cb24f79e30b7c0f07a33b0d"
+    },
+    {
+      "label": "student-research-export-simplification-smoke-test",
+      "passed": false,
+      "exit_code": 1,
+      "duration_ms": 491,
+      "log_sha256": "ea76c58f00a7b480ef162b01f2396fd46f5018cc08828a873ee41500b1a328be"
+    },
+    {
+      "label": "student-research-timing-grain-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 479,
+      "log_sha256": "6084c167d07247fc15a95d89b0f9050dff8ed456edb517efe4361eb793dc20f2"
+    },
+    {
+      "label": "student-item-timing-contract-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 59,
+      "log_sha256": "e1e7e082bac21d6a572afca028e3c0a301d9da5b7cb1e36d3c688d54acc9bdd5"
+    },
+    {
+      "label": "student-visibility-timing-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 57,
+      "log_sha256": "a9a4cf7d2f4aa077544dfdc72d071fa69b4e74f8eb9a999ecd68776421befe92"
+    },
+    {
+      "label": "student-resumed-session-timing-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 59,
+      "log_sha256": "6a8112d873e5ccfbac0f03db8116d305bd1956965a03cc922e3e5147c1552e81"
+    },
+    {
+      "label": "student-data-dictionary-timing-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 773,
+      "log_sha256": "d56c1023adebd384b18f32a3724b40677d6e284ab386440f96343628dd6d66f3"
+    },
+    {
+      "label": "student-process-event-codebook-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 104,
+      "log_sha256": "0aec8576608b44742b522613d8066490348a356cdddc3383282cda362f33a9ad"
+    },
+    {
+      "label": "student-process-event-specificity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 69,
+      "log_sha256": "8f6658691f810c486ae9a0a92f6308193bbd899436fcb656738c211f5cd3314f"
+    },
+    {
+      "label": "profile-record-projection-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 960,
+      "log_sha256": "4ead73dbcb22e9f57e9f3b7f03ff039b09be8d729d15519d5653d33428369621"
+    },
+    {
+      "label": "attempt-policy-database-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1424,
+      "log_sha256": "77a24ad5a0b2541002b4f338a15b5c7313b53b9eeadf9142c4e2d99459c3299d"
+    },
+    {
+      "label": "process-data-summary-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 122,
+      "log_sha256": "abe22d84aedc94ee3d397bf7f9e14bb987f548b86365314a676ae2a5821db4ce"
+    }
+  ]
+}

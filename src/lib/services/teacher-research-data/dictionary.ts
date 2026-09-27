@@ -1735,7 +1735,7 @@ function collectionMethod(table: string, variable: string) {
     explanation_version:
       "Copied from ItemResponse.explanation_version to bind the student-facing answer explanation to its renderer/version.",
     student_display_acknowledged_at:
-      "Copied from ItemResponse.student_display_acknowledged_at after the browser acknowledges display of the answer review for the administered item.",
+      "Server ingestion time of the first answer-review acknowledgement. display-ack-v2 updates only the observed item's explanation; legacy v1 package-level acknowledgements updated all released items in that topic. This is not client exposure time or proof of reading.",
     event_type: "Recorded by the frontend, backend, agent, or workflow component that emits the process event; event meanings are maintained in process_event_codebook.csv.",
     provider: "Recorded by the agent execution audit layer when an LLM or mock provider call is attempted.",
     total_token_count:
@@ -2782,6 +2782,7 @@ export function prismaFieldClassificationEntries() {
 }
 
 function eventCategory(eventType: string) {
+  if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "feedback_display";
   if (eventType.startsWith("response_stage_")) return "item_response_process";
   if (/session|assessment|package|completion|resume|exit|start/.test(eventType)) return "session_lifecycle";
   if (/item|option|answer|reasoning|confidence|tempting|idk|clarification|help/.test(eventType)) return "item_response_process";
@@ -2791,6 +2792,7 @@ function eventCategory(eventType: string) {
 }
 
 function eventActor(eventType: string) {
+  if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "student_browser";
   if (eventType === "response_stage_observation") return "student_browser_or_student_action";
   if (eventType === "response_stage_outcome") return "application_backend";
   if (/option|answer|reasoning|confidence|tempting|idk|clarification|help|typing|page|window|focus|blur|navigation/.test(eventType)) return "student_browser_or_student_action";
@@ -2806,6 +2808,7 @@ function eventScope(eventType: string) {
 }
 
 function eventTrigger(eventType: string) {
+  if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "Browser acknowledges the identified feedback content. display-ack-v2 requires partial viewport intersection in a visible document continuously for 500 ms. Legacy v1 used mount acknowledgements. No proof of reading or understanding; no historical backfill.";
   const triggers: Record<string, string> = {
     response_stage_observation: "Browser reports a visible usable stage, first input, submission, request completion, next usable controls, interruption, or visit close. No response text is collected here.",
     response_stage_outcome: "Backend records the accepted or rejected result of an idempotent response action linked by stage_visit_id and submission_id. Client observations never determine acceptance.",
@@ -2841,6 +2844,7 @@ function eventTrigger(eventType: string) {
 }
 
 function eventPayloadFields(eventType: string) {
+  if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "display_event_contract_version; content_id; content_kind; source_turn_sequence_index; turn_id; conversation_public_id; observation_method; minimum_visible_ms; client_event_id; browser_tab_id; client_occurred_at; server_received_at";
   if (eventType === "response_stage_observation") return "stage_visit_id; response_stage; response_phase; observation_kind; monotonic_ms; observation_sequence; submission_id; result; input_change_count; input_length; reason; observation_version; browser_tab_id; client_event_id; client_occurred_at; server_received_at";
   if (eventType === "response_stage_outcome") return "stage_visit_id; submission_id; action_type; phase; client_action_id; action_status; accepted; validation_rejected; observation_version";
   const fields = ["source", "action_status", "status", "phase"];
@@ -2853,6 +2857,7 @@ function eventPayloadFields(eventType: string) {
 }
 
 function eventTimestampMeaning(eventType: string) {
+  if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "Client UTC when visibility threshold was met; server_received_at is separate. Repeated observations are deduplicated per content identity. Neither is reading duration.";
   if (eventType === "response_stage_observation") return "Client UTC timestamp locates the observation; elapsed durations use monotonic_ms only within one browser document. Server receipt is separate. Neither proves attention.";
   if (eventType === "response_stage_outcome") return "Server timestamp of the recorded action result. Do not subtract it from a client timestamp to measure response latency.";
   if (eventType === "item_presented") {

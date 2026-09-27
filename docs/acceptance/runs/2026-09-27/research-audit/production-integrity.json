@@ -1,0 +1,822 @@
+{
+  "application_commit": "a0f587f74e8860e9d3e395bee2abaac3133a7fa6",
+  "read_only": true,
+  "checks": {
+    "snapshot": [
+      {
+        "snapshot_at": "2026-09-27T20:18:27.302Z"
+      }
+    ],
+    "product_completeness": [
+      {
+        "responses": 52,
+        "submitted": 50,
+        "submitted_missing_option": 0,
+        "submitted_missing_reasoning": 0,
+        "submitted_missing_confidence": 0,
+        "missing_snapshot": 0,
+        "invalid_time": 0,
+        "submitted_missing_start": 0
+      }
+    ],
+    "relationship_checks": [
+      {
+        "check_name": "response_item_wrong_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "event_wrong_session_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "turn_wrong_session_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "profile_call_wrong_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "formative_wrong_session_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "transition_wrong_profile_concept",
+        "violations": 0
+      },
+      {
+        "check_name": "receipt_student_wrong_actor_or_session",
+        "violations": 0
+      },
+      {
+        "check_name": "receipt_assistant_wrong_actor_or_session",
+        "violations": 0
+      },
+      {
+        "check_name": "event_item_wrong_assessment",
+        "violations": 0
+      }
+    ],
+    "duplicates": [
+      {
+        "check_name": "response_per_item",
+        "duplicate_groups": 0
+      },
+      {
+        "check_name": "sealed_initial_package",
+        "duplicate_groups": 0
+      },
+      {
+        "check_name": "client_process_event",
+        "duplicate_groups": 0
+      },
+      {
+        "check_name": "attempt_number",
+        "duplicate_groups": 0
+      }
+    ],
+    "package_counts": [
+      {
+        "packages": 10,
+        "sealed_items": 46,
+        "count_mismatch": 0
+      }
+    ],
+    "sealed_item_links": [
+      {
+        "sealed_items": 46,
+        "missing_current_response": 0,
+        "option_differs": 0,
+        "reasoning_differs": 0,
+        "confidence_differs": 0
+      }
+    ],
+    "concept_stages": [
+      {
+        "status": "initial_in_progress",
+        "initial_completed": false,
+        "package_present": false,
+        "n": 2
+      },
+      {
+        "status": "initial_completed",
+        "initial_completed": true,
+        "package_present": true,
+        "n": 10
+      }
+    ],
+    "event_coverage": [
+      {
+        "event_type": "agent_call_failed",
+        "event_source": "agent",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "agent_call_started",
+        "event_source": "agent",
+        "events": 9,
+        "sessions": 8
+      },
+      {
+        "event_type": "agent_call_succeeded",
+        "event_source": "agent",
+        "events": 7,
+        "sessions": 7
+      },
+      {
+        "event_type": "agent_input_projection_prepared",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "agent_message_shown",
+        "event_source": "backend",
+        "events": 237,
+        "sessions": 12
+      },
+      {
+        "event_type": "assessment_completion_summary_shown",
+        "event_source": "backend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "attempt_ended_by_student",
+        "event_source": "backend",
+        "events": 5,
+        "sessions": 5
+      },
+      {
+        "event_type": "attempt_ended_by_teacher",
+        "event_source": "backend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "attempt_end_requested",
+        "event_source": "backend",
+        "events": 5,
+        "sessions": 5
+      },
+      {
+        "event_type": "attempt_paused",
+        "event_source": "backend",
+        "events": 14,
+        "sessions": 8
+      },
+      {
+        "event_type": "attempt_resumed",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 4
+      },
+      {
+        "event_type": "attempt_resume_recovered",
+        "event_source": "backend",
+        "events": 5,
+        "sessions": 5
+      },
+      {
+        "event_type": "attempt_resume_requested",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 4
+      },
+      {
+        "event_type": "attempt_started",
+        "event_source": "backend",
+        "events": 12,
+        "sessions": 12
+      },
+      {
+        "event_type": "attempt_start_requested",
+        "event_source": "backend",
+        "events": 12,
+        "sessions": 12
+      },
+      {
+        "event_type": "confidence_clicked",
+        "event_source": "frontend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "confidence_selected",
+        "event_source": "frontend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "content_question_deferred",
+        "event_source": "backend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "idk_selected",
+        "event_source": "frontend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "inactivity_detected",
+        "event_source": "frontend",
+        "events": 9,
+        "sessions": 5
+      },
+      {
+        "event_type": "insufficient_knowledge_marked",
+        "event_source": "backend",
+        "events": 5,
+        "sessions": 3
+      },
+      {
+        "event_type": "item_completed",
+        "event_source": "backend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "item_correctness_status_persisted",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "item_presented",
+        "event_source": "backend",
+        "events": 52,
+        "sessions": 12
+      },
+      {
+        "event_type": "item_submitted",
+        "event_source": "backend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "llm_profile_received",
+        "event_source": "backend",
+        "events": 11,
+        "sessions": 10
+      },
+      {
+        "event_type": "llm_profile_requested",
+        "event_source": "backend",
+        "events": 23,
+        "sessions": 10
+      },
+      {
+        "event_type": "llm_runtime_blocked",
+        "event_source": "backend",
+        "events": 3,
+        "sessions": 2
+      },
+      {
+        "event_type": "long_pause",
+        "event_source": "frontend",
+        "events": 24,
+        "sessions": 9
+      },
+      {
+        "event_type": "navigation_event",
+        "event_source": "frontend",
+        "events": 87,
+        "sessions": 12
+      },
+      {
+        "event_type": "new_attempt_available",
+        "event_source": "backend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "option_clicked",
+        "event_source": "frontend",
+        "events": 52,
+        "sessions": 12
+      },
+      {
+        "event_type": "option_selected",
+        "event_source": "frontend",
+        "events": 52,
+        "sessions": 12
+      },
+      {
+        "event_type": "package_completion_operation_completed",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "package_completion_operation_started",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "package_results_generated",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "package_results_persisted",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "package_review_opened",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "package_submitted",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "page_visibility_hidden",
+        "event_source": "frontend",
+        "events": 79,
+        "sessions": 11
+      },
+      {
+        "event_type": "page_visibility_visible",
+        "event_source": "frontend",
+        "events": 64,
+        "sessions": 10
+      },
+      {
+        "event_type": "paste_detected",
+        "event_source": "frontend",
+        "events": 30,
+        "sessions": 7
+      },
+      {
+        "event_type": "phase_entered",
+        "event_source": "backend",
+        "events": 80,
+        "sessions": 12
+      },
+      {
+        "event_type": "phase_exited",
+        "event_source": "backend",
+        "events": 68,
+        "sessions": 12
+      },
+      {
+        "event_type": "profile_feedback_generated",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "profile_feedback_persisted",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "profile_integration_interpreted",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "reasoning_entered",
+        "event_source": "frontend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "event_source": "frontend",
+        "events": 50,
+        "sessions": 12
+      },
+      {
+        "event_type": "refresh_recovery",
+        "event_source": "frontend",
+        "events": 12,
+        "sessions": 6
+      },
+      {
+        "event_type": "repeated_invalid_response",
+        "event_source": "backend",
+        "events": 12,
+        "sessions": 3
+      },
+      {
+        "event_type": "response_quality_checked",
+        "event_source": "agent",
+        "events": 95,
+        "sessions": 12
+      },
+      {
+        "event_type": "response_quality_rejected",
+        "event_source": "backend",
+        "events": 23,
+        "sessions": 7
+      },
+      {
+        "event_type": "response_stage_observation",
+        "event_source": "frontend",
+        "events": 1454,
+        "sessions": 12
+      },
+      {
+        "event_type": "response_stage_outcome",
+        "event_source": "backend",
+        "events": 248,
+        "sessions": 12
+      },
+      {
+        "event_type": "schema_validation_failed",
+        "event_source": "backend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "schema_validation_succeeded",
+        "event_source": "backend",
+        "events": 7,
+        "sessions": 7
+      },
+      {
+        "event_type": "session_exited",
+        "event_source": "backend",
+        "events": 5,
+        "sessions": 5
+      },
+      {
+        "event_type": "session_paused",
+        "event_source": "backend",
+        "events": 14,
+        "sessions": 8
+      },
+      {
+        "event_type": "session_resumed",
+        "event_source": "backend",
+        "events": 8,
+        "sessions": 4
+      },
+      {
+        "event_type": "session_started",
+        "event_source": "backend",
+        "events": 12,
+        "sessions": 12
+      },
+      {
+        "event_type": "student_response_edit_started",
+        "event_source": "frontend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "student_response_edit_submitted",
+        "event_source": "frontend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "student_safe_profile_projection_updated",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "tempting_option_changed",
+        "event_source": "frontend",
+        "events": 1,
+        "sessions": 1
+      },
+      {
+        "event_type": "tempting_option_reason_submitted",
+        "event_source": "frontend",
+        "events": 22,
+        "sessions": 8
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "event_source": "frontend",
+        "events": 72,
+        "sessions": 12
+      },
+      {
+        "event_type": "transition_validated",
+        "event_source": "backend",
+        "events": 68,
+        "sessions": 12
+      },
+      {
+        "event_type": "typing_activity_summary",
+        "event_source": "frontend",
+        "events": 319,
+        "sessions": 12
+      },
+      {
+        "event_type": "window_blur",
+        "event_source": "frontend",
+        "events": 91,
+        "sessions": 10
+      },
+      {
+        "event_type": "window_focus",
+        "event_source": "frontend",
+        "events": 87,
+        "sessions": 10
+      },
+      {
+        "event_type": "workflow_job_claimed",
+        "event_source": "system",
+        "events": 24,
+        "sessions": 10
+      },
+      {
+        "event_type": "workflow_job_enqueued",
+        "event_source": "backend",
+        "events": 10,
+        "sessions": 10
+      },
+      {
+        "event_type": "workflow_job_failed",
+        "event_source": "system",
+        "events": 5,
+        "sessions": 2
+      },
+      {
+        "event_type": "workflow_job_retry_scheduled",
+        "event_source": "backend",
+        "events": 3,
+        "sessions": 2
+      },
+      {
+        "event_type": "workflow_job_retry_scheduled",
+        "event_source": "system",
+        "events": 11,
+        "sessions": 3
+      },
+      {
+        "event_type": "workflow_job_succeeded",
+        "event_source": "system",
+        "events": 8,
+        "sessions": 8
+      },
+      {
+        "event_type": "workflow_retry_requested",
+        "event_source": "system",
+        "events": 1,
+        "sessions": 1
+      }
+    ],
+    "stage_coverage": [
+      {
+        "stage": "answer",
+        "event_type": "response_stage_observation",
+        "n": 330
+      },
+      {
+        "stage": "confidence",
+        "event_type": "response_stage_observation",
+        "n": 256
+      },
+      {
+        "stage": "reasoning",
+        "event_type": "response_stage_observation",
+        "n": 416
+      },
+      {
+        "stage": "tempting_option",
+        "event_type": "response_stage_observation",
+        "n": 261
+      },
+      {
+        "stage": "tempting_reason",
+        "event_type": "response_stage_observation",
+        "n": 191
+      },
+      {
+        "stage": null,
+        "event_type": "response_stage_outcome",
+        "n": 248
+      }
+    ],
+    "event_delivery": [
+      {
+        "event_source": "agent",
+        "total": 112,
+        "client_identified": 0,
+        "tab_identified": 0,
+        "client_timestamped": 0,
+        "negative_durations": 0
+      },
+      {
+        "event_source": "system",
+        "total": 49,
+        "client_identified": 0,
+        "tab_identified": 0,
+        "client_timestamped": 0,
+        "negative_durations": 0
+      },
+      {
+        "event_source": "backend",
+        "total": 1169,
+        "client_identified": 0,
+        "tab_identified": 0,
+        "client_timestamped": 0,
+        "negative_durations": 0
+      },
+      {
+        "event_source": "frontend",
+        "total": 2658,
+        "client_identified": 2256,
+        "tab_identified": 2256,
+        "client_timestamped": 2256,
+        "negative_durations": 0
+      }
+    ],
+    "profiles": [
+      {
+        "profile_type": "initial",
+        "agent_name": "formative_value_and_planning_agent",
+        "call_status": "succeeded",
+        "output_validated": true,
+        "evidence_format": "object",
+        "n": 8
+      },
+      {
+        "profile_type": "initial",
+        "agent_name": "student_profiling_agent",
+        "call_status": "succeeded",
+        "output_validated": true,
+        "evidence_format": "array",
+        "n": 7
+      },
+      {
+        "profile_type": "initial",
+        "agent_name": "student_profiling_agent",
+        "call_status": "invalid_output",
+        "output_validated": false,
+        "evidence_format": "array",
+        "n": 1
+      },
+      {
+        "profile_type": "initial",
+        "agent_name": null,
+        "call_status": null,
+        "output_validated": null,
+        "evidence_format": "object",
+        "n": 10
+      }
+    ],
+    "formative_records": [
+      {
+        "dataset": "transitions",
+        "n": 0
+      },
+      {
+        "dataset": "transition_turn_references",
+        "n": 0
+      },
+      {
+        "dataset": "evidence_references",
+        "n": 14
+      },
+      {
+        "dataset": "turn_telemetry",
+        "n": 74
+      },
+      {
+        "dataset": "input_telemetry",
+        "n": 33
+      }
+    ],
+    "formative_receipts": [
+      {
+        "status": "assistant_turn_persisted",
+        "assistant_response_status": "completed",
+        "n": 41,
+        "missing_student_turn": 8,
+        "missing_assistant_turn": 0
+      }
+    ],
+    "ai_usage": [
+      {
+        "agent_name": "formative_conversation_agent",
+        "call_status": "succeeded",
+        "n": 41,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "formative_value_and_planning_agent",
+        "call_status": "succeeded",
+        "n": 8,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "formative_value_and_planning_agent",
+        "call_status": "failed",
+        "n": 3,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "item_administration_tutor_agent",
+        "call_status": "succeeded",
+        "n": 95,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "profile_integration_agent",
+        "call_status": "succeeded",
+        "n": 9,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "profile_integration_agent",
+        "call_status": "invalid_output",
+        "n": 2,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "student_profiling_agent",
+        "call_status": "succeeded",
+        "n": 7,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      },
+      {
+        "agent_name": "student_profiling_agent",
+        "call_status": "invalid_output",
+        "n": 1,
+        "success_not_validated": 0,
+        "missing_usage": 0,
+        "negative_usage": 0,
+        "token_sum_mismatch": 0,
+        "invalid_time": 0
+      }
+    ],
+    "attempts": [
+      {
+        "attempt_number": 1,
+        "status": "paused",
+        "n": 5
+      },
+      {
+        "attempt_number": 1,
+        "status": "student_exited",
+        "n": 5
+      },
+      {
+        "attempt_number": 2,
+        "status": "active",
+        "n": 1
+      },
+      {
+        "attempt_number": 2,
+        "status": "student_exited",
+        "n": 1
+      }
+    ],
+    "lifecycle": [
+      {
+        "sessions": 12,
+        "completed_missing_end": 0,
+        "negative_elapsed": 0,
+        "planning_missing_conversation": 0
+      }
+    ]
+  }
+}

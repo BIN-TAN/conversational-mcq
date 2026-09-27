@@ -82,6 +82,11 @@ try {
     return route.continue();
   });
   const page = await context.newPage();
+  // Simulate a background document without depending on headless tab-focus behavior.
+  await page.addInitScript(() => {
+    window.feedbackTestVisibility = "hidden";
+    Object.defineProperty(document, "visibilityState", { get: () => window.feedbackTestVisibility });
+  });
   const sessionId = fixture.session.session_public_id;
   const path = `/student/assessment/${sessionId}`;
   const api = `/api/student/sessions/${sessionId}`;
@@ -162,6 +167,46 @@ try {
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.screenshot({ path: join(output, "ready-desktop.png"), fullPage: true });
   pass("validated opening appears automatically after the independent worker finishes");
+  const exposureTypes = ["package_results_shown", "item_correctness_status_shown", "formative_feedback_shown"];
+  const exposureCount = type => db.processEvent.count({ where: { assessment_session_db_id: fixture.session.id,
+    event_type: type ?? { in: exposureTypes } } });
+  const waitForCount = async (type, count) => {
+    for (let n = 0; n < 50; n++) {
+      if (await exposureCount(type) === count) return;
+      await page.waitForTimeout(100);
+    }
+    assert.equal(await exposureCount(type), count, type);
+  };
+  await page.waitForTimeout(800);
+  assert.equal(await exposureCount(), 0, "Generated feedback in a hidden document is not observed");
+  await page.getByTestId("initial-answer-review-item").evaluateAll(items => items.forEach(item => { item.open = false; }));
+  await page.evaluate(() => { window.feedbackTestVisibility = "visible"; document.dispatchEvent(new Event("visibilitychange")); });
+  await page.getByTestId("formative-conversation-tutor-message").scrollIntoViewIfNeeded();
+  await waitForCount("formative_feedback_shown", 1);
+  assert.equal(await db.itemResponse.count({ where: { concept_unit_session_db_id: fixture.conceptUnitSession.id, student_display_acknowledged_at: { not: null } } }), 0);
+  await page.getByTestId("package-results-summary").scrollIntoViewIfNeeded();
+  await waitForCount("package_results_shown", 1);
+  await page.waitForTimeout(800);
+  assert.equal(await exposureCount("item_correctness_status_shown"), 0, "Collapsed/offscreen explanations are not observed");
+  const reviewItem = page.getByTestId("initial-answer-review-item").first();
+  await reviewItem.locator("summary").click();
+  await reviewItem.getByText("Why:", { exact: true }).scrollIntoViewIfNeeded();
+  await waitForCount("item_correctness_status_shown", 1);
+  const eventsPath = `${base}${api}/events`;
+  await page.route(eventsPath, route => route.abort("failed"));
+  const secondReview = page.getByTestId("initial-answer-review-item").nth(1);
+  await secondReview.locator("summary").click();
+  await secondReview.getByText("Why:", { exact: true }).scrollIntoViewIfNeeded();
+  await page.waitForTimeout(800);
+  assert.equal(await exposureCount("item_correctness_status_shown"), 1);
+  assert(await page.evaluate(() => Object.values(sessionStorage).some(value => value.includes('"content_kind":"item_feedback"'))));
+  await page.unroute(eventsPath);
+  await page.reload();
+  await page.getByTestId("formative-conversation-input").waitFor();
+  await waitForCount("item_correctness_status_shown", 2);
+  assert.equal(await exposureCount("package_results_shown"), 1);
+  assert.equal(await exposureCount("formative_feedback_shown"), 1);
+  pass("feedback exposure respects hidden/offscreen/collapsed content, per-item granularity and reload delivery without duplicates");
   const draft = "synthetic unsent draft";
   const composer = page.getByTestId("formative-conversation-input");
   await composer.pressSequentially(draft);
@@ -194,6 +239,29 @@ try {
   assert(exportedEvents.some(event => event.event_type === "paste_detected" && event.payload_pasted_text_length_band === "21_100"));
   assert(!bundle.files.some(file => file.data.includes(draft) || file.data.includes("synthetic clipboard content")));
   pass("real browser typing and synthetic paste aggregates survive reload, database capture, and research CSV export without raw input text");
+  const exposureRows = parse(bundle.files.find(file => file.path === "feedback_exposure_events.csv").data, { columns: true });
+  assert.equal(exposureRows.length, 4);
+  assert.equal(exposureRows.find(row => row.event_type === "formative_feedback_shown").source_turn_sequence_index,
+    String(state.formative_conversation.transcript[0].sequence_index));
+  await page.getByRole("button", { name: "End conversation", exact: true }).click();
+  await page.getByTestId("confirm-end-conversation").click();
+  await page.getByTestId("finish-assessment").waitFor();
+  assert.equal(await page.getByTestId("end-attempt").count(), 0, "Offer completion instead of a competing early exit");
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } })).status, "active");
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.getByTestId("finish-assessment").scrollIntoViewIfNeeded();
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.screenshot({ path: join(output, `finish-assessment-${width}.png`) });
+  }
+  await page.getByTestId("finish-assessment").click();
+  await page.getByTestId("back-to-assessments").waitFor();
+  const completed = await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } });
+  assert.equal(completed.status, "completed"); assert(completed.completed_at);
+  await page.reload();
+  await page.getByTestId("back-to-assessments").waitFor();
+  assert.equal(await page.getByTestId("finish-assessment").count(), 0);
+  pass("explicit finish persists completed status, unlocks read-only review, and survives reload at desktop/mobile widths");
   await stop(worker);
   failedFixture = await createResponseCollectionFixture({ prisma: db, prefix: `${prefix}_capacity`, responseCollectionMode: "deterministic" });
   await db.itemResponse.createMany({ data: failedFixture.items.map(item => ({

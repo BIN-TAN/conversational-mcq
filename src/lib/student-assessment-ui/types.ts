@@ -201,6 +201,7 @@ export const StudentFormativeConversationSchema = z.object({
   can_pause: z.boolean(),
   can_resume: z.boolean(),
   can_end: z.boolean(),
+  can_finish_assessment: z.boolean().optional(),
   message_max_chars: z.number().int().positive(),
   assistant_response: z
     .object({

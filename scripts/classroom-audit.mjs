@@ -27,6 +27,7 @@ const files = [
   "student-conversational-flow-smoke-test.ts",
   "student-package-review-edit-smoke-test.ts",
   "student-package-feedback-recovery-smoke-test.ts",
+  "feedback-display-completion-smoke-test.ts",
   "student-logging-smoke-test.ts",
   "student-formative-privacy-smoke-test.ts",
   "student-dynamic-initial-item-count-smoke-test.ts",

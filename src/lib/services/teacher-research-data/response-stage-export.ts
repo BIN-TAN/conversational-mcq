@@ -32,9 +32,13 @@ export function responseStageExportFiles(sources: Source[]) {
         ...Object.fromEntries(observedColumns.map(key => [key, payload[key] ?? null])),
         action_status: payload.action_status, accepted: payload.accepted, validation_rejected: payload.validation_rejected,
         server_phase: payload.phase, client_action_id: payload.client_action_id });
-      if (["package_results_shown", "item_correctness_status_shown", "profile_feedback_shown", "next_interaction_shown", "formative_activity_shown"].includes(event.event_type)) exposures.push({ ...ids,
+      if (["package_results_shown", "item_correctness_status_shown", "profile_feedback_shown", "next_interaction_shown", "formative_activity_shown", "formative_feedback_shown"].includes(event.event_type)) exposures.push({ ...ids,
         ...item(event.item_public_id), event_type: event.event_type, event_source: event.event_source, occurred_at: event.occurred_at,
         content_id: payload.content_id, client_occurred_at: payload.client_occurred_at,
+        server_received_at: payload.server_received_at, client_event_id: payload.client_event_id,
+        display_event_contract_version: payload.display_event_contract_version, content_kind: payload.content_kind,
+        observation_method: payload.observation_method, minimum_visible_ms: payload.minimum_visible_ms,
+        source_turn_sequence_index: payload.source_turn_sequence_index,
         observation_meaning: "Display acknowledgement, not proof of reading or understanding." });
     }
     // Reuse the accepted transcript record rather than duplicate response text
@@ -59,7 +63,7 @@ export function responseStageExportFiles(sources: Source[]) {
     { path: "item_behavior_summary.csv", columns: [...identity, ...itemIdentity, "observed_stage_visit_count", "answer_time_ms", "first_action_ms", "reasoning_start_latency_ms", "reasoning_time_ms", "reasoning_input_elapsed_ms", "confidence_time_ms", "system_wait_ms", "hidden_duration_ms", "submission_count", "validation_rejection_count", "timing_quality_status"], rows: itemRows },
     { path: "response_stage_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", ...observedColumns, "action_status", "accepted", "validation_rejected", "server_phase", "client_action_id"], rows: eventRows },
     { path: "response_revision_history.csv", columns: [...identity, ...itemIdentity, "source_turn_sequence_index", "changed_at", "changed_field", "previous_value", "new_value", "revision_phase", "coverage"], rows: revisions },
-    { path: "feedback_exposure_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", "client_occurred_at", "content_id", "observation_meaning"], rows: exposures }
+    { path: "feedback_exposure_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", "client_occurred_at", "content_id", "observation_meaning", "server_received_at", "client_event_id", "display_event_contract_version", "content_kind", "observation_method", "minimum_visible_ms", "source_turn_sequence_index"], rows: exposures }
   ];
   for (const table of tables.filter(t => ["response_stage_visits.csv", "item_behavior_summary.csv"].includes(t.path))) {
     table.columns.push("calculation_version");

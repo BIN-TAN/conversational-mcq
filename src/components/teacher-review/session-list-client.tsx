@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { teacherPhaseLabel } from "@/lib/teacher-session-labels";
 import { ArrowUpDown, Eye, Search } from "lucide-react";
 import { errorFromUnknown, fetchTeacherSessions } from "./api";
 import type { SessionListResponse, StructuredApiError } from "./types";
@@ -212,7 +213,7 @@ export function TeacherSessionListClient() {
               <option value="">All phases</option>
               {phases.map((phase) => (
                 <option key={phase} value={phase}>
-                  {phase.replace(/_/g, " ")}
+                  {teacherPhaseLabel(phase)}
                 </option>
               ))}
             </select>
@@ -316,7 +317,7 @@ export function TeacherSessionListClient() {
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Phase</th>
                   <th className="px-4 py-3">Automation</th>
-                  <th className="px-4 py-3">Concept progress</th>
+                  <th className="px-4 py-3">Topics with questions submitted</th>
                   <th className="px-4 py-3">
                     <button
                       className="inline-flex items-center gap-1 font-semibold"
@@ -374,7 +375,7 @@ export function TeacherSessionListClient() {
                       <StatusPill value={session.session_status} />
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill value={session.current_phase} tone="warn" />
+                      <StatusPill value={teacherPhaseLabel(session.current_phase, session.formative_conversation_status)} tone="warn" />
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill value={session.automation_state} tone={session.automation_state === "automatic_failed" ? "bad" : "neutral"} />

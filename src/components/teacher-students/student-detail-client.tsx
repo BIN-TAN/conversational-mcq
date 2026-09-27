@@ -1,4 +1,5 @@
 "use client";
+import { teacherPhaseLabel } from "@/lib/teacher-session-labels";
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
@@ -316,7 +317,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
                         <td className="px-3 py-2">{session.assessment_title}</td>
                         <td className="px-3 py-2">{session.attempt_number}</td>
                         <td className="px-3 py-2">{session.status}</td>
-                        <td className="px-3 py-2">{session.current_phase}</td>
+                        <td className="px-3 py-2">{teacherPhaseLabel(session.current_phase)}</td>
                         <td className="px-3 py-2">{formatDate(session.last_activity_at)}</td>
                       </tr>
                     ))}

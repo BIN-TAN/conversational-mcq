@@ -223,6 +223,7 @@ export const processEventTypes = [
   "formative_activity_generated",
   "formative_activity_persisted",
   "package_results_shown",
+  "formative_feedback_shown",
   "item_correctness_status_shown",
   "profile_feedback_shown",
   "next_interaction_shown",

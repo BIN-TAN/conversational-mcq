@@ -1,0 +1,282 @@
+{
+  "provider": "openai",
+  "client_request_id": "synthetic_15ae4986-3d2f-420b-a139-93a1bd0df755",
+  "provider_request_id": "req_9e0f37dc0da2460dac0440d9720d6b08",
+  "provider_response_id": "resp_094a7f937b970a76016ab9768f570487d0af20e9b5b4321764",
+  "status": "completed",
+  "parsed_output": {
+    "agent_name": "student_profiling_agent",
+    "agent_version": "1.0",
+    "prompt_version": "v6_canary",
+    "schema_version": "profiling_v6_canary",
+    "output_status": "ok",
+    "warnings": [],
+    "profile_type": "initial",
+    "ability_profile": "partial_understanding",
+    "ability_pattern_flags": [
+      "misconception_indicator_present",
+      "correctness_reasoning_mismatch"
+    ],
+    "engagement_profile": "adequate_engagement",
+    "engagement_pattern_flags": [
+      "no_clear_pattern"
+    ],
+    "integrated_diagnostic_profile": "conflicting_evidence_needs_clarification",
+    "integrated_profile_confidence": "high",
+    "integrated_profile_rationale": "The student gave two correct responses rejecting the claim that high alpha alone establishes validity, including one explicit rejection of option A. However, on an equivalent item the student explicitly endorsed the false claim that “high alpha proves validity.” These conflicting stated positions prevent a single stable interpretation of current understanding.",
+    "evidence_sufficiency": "adequate",
+    "confidence_alignment": "mixed",
+    "independence_interpretability": "independent_understanding_likely",
+    "misconception_indicators": [
+      {
+        "indicator": "High alpha alone proves validity.",
+        "evidence_reference": "ev_49301d1a58c1f8747f374221",
+        "confidence": "medium",
+        "rationale": "On item endorsement, the student selected administered option A and explicitly stated, “I agree with A's explanation: high alpha proves validity.” This directly endorses the false proposition. Confidence is limited by the student's contrary correct responses on equivalent items.",
+        "atomic_claims": [
+          {
+            "claim_text": "High alpha alone proves validity.",
+            "source_evidence_references": [
+              "ev_425135813a27dc4c2fe02a68",
+              "ev_49301d1a58c1f8747f374221"
+            ]
+          }
+        ]
+      }
+    ],
+    "item_level_evidence": [
+      {
+        "item_public_id": "recognition",
+        "evidence_summary": "The student selected administered option B correctly and explicitly adopted its explanation, writing, “I agree with B's explanation.” This indicates recognition of the correct position that consistency alone does not establish validity, but does not provide a student-generated explanation.",
+        "correctness": "correct",
+        "reasoning_quality": "Recognition-level reasoning; the student explicitly endorsed the correct supplied option explanation.",
+        "confidence_rating": "medium"
+      },
+      {
+        "item_public_id": "rejection",
+        "evidence_summary": "The student selected administered option B correctly. They wrote, “A was tempting but I reject it. Consistency does not establish the intended interpretation.” This explicitly rejects administered option A and states the correct distinction.",
+        "correctness": "correct",
+        "reasoning_quality": "Clear and relevant reasoning, with an explicit rejection of the false alternative.",
+        "confidence_rating": "medium"
+      },
+      {
+        "item_public_id": "endorsement",
+        "evidence_summary": "The student selected administered option A incorrectly and wrote, “I agree with A's explanation: high alpha proves validity.” This explicitly endorses the false explanation in option A.",
+        "correctness": "incorrect",
+        "reasoning_quality": "Clear statement of reasoning, but it supports the incorrect proposition.",
+        "confidence_rating": "medium"
+      }
+    ],
+    "reasoning_quality_summary": "The student supplied reasoning on all items. One response is recognition of a supplied correct explanation, one independently worded response correctly rejects the false claim, and one explicitly endorses that same false claim on an equivalent item. The inconsistent positions require clarification before concluding that the distinction is stable.",
+    "engagement_summary": "The student completed all three items, supplied a reasoning response for each, and reported medium confidence throughout. No process evidence indicates a specific engagement concern.",
+    "process_interpretation_cautions": [
+      "No process observations beyond submitted responses and confidence ratings were provided.",
+      "Equivalent items elicited contradictory positions; this is evidence of inconsistent product responses, not evidence about misconduct or motivation."
+    ],
+    "profile_confidence": "high",
+    "rationale": "There is adequate direct evidence of both correct understanding and an explicitly stated false belief on the same core proposition. The strongest current conclusion is partial and inconsistent understanding rather than a stable misconception or robust mastery.",
+    "recommended_next_evidence": [
+      {
+        "evidence_type": "Focused explanation prompt",
+        "reason": "Ask the student to explain, in their own words, why internal consistency (high alpha) does or does not establish validity, without answer options, to resolve the contradictory endorsements.",
+        "item_public_id": "endorsement"
+      },
+      {
+        "evidence_type": "Novel application item",
+        "reason": "Use a new scenario distinguishing reliability/internal consistency from validity to check whether the correct distinction transfers beyond recognition of supplied wording.",
+        "item_public_id": ""
+      }
+    ]
+  },
+  "raw_output": {
+    "id": "resp_094a7f937b970a76016ab9768f570487d0af20e9b5b4321764",
+    "status": "completed",
+    "output": [
+      {
+        "id": "rs_094a7f937b970a76016ab976901a9087d0aa6b83d60e62d984",
+        "type": "reasoning",
+        "content": [],
+        "encrypted_content": "gAAAAABquXaZEdzxdH9GBUH2iWjSENcfJrhCQtpgmwVAiH49GuPTNL5L_z2ARnHHoriGQjTay8phUxSDkWXRilcTTadICiAZXqtmBTIZg68UukyGABU730-3n-nGplkk3Hn_j-MrpG9Xvzm1_NppWu57GryHhOO2bQ1AVtx2iFrIEeaXFKYPF-BQISbaFoDBLLmvrZo3kYhn3SPfeTls46YrlslxE2PvILiwYo00sZUzGy7GA9ZbY6bntQ5SLn5ByoZAm6fLix_v8ddMCn6CYfMUAzZ5um55HPgMHzjeqQjJx-j833blwjGBXjrlkze9Yz_iTRWaLSIJy7utG0VrtZpl7fM05TkeCakV2tDaXBq3Z4MqS1_bD_N4_ZN3W9BF3t9i6h-IWqPKMoly0wqBjo6JLZdXfGjMVDLmT_ACEnZIyp2c0IkCO7r-JXZHaF4y-Jv2TZT_PdFua1fYbEmujbXz1go8lfjcmSofoB5F3lZr8x9BPEbZMMy29A-Xfg2mOGY3xvVDwiiy-1_5w1_59GsN_LiTBavKrKALHwlZtiJ9kOoectSJTxrWiC1QvXawKlcsymWqbK-N5_TcWPnjZEdGCn8tqmdE4ixpmJP5JcGtf_dBsVfxluyScdDQFLmT3Wqx1Vxdt22sx22C2UJAAwcVf3E2HaiUTdpDlh6b3tMw6UroTdB3tBO_PEvYig9Xg3CR_gLWYyZ5MWzSk3GqvFV5qaCh86oW2-Ay9GEo-VZJxZ6mjj_2sF0c_3Hw-5CUIlS32yA73fyNDxMEN0lAjRX0HjXAJJlquooqHsRe1Pkj89GTYub9IRC4NXCDfG2oU1aKuPLldqci7qtm4871zVCSUeVdoWNtAvko5p0rA275IApx4GCslLObI35Zz2TmspDLTZrU7S3se_quM55v93FsgsDYU9lSA0kS4YaaImUWmM4g0Sk3qtDyJFpbMiQ-pQDkqq7bSSaaJYLYfzXAMg76em3SBjC5wUtxuMQgZF3gmmcezPeG3GUdU5fYNRUXUtYotBnScB3U8sqMdXGQ1Re9idHj1LSNF-mN6sqcK1GbdBOuqiJWHGa1MOwRtYzb6GjXPFWi-aDCWs18Rzt5fclGOuhgjo03AYODQDlq3uz-jh32sWYHPDcwsk0sc5zyWG4-EgQFU5BwnsYYsvBPY4DjsErFujZrbv6j_TFPJu9w1GsXgCFVCcvvgQhb3AMVkc6zfEuD6WkT3sHaQK1Ra9GIg8MdQ5LpZHqhEgiUzIXnYOuaDri5zIqFrOAGsfjrlncQ4DqV3TmVhFA9_0-mttumKf-uWB3cFGmqmmjvFTDIta5jZJ9txESAx00WYsfVXxpyaCRaSG0cKmB1V3Rh0O0Txd6KkD9oig4FZuZ-xofV8c5JRVT6g550zONG6Giu3SB5GXgAkdSNP5nDkmXSjpC98HRfokq-eFlxQUJSt_3C5Phdakn_0PIgqKKW7TdG7ambmkZKJXnGKsC7sdX0dAtNIVOBCJeKHzhMwi8uFKjUlMi4iKrGYE5uw8Oc0vxi_IscJdd2jbewSLksnGTDvsw5hba8pfEWLI4m3LCHWtOEVQ9Jhswg2qzRbDriuKZEHNj4Q8iMp6r8ZCn7Eu1dK_I2fLnihqmNcngs7TSvRs7tyMR3NlcBR3KjrDSBqUKUd8bCRRwu7blSoUPkiMs4gv4u3DoW1wzKy6ecwaXe1JT4NvGb31XFeBidEBf1xNloK4cmXiOCYYJS2ooUei41p8EGbrbcTrTQFPK1JTHOZmnPA7Yww-Y07OBrvR6tEb91-j_GVmu3moxOaTxZs9FdOB9nQeT3pxaxwMCO-S0srAY-LtVQWVT6coMV8KIx3cdLk4ZeQTs-3yCgQZAuztLb3_sjpyClBZ9peyKQnOiVn9C76xhkD_dqeIbXdtYISijVHD63R5I8woA5pbRo1cPsNgR0QxX4kKAAMVmx5JRwsUnOBKbP9b7smMBl5u3HBpRPbRdcCpp38xWVfQE4mkGnnNp2spCXek_NVFEmPykjXkXxIU22YbNE9Eec6--r3cJtNj19fbwgjC9M-kdu2L-bUsVyquMa-qW1LeL8Ssz1i8bJMN4HTu5LFMcYfROoZYaR-0k9KzwJGVJIODze2sO5DR4F5Q7erWO0Bb5KJeEFZN6NRZQ0P6kGYCG9taS-3Ep2EXuP5fRG9ZHKfV-2OkxiPsfJBN3VE6VH_KVhhR6hpNgr3sd6pDwy4kFb3VpW1ZYqlCV0h97lSFbHrEN14CwL_vrd0OHVeX-s8scFHK94jY4P-qN6lcoC_Sj3r5QtpAlHtIeCUWoxES0t7iU6RV1C37BZaqVwlKd80zO4FMOfjNEkcDJjTpxE9XzpUakEaAPVg2wKxsCmh48AsvTUzAV8QAFo2ezUV36jLCb51oUZkEVxryCBqS1xGwA6YacaCBY2W8TSV2-fdD2uDGyIH0SQh4EoLszXsRjela-BhQ7UIBi-O5fVm-I4RByzg7oUSNoIiOruvEzuscRPgNq97TvQb7tIqMGj9KyMD-Ub1l3877SoC-iTPFXrthq1-LhmL73kHYp8ox8J97XCRVar7UM3NVB2hhWJSyTYtc0U1RuQqO6feZsnitqz-FEr897Dh5WpwOf70Mktt8fzw2XRGA7cujtM-wisT3oFrKL9NkLDKJeCymsAiVHwZQOpfXYIA_yC_VXehO5NjSN-ytuHTNvvgc0CO91nfkNKWdh00bcMh0AIy2hqwkqNMRufYJg9ymub6QWp0oe2ZPqxg6v1_TZjVVdnbVtnvMz8YA==",
+        "summary": []
+      },
+      {
+        "id": "msg_094a7f937b970a76016ab97692cd5887d08f9eb71b8656324c",
+        "type": "message",
+        "status": "completed",
+        "content": [
+          {
+            "type": "output_text",
+            "annotations": [],
+            "logprobs": [],
+            "text": "{\"agent_name\":\"student_profiling_agent\",\"agent_version\":\"1.0\",\"prompt_version\":\"v6_canary\",\"schema_version\":\"profiling_v6_canary\",\"output_status\":\"ok\",\"warnings\":[],\"profile_type\":\"initial\",\"ability_profile\":\"partial_understanding\",\"ability_pattern_flags\":[\"misconception_indicator_present\",\"correctness_reasoning_mismatch\"],\"engagement_profile\":\"adequate_engagement\",\"engagement_pattern_flags\":[\"no_clear_pattern\"],\"integrated_diagnostic_profile\":\"conflicting_evidence_needs_clarification\",\"integrated_profile_confidence\":\"high\",\"integrated_profile_rationale\":\"The student gave two correct responses rejecting the claim that high alpha alone establishes validity, including one explicit rejection of option A. However, on an equivalent item the student explicitly endorsed the false claim that “high alpha proves validity.” These conflicting stated positions prevent a single stable interpretation of current understanding.\",\"evidence_sufficiency\":\"adequate\",\"confidence_alignment\":\"mixed\",\"independence_interpretability\":\"independent_understanding_likely\",\"misconception_indicators\":[{\"indicator\":\"High alpha alone proves validity.\",\"evidence_reference\":\"ev_49301d1a58c1f8747f374221\",\"confidence\":\"medium\",\"rationale\":\"On item endorsement, the student selected administered option A and explicitly stated, “I agree with A's explanation: high alpha proves validity.” This directly endorses the false proposition. Confidence is limited by the student's contrary correct responses on equivalent items.\",\"atomic_claims\":[{\"claim_text\":\"High alpha alone proves validity.\",\"source_evidence_references\":[\"ev_425135813a27dc4c2fe02a68\",\"ev_49301d1a58c1f8747f374221\"]}]}],\"item_level_evidence\":[{\"item_public_id\":\"recognition\",\"evidence_summary\":\"The student selected administered option B correctly and explicitly adopted its explanation, writing, “I agree with B's explanation.” This indicates recognition of the correct position that consistency alone does not establish validity, but does not provide a student-generated explanation.\",\"correctness\":\"correct\",\"reasoning_quality\":\"Recognition-level reasoning; the student explicitly endorsed the correct supplied option explanation.\",\"confidence_rating\":\"medium\"},{\"item_public_id\":\"rejection\",\"evidence_summary\":\"The student selected administered option B correctly. They wrote, “A was tempting but I reject it. Consistency does not establish the intended interpretation.” This explicitly rejects administered option A and states the correct distinction.\",\"correctness\":\"correct\",\"reasoning_quality\":\"Clear and relevant reasoning, with an explicit rejection of the false alternative.\",\"confidence_rating\":\"medium\"},{\"item_public_id\":\"endorsement\",\"evidence_summary\":\"The student selected administered option A incorrectly and wrote, “I agree with A's explanation: high alpha proves validity.” This explicitly endorses the false explanation in option A.\",\"correctness\":\"incorrect\",\"reasoning_quality\":\"Clear statement of reasoning, but it supports the incorrect proposition.\",\"confidence_rating\":\"medium\"}],\"reasoning_quality_summary\":\"The student supplied reasoning on all items. One response is recognition of a supplied correct explanation, one independently worded response correctly rejects the false claim, and one explicitly endorses that same false claim on an equivalent item. The inconsistent positions require clarification before concluding that the distinction is stable.\",\"engagement_summary\":\"The student completed all three items, supplied a reasoning response for each, and reported medium confidence throughout. No process evidence indicates a specific engagement concern.\",\"process_interpretation_cautions\":[\"No process observations beyond submitted responses and confidence ratings were provided.\",\"Equivalent items elicited contradictory positions; this is evidence of inconsistent product responses, not evidence about misconduct or motivation.\"],\"profile_confidence\":\"high\",\"rationale\":\"There is adequate direct evidence of both correct understanding and an explicitly stated false belief on the same core proposition. The strongest current conclusion is partial and inconsistent understanding rather than a stable misconception or robust mastery.\",\"recommended_next_evidence\":[{\"evidence_type\":\"Focused explanation prompt\",\"reason\":\"Ask the student to explain, in their own words, why internal consistency (high alpha) does or does not establish validity, without answer options, to resolve the contradictory endorsements.\",\"item_public_id\":\"endorsement\"},{\"evidence_type\":\"Novel application item\",\"reason\":\"Use a new scenario distinguishing reliability/internal consistency from validity to check whether the correct distinction transfers beyond recognition of supplied wording.\",\"item_public_id\":\"\"}]}"
+          }
+        ],
+        "phase": "final_answer",
+        "role": "assistant"
+      }
+    ],
+    "incomplete_details": null,
+    "error": null,
+    "usage": {
+      "input_tokens": 4439,
+      "input_tokens_details": {
+        "cache_write_tokens": 4436,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1090,
+      "output_tokens_details": {
+        "reasoning_tokens": 195
+      },
+      "total_tokens": 5529
+    }
+  },
+  "usage": {
+    "input_tokens": 4439,
+    "output_tokens": 1090,
+    "total_tokens": 5529,
+    "reasoning_tokens": 195,
+    "cached_input_tokens": 0,
+    "raw": {
+      "input_tokens": 4439,
+      "input_tokens_details": {
+        "cache_write_tokens": 4436,
+        "cached_tokens": 0
+      },
+      "output_tokens": 1090,
+      "output_tokens_details": {
+        "reasoning_tokens": 195
+      },
+      "total_tokens": 5529
+    }
+  },
+  "latency_ms": 10936,
+  "transport_telemetry": {
+    "provider": "openai",
+    "transport": "openai_responses",
+    "adapter_version": "openai-responses-adapter-v4",
+    "client_request_id": "synthetic_15ae4986-3d2f-420b-a139-93a1bd0df755",
+    "model_name": "gpt-5.6-terra",
+    "base_url_host": "api.openai.com",
+    "base_url_approved": true,
+    "credential_fingerprint": "98af6abf086e6d7e7699b3ad9e23ec18dc34995c89bca16edc8076ab49c951a0",
+    "credential_source": "environment",
+    "credential_resolver_version": "openai-credential-resolver-v1",
+    "transport_adapter_entered": true,
+    "request_serialization_completed": true,
+    "fetch_invoked": true,
+    "response_headers_received": true,
+    "response_body_started": true,
+    "response_body_completed": true,
+    "response_body_bytes_received": 37435,
+    "response_body_received": true,
+    "provider_request_id": "req_9e0f37dc0da2460dac0440d9720d6b08",
+    "provider_response_id": "resp_094a7f937b970a76016ab9768f570487d0af20e9b5b4321764",
+    "response_status": "completed",
+    "incomplete_details": null,
+    "normalized_response": {
+      "transport": {
+        "provider": "openai",
+        "transport": "openai_responses",
+        "requestId": "req_9e0f37dc0da2460dac0440d9720d6b08",
+        "responseId": "resp_094a7f937b970a76016ab9768f570487d0af20e9b5b4321764",
+        "responseStatus": "completed",
+        "acknowledged": true,
+        "responseBodyReceived": true
+      },
+      "rawOutput": {
+        "exists": true,
+        "outputText": "{\"agent_name\":\"student_profiling_agent\",\"agent_version\":\"1.0\",\"prompt_version\":\"v6_canary\",\"schema_version\":\"profiling_v6_canary\",\"output_status\":\"ok\",\"warnings\":[],\"profile_type\":\"initial\",\"ability_profile\":\"partial_understanding\",\"ability_pattern_flags\":[\"misconception_indicator_present\",\"correctness_reasoning_mismatch\"],\"engagement_profile\":\"adequate_engagement\",\"engagement_pattern_flags\":[\"no_clear_pattern\"],\"integrated_diagnostic_profile\":\"conflicting_evidence_needs_clarification\",\"integrated_profile_confidence\":\"high\",\"integrated_profile_rationale\":\"The student gave two correct responses rejecting the claim that high alpha alone establishes validity, including one explicit rejection of option A. However, on an equivalent item the student explicitly endorsed the false claim that “high alpha proves validity.” These conflicting stated positions prevent a single stable interpretation of current understanding.\",\"evidence_sufficiency\":\"adequate\",\"confidence_alignment\":\"mixed\",\"independence_interpretability\":\"independent_understanding_likely\",\"misconception_indicators\":[{\"indicator\":\"High alpha alone proves validity.\",\"evidence_reference\":\"ev_49301d1a58c1f8747f374221\",\"confidence\":\"medium\",\"rationale\":\"On item endorsement, the student selected administered option A and explicitly stated, “I agree with A's explanation: high alpha proves validity.” This directly endorses the false proposition. Confidence is limited by the student's contrary correct responses on equivalent items.\",\"atomic_claims\":[{\"claim_text\":\"High alpha alone proves validity.\",\"source_evidence_references\":[\"ev_425135813a27dc4c2fe02a68\",\"ev_49301d1a58c1f8747f374221\"]}]}],\"item_level_evidence\":[{\"item_public_id\":\"recognition\",\"evidence_summary\":\"The student selected administered option B correctly and explicitly adopted its explanation, writing, “I agree with B's explanation.” This indicates recognition of the correct position that consistency alone does not establish validity, but does not provide a student-generated explanation.\",\"correctness\":\"correct\",\"reasoning_quality\":\"Recognition-level reasoning; the student explicitly endorsed the correct supplied option explanation.\",\"confidence_rating\":\"medium\"},{\"item_public_id\":\"rejection\",\"evidence_summary\":\"The student selected administered option B correctly. They wrote, “A was tempting but I reject it. Consistency does not establish the intended interpretation.” This explicitly rejects administered option A and states the correct distinction.\",\"correctness\":\"correct\",\"reasoning_quality\":\"Clear and relevant reasoning, with an explicit rejection of the false alternative.\",\"confidence_rating\":\"medium\"},{\"item_public_id\":\"endorsement\",\"evidence_summary\":\"The student selected administered option A incorrectly and wrote, “I agree with A's explanation: high alpha proves validity.” This explicitly endorses the false explanation in option A.\",\"correctness\":\"incorrect\",\"reasoning_quality\":\"Clear statement of reasoning, but it supports the incorrect proposition.\",\"confidence_rating\":\"medium\"}],\"reasoning_quality_summary\":\"The student supplied reasoning on all items. One response is recognition of a supplied correct explanation, one independently worded response correctly rejects the false claim, and one explicitly endorses that same false claim on an equivalent item. The inconsistent positions require clarification before concluding that the distinction is stable.\",\"engagement_summary\":\"The student completed all three items, supplied a reasoning response for each, and reported medium confidence throughout. No process evidence indicates a specific engagement concern.\",\"process_interpretation_cautions\":[\"No process observations beyond submitted responses and confidence ratings were provided.\",\"Equivalent items elicited contradictory positions; this is evidence of inconsistent product responses, not evidence about misconduct or motivation.\"],\"profile_confidence\":\"high\",\"rationale\":\"There is adequate direct evidence of both correct understanding and an explicitly stated false belief on the same core proposition. The strongest current conclusion is partial and inconsistent understanding rather than a stable misconception or robust mastery.\",\"recommended_next_evidence\":[{\"evidence_type\":\"Focused explanation prompt\",\"reason\":\"Ask the student to explain, in their own words, why internal consistency (high alpha) does or does not establish validity, without answer options, to resolve the contradictory endorsements.\",\"item_public_id\":\"endorsement\"},{\"evidence_type\":\"Novel application item\",\"reason\":\"Use a new scenario distinguishing reliability/internal consistency from validity to check whether the correct distinction transfers beyond recognition of supplied wording.\",\"item_public_id\":\"\"}]}",
+        "outputTextPath": "output_text",
+        "parsedOutput": null,
+        "parsedOutputPath": null,
+        "refusal": null,
+        "refusalPath": null,
+        "providerError": null,
+        "responseStatus": "completed",
+        "incompleteDetails": null,
+        "outcome": "valid",
+        "rawResponseHash": "c7808af66ac446b1ef3a77cfeaff1fe1ef8d84ff2bba4265143851dd39d502a7"
+      },
+      "usage": {
+        "status": "usage_verified",
+        "inputTokens": 4439,
+        "cachedInputTokens": 0,
+        "outputTokens": 1090,
+        "reasoningTokens": 195,
+        "totalTokens": 5529,
+        "sourcePaths": [
+          "usage",
+          "usage.input_tokens",
+          "usage.input_tokens_details.cached_tokens",
+          "usage.output_tokens",
+          "usage.output_tokens_details.reasoning_tokens",
+          "usage.total_tokens"
+        ],
+        "attemptedPaths": {
+          "inputTokens": [
+            "usage.input_tokens",
+            "usage.inputTokens"
+          ],
+          "cachedInputTokens": [
+            "usage.input_tokens_details.cached_tokens",
+            "usage.input_token_details.cached_tokens",
+            "usage.cached_input_tokens",
+            "usage.cachedInputTokens"
+          ],
+          "outputTokens": [
+            "usage.output_tokens",
+            "usage.outputTokens"
+          ],
+          "reasoningTokens": [
+            "usage.output_tokens_details.reasoning_tokens",
+            "usage.output_token_details.reasoning_tokens",
+            "usage.reasoning_tokens",
+            "usage.reasoningTokens"
+          ],
+          "totalTokens": [
+            "usage.total_tokens",
+            "usage.totalTokens"
+          ]
+        },
+        "internallyConsistent": true,
+        "pricingRegistryVersion": null,
+        "pricingFound": false,
+        "calculatedCostUsd": null
+      },
+      "outcomes": {
+        "transportOutcome": "live_provider_success",
+        "rawOutputOutcome": "valid",
+        "effectiveSystemOutcome": "provider_output_used",
+        "fallbackReason": null
+      },
+      "sanitizedResponseMetadata": {
+        "id_present": true,
+        "status": "completed",
+        "model": "gpt-5.6-terra",
+        "output_count": 2,
+        "output_text_present": true,
+        "output_parsed_present": false,
+        "refusal_present": false,
+        "provider_error_present": false,
+        "usage_present": true,
+        "incomplete_details_present": false
+      }
+    },
+    "transport_outcome": "live_provider_success",
+    "raw_output_outcome": "valid",
+    "effective_system_outcome": "provider_output_used",
+    "fallback_reason": null,
+    "usage_status": "usage_verified",
+    "usage_source_paths": [
+      "usage",
+      "usage.input_tokens",
+      "usage.input_tokens_details.cached_tokens",
+      "usage.output_tokens",
+      "usage.output_tokens_details.reasoning_tokens",
+      "usage.total_tokens"
+    ],
+    "raw_response_hash": "c7808af66ac446b1ef3a77cfeaff1fe1ef8d84ff2bba4265143851dd39d502a7",
+    "structured_output_validation_status": "valid",
+    "structured_output_validation_issue_paths": []
+  }
+}

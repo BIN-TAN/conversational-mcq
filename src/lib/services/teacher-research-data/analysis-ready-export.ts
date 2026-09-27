@@ -1094,6 +1094,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
     const recoveryEvent = lastEvent(sessionEvents, ["package_completion_reconciled"]);
     const displayAckEvent = lastEvent(sessionEvents, [
       "package_results_shown",
+      "formative_feedback_shown",
       "profile_feedback_shown",
       "next_interaction_shown",
       "formative_activity_shown"
@@ -1104,7 +1105,9 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       return payload.message_type === "next_interaction";
     });
     const canonicalRuntimeState =
-      usesFormativeConversation
+      ["completed", "ended_by_student", "ended_by_teacher"].includes(attemptLifecycleStatus)
+        ? "SESSION_COMPLETE"
+        : usesFormativeConversation
         ? "FORMATIVE_CONVERSATION"
         : session.current_phase === "planning_completed" &&
             activeActivityAttempt?.status === "awaiting_student_activity_response"

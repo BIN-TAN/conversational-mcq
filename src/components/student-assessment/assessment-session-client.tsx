@@ -48,7 +48,6 @@ import {
   sendFollowupMessage,
   sendFormativeConversationEvent,
   sendFormativeConversationMessage,
-  sendProcessEvents,
   sendRevisionResponse,
   startStudentActivityRuntime,
   startAssessmentSession,
@@ -60,6 +59,9 @@ import {
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
+import { ObservedFeedback } from "./observed-feedback";
+import { feedbackContentId } from "@/lib/student-assessment-ui/feedback-display";
+import type { FrontendProcessEvent } from "./api";
 import { useResponseStageObservations } from "./use-response-stage-observations";
 import type { ResponseObservationLink, ResponseStageContext } from "@/lib/student-assessment-ui/response-observation";
 import {
@@ -73,8 +75,6 @@ const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
 const STUDENT_FACING_TUTOR_LABEL = "Assessment Tutor";
-const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1";
-const DISPLAY_EVENT_CONTRACT_VERSION = "display-ack-v1";
 const FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000;
 const FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000;
 
@@ -437,6 +437,7 @@ function FormativeConversationControls(input: {
   onBackspace: () => void;
   onChange: (value: string) => void;
   onEnd: () => void;
+  onFinish: () => void;
   onPaste: (pastedCharacterCount: number) => void;
   onPause: () => void;
   onRetryOpening: () => void;
@@ -447,7 +448,13 @@ function FormativeConversationControls(input: {
 }) {
   const { conversation } = input;
   if (!["active", "paused"].includes(conversation.status)) {
-    return <p role="status" className="text-sm text-muted" data-testid="formative-conversation-ended">This conversation has ended. Your messages are saved.</p>;
+    return <section className="space-y-3" data-testid="formative-conversation-ended">
+      <p role="status" className="text-sm text-muted">This conversation has ended. Your messages are saved.</p>
+      {conversation.can_finish_assessment ? <button type="button" disabled={input.isBusy}
+        className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60"
+        onClick={input.onFinish} data-testid="finish-assessment">Finish assessment</button> :
+        <p className="text-sm text-muted">Please contact your teacher for help with this assessment. Your responses are saved.</p>}
+    </section>;
   }
   const response = conversation.assistant_response;
   const responseIsPending =
@@ -1890,9 +1897,13 @@ function NextChoiceControls({
 }
 
 function PackageResultsChatCard({
-  packageResults
+  packageResults, sessionId, conceptId, observe, send
 }: {
   packageResults?: StudentSessionState["package_results"] | null;
+  sessionId: string;
+  conceptId: string;
+  observe: boolean;
+  send: (event: FrontendProcessEvent) => void;
 }) {
   if (!packageResults) {
     return null;
@@ -1911,7 +1922,11 @@ function PackageResultsChatCard({
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
           <div data-testid="package-results-summary">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total correct</p>
-            <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
+            <ObservedFeedback enabled={observe} send={send} event={{ event_type: "package_results_shown",
+              concept_unit_public_id: conceptId, event_category: "feedback_display",
+              payload: { content_id: feedbackContentId(sessionId, conceptId, "initial-results"), content_kind: "package_summary" } }}>
+              <p className="mt-1 font-semibold text-ink">{packageResults.result_summary}</p>
+            </ObservedFeedback>
             <div className="mt-3 space-y-2" data-testid="initial-answer-review-list">
               {packageResults.items.map((item) => (
                 <details
@@ -1939,10 +1954,12 @@ function PackageResultsChatCard({
                         : "Not shown"}
                     </p>
                     {item.answer_explanation_revealed && item.answer_explanation ? (
-                      <p>
+                      <ObservedFeedback enabled={observe} send={send} event={{ event_type: "item_correctness_status_shown",
+                        item_public_id: item.item_public_id, concept_unit_public_id: conceptId, event_category: "feedback_display",
+                        payload: { content_id: feedbackContentId(sessionId, conceptId, `item:${item.item_public_id}`), content_kind: "item_feedback" } }}><p>
                         <span className="font-semibold text-ink">Why:</span>{" "}
                         {item.answer_explanation}
-                      </p>
+                      </p></ObservedFeedback>
                     ) : null}
                     {item.distractor_boundary ? (
                       <p>
@@ -2019,7 +2036,7 @@ function StudentAssessmentChatShell({
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 Pause and leave
               </button>
-              {state.preparation?.status !== "failed" ? (
+              {state.preparation?.status !== "failed" && !state.formative_conversation?.can_finish_assessment ? (
                 <button
                   className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   data-testid="end-attempt"
@@ -2457,7 +2474,6 @@ export function AssessmentSessionClient({
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const packageResultsRef = useRef<HTMLDivElement | null>(null);
-  const displayAcknowledgementRef = useRef<Set<string>>(new Set());
   const formativeMessageIdRef = useRef<string | null>(null);
   const formativeTypingStartedAtRef = useRef<Date | null>(null);
   const formativeEditCountRef = useRef(0);
@@ -2776,7 +2792,7 @@ export function AssessmentSessionClient({
   }
 
   async function handleFormativeConversationLifecycle(
-    action: "pause" | "resume" | "end"
+    action: "pause" | "resume" | "end" | "finish"
   ) {
     if (!state || isBusy) {
       return;
@@ -2794,6 +2810,7 @@ export function AssessmentSessionClient({
           ? { ...current, formative_conversation: nextConversation }
           : current
       );
+      if (action === "finish") setState(await fetchSessionState(state.session_public_id));
     } catch (errorValue) {
       handleError(errorValue, action, () => {
         void handleFormativeConversationLifecycle(action);
@@ -2931,103 +2948,6 @@ export function AssessmentSessionClient({
   useEffect(() => {
     setActivityRuntime(state?.activity_runtime ?? null);
   }, [state?.activity_runtime]);
-
-  useEffect(() => {
-    if (
-      readOnlyReview ||
-      !state ||
-      state.assessment_state !== "FORMATIVE_ACTIVITY" ||
-      state.formative_conversation
-    ) {
-      return;
-    }
-
-    const activityAttemptPublicId =
-      activityRuntime?.activity_attempt_public_id ??
-      state.activity_runtime?.activity_attempt_public_id ??
-      null;
-    const contentId = [
-      state.session_public_id,
-      state.current_concept_unit?.concept_unit_public_id ?? "no_concept",
-      activityAttemptPublicId ?? "no_activity",
-      PACKAGE_FEEDBACK_PRESENTER_VERSION
-    ].join(":");
-    const basePayload = {
-      display_event_contract_version: DISPLAY_EVENT_CONTRACT_VERSION,
-      presenter_version: PACKAGE_FEEDBACK_PRESENTER_VERSION,
-      rendered_state: state.assessment_state,
-      canonical_runtime_state: state.canonical_runtime_state ?? state.assessment_state,
-      content_id: contentId,
-      activity_attempt_public_id: activityAttemptPublicId,
-      next_step: state.next_step
-    };
-    const eventTypes: Array<
-      | "package_results_shown"
-      | "item_correctness_status_shown"
-      | "profile_feedback_shown"
-      | "next_interaction_shown"
-      | "distractor_activity_shown"
-      | "formative_activity_shown"
-      | "student_communication_shown"
-      | "topic_dialogue_prompt_shown"
-      | "topic_dialogue_response_shown"
-      | "progression_choices_shown"
-    > = [
-      "package_results_shown",
-      "item_correctness_status_shown",
-      "profile_feedback_shown",
-      "next_interaction_shown",
-      "distractor_activity_shown",
-      "formative_activity_shown",
-      "student_communication_shown",
-      ...(state.activity_runtime?.topic_dialogue?.state === "awaiting_response"
-        ? ["topic_dialogue_prompt_shown" as const]
-        : []),
-      ...(state.activity_runtime?.topic_dialogue?.state === "ready_to_advance" ||
-      state.activity_runtime?.topic_dialogue?.state === "final_support"
-        ? ["progression_choices_shown" as const]
-        : [])
-    ];
-    const unsent = eventTypes.filter((eventType) => {
-      const key = `${eventType}:${contentId}`;
-      if (displayAcknowledgementRef.current.has(key)) {
-        return false;
-      }
-      displayAcknowledgementRef.current.add(key);
-      return true;
-    });
-
-    if (unsent.length === 0) {
-      return;
-    }
-
-    void sendProcessEvents(
-      state.session_public_id,
-      unsent.map((eventType) => ({
-        event_type: eventType,
-        event_category:
-          eventType === "package_results_shown" || eventType === "item_correctness_status_shown"
-            ? "package_results"
-            : eventType === "profile_feedback_shown"
-              ? "package_feedback"
-              : eventType.startsWith("topic_dialogue") || eventType === "progression_choices_shown"
-                ? "topic_dialogue"
-              : "formative_routing",
-        client_occurred_at: new Date().toISOString(),
-        payload: basePayload
-      }))
-    ).catch(() => undefined);
-  }, [
-    activityRuntime?.activity_attempt_public_id,
-    state?.activity_runtime?.activity_attempt_public_id,
-    state?.assessment_state,
-    state?.canonical_runtime_state,
-    state?.current_concept_unit?.concept_unit_public_id,
-    state?.next_step,
-    readOnlyReview,
-    state,
-    state?.session_public_id
-  ]);
 
   useEffect(() => {
     if (state?.assessment_state !== "REVISION") {
@@ -3786,6 +3706,7 @@ export function AssessmentSessionClient({
           pastedCharacterCount;
       }}
       onPause={() => void handleFormativeConversationLifecycle("pause")}
+      onFinish={() => void handleFormativeConversationLifecycle("finish")}
       onRetryOpening={() => void handleRetryFormativeConversationOpening()}
       onRetryResponse={() => void handleRetryFormativeConversationResponse()}
       onReviewAnswers={
@@ -3908,14 +3829,23 @@ export function AssessmentSessionClient({
           ))}
           {showPackageResults ? (
             <div ref={packageResultsRef}>
-              <PackageResultsChatCard packageResults={state.package_results} />
+              <PackageResultsChatCard packageResults={state.package_results} sessionId={state.session_public_id}
+                conceptId={state.current_concept_unit?.concept_unit_public_id ?? ""}
+                observe={!readOnlyReview && Boolean(state.current_concept_unit)} send={sendObservation} />
             </div>
           ) : null}
           {afterPackageResults.map((entry) => (
             <ChatBubble entry={entry} key={entry.turn_id} />
           ))}
           {state.formative_conversation?.transcript.map((turn) => (
-            <FormativeConversationBubble key={turn.turn_id} turn={turn} />
+            <ObservedFeedback key={turn.turn_id} enabled={!readOnlyReview && turn.actor === "tutor"}
+              send={sendObservation} event={{ event_type: "formative_feedback_shown", event_category: "feedback_display",
+                concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id,
+                payload: { content_id: feedbackContentId(state.session_public_id, state.current_concept_unit?.concept_unit_public_id ?? "", `turn:${turn.turn_id}`),
+                  content_kind: "formative_tutor_message", turn_id: turn.turn_id, source_turn_sequence_index: turn.sequence_index,
+                  conversation_public_id: state.formative_conversation?.conversation_public_id } }}>
+              <FormativeConversationBubble turn={turn} />
+            </ObservedFeedback>
           ))}
           <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
             if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recordInput(event.target.value.length);

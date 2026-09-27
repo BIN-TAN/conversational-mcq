@@ -1,0 +1,55 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1213,
+      "heap_limit_mib": 512,
+      "log_sha256": "97551b9d548339b674c6bf08c193ddef4d3000e60db8aab830e36a601de88dc8"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 182,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "student-analysis-ready-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1767,
+      "heap_limit_mib": 512,
+      "log_sha256": "ae7cb07de504b5866c54ad15537a652941de62b2aff99448c3e8257923374da4"
+    },
+    {
+      "label": "student-selected-session-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 729,
+      "heap_limit_mib": 512,
+      "log_sha256": "02b741615511b9fafb8c6741d4e9be9d896c79b15ec6d3578b989449a75dd83b"
+    },
+    {
+      "label": "student-research-export-integrity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 710,
+      "heap_limit_mib": 512,
+      "log_sha256": "281c45d42e84036357623526f1e30faabfd460135cfaaaea98dabe47333ed804"
+    },
+    {
+      "label": "process-data-summary-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 122,
+      "heap_limit_mib": 512,
+      "log_sha256": "abe22d84aedc94ee3d397bf7f9e14bb987f548b86365314a676ae2a5821db4ce"
+    }
+  ]
+}

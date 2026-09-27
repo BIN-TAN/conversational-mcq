@@ -32,6 +32,7 @@ const tests = [
   "formative-conversation-v18r2-lifecycle-runtime-smoke-test.ts",
   "student-formative-conversation-profile-handoff-smoke-test.ts",
   "student-package-feedback-recovery-smoke-test.ts",
+  "feedback-display-completion-smoke-test.ts",
   "student-formative-waiting-attempt-review-smoke-test.ts",
   "student-teacher-session-data-audit-smoke-test.ts",
   "student-data-collection-completeness-smoke-test.ts",

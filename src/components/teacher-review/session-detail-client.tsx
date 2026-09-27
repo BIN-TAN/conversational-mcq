@@ -1,4 +1,5 @@
 "use client";
+import { teacherPhaseLabel } from "@/lib/teacher-session-labels";
 import { RestoreAttemptChance } from "./restore-attempt-chance";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -1330,11 +1331,7 @@ export function Overview({
           value={
             <StatusPill
               value={
-                formativeConversation
-                  ? formativeConversationPhaseLabel(
-                      formativeConversation.status
-                    )
-                  : detail.session.current_phase
+                teacherPhaseLabel(detail.session.current_phase, formativeConversation?.status)
               }
               tone="warn"
             />
@@ -1344,7 +1341,7 @@ export function Overview({
         <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
         <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
         <Fact labelText="Current topic" value={detail.current_concept_unit?.title ?? "Not recorded"} />
-        <Fact labelText="Topic progress" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
+        <Fact labelText="Topics with questions submitted" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
         <Fact
           labelText="Response collection"

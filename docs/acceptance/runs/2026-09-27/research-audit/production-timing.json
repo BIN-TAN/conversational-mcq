@@ -1,0 +1,138 @@
+{
+  "read_only": true,
+  "snapshot": [
+    {
+      "snapshot_at": "2026-09-27T20:27:01.785Z"
+    }
+  ],
+  "stage_observation_coverage": [
+    {
+      "stage": "answer",
+      "visits": 55,
+      "ready_present": 55,
+      "closed_present": 54,
+      "submission_present": 52,
+      "input_start_present": 0,
+      "identity_missing": 0,
+      "sequence_gap_or_duplicate": 0
+    },
+    {
+      "stage": "confidence",
+      "visits": 50,
+      "ready_present": 50,
+      "closed_present": 50,
+      "submission_present": 50,
+      "input_start_present": 0,
+      "identity_missing": 0,
+      "sequence_gap_or_duplicate": 0
+    },
+    {
+      "stage": "reasoning",
+      "visits": 55,
+      "ready_present": 55,
+      "closed_present": 54,
+      "submission_present": 53,
+      "input_start_present": 53,
+      "identity_missing": 0,
+      "sequence_gap_or_duplicate": 0
+    },
+    {
+      "stage": "tempting_option",
+      "visits": 52,
+      "ready_present": 52,
+      "closed_present": 52,
+      "submission_present": 51,
+      "input_start_present": 1,
+      "identity_missing": 0,
+      "sequence_gap_or_duplicate": 0
+    },
+    {
+      "stage": "tempting_reason",
+      "visits": 26,
+      "ready_present": 26,
+      "closed_present": 26,
+      "submission_present": 23,
+      "input_start_present": 23,
+      "identity_missing": 0,
+      "sequence_gap_or_duplicate": 0
+    }
+  ],
+  "outcome_links": [
+    {
+      "outcomes": 248,
+      "accepted": 225,
+      "validation_rejected": 23,
+      "no_browser_submission_match": 0
+    }
+  ],
+  "frontend_label_without_client_id": [
+    {
+      "event_type": "confidence_clicked",
+      "n": 50
+    },
+    {
+      "event_type": "confidence_selected",
+      "n": 50
+    },
+    {
+      "event_type": "idk_selected",
+      "n": 1
+    },
+    {
+      "event_type": "option_clicked",
+      "n": 52
+    },
+    {
+      "event_type": "option_selected",
+      "n": 52
+    },
+    {
+      "event_type": "reasoning_entered",
+      "n": 50
+    },
+    {
+      "event_type": "reasoning_submitted",
+      "n": 50
+    },
+    {
+      "event_type": "student_response_edit_started",
+      "n": 1
+    },
+    {
+      "event_type": "student_response_edit_submitted",
+      "n": 1
+    },
+    {
+      "event_type": "tempting_option_changed",
+      "n": 1
+    },
+    {
+      "event_type": "tempting_option_reason_submitted",
+      "n": 22
+    },
+    {
+      "event_type": "tempting_option_submitted",
+      "n": 72
+    }
+  ],
+  "feedback_acknowledgement": [
+    {
+      "acknowledged_items": 0,
+      "explanation_marked_revealed": 46
+    }
+  ],
+  "evidence_reference_links": [
+    {
+      "references": 14,
+      "source_link_conflicts": 0,
+      "empty_evidence_sequences": 0,
+      "missing_evidence_turn": 0
+    }
+  ],
+  "formative_input_coverage": [
+    {
+      "students_turns": 33,
+      "input_telemetry_present": 33
+    }
+  ]
+}

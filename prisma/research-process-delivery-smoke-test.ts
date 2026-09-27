@@ -26,6 +26,20 @@ async function main() {
   assert.equal(restored.pendingCount(), 0);
   assert.equal(stored.size, 0);
   restored.dispose();
+  const display = { event_type: "formative_feedback_shown" as const, concept_unit_public_id: "topic_synthetic", payload: {
+    content_id: "session_synthetic:topic_synthetic:turn:" + "x".repeat(80), content_kind: "formative_tutor_message",
+    display_event_contract_version: "display-ack-v2", source_turn_sequence_index: 4, minimum_visible_ms: 500,
+    observation_method: "partial_viewport_500ms", raw_text: "DO_NOT_PERSIST" } };
+  const delayedDisplay = createProcessEventDelivery({ sessionId: "display", tabId: randomUUID(), storage,
+    send: async () => { throw new Error("offline"); } });
+  delayedDisplay.enqueue(display); await delayedDisplay.finish();
+  const displayRecovery = createProcessEventDelivery({ sessionId: "display", tabId: randomUUID(), storage, send: async events => {
+    assert.equal(events[0].payload?.content_id, display.payload.content_id);
+    assert.equal(events[0].concept_unit_public_id, display.concept_unit_public_id);
+    assert.equal(events[0].payload?.source_turn_sequence_index, 4);
+    assert.equal(events[0].payload?.raw_text, undefined);
+  } });
+  await displayRecovery.flush(); assert.equal(displayRecovery.pendingCount(), 0); displayRecovery.dispose();
   const overflow = createProcessEventDelivery({ sessionId: "overflow", tabId: randomUUID(), storage, newId: randomUUID,
     send: async () => { throw new Error("offline"); } });
   for (let i = 0; i < 225; i += 1) overflow.enqueue({ event_type: "window_focus" });

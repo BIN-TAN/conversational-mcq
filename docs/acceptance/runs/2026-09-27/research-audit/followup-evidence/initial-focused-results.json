@@ -1,0 +1,77 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1216,
+      "log_sha256": "259730043c32b26d01f74a3087d0b8e2fd1bfbf0fa82e0932d2ceef785aeaaa8"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 196,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "feedback-display-completion-smoke-test",
+      "passed": false,
+      "exit_code": 1,
+      "duration_ms": 1670,
+      "log_sha256": "9ca4a5bffd9b913903869ac06c8435524971f66a4a37cb6115cdc8a75748ab11"
+    },
+    {
+      "label": "student-package-feedback-recovery-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1653,
+      "log_sha256": "f9c3607c40b463d9a5087c98df1df2a3d9f0e45e79e3aa1cdb0f9fdfc2a5997e"
+    },
+    {
+      "label": "research-process-delivery-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 107,
+      "log_sha256": "5d376bb736cc786304fc7c70bba5db284352eed54af801e459ea1fba3a3295fc"
+    },
+    {
+      "label": "classroom-data-integrity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1420,
+      "log_sha256": "ea4e948d808c632c62bad743a8bf2972da691f636fa41904bd0d2dbe08d77729"
+    },
+    {
+      "label": "student-attempt-lifecycle-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 663,
+      "log_sha256": "448a67c44de528b7cb013b14a17969c772f26f80d92b2795e7c499249c1a132a"
+    },
+    {
+      "label": "student-analysis-ready-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1727,
+      "log_sha256": "2acf8dd84b7665c2d5f12dca9f96e6271ee9e5341bad4fe758ef697f4fb01fbc"
+    },
+    {
+      "label": "student-data-dictionary-timing-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 895,
+      "log_sha256": "d56c1023adebd384b18f32a3724b40677d6e284ab386440f96343628dd6d66f3"
+    },
+    {
+      "label": "student-process-event-codebook-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 81,
+      "log_sha256": "87ae21712dab53904324d22c1f81815fb61cc29f93689f5c4449fb262ca583e0"
+    }
+  ]
+}

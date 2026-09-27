@@ -1,0 +1,9 @@
+{
+  "version": "sha256-v1",
+  "files": {
+    "live-results.json": "31f7b0b0f5749a3d6c61a312b2c5726aeed1b3c4b0d43b8d87a8f02e65d2f047",
+    "final-results.json": "b4b94a66e84a166609c4d84b9a42cb6cb435e40ce691588a6cc87e32105f9bb4",
+    "summary.json": "c76643f6635d8146620f57b470632a15915704d1d60301cd7403eb9de6acc705",
+    "READABLE_TRANSCRIPTS.md": "0092c02f6b80de43349874643eca27edb1974b7e7cfc58c892fcfe64c04431ba"
+  }
+}

@@ -8,7 +8,7 @@ import { updateStudentFormativeConversationLifecycle } from "@/lib/services/stud
 
 const lifecycleSchema = z
   .object({
-    action: z.enum(["pause", "resume", "end"])
+    action: z.enum(["pause", "resume", "end", "finish"])
   })
   .strict();
 

@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { canFinishConversationAssessment, finishConversationAssessment } from "./finish-assessment";
+import { StudentAssessmentServiceError } from "../errors";
 import { getInitialPreparationStatus } from "@/lib/workflow/initial-preparation-status";
 import { studentTurnId } from "../student-turn-id";
 import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
@@ -197,7 +199,9 @@ export async function getStudentFormativeConversationProjection(input: {
       anotherStudentTurnAvailable,
     can_pause: attemptActive && conversation.status === "active",
     can_resume: attemptActive && conversation.status === "paused",
-    can_end: attemptActive && ["active", "paused"].includes(conversation.status),
+    can_end: attemptActive && openingReady && !incompleteResponse && ["active", "paused"].includes(conversation.status),
+    can_finish_assessment: attemptActive && !["active", "paused"].includes(conversation.status) &&
+      await canFinishConversationAssessment(conversation.assessment_session_db_id, conversation.assessment_session.assessment_db_id),
     message_max_chars: 5_000,
     student_formative_turn_count: studentFormativeTurnCount,
     current_student_turn_index: studentFormativeTurnCount,
@@ -239,8 +243,12 @@ export async function getStudentFormativeConversationProjection(input: {
 export async function updateStudentFormativeConversationLifecycle(input: {
   student_user_db_id: string;
   session_public_id: string;
-  action: "pause" | "resume" | "end";
+  action: "pause" | "resume" | "end" | "finish";
 }) {
+  if (input.action === "finish") {
+    await finishConversationAssessment(input);
+    return getStudentFormativeConversationProjection(input);
+  }
   const conversation = await prisma.formativeConversationSession.findFirst({
     where: {
       assessment_session: {
@@ -290,6 +298,14 @@ export async function updateStudentFormativeConversationLifecycle(input: {
       where: { session_public_id: input.session_public_id, user_db_id: input.student_user_db_id }
     });
     if (!attemptAllowsConversation(parent)) return;
+    if (input.action === "end") {
+      const unresolved = await tx.formativeConversationMessageReceipt.count({ where: {
+        formative_conversation_session_db_id: conversation.id,
+        OR: [{ assistant_turn_db_id: null }, { assistant_response_status: { not: "completed" } }]
+      } });
+      if (unresolved) throw new StudentAssessmentServiceError("invalid_phase_for_action",
+        "The tutor response is not ready. Retry feedback or contact your teacher before closing the conversation.", 409);
+    }
     const changed = await tx.formativeConversationSession.updateMany({
       where: { id: conversation.id, status: conversation.status },
       data: {

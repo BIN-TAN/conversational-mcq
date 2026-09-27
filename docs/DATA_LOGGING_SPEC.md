@@ -1592,6 +1592,44 @@ classroom records or the approved operational manifest. API keys,
 authentication headers, hidden prompts, chain-of-thought, and raw provider
 output are excluded.
 
+## Feedback Display Observations (2026-09-27)
+
+`display-ack-v2` separately captures `package_results_shown` (summary only),
+`item_correctness_status_shown` (one item's explanation), and
+`formative_feedback_shown` (one saved tutor message). An observation requires
+some of the content to intersect the viewport of a visible browser document
+continuously for at least 500 ms. The threshold resets while hidden/offscreen;
+collapsed explanations do not qualify. This is partial exposure, not proof of
+reading, full-message exposure, comprehension, or reading duration.
+
+Events use the bounded session-storage delivery queue with stable event IDs.
+Content identity is session + topic + summary/item/turn identity. The server
+validates ownership, administered context, released item feedback and tutor
+turn references, then deduplicates by session/event type/content identity.
+Reloads and delivery retries do not count as additional readings. Storage
+failure, queue expiry (24 hours), queue overflow (200 events), abrupt shutdown
+and offline closure remain best-effort limitations; absent data are not zero.
+
+`feedback_exposure_events.csv` adds `display_event_contract_version`,
+`content_kind`, `observation_method`, `minimum_visible_ms`, `client_event_id`,
+`server_received_at`, and `source_turn_sequence_index`. The latter joins a
+tutor exposure to `conversation_turns.csv` within `session_public_id`; it is
+blank for summaries/items. The browser's occurrence timestamp and server's
+receipt timestamp are distinct clocks. The dictionary documents each field.
+
+Only a v2 item explanation observation sets that item's
+`student_display_acknowledged_at`, using first server receipt time. A summary
+or tutor message cannot mark all answers as seen. Legacy v1 package-level
+acknowledgements retain their original broader semantics. Historical missing
+exposure records are not inferred from generated/persisted feedback or backfilled.
+Read-only historical review does not generate new in-attempt exposure evidence.
+
+Explicit **Finish assessment** creates one backend `session_completed` event
+with `reason=student_confirmed_finish_after_learning_conversation` and
+`completion_contract_version=conversation-finish-v1`. It changes lifecycle
+metadata only; `learning_outcome_generated=false` documents that no final
+profile or improvement evidence is fabricated by this action.
+
 ## Browser Response-Stage Observations (V4)
 
 See [Process and Product Analytics Guide](PROCESS_PRODUCT_ANALYTICS_GUIDE.md)

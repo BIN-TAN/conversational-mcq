@@ -1,5 +1,27 @@
 # Assessment Flow Specification
 
+## Conversation Closure and Attempt Completion (2026-09-27)
+
+`planning_completed` is the persisted feedback-ready phase, not assessment
+completion. Teacher pages label it **Learning conversation**, with a paused or
+ended qualifier where the conversation status is available. Initial question
+submission counts are labeled separately from completed attempts.
+
+Ending the conversation does not itself end the attempt. A closed conversation
+now offers **Finish assessment** when every published, included topic has a
+sealed initial package, completed initial administration, a closed conversation,
+and saved tutor responses for every receipt. Active conversations, pending or
+failed feedback, and platform-failure closures cannot use this completion path.
+Students retain Retry/contact-teacher recovery for feedback failures.
+
+Finish is an explicit, owner-authorized, transactionally serialized action.
+Concurrent retries create one completion event and preserve the original
+completion timestamp. The attempt becomes `completed` / `session_completed`
+and read-only. This is workflow completion, not a claim of mastery, improvement,
+or a completed final reassessment. It creates no profiles or learning outcomes.
+Pause/resume and explicit early termination retain their existing meanings.
+Historical paused/ended attempts are not automatically rewritten or backfilled.
+
 ## Protected Collection and Learning Summaries (2026-09-26)
 
 Initial and transfer explanation collection uses item-admin tutor v2. The model

@@ -1,0 +1,31 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1297,
+      "heap_limit_mib": 512,
+      "log_sha256": "6e4094ee775de9e576f6bb74eab6e565a2c66deb2f42da2a336399dc80c3412e"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 183,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "preparation-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 19388,
+      "heap_limit_mib": 512,
+      "log_sha256": "fec2da3e3640a0c35c1b6ad5924c07a995d0e2aa104fa1d469dc3eb89e36e566"
+    }
+  ]
+}

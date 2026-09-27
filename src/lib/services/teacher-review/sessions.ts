@@ -72,6 +72,9 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
           title: true
         }
       },
+      formative_conversation_sessions: {
+        orderBy: { started_at: "desc" }, take: 1, select: { status: true }
+      },
       workflow_jobs: {
         orderBy: [{ created_at: "desc" }],
         take: 5
@@ -140,6 +143,7 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
         attempt_number: session.attempt_number,
         session_status: session.status,
         current_phase: session.current_phase,
+        formative_conversation_status: session.formative_conversation_sessions[0]?.status ?? null,
         workflow_mode_snapshot: session.workflow_mode_snapshot,
         response_collection_mode_snapshot: session.response_collection_mode_snapshot,
         assessment_response_collection_mode: session.assessment.response_collection_mode,
