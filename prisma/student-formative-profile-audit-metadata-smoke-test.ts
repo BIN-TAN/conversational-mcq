@@ -237,12 +237,38 @@ async function main() {
       "Synthetic pre-dispatch provider failure should not fabricate provider metadata."
     );
 
+    for (const reason of ["max_output_tokens", "content_filter", "untrusted provider detail"]) {
+      const incomplete: StructuredAgentResult<unknown> = {
+        provider: "openai",
+        client_request_id: clientRequestId,
+        status: "incomplete",
+        incomplete_reason: reason,
+        latency_ms: 8
+      };
+      await prisma.agentCall.update({
+        where: { id: failedCall.id },
+        data: chatNativeProviderAuditUpdate(incomplete)
+      });
+      const persisted = await prisma.agentCall.findUniqueOrThrow({
+        where: { id: failedCall.id }, select: { raw_output: true, incomplete_reason: true }
+      });
+      assert(
+        persisted.incomplete_reason === (reason === "untrusted provider detail" ? "unspecified" : reason),
+        "The dedicated research audit field must retain the safe incomplete reason."
+      );
+      assert(
+        record(record(persisted.raw_output)?.provider_failure)?.incomplete_reason ===
+          (reason === "untrusted provider detail" ? "unspecified" : reason),
+        "Incomplete output must retain its safe failure reason in persisted research evidence."
+      );
+    }
+
     console.log(
       "Formative profile audit metadata smoke test passed. Synthetic provider result only; no OpenAI call was made."
     );
   } finally {
     await prisma.agentCall.deleteMany({
-      where: { agent_invocation_key: invocationKey }
+      where: { agent_invocation_key: { in: [invocationKey, `${invocationKey}_failed`] } }
     });
     await prisma.$disconnect();
   }

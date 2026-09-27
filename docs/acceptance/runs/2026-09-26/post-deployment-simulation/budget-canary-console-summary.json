@@ -1,0 +1,29 @@
+{
+  "version": "initial-profile-budget-probe-v1",
+  "synthetic_only": true,
+  "production_settings_changed": false,
+  "real_student_data_used": false,
+  "model": "gpt-5.6-sol",
+  "reasoning_effort": "medium",
+  "script": "prisma/semantic-item-review-live-canary.ts",
+  "evidence_kind": "metadata transcribed from captured tool console output; full provider replies and request IDs were not saved by this script",
+  "calls": [
+    { "item_count": 3, "max_output_tokens": 3000, "status": "completed", "input_tokens": 2924, "output_tokens": 1740, "latency_ms": 22142, "semantic_checks_passed": true },
+    { "item_count": 12, "max_output_tokens": 3000, "status": "incomplete", "input_tokens": 3899, "output_tokens": 3000, "latency_ms": 25821, "semantic_checks_passed": null },
+    { "item_count": 3, "max_output_tokens": 10000, "status": "completed", "input_tokens": 2924, "output_tokens": 1788, "latency_ms": 21271, "semantic_checks_passed": true },
+    { "item_count": 12, "max_output_tokens": 10000, "status": "completed", "input_tokens": 3899, "output_tokens": 3773, "latency_ms": 33669, "semantic_checks_passed": true }
+  ],
+  "first_invocation_exit_code": 1,
+  "second_invocation_exit_code": 0,
+  "checks": [
+    "correct choice does not erase an explicitly false normality requirement",
+    "concise correct reasoning remains supported and is not marked as misconception",
+    "explicit guessing without reasoning remains insufficient evidence"
+  ],
+  "limitations": [
+    "Not a replay of a real student's package.",
+    "Provider schema and semantic-item reviews were validated; this is not the full persisted initial-preparation pipeline or all student-facing message validators.",
+    "The incomplete response consumed the full 3000-token cap; the script did not print the provider incomplete_reason.",
+    "One sample at each size and budget does not establish a safe maximum for every package."
+  ]
+}

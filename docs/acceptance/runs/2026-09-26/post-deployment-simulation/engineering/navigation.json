@@ -1,0 +1,102 @@
+[
+  {
+    "test": "student-navigation-matrix-test",
+    "passed": true,
+    "seconds": 34.636
+  },
+  {
+    "test": "classroom-progression-regression-test",
+    "passed": true,
+    "seconds": 1.733
+  },
+  {
+    "test": "student-state-machine-smoke-test",
+    "passed": true,
+    "seconds": 1.927
+  },
+  {
+    "test": "student-initial-admin-smoke-test",
+    "passed": true,
+    "seconds": 1.281
+  },
+  {
+    "test": "student-conversational-flow-smoke-test",
+    "passed": true,
+    "seconds": 0.744
+  },
+  {
+    "test": "student-dynamic-initial-item-count-smoke-test",
+    "passed": true,
+    "seconds": 3.377
+  },
+  {
+    "test": "student-package-review-edit-smoke-test",
+    "passed": true,
+    "seconds": 1.578
+  },
+  {
+    "test": "student-package-feedback-recovery-smoke-test",
+    "passed": true,
+    "seconds": 1.79
+  },
+  {
+    "test": "student-assessment-start-resume-conflict-smoke-test",
+    "passed": true,
+    "seconds": 0.674
+  },
+  {
+    "test": "student-attempt-lifecycle-smoke-test",
+    "passed": true,
+    "seconds": 0.734
+  },
+  {
+    "test": "initial-preparation-smoke-test",
+    "passed": true,
+    "seconds": 4.893
+  },
+  {
+    "test": "student-demo-recovery-smoke-test",
+    "passed": true,
+    "seconds": 0.958
+  },
+  {
+    "test": "student-formative-conversation-foundation-smoke-test",
+    "passed": true,
+    "seconds": 0.478
+  },
+  {
+    "test": "formative-conversation-v18r2-pipeline-runtime-smoke-test",
+    "passed": true,
+    "seconds": 2.017
+  },
+  {
+    "test": "formative-conversation-v18r2-lifecycle-runtime-smoke-test",
+    "passed": true,
+    "seconds": 5.051
+  },
+  {
+    "test": "formative-misconception-coverage-regression-test",
+    "passed": true,
+    "seconds": 0.113
+  },
+  {
+    "test": "student-formative-waiting-attempt-review-smoke-test",
+    "passed": true,
+    "seconds": 0.054
+  },
+  {
+    "test": "student-research-export-integrity-smoke-test",
+    "passed": true,
+    "seconds": 1.266
+  },
+  {
+    "test": "student-teacher-readable-transcript-smoke-test",
+    "passed": true,
+    "seconds": 0.311
+  },
+  {
+    "test": "student-selected-session-export-smoke-test",
+    "passed": true,
+    "seconds": 0.781
+  }
+]

@@ -1,0 +1,49 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "heap_limit_mib": 96,
+  "semi_space_mib": 4,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 986,
+      "heap_limit_mib": 512,
+      "log_sha256": "b4ff714526b20f5f2246d510c6abee4c20684fde7c8fd54635386447caffe577"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 226,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "initial-preparation",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 4728,
+      "heap_limit_mib": 96,
+      "log_sha256": "dd01418675d0ff6f098b2b5bc4bf5e07037ce676ef0fbc7988fa19a33d0d1841"
+    },
+    {
+      "label": "initial-profile-provider-validation",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 38787,
+      "heap_limit_mib": 96,
+      "log_sha256": "1fc439812a7611ac9a93dc86df6ea44e95a6d98dc54bcc0e469881a2b2f77c00"
+    },
+    {
+      "label": "research-export-stress",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 2763,
+      "heap_limit_mib": 96,
+      "log_sha256": "bd585722752f449dcdd1e3bff1ac2ac98c728d01ee76daa291c7d746526ccf18"
+    }
+  ]
+}

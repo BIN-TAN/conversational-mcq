@@ -170,7 +170,7 @@ const roleEnvSources = {
     model: "OPENAI_MODEL_PLANNING",
     reasoning: "OPENAI_REASONING_EFFORT_PLANNING",
     maxTokens: "OPENAI_MAX_OUTPUT_TOKENS_PLANNING",
-    defaultMaxTokens: 3000
+    defaultMaxTokens: 10000
   }],
   formative_value_determination_agent: [
     {

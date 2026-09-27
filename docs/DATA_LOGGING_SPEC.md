@@ -40,7 +40,7 @@ or affective messages, excluding provider/configuration failures. It bounds
 clarification; it is not a learning or engagement measure. Original rejected
 turns and accepted products remain separate. No historical data is rewritten.
 
-Host v7.8 uses existing formative `evidence_observations` for optional learning
+Host v7.9 uses existing formative `evidence_observations` for optional learning
 summaries: `learning_summary_understanding`, `learning_summary_progress`, and
 `learning_summary_remaining`. Each entry links canonical student reasoning IDs.
 Progress entries require distinct earlier reasoning and later formative reasoning;
@@ -1681,7 +1681,7 @@ required for this projection.
 
 ### Formative interpretation provenance, projection v2
 
-Hosts v7.6, v7.7 and v7.8 retain prior `confidence_alignment` rather than interpreting a correct
+Hosts v7.6 through v7.9 retain prior `confidence_alignment` rather than interpreting a correct
 answer as a new self-confidence rating. `profile_confidence_alignment_scope`
 distinguishes initial assessment, carry-forward without reassessment, legacy
 unknown scope, and unavailable validation provenance. Transition CSVs include

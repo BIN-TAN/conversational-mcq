@@ -644,6 +644,7 @@ export function chatNativeProviderAuditUpdate(
     provider: providerResult.provider,
     ...providerAuditMetadata(providerResult),
     raw_output: prismaJson(redactForAudit(rawOutput)),
+    incomplete_reason: safeIncompleteReason(providerResult),
     latency_ms: providerResult.latency_ms,
     input_tokens: providerResult.usage?.input_tokens,
     output_tokens: providerResult.usage?.output_tokens,
@@ -667,7 +668,7 @@ function safeProviderErrorMessage(providerResult: StructuredAgentResult<unknown>
 }
 
 function sanitizedProviderFailureAudit(providerResult: StructuredAgentResult<unknown>) {
-  if (providerResult.status !== "failed") {
+  if (providerResult.status !== "failed" && providerResult.status !== "incomplete") {
     return undefined;
   }
 
@@ -678,6 +679,7 @@ function sanitizedProviderFailureAudit(providerResult: StructuredAgentResult<unk
     provider_failure: {
       provider: providerResult.provider,
       status: providerResult.status,
+      incomplete_reason: safeIncompleteReason(providerResult),
       error: {
         category: providerResult.error?.category ?? null,
         type: normalized?.error_type ?? normalized?.error_name ?? null,
@@ -712,16 +714,26 @@ function sanitizedProviderFailureAudit(providerResult: StructuredAgentResult<unk
   };
 }
 
+function safeIncompleteReason(result: StructuredAgentResult<unknown>) {
+  if (result.status !== "incomplete") return null;
+  return ["max_output_tokens", "content_filter"].includes(result.incomplete_reason ?? "")
+    ? result.incomplete_reason
+    : "unspecified";
+}
+
 function providerFailureValidationMessage(input: {
   providerResult: StructuredAgentResult<unknown>;
   phaseLabel: string;
 }) {
   const normalized = input.providerResult.transport_telemetry?.normalized_error;
   const parts = [
-    `${input.phaseLabel} provider request failed before usable structured output; deterministic fallback used.`,
+    `${input.phaseLabel} provider request did not produce usable validated output.`,
     `category=${input.providerResult.error?.category ?? "unknown"}`,
     `provider_status=${input.providerResult.status}`
   ];
+  if (input.providerResult.status === "incomplete") {
+    parts.push(`incomplete_reason=${safeIncompleteReason(input.providerResult)}`);
+  }
 
   if (input.providerResult.error?.retryable !== undefined) {
     parts.push(`retryable=${input.providerResult.error.retryable}`);

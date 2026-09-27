@@ -14,7 +14,7 @@ off-topic text, and gibberish do not become reasons merely through repetition.
 Provider failures remain recoverable blocked operations, not student deficits.
 Letters such as B are never translated into an invented admission of not knowing.
 
-Host v7.8 defaults to a direct answer and focused explanation, expanding when
+Host v7.9 defaults to a direct answer and focused explanation, expanding when
 needed or requested without a hard word limit or truncation. Learning summaries
 are conversational waypoints, not automatic completion. They include only
 evidence-supported understanding, specific supported progress, and remaining

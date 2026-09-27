@@ -9,6 +9,8 @@ import {
   approvedOperationalRoleNamesForManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
   materializeApprovedOperationalRuntimeLocally,
+  preparePlanningBudgetAmendment,
+  verifyApprovedCandidateArtifacts,
   resolveActiveOperationalApproval,
   resolveApprovedOperationalRuntimeRequirement,
   rollbackOperationalApprovalBundle
@@ -27,6 +29,7 @@ import {
   FormativeConversationUnavailableError,
   createLiveFormativeConversationAgentRunner
 } from "../src/lib/services/student-assessment/formative-conversation";
+import { modelUpgradeCandidateRuntimeHash } from "../src/lib/operational/model-upgrade-candidate-identity";
 
 loadEnvConfig(process.cwd());
 
@@ -184,6 +187,62 @@ async function main() {
     assert(active.record.approval_evidence_hash === approvalEvidenceHash, "Approval evidence hash must match.");
     assert(readActiveApprovedOperationalRuntimeConfig().kind === "derived_approval", "Runtime must not use Phase 8a while derived approval is active.");
     const activeApprovedRoles = approvedOperationalRoleNamesForManifest(active.manifest);
+
+    const amendment = preparePlanningBudgetAmendment({
+      parent: active, expectedParentHash: EXPECTED_RUNTIME_HASH,
+      canaryEvidencePath: path.resolve("docs/acceptance/runs/2026-09-26/post-deployment-simulation/budget-canary-console-summary.json"),
+      outputDirectory: path.join(root, "budget-amendment"),
+      authorizationReference: "synthetic operator authorization; not a production approval"
+    });
+    const originalAmendedManifest = JSON.parse(readFileSync(amendment.manifestPath, "utf8"));
+    const originalAmendedEvidence = JSON.parse(readFileSync(amendment.evidencePath, "utf8"));
+    assert(originalAmendedEvidence.human_review.semantic_review_confirmed === false,
+      "A budget amendment must not invent a new human semantic review.");
+    const unchangedActive = resolveActiveOperationalApproval();
+    assert(unchangedActive?.kind === "derived_approval" && unchangedActive.record.runtime_candidate_hash === EXPECTED_RUNTIME_HASH,
+      "Preparing a budget amendment must not change the active approval.");
+    const verifyAmendment = (manifest: typeof originalAmendedManifest, evidence: typeof originalAmendedEvidence) => {
+      const runtime = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
+      evidence.runtime_candidate_hash = runtime;
+      evidence.exact_operational_approved_config_hash = runtime;
+      evidence.approval_evidence_hash = stableHash({
+        source_provider_run_id: evidence.source_provider_run_id,
+        derived_evaluation_id: evidence.derived_evaluation_id,
+        runtime_candidate_hash: runtime,
+        source_evaluation_protocol_hash: evidence.source_evaluation_protocol_hash,
+        evaluation_protocol_hash: evidence.evaluation_protocol_hash,
+        human_review: evidence.human_review
+      });
+      writeFileSync(amendment.manifestPath, JSON.stringify(manifest));
+      writeFileSync(amendment.evidencePath, JSON.stringify(evidence));
+      return verifyApprovedCandidateArtifacts({
+        approvedManifestPath: amendment.manifestPath, approvalEvidencePath: amendment.evidencePath,
+        expectedRuntimeHash: runtime, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+        expectedApprovalEvidenceHash: evidence.approval_evidence_hash
+      });
+    };
+    assert(verifyAmendment(structuredClone(originalAmendedManifest), structuredClone(originalAmendedEvidence))
+      .manifest.roles.formative_value_and_planning_agent?.max_output_tokens === 10000,
+      "A verified budget-only amendment must resolve to 10000.");
+    for (const scenario of ["model", "other_budget", "oversized_budget", "no_authorization", "invented_review", "canary_tamper", "parent_tamper"]) {
+      const manifest = structuredClone(originalAmendedManifest);
+      const evidence = structuredClone(originalAmendedEvidence);
+      if (scenario === "model") manifest.roles.formative_value_and_planning_agent.model_name = "another-model";
+      if (scenario === "other_budget") manifest.roles.followup_agent.max_output_tokens += 1;
+      if (scenario === "oversized_budget") manifest.roles.formative_value_and_planning_agent.max_output_tokens = 10001;
+      if (scenario === "no_authorization") evidence.human_review.operator_authorized = false;
+      if (scenario === "invented_review") evidence.human_review.semantic_review_confirmed = true;
+      if (scenario === "canary_tamper") evidence.planning_budget_amendment.canary_evidence.sha256 = "0".repeat(64);
+      if (scenario === "parent_tamper") evidence.planning_budget_amendment.parent_manifest.sha256 = "0".repeat(64);
+      let blocked = false;
+      try { verifyAmendment(manifest, evidence); } catch { blocked = true; }
+      assert(blocked, `Budget amendment must block ${scenario}, even with recomputed runtime/evidence hashes.`);
+    }
+    verifyAmendment(structuredClone(originalAmendedManifest), structuredClone(originalAmendedEvidence));
+    if (process.argv.includes("--planning-budget-only")) {
+      console.log("Planning budget amendment checks passed: authorization, inherited approval, isolated budget change, and evidence integrity.");
+      return;
+    }
 
     const verification = verifyApprovedOperationalAgentConfig();
     assert(verification.valid, `Active approval should verify: ${JSON.stringify(verification.issues)}`);

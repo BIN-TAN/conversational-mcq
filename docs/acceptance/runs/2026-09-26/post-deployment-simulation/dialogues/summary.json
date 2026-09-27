@@ -1,0 +1,59 @@
+{
+  "version": "fresh-dialogue-report-v1",
+  "synthetic_only": true,
+  "actual_live_provider": true,
+  "production_data_changed": false,
+  "deployed": false,
+  "original_sha256": "bf47dd8f9df07990ada337c5eff44f471fe702a7acf9ea730953891a762611dc",
+  "correction_sha256": null,
+  "accepted_executions_including_rechecks": 12,
+  "prompt_version": "formative-conversation-host-v7.8",
+  "prompt_sha256": "629bb783488595c96dc810dfb8d2d73ac221f3f470993f8c477b2888c3d08ce6",
+  "config": {
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 10000
+  },
+  "unique_scenarios": 6,
+  "tested_student_turns": 12,
+  "expected_student_turns": 12,
+  "accepted_turns": 12,
+  "http_requests_dispatched": 14,
+  "provider_responses_completed": 14,
+  "mechanical_checks": 72,
+  "mechanical_checks_passed": 72,
+  "normalizations": 0,
+  "rejected_candidates": [
+    {
+      "case_id": "new_context_boundary_reasoning",
+      "turn": 1,
+      "failure_class": "parsed_semantic_contract_failure",
+      "issues": [
+        "evidence_observations.1.evidence_ids:profile_transition_evidence_id_closure_violation",
+        "evidence_observations.1.evidence_ids:profile_transition_evidence_temporally_inadmissible",
+        "evidence_observations.2.evidence_ids:profile_transition_evidence_id_closure_violation",
+        "evidence_observations.2.evidence_ids:profile_transition_evidence_temporally_inadmissible"
+      ]
+    },
+    {
+      "case_id": "new_context_boundary_reasoning",
+      "turn": 2,
+      "failure_class": "parsed_semantic_contract_failure",
+      "issues": [
+        "profile_transition_recommendation.updated_profile.process_interpretation_cautions:profile_transition_retained_field_changed"
+      ]
+    }
+  ],
+  "source_unchanged_during_live_run": true,
+  "latency_ms_including_regeneration": {
+    "min": 7083,
+    "median": 12800,
+    "max": 52269
+  },
+  "total_input_tokens": 160741,
+  "total_output_tokens": 20859,
+  "semantic_validity_certified": false,
+  "independent_human_review": "pending",
+  "scope": "production tutor request, validators and bounded semantic regeneration; synthetic in-memory context, not full web/database or initial profiling pipeline",
+  "warning": "Prewritten synthetic student inputs; actual generated tutor messages. These checks are not a semantic accuracy rate, student learning trial, production load test, or live database run."
+}

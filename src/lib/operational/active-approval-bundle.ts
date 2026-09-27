@@ -18,6 +18,7 @@ import { stableHash } from "./stable-hash";
 export const ACTIVE_APPROVAL_BUNDLE_VERSION = "operational-active-approval-bundle-v1";
 export const ACTIVE_APPROVAL_RESOLVER_VERSION = "operational-active-approval-resolver-v1";
 export const OPERATIONAL_MODEL_UPGRADE_ACTIVATION_VERSION = "operational-model-upgrade-activation-v1";
+export const PLANNING_BUDGET_AMENDMENT_VERSION = "operational-planning-budget-amendment-v1";
 export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
   "operational-approved-runtime-local-materialization-v1";
 export const LEGACY_GPT54_APPROVED_RUNTIME_HASH =
@@ -360,7 +361,11 @@ export function verifyApprovedCandidateArtifacts(input: {
   expectedSourceProviderRunId?: string;
   expectedDerivedEvaluationId?: string;
   requireEvidenceManifestPathMatch?: boolean;
+  approvalDepth?: number;
 }) {
+  if ((input.approvalDepth ?? 0) > 4) {
+    throw new Error("Approval amendment ancestry is too deep.");
+  }
   const manifest = ApprovedCandidateManifestSchema.parse(
     JSON.parse(readFileSync(input.approvedManifestPath, "utf8"))
   );
@@ -397,7 +402,9 @@ export function verifyApprovedCandidateArtifacts(input: {
     ...(input.requireEvidenceManifestPathMatch &&
       path.resolve(evidence.approved_manifest_artifact_path) !== path.resolve(input.approvedManifestPath)
       ? ["approved_manifest_artifact_path_mismatch"] : []),
-    ...(!humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
+    ...(evidence.approval_command_version === PLANNING_BUDGET_AMENDMENT_VERSION
+      ? planningBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
+      : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
   if (issues.length > 0) {
     throw new OperationalApprovalBundleError(
@@ -414,6 +421,124 @@ export function verifyApprovedCandidateArtifacts(input: {
     manifest_sha256: sha256File(input.approvedManifestPath),
     evidence_sha256: sha256File(input.approvalEvidencePath)
   };
+}
+
+// A budget-only authorization inherits the verified semantic approval; it does not
+// claim that the old full evaluation was run with the new output allowance.
+function planningBudgetAmendmentIssues(
+  manifest: ApprovedCandidateManifest,
+  evidence: OperationalApprovalEvidence,
+  depth: number
+): string[] {
+  const amendment = z.object({
+    parent_manifest: FileReferenceSchema,
+    parent_evidence: FileReferenceSchema,
+    canary_evidence: FileReferenceSchema,
+    parent_runtime_hash: z.string().length(64),
+    parent_protocol_hash: z.string().length(64),
+    parent_approval_hash: z.string().length(64)
+  }).strict().parse(evidence.planning_budget_amendment);
+  for (const file of [amendment.parent_manifest, amendment.parent_evidence, amendment.canary_evidence]) {
+    if (!path.isAbsolute(file.path) || sha256File(file.path) !== file.sha256) {
+      throw new Error("Planning budget amendment evidence integrity mismatch.");
+    }
+  }
+  const parent = verifyApprovedCandidateArtifacts({
+    approvedManifestPath: amendment.parent_manifest.path,
+    approvalEvidencePath: amendment.parent_evidence.path,
+    expectedRuntimeHash: amendment.parent_runtime_hash,
+    expectedEvaluationProtocolHash: amendment.parent_protocol_hash,
+    expectedApprovalEvidenceHash: amendment.parent_approval_hash,
+    approvalDepth: depth + 1
+  });
+  const expected = structuredClone(parent.manifest);
+  const role = approvedCandidateRoleConfig(expected, "formative_value_and_planning_agent");
+  const oldBudget = role.max_output_tokens;
+  role.max_output_tokens = 10000;
+  const canary = z.object({
+    version: z.literal("initial-profile-budget-probe-v1"),
+    synthetic_only: z.literal(true),
+    real_student_data_used: z.literal(false),
+    model: z.string(), reasoning_effort: z.string(),
+    calls: z.array(z.object({
+      item_count: z.number(), max_output_tokens: z.number(), status: z.string(),
+      semantic_checks_passed: z.boolean().nullable()
+    }))
+  }).parse(JSON.parse(readFileSync(amendment.canary_evidence.path, "utf8")));
+  const review = evidence.human_review;
+  return [
+    ...(oldBudget !== 3000 ? ["planning_amendment_unexpected_parent_budget"] : []),
+    ...(stableHash(expected) !== stableHash(manifest) ? ["planning_amendment_changed_other_settings"] : []),
+    ...(review.decision !== "approve" || review.scope !== "initial_feedback_budget_only" ||
+      review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
+      typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
+      ? ["planning_amendment_operator_authorization_missing"] : []),
+    ...(evidence.source_artifact_sha256 !== amendment.canary_evidence.sha256 ||
+      evidence.source_evaluation_protocol_hash !== parent.evidence.evaluation_protocol_hash ||
+      evidence.rollback_hash !== parent.evidence.rollback_hash ||
+      evidence.evaluation_protocol_hash !== stableHash(amendment)
+      ? ["planning_amendment_provenance_mismatch"] : []),
+    ...(canary.model !== role.model_name || canary.reasoning_effort !== role.reasoning_effort ||
+      ![3, 12].every((size) => canary.calls.some((call) => call.item_count === size &&
+        call.max_output_tokens === 10000 && call.status === "completed" && call.semantic_checks_passed))
+      ? ["planning_amendment_canary_not_passed"] : [])
+  ];
+}
+
+export function preparePlanningBudgetAmendment(input: {
+  parent: ActiveDerivedOperationalApproval;
+  expectedParentHash: string;
+  canaryEvidencePath: string;
+  outputDirectory: string;
+  authorizationReference: string;
+}) {
+  const { parent } = input;
+  if (parent.record.runtime_candidate_hash !== input.expectedParentHash ||
+      !input.authorizationReference.trim()) throw new Error("Expected approval or authorization is missing.");
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false });
+  const manifest = structuredClone(parent.manifest);
+  approvedCandidateRoleConfig(manifest, "formative_value_and_planning_agent").max_output_tokens = 10000;
+  const manifestPath = path.join(directory, "approved-candidate-manifest.json");
+  const canaryPath = path.join(directory, "budget-canary.json");
+  copyFileSync(input.canaryEvidencePath, canaryPath);
+  const amendment = {
+    parent_manifest: { path: parent.manifest_path, sha256: sha256File(parent.manifest_path) },
+    parent_evidence: { path: parent.approval_evidence_path, sha256: sha256File(parent.approval_evidence_path) },
+    canary_evidence: { path: canaryPath, sha256: sha256File(canaryPath) },
+    parent_runtime_hash: parent.record.runtime_candidate_hash,
+    parent_protocol_hash: parent.record.evaluation_protocol_hash,
+    parent_approval_hash: parent.record.approval_evidence_hash
+  };
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
+  const identity = {
+    source_provider_run_id: `budget-canary:${amendment.canary_evidence.sha256}`,
+    derived_evaluation_id: `${PLANNING_BUDGET_AMENDMENT_VERSION}:${runtimeHash}`,
+    runtime_candidate_hash: runtimeHash,
+    source_evaluation_protocol_hash: parent.evidence.evaluation_protocol_hash,
+    evaluation_protocol_hash: stableHash(amendment),
+    human_review: {
+      decision: "approve", scope: "initial_feedback_budget_only", operator_authorized: true,
+      semantic_review_confirmed: false, authorization_reference: input.authorizationReference,
+      limitations: "Budget canaries only; full parent evaluation was not repeated. Parent semantic approval remains separately verified."
+    }
+  };
+  const evidence: OperationalApprovalEvidence = {
+    ...identity, approval_command_version: PLANNING_BUDGET_AMENDMENT_VERSION,
+    approved_at: new Date().toISOString(), source_artifact_sha256: amendment.canary_evidence.sha256,
+    approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
+    rollback_hash: parent.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath,
+    planning_budget_amendment: amendment
+  };
+  const evidencePath = path.join(directory, "approval-evidence.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
+  verifyApprovedCandidateArtifacts({
+    approvedManifestPath: manifestPath, approvalEvidencePath: evidencePath,
+    expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: evidence.approval_evidence_hash
+  });
+  return { manifestPath, evidencePath, evidence };
 }
 
 export type ActiveDerivedOperationalApproval = {

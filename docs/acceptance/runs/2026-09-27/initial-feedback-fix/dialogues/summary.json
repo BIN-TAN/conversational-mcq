@@ -1,0 +1,58 @@
+{
+  "version": "fresh-dialogue-report-v1",
+  "synthetic_only": true,
+  "actual_live_provider": true,
+  "production_data_changed": false,
+  "deployed": false,
+  "original_sha256": "863f8d0b3eaf1cf4573a043b35a251684cf018885f4c1ca3300fc8964e749115",
+  "correction_sha256": null,
+  "accepted_executions_including_rechecks": 12,
+  "prompt_version": "formative-conversation-host-v7.9",
+  "prompt_sha256": "cb17e47521c6dc9af68ee8fc483f9334f96d84cf4305b1baaf293ba6384740c0",
+  "config": {
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 10000
+  },
+  "unique_scenarios": 6,
+  "tested_student_turns": 12,
+  "expected_student_turns": 12,
+  "accepted_turns": 12,
+  "http_requests_dispatched": 14,
+  "provider_responses_completed": 14,
+  "mechanical_checks": 72,
+  "mechanical_checks_passed": 72,
+  "normalizations": 0,
+  "rejected_candidates": [
+    {
+      "case_id": "new_context_boundary_reasoning",
+      "turn": 1,
+      "failure_class": "parsed_semantic_contract_failure",
+      "issues": [
+        "evidence_observations.1.evidence_ids:profile_transition_evidence_id_closure_violation",
+        "evidence_observations.1.evidence_ids:profile_transition_evidence_temporally_inadmissible",
+        "profile_transition_recommendation.updated_profile.engagement_summary:profile_transition_retained_field_changed"
+      ]
+    },
+    {
+      "case_id": "new_context_boundary_reasoning",
+      "turn": 2,
+      "failure_class": "parsed_semantic_contract_failure",
+      "issues": [
+        "profile_transition_recommendation.updated_profile.process_interpretation_cautions:profile_transition_retained_field_changed"
+      ]
+    }
+  ],
+  "source_unchanged_during_live_run": true,
+  "latency_ms_including_regeneration": {
+    "min": 6270,
+    "median": 17059,
+    "max": 50108
+  },
+  "total_input_tokens": 162427,
+  "total_output_tokens": 21514,
+  "semantic_validity_certified": false,
+  "independent_human_review": "pending",
+  "scope": "production tutor request, validators and bounded semantic regeneration; synthetic in-memory context, not full web/database or initial profiling pipeline",
+  "warning": "Prewritten synthetic student inputs; actual generated tutor messages. These checks are not a semantic accuracy rate, student learning trial, production load test, or live database run."
+}

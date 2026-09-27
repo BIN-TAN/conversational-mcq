@@ -107,4 +107,10 @@ check("No discussed-awaiting-confirmation section; no forced summary or question
   assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /Label invented numbers as illustrative/);
   assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /A summary need not\nend the conversation/);
 });
+check("Teaching examples distinguish illustration from population-level evidence", () => {
+  assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /single person's two similar\nscores illustrate individual agreement/);
+  assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /do not establish high reliability/);
+  assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /explicitly stipulate that an appropriate study/);
+  assert.match(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /not an empirical estimate, causal demonstration/);
+});
 console.log(`${passed} collection/summary checks passed. Synthetic only; no provider calls or database writes.`);

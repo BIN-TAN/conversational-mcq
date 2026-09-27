@@ -1,0 +1,135 @@
+{
+  "version": "classroom-acceptance-run-v2",
+  "intended_use": "teacher_supervised_formative_classroom",
+  "source_commit": "3a138364eee3006b6a95b5f08f722eca9e34eb6d",
+  "source_sha256": "bf2e060228c8cb64b0c9648a40b6a2e9b5beb2101778c4fc4cad4434962a71aa",
+  "source_unchanged": true,
+  "phase": "all",
+  "results": [
+    {
+      "name": "typecheck",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 3056,
+      "log_sha256": "6aed79b3e821208a1a9310736904dcbca19f77dad1ca1623b50eae31501a2395"
+    },
+    {
+      "name": "lint",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 13885,
+      "log_sha256": "0ef56eb8719a46e59d4bf33836907732187f4120feaa98787daaa1605dad28b3"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_acceptance_8f0ef02e4a-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1133,
+      "log_sha256": "15556232692119c31234a11ba8ed0d6e98a0bff3fe23cc4538fb8ed0a4112a2e"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_acceptance_8f0ef02e4a-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 203,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "classroom-audit",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 55925,
+      "log_sha256": "7774e6da9f1f9a3229c807c3aa10026e321097d3c1dfdcd95618ac524e22c6f5"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_7bd4589d81-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1011,
+      "log_sha256": "fffc02198e515a4bc76c3ed3fda3771208856e8b620968d0c4d687de43cb9630"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_7bd4589d81-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 201,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "navigation-audit",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 59990,
+      "log_sha256": "bf151d6709207398a4caaf03cfcc7d178e8766b5bcee69fdb7a7aebd955dd740"
+    },
+    {
+      "name": "production-build",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 67775,
+      "log_sha256": "b61bb5c2d0721969ccf0daa5e501784f7a328d03ea0809c98fbfc8983d0b5eb4"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_23ae1ba158-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1224,
+      "log_sha256": "d354ca22c797681d4c60da5cc22a7eb9339846c3ce2bf2ca5001fa87fb22bf56"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_login_flow_23ae1ba158-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 225,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "login-progression-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 18025,
+      "log_sha256": "07266e34515eee558db00f42536d6f68f57fc628ffea6525e9902847329675ee"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_ux_41c8193f5e-migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1019,
+      "log_sha256": "52bb0c16dd4a0b0000670b496b6c3a8650ee2500a2b7517f18cd53222c845224"
+    },
+    {
+      "name": "conversational_mcq_classroom_audit_ux_41c8193f5e-seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 174,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "name": "response-stage-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 8183,
+      "log_sha256": "5212a2e852ad0425ceb0c95481b10a40f40b7c7e1e55ea692722949c044eae15"
+    },
+    {
+      "name": "initial-preparation-browser",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 13498,
+      "log_sha256": "6eb07737a2e61ac3cef52e5a49da5050e0d79e1a460670e6482e84af780d3c00"
+    }
+  ],
+  "completed_at": "2026-09-27T04:25:15.438Z",
+  "provider_calls": 0,
+  "classroom_instructional_validation": "pending_independent_review_and_student_pilot",
+  "high_stakes_status": "consequential_decisions_not_authorized",
+  "unverified": [
+    "current-live-model diagnostic and instructional quality",
+    "independent content and key review",
+    "response-process interpretation with representative students",
+    "classroom-scale full browser/provider load",
+    "fairness and accessibility with representative students",
+    "learning and transfer effects",
+    "teacher oversight and intervention"
+  ]
+}

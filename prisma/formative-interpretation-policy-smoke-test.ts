@@ -109,6 +109,7 @@ const profile = { id: "synthetic", profile_type: "updated", confidence_alignment
 assert.equal(profileRecordProvenance(profile).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.7" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.8" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
+assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.9" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, profile_type: "initial" }).profile_confidence_alignment_scope, "initial_assessment");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.5" } }).profile_confidence_alignment_scope, "legacy_scope_unrecorded");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: null }).profile_confidence_alignment_scope, "unavailable");

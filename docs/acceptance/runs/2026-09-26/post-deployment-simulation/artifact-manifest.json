@@ -1,0 +1,89 @@
+{
+  "version": "post-deployment-simulation-artifacts-v1",
+  "generated_at": "2026-09-27T03:56:15.553Z",
+  "synthetic_only": true,
+  "application_source_changed": false,
+  "production_data_changed": false,
+  "files": {
+    "REPORT.md": {
+      "bytes": 12433,
+      "sha256": "b466057de26bc40892b4361aa512d3063f7ac23ae1fadeef41b3b73ced08749b"
+    },
+    "budget-canary-console-summary.json": {
+      "bytes": 1911,
+      "sha256": "3da450ad8021bd93675b76edb31ea2517e2c1d3e46a6b9d8e45819ff1bc16d0a"
+    },
+    "dialogues/READABLE_TRANSCRIPTS.md": {
+      "bytes": 27469,
+      "sha256": "e5b8a9d7d639627d6664cf97147acc1b78c6e12371948f936764049a6ccf872a"
+    },
+    "dialogues/artifact-manifest.json": {
+      "bytes": 419,
+      "sha256": "a93a9f169d19e08e797353ca1ef148f9cc9ba63e1bcd5a3c7e8b1d1f178a5fda"
+    },
+    "dialogues/final-results.json": {
+      "bytes": 620669,
+      "sha256": "fc7801e74fa293f0f07f222e1f69d8c1878b42bab52444b4b2dc68e57b49f7f6"
+    },
+    "dialogues/live-results.json": {
+      "bytes": 620517,
+      "sha256": "bf47dd8f9df07990ada337c5eff44f471fe702a7acf9ea730953891a762611dc"
+    },
+    "dialogues/summary.json": {
+      "bytes": 2399,
+      "sha256": "8ce64627a34559372b6e1e7d917a0566f79360a750ebc247ec3d882444dca1e3"
+    },
+    "engineering/acceptance.json": {
+      "bytes": 4574,
+      "sha256": "89d861b629c40ab8b9b608b367420dd1d0d8bba785b5d97625a717819bbefdd2"
+    },
+    "engineering/data-coverage.csv": {
+      "bytes": 103985,
+      "sha256": "949bcfd3a094956e099b7dc241994d0f6ff9c0d0cd97d9d6fe7c87f4c08126eb"
+    },
+    "engineering/initial-preparation-browser.log": {
+      "bytes": 1006,
+      "sha256": "f6894b7d5541602750e3bd1b0d903b68f8e9bf07d7f0a25575d2bae055281932"
+    },
+    "engineering/login-progression-browser.log": {
+      "bytes": 580,
+      "sha256": "6ed3f01dac1f4a9c27d56f27f5f980a1799ea494f7cae272bfd3b686d7213707"
+    },
+    "engineering/low-memory-final.json": {
+      "bytes": 1331,
+      "sha256": "898eaeff5d8da19afbcd487c7c421bc58436b2a8c7f1eacacfb9921513cf17fc"
+    },
+    "engineering/low-memory-initial-preparation.log": {
+      "bytes": 2830,
+      "sha256": "dd01418675d0ff6f098b2b5bc4bf5e07037ce676ef0fbc7988fa19a33d0d1841"
+    },
+    "engineering/low-memory-initial-profile-validation.log": {
+      "bytes": 314,
+      "sha256": "1fc439812a7611ac9a93dc86df6ea44e95a6d98dc54bcc0e469881a2b2f77c00"
+    },
+    "engineering/low-memory-setup-failed-policy.json": {
+      "bytes": 1331,
+      "sha256": "a57286ca07fa4840f029454d5964900ce5151719b7aba27dc66caa78a67fe1bb"
+    },
+    "engineering/low-memory-setup-failed-secret.json": {
+      "bytes": 1331,
+      "sha256": "12eb733ae8d2c920fa46ebf5c370881a35184ff41ea7a18380f0f73717c8903f"
+    },
+    "engineering/navigation.json": {
+      "bytes": 2163,
+      "sha256": "ab61fe984be0d73a7cf12839e264cec1f2b4a13e25617dd670f08b809188d648"
+    },
+    "engineering/research-export-stress.log": {
+      "bytes": 329,
+      "sha256": "bd585722752f449dcdd1e3bff1ac2ac98c728d01ee76daa291c7d746526ccf18"
+    },
+    "engineering/response-stage-browser.log": {
+      "bytes": 743,
+      "sha256": "c6f6f1da4783dcccebbb0db8a8747c74a2aca9d44f95b66553f9e4500914372e"
+    },
+    "engineering/response-stage-data-dictionary.csv": {
+      "bytes": 54085,
+      "sha256": "8eec352234e326ebfd16c274a0c2bc79b328626b60c37614d78410c7f410745a"
+    }
+  }
+}
