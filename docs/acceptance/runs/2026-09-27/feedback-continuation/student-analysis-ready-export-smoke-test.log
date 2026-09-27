@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "file_count": 35,
+  "session_rows": 1,
+  "item_response_rows": 3,
+  "process_event_rows": 27,
+  "dictionary_rows": 440,
+  "process_event_codebook_rows": 229,
+  "restricted_mode_checked": true,
+  "disk_backed_export_equivalent": true,
+  "no_openai_call_occurred": true
+}
+
+

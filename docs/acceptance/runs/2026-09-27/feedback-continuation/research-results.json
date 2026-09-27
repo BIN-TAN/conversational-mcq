@@ -1,0 +1,55 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1049,
+      "heap_limit_mib": 512,
+      "log_sha256": "60c70bbd8d4d58c34d47f124a120f980b9f92f84a18235b069732a7ec0fa4ef8"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 200,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "student-analysis-ready-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1829,
+      "heap_limit_mib": 512,
+      "log_sha256": "17a03b477d3e5d84cb0cd72b9181837dd174382769a3f0dc6a472d97f31dcb45"
+    },
+    {
+      "label": "student-selected-session-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 718,
+      "heap_limit_mib": 512,
+      "log_sha256": "02b741615511b9fafb8c6741d4e9be9d896c79b15ec6d3578b989449a75dd83b"
+    },
+    {
+      "label": "student-research-export-integrity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 726,
+      "heap_limit_mib": 512,
+      "log_sha256": "281c45d42e84036357623526f1e30faabfd460135cfaaaea98dabe47333ed804"
+    },
+    {
+      "label": "process-data-summary-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 200,
+      "heap_limit_mib": 512,
+      "log_sha256": "abe22d84aedc94ee3d397bf7f9e14bb987f548b86365314a676ae2a5821db4ce"
+    }
+  ]
+}

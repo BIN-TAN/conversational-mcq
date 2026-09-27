@@ -183,9 +183,13 @@ def build(data, identity, output):
         "测试通过仅支持所覆盖的路径；不代表所有可能的学生行为、模型回答或并发情境都已验证。",
         "观察记录、计算派生值和模型解释必须区分。缺失资料保留为缺失，不为历史记录补造行为。",
         "本档案不保存个人身份、密码或学生原始回答。报告引用应同时注明应用版本和采集或导出版本。",
-        "后续修改按项目维护规则追加条目，并重新生成同一 Word 文件；既有条目和限制不因新版本成功而删除。",
+        "每次修改后追加条目，重新生成同一 Word 文件；保留既有条目、失败检查和限制。",
     ):
         paragraph(doc, text, style="List Bullet")
+
+    for p in doc.paragraphs:
+        if p.style.name in ("Normal", "List Bullet"):
+            p.paragraph_format.space_after = Pt(4)
 
     for release in data["releases"]:
         doc.add_heading(release["title"], 1).paragraph_format.page_break_before = True

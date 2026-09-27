@@ -33,10 +33,14 @@ in the change and deployment ledger.
   build passed. Lint retains five pre-existing warnings and no errors. Build
   generated 83 static pages; existing cache and unused-import warnings remain.
 - Every isolated database was dropped and child web/worker processes stopped.
+- After push, four additional existing suites passed against the same application
+  source: analysis-ready export, selected-session export, research export integrity,
+  and readable process-data summary. See `research-results.json` and their logs.
+  No application changes were made for this additional check.
 
 Retained raw `.log` files match the report hashes, including their original
 trailing whitespace and blank lines. The final staged source whitespace check
-excludes these five unmodified output files; it passes for code and documentation.
+excludes these unmodified output files; it passes for code and documentation.
 
 ## Failed checks and corrections
 

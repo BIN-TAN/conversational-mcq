@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-26T23:04:00-06:00",
+  "updated_at": "2026-09-26T23:35:00-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -491,6 +491,65 @@
         "prisma/operational-planning-budget-amend.ts",
         "src/lib/services/student-assessment/formative-profile.ts",
         "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-06",
+      "date": "2026-09-26",
+      "title": "初始反馈失败后的继续选择与全新尝试",
+      "application_commit": "d559000eb26c32fe9da5d2ca8ea94c65d9dfcc8f",
+      "push_status": "已推送 configured origin/main，GitHub 接收 d559000eb26c32fe9da5d2ca8ea94c65d9dfcc8f；无关 output 与 outputs 目录未提交。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dasajkou01pc73erutlg",
+        "source_commit": "d559000eb26c32fe9da5d2ca8ea94c65d9dfcc8f",
+        "verified_at": "2026-09-26T23:35:00-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dasajkou01pc73erutlg",
+        "evidence": [
+          "GitHub origin/main 完整提交与应用提交一致。Render 于 23:29:55 MDT 自动部署，23:34:06 日志报告 Live；刷新部署详情明确显示 Deploy succeeded | Live，来源为完整 d559000eb26c32fe9da5d2ca8ea94c65d9dfcc8f。",
+          "23:34:29 SSH 只读核验 RENDER_GIT_COMMIT 与构建文件提交一致；构建时间 2026-09-27T05:30:27.548Z，artifact_hash 为 52469de2c207aff0c49cc8effe4bd623a276f8bf19455689294c66f30399de28。PID 15 的 initial-preparation-worker.ts 正在运行，命令行显式 old-space=96 MiB、semi-space=4 MiB。",
+          "23:34:39 无缓存公开 health 请求成功：status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。部署日志核对 65 个已有迁移、无待执行迁移。健康检查不替代 LLM readiness 或教学评估。",
+          "运行中批准配置哈希仍为 5a2b689cb61b3ea771254a1fbc059eba95260c71092282e7ada78a704ce841f6；没有提高个人或全局额度、保存环境变更或绕过批准。新失败继续路径不依赖预算修订激活。",
+          "部署未替真实学生生成回答、开始新尝试或调用 AI。一个此前已授权的新开始操作完成且证据保留；应用上线与学生新尝试成功生成反馈仍是两项不同事实。"
+        ]
+      },
+      "summary": "初始 AI 反馈失败后，学生可以明确选择重试或保留回答并继续；不会把未完成输出显示成反馈，也不会将跳过的学习支持记为成功。另按教师新授权终止一个故障尝试并返还一次机会，让学生从头开始，原研究记录保留。",
+      "changes": [
+        {"area": "明确失败与继续选择", "problem": "初始反馈用尽输出额度后，重复同一请求仍可能失败，学生无法进入后续流程。", "fix": "新工作任务仅根据本次租约内保存的 max_output_tokens 原因停止自动重试，显示保存成功与失败说明，提供重试和 Continue without AI feedback。", "impact": "选择继续会进入下一主题或结束当前尝试；这不是成功生成学习对话，也不是突破 token 上限。"},
+        {"area": "事务与研究证据保护", "problem": "重试、继续和重复点击可能竞争；技术结束可能被误记为学习完成。", "fix": "服务端验证所有权、当前主题、失败任务和封存包哈希；锁定会话及任务，在途、暂停或来源冲突不允许跳过。继续操作幂等，阻止旧重试和旧 worker 回写进度。", "impact": "原响应、封存包、失败调用和任务保留；学习支持标记 incomplete，新增教师审查标志，不制造画像转换或完成时间。"},
+        {"area": "学生结束界面", "problem": "新增继续路径初次浏览器检查发现，终止后只读页面隐藏了无反馈完成提示。", "fix": "将提示放进现有历史尝试审查区域，并验证继续、刷新、返回测验页在桌面与手机上均可用。", "impact": "学生能看到保存状态和向教师寻求帮助的提示；不增加表格式作答步骤。"},
+        {"area": "教师授权的全新开始", "problem": "教师明确要求不再恢复故障尝试中的旧对话，而是从头开始。", "fix": "使用已有教师终止和机会返还服务，仅处理授权的一个失败尝试；保留审计和历史内容，不替学生创建新尝试。", "impact": "完成后该测验可重新开始，剩余两次机会。此前尝试未删除、未重新编号，其他尝试未改。"}
+      ],
+      "data_impact": [
+        "无数据库迁移或历史回填。新增 authoritative backend 事件 initial_feedback_skipped，包含 policy_version、任务、封存包哈希、失败类别、学生行为、目的地、来源与目标阶段，以及 learning_support_completed=false。事件时间为服务器记录的选择时间，不推断学习时长。",
+        "标准 sessions.csv 的既有列将任何主题的此类选择标记为 incomplete_technical_failure，并记录 initial_feedback_unavailable 限制；仅此选择直接结束最后主题时才使用相同 assessment_completion_reason。多主题细节以关联主题的原始事件为准。",
+        "可读 Process data 显示技术原因下的学生继续选择。研究字段与计算来源已在 DATA_LOGGING_SPEC 和导出字典中说明；不把此选择当作误概念纠正、缺乏投入或学习提升。",
+        "线上单次全新开始操作前后，四条 ItemResponse 和一个 ResponsePackage 完整记录哈希一致。此档案不包含学生姓名、邮箱、会话 ID、原始回答或真实记录哈希。机会返还与教师结束保留在原有审计机制中。"
+      ],
+      "tests": [
+        {"name": "失败继续与证据保护", "result": "7 组通过", "detail": "96 MiB old-space、4 MiB semi-space 下验证 token 上限停止、所有权与暂停、四路幂等并发、封存回答和失败调用不变、研究 CSV、真实下一题、多主题重复请求、来源冲突、旧错误隔离与重试竞争。外部 AI 请求为零。"},
+        {"name": "既有工作流和机会回归", "result": "通过", "detail": "初始准备 17 组通过，同为 96 MiB；机会策略 12 组通过；initial-profile-only provider 边界在 96 MiB 通过。使用独立本地数据库，测试后全部删除。组数不是独立教学实验数。"},
+        {"name": "浏览器集成", "result": "最终 11 组通过", "detail": "生产构建在本地合成案例 127 ms 返回提交确认。覆盖等待说明、断网恢复、刷新不重提、worker 开场、重试、typing/paste 聚合到数据库和研究 CSV、失败继续及终止提示和返回导航。1440、390、320 px 无横向溢出，截图已检查；该延迟不是线上服务保证。"},
+        {"name": "研究导出补充回归", "result": "4 套通过", "detail": "推送后对同一应用源码追加执行 analysis-ready export、selected-session export、research export integrity 及 process-data summary 既有套件，全部通过；没有为通过测试改动应用。隔离数据库已清理，结果与原始合成日志随记录保存。"},
+        {"name": "中途失败与修正", "result": "已保留事实", "detail": "新服务测试最初因 CommonJS 顶层 await 无法运行，封装 async main 后通过。浏览器夹具最初缺少 item_version_snapshot，补齐后继续；后续发现只读状态隐藏完成提示的真实界面问题，修复并重建后整套通过。返回链接拼写也在审查中修正。"},
+        {"name": "静态检查与生产构建", "result": "最终通过", "detail": "typecheck、lint 和最终构建通过，83 静态页面；lint 零错误、五条既有警告。首次本地 4 GiB 构建超限，改用已有 8 GiB 本地构建预算通过；一次沙箱 IPC 阻断获准后重跑。Render 运行内存与收费规格未改。源码 whitespace 检查通过；五份原始日志保留原空白以匹配哈希，未伪称日志也无 whitespace 提示。"},
+        {"name": "生产新开始核验", "result": "操作完成且数据保留", "detail": "一个授权故障尝试终止，恢复一次机会；只读核验 can_start=true、剩余两次及原四条作答和一个封存包哈希不变。没有替真实学生提交答案、创建新测试或执行新的 AI 调用。"}
+      ],
+      "limitations": [
+        "此修改只处理初始反馈准备失败后的选择。继续可前往下一主题或结束，不会在没有有效画像和开场时伪造学习对话；后续自由对话错误保持原有控制。来源完整性冲突仍需教师处理。",
+        "未提高全局或个人 token 上限。上一条记录中的批准配置 prompt metadata 不匹配仍待解决；30000 token 请求未激活，也未将较早暂存的 10000 配置绕过批准后上线。",
+        "新测验可以从头开始不保证模型不会再次触及原额度。此发布提供不被永久困住的选择，不宣称根因容量已经消除或所有教学反馈均可成功生成。",
+        "没有重新执行真实 AI 语义评估或完整全课堂并发测试。工程通过不能证明教学效度、学习增益或全体学生所有路径无故障。"
+      ],
+      "references": [
+        "src/lib/workflow/continue-without-feedback.ts",
+        "src/lib/workflow/initial-preparation.ts",
+        "src/components/student-assessment/assessment-session-client.tsx",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/acceptance/runs/2026-09-27/feedback-continuation/REPORT.md"
       ]
     }
   ],
