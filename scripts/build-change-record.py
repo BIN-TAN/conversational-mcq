@@ -82,7 +82,7 @@ def paragraph(doc, text, label=None, style=None):
     return p
 
 
-def table(doc, headers, rows, widths):
+def table(doc, headers, rows, widths, vertical_padding=100):
     t = doc.add_table(rows=1, cols=len(headers))
     t.autofit = False
     for column, width in zip(t.columns, widths):
@@ -107,7 +107,7 @@ def table(doc, headers, rows, widths):
             margins = OxmlElement("w:tcMar")
             for edge in ("top", "left", "bottom", "right"):
                 margin = OxmlElement("w:" + edge)
-                margin.set(qn("w:w"), "100")
+                margin.set(qn("w:w"), str(vertical_padding if edge in ("top", "bottom") else 100))
                 margin.set(qn("w:type"), "dxa")
                 margins.append(margin)
             props.append(margins)
@@ -176,7 +176,7 @@ def build(data, identity, output):
     doc.add_heading("版本登记", 1)
     table(doc, ["记录", "应用提交", "部署状态"], [
         [r["id"], r["application_commit"][:8], STATUS[r["deployment"]["status"]]] for r in data["releases"]
-    ], [2.5, 1.7, 2.7])
+    ], [2.5, 1.7, 2.7], vertical_padding=40)
     paragraph(doc, "版本登记列出本档案保留的应用发布；各条目分别说明其验证范围与上线证据。末尾的更早提交索引用于定位开发历史，不代替逐次部署验收。应用提交与随后保存档案的文档提交分开记录。")
     doc.add_heading("阅读和使用边界", 1)
     for text in (

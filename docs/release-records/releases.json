@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-26T17:22:01-06:00",
+  "updated_at": "2026-09-26T21:42:33-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -368,6 +368,65 @@
         "scripts/runtime-memory-budget.test.mjs",
         "prisma/initial-preparation-smoke-test.ts",
         "docs/RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260926-04",
+      "date": "2026-09-26",
+      "title": "初始学习对话准备失败后的重试修复",
+      "application_commit": "48dc8d949d0e70c91bcc4fabfda4e267334393a5",
+      "push_status": "已推送配置的 origin main，从 c7438870 更新至 48dc8d94。只提交初始准备重试逻辑、相关测试及文档，未提交本地 output 或 outputs 文件。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-das8un3ncjis73eaaeug",
+        "source_commit": "48dc8d949d0e70c91bcc4fabfda4e267334393a5",
+        "verified_at": "2026-09-26T21:42:23-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-das8un3ncjis73eaaeug",
+        "evidence": [
+          "GitHub origin main 已核对为 48dc8d949d0e70c91bcc4fabfda4e267334393a5；Render 为同一源提交于 21:37:00 MDT 自动部署，21:41:14 启动日志报告 Live。生产构建完成 83 静态页面，依赖检查报告零已知漏洞；65 个既有迁移检查通过，无待执行迁移。",
+          "21:41:24 无缓存 public health 请求成功，status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。该检查不确认具体学生会话已经恢复或模型质量。",
+          "21:42:05 Web Shell 只读检查新实例 sd9pz 的 build/application-build-info.json，完整应用提交一致，构建时间 2026-09-27T03:37:33.667Z，artifact_hash 为 071ab8bd47b275437cfd1f1f5460df3e4398fe14b9840e8ac65b9f162d3b7442。网页进程 PID 14 存在。",
+          "21:42:23 只读确认 initial-preparation-worker.ts PID 15 存在，old-space=96 MiB、semi-space=4 MiB；启动日志确认网页 192 MiB、worker 96 MiB，未改收费规格。首次进程诊断命令有正则转义语法错误，修正后完成检查；未修改服务器文件或数据。",
+          "部署后未触发真实学生任务重试或机会重置。输出额度调整和原尝试恢复已另行请求批准，不能用 Live 状态替代该结果。"
+        ]
+      },
+      "summary": "实际课堂会话的初始学习对话准备失败后，多次重试遭遇相同 AgentCall 唯一键冲突。修复共享的调用预留与重试审计机制，保留原失败记录及封存回答；此次不是学生账号重置，也不降低教学内容或证据验证标准。",
+      "changes": [
+        {"area": "失败调用的独立重试记录", "problem": "初始画像代码只复用成功结果，失败后仍使用同一 agent_invocation_key 新建调用，数据库拒绝插入，导致重试在调用 AI 前再次失败。", "fix": "失败或 invalid_output 后预留新的编号记录，首条保留原键，后续使用固定八位 retry 序号。已验证成功结果可复用，started 或 needs_review 状态不被盲目重试。", "impact": "解决所有使用该初始准备路径的测验重试冲突，不为个别学生设置特例。"},
+        {"area": "并发保护与异常记录", "problem": "同时重试可能重复派发模型请求；意外执行异常也可能留下未完成调用。", "fix": "在概念单元会话行上仅对短事务预留加锁，网络请求在锁外执行；并发调用复用已有预留。意外执行异常仅更新仍 started 的记录，使用固定安全诊断。", "impact": "保留已经记录的结果，不存储原始异常中的潜在敏感内容，不改变工作流重试或学生机会限制。"},
+        {"area": "验证用例更新", "problem": "旧 long_text 测试文本未达到当前长度上限，实际应因句子未完成而被拒绝。", "fix": "拆分未完成句子和确实超长文本的测试，分别断言对应错误；增加失败后恢复、成功复用及十二代并发预留测试。", "impact": "保持生产验证规则不变，区分测试预期过时与生产缺陷。"}
+      ],
+      "data_impact": [
+        "无 schema 迁移，无历史作答、封存包、学生机会或原失败 AgentCall 删除、重写。新重试保留独立调用 ID、状态、时间及用量。",
+        "应用级 retry 序号不是 provider transport retry_count，也不是学生 assessment attempt_number。标准研究导出仍保留调用 ID、状态和时间；内部 invocation key 不新增为标准 CSV 列。",
+        "回归核对失败调用原始数据库记录和封存包不变，成功重试与失败记录并存；随后重复请求不新增画像或对话开场。",
+        "线上仅读取必要状态和调用元数据，没有读取或提交原始学生回答，没有替学生开始新测试或触发真实 AI 请求。"
+      ],
+      "tests": [
+        {"name": "修复前复现", "result": "确认缺陷", "detail": "隔离本地数据库注入 invalid profile 后，真实准备流程下一次执行出现 agent_invocation_key 唯一键冲突，结果为 retryable 而非 completed。"},
+        {"name": "初始准备恢复", "result": "17 项通过", "detail": "失败后生成独立成功记录并准备好开场，保留旧记录和封存包；三路并发预留跨十二代重试只创建一个记录，成功复用及跨会话冲突检查通过。"},
+        {"name": "定向回归", "result": "16 套通过", "detail": "包含 collection summary、item-admin audit、interpretation policy、transcript quality、initial administration、65 场景 navigation matrix、V18R2 contract/pipeline/lifecycle、analysis-ready/selected-session/master export、research integrity/error UI、initial preparation，以及 initial-profile-only 模拟 provider validation。临时数据库已清理，外部 AI 网络被阻止。"},
+        {"name": "模拟模型边界", "result": "初始画像路径通过", "detail": "无效输出后有效输出能够恢复，失败的元数据与 token 记录保留。没有真实 OpenAI 请求，不等同于已恢复线上学生会话。"},
+        {"name": "未通过的旧版检查", "result": "保留限制", "detail": "未限定范围的旧 formative validation suite 在 targeted feedback 后预期 REVISION 的断言失败。该旧路径未在此发布中修改，不报告全套旧测试通过。"},
+        {"name": "静态检查与构建", "result": "最终通过", "detail": "npm run typecheck、npm run lint、git diff --check 通过；独立 lint 有 5 条既有警告。首次构建受沙箱 IPC 限制，获准后默认 4 GiB 本地堆超限；仅为构建指定 8 GiB 后完成 83 静态页面。保留 Webpack 缓存性能提示和两条构建 lint 警告，不改变部署运行内存预算。"},
+        {"name": "线上只读诊断", "result": "确认仍待恢复", "detail": "21:36 MDT 核对报告涉及的第二次学生尝试仍 active/profiling_pending；准备任务 failed，技术尝试 9/9。初始规划调用 failed/provider_status=incomplete，输出 3000 token 等于该次上限，未记录具体 incomplete_reason。疑似触及输出额度，但缺少明确原因字段，不将推断写成已证实的供应商原因。"}
+      ],
+      "limitations": [
+        "此次修复重试唯一键冲突，不保证任何模型响应都会通过语义验证。原始调用 incomplete 且用尽 3000 输出额度，额度调整及线上任务重试仍需单独执行和验证。",
+        "已终止的准备任务不会仅因部署自动完成。未重排真实任务，未重置或返还学生机会；学生可在原尝试内使用技术重试，不能以新开尝试作为修复替代。",
+        "硬进程终止可能留下结果未知的 started 调用，此版本不自动推断其可重复执行。需要独立调查，避免重复生成或用量。",
+        "Legacy targeted-feedback 重试代码未改；旧版 REVISION 断言仍未通过。此次测试范围支持初始准备及所列回归，不代表全部历史流程、教学效度或全课堂并发均已验证。",
+        "此前浏览器审查阻止进一步生产读取；本次用户要求部署后正常 Render 访问恢复。访问和健康成功不能代替学生端实际恢复证据。"
+      ],
+      "references": [
+        "src/lib/services/student-assessment/formative-call-attempts.ts",
+        "src/lib/services/student-assessment/formative-profile.ts",
+        "prisma/initial-preparation-smoke-test.ts",
+        "prisma/student-formative-live-validation-smoke-test.ts",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/INITIAL_PREPARATION_RETRY_INCIDENT_2026-09-26.md"
       ]
     }
   ],

@@ -2,10 +2,12 @@
 
 ## Status
 
-Local correction, regression verification, and production build completed.
-Deployment requested; verified release evidence is recorded in the release ledger.
-Production session recovery and the cause of the original provider failure remain
-unverified at this stage. This report deliberately omits student names,
+Application commit `48dc8d949d0e70c91bcc4fabfda4e267334393a5` was pushed and
+deployed to the canonical Render service. The deployment reported Live at 21:41
+Edmonton time on September 26. Health/schema readiness and running build identity
+were verified separately. Full release evidence is recorded in the release ledger.
+Production session recovery remains pending; this release did not requeue a real
+student job or reset an attempt. This report deliberately omits student names,
 account identifiers, session identifiers, answers, and credentials.
 
 ## Observed evidence
@@ -20,6 +22,14 @@ account identifiers, session identifiers, answers, and credentials.
 - Further Render access was blocked by browser safety review. No production
   attempts were reset, deleted, requeued, or modified. Read-only permission was
   requested before further inspection.
+- Following the user's deployment request, normal Render access succeeded. A
+  bounded read-only inspection found the reported second attempt still active in
+  profiling_pending with a failed preparation job and nine of nine technical
+  attempts exhausted. The original planning call was failed with provider status
+  incomplete, 3,000 output tokens, and a 3,000 output-token allowance. The stored
+  incomplete_reason was null. Hitting the allowance is a plausible contributing
+  cause, not a verified provider reason. The historical diagnostic mentions a
+  deterministic fallback; it is not evidence that validated feedback was shown.
 
 ## Reproduced failure
 
