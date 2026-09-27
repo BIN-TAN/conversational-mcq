@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-27T13:28:09-06:00",
+  "updated_at": "2026-09-27T15:30:00-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -730,6 +730,78 @@
         "docs/acceptance/runs/2026-09-27/feedback-teacher-help/REPORT.md",
         "docs/PRODUCT_SPEC.md",
         "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md"
+      ]
+    }
+    ,{
+      "id": "CMCQ-20260927-04",
+      "date": "2026-09-27",
+      "title": "Assessment completion and observable feedback capture",
+      "application_commit": "6b522eb4c097a7e78440c2338c8e589853683459",
+      "push_status": "Pushed to configured origin/main; GitHub accepted fffedbef..6b522eb4. Unrelated output directories excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dasofmjl550s739gv0sg",
+        "source_commit": "6b522eb4c097a7e78440c2338c8e589853683459",
+        "verified_at": "2026-09-27T15:27:00-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dasofmjl550s739gv0sg",
+        "evidence": [
+          "Render deploy detail confirmed Deploy succeeded | Live and exact source 6b522eb4c097a7e78440c2338c8e589853683459. Auto-deploy began 15:17:14 MDT; duration 4m25s. Service-live log at 15:21:40 MDT.",
+          "Read-only SSH verified RENDER_GIT_COMMIT and build metadata match the application commit. Build timestamp 2026-09-27T21:17:47.619Z; artifact hash b7c7f11ac7eb18a252afab8d3a5ee1d1cd5157888473544add4746f62f31e8cc. Initial preparation worker PID 15 runs with 96 MiB old-space and 4 MiB semi-space.",
+          "Public health at 2026-09-27T21:23:22.091Z returned HTTP 200, status ok, database reachable and schema ready, migration readiness ready. All 65 migrations applied; no new migration in this release.",
+          "Production configuration remains fd05af6414cbd6bfa16e3d8973a27bd0b9a4d1baca88aae6d3fa0d9cd5ed5e26. Read-only checks did not alter real student sessions. Initial SSH checks failed or returned no result; a later bounded process inspection succeeded. Existing ED25519 warning retained; host verification was not disabled."
+        ]
+      },
+      "summary": "Correct a misleading teacher phase label and a missing explicit assessment-completion transition. Repair feedback exposure collection so research records distinguish generated content from content actually visible in the browser. Historical data remain unchanged.",
+      "changes": [
+        {
+          "area": "Completion and teacher status",
+          "problem": "The internal planning_completed phase was shown as if it were a student completion status. Ending a learning conversation could leave its parent attempt active without a successful finish action.",
+          "fix": "Use readable teacher labels and add Finish assessment after all published topics have submitted packages and closed conversations with completed tutor receipts. Server ownership checks, row locking and idempotency prevent premature or duplicate completion.",
+          "impact": "Student review, teacher status and research exports share the persisted session_completed state. Paused, failed or pending feedback is not promoted to completion. Finishing does not establish mastery or manufacture a final profile."
+        },
+        {
+          "area": "Feedback exposure and research provenance",
+          "problem": "The client omitted canonical-conversation exposure acknowledgement and used unsupported legacy batch event names. Mounting content could be confused with visible exposure.",
+          "fix": "Observe a visible document and partial viewport exposure for 500 continuous milliseconds. Record separate summary, item-explanation and tutor-message exposures with content IDs, contract version and receipt time. Validate released content and ownership; retry through the durable queue without duplicate rows.",
+          "impact": "Collapsed, hidden and offscreen content is excluded. Observation is not reading duration, attention or comprehension. Export dictionaries and formulas describe display-ack-v2 and retain identifiable legacy semantics."
+        }
+      ],
+      "data_impact": [
+        "No historical backfill or deletion. Previously absent display observations remain missing. Old paused/exited attempts are not relabeled completed. Original answers, initial profiles and failure evidence remain available.",
+        "New completion event identifies an explicit student action with conversation-finish-v1 and learning_outcome_generated=false. Exposure exports include content kind, observer method, threshold, client identity, server receipt and tutor sequence references.",
+        "Research regression checks compare persisted state with teacher counts and exported CSV joins. The grant demonstration uses a separate local database and synthetic identities, not classroom records."
+      ],
+      "tests": [
+        {
+          "name": "Focused and research regression",
+          "result": "Passed",
+          "detail": "11 focused suites and 20 research suites passed; these overlap and are not 31 distinct suites. Synthetic research-quality audit passed 28/28 checks. Includes ownership, concurrent completion retries, incomplete and failed-feedback guards, teacher/dashboard agreement, event delivery, timing dictionaries and export joins. Disposable test databases were cleaned up."
+        },
+        {
+          "name": "Browser and static checks",
+          "result": "Passed",
+          "detail": "14 production-build browser scenarios passed with external AI blocked. Checked hidden/offscreen/collapsed feedback, offline delivery/reload, typing/paste export aggregates, pause/resume and explicit completion. Inspected 1440, 390 and 320 px layouts. Build, typecheck and diff checks passed; lint zero errors and five existing warnings."
+        },
+        {
+          "name": "Retained failures and corrections",
+          "result": "Corrected and rerun",
+          "detail": "Removed duplicate fixture cleanup after an initial cleanup failure. Corrected a browser assertion that wrongly expected visible expanded items not to count as exposure. Sandboxed build failed on IPC; a permitted 2 GiB local build exhausted its imposed heap; final local build passed with 8 GiB. Render runtime memory settings were not increased."
+        }
+      ],
+      "limitations": [
+        "Technical verification is not a psychometric validation, learning-effectiveness study or large-scale concurrency test. No guarantee of absence of all defects is made.",
+        "A fresh production classroom research ZIP was not generated in this release. Earlier historical ZIP and production preflight checks are not substituted for a fresh end-to-end production export. Historical missing exposure and final-reassessment data cannot be reconstructed.",
+        "Grant screenshots show a locally reproduced deployed configuration with real AI calls and scripted synthetic learner actions. They demonstrate functions rather than empirical learning gains. Separate demonstration notes preserve unsuccessful calls and local setup corrections."
+      ],
+      "references": [
+        "docs/acceptance/runs/2026-09-27/research-audit/FOLLOWUP.md",
+        "src/lib/services/student-assessment/formative-conversation/finish-assessment.ts",
+        "src/components/student-assessment/observed-feedback.tsx",
+        "src/lib/teacher-session-labels.ts",
+        "prisma/feedback-display-completion-smoke-test.ts",
         "docs/DATA_LOGGING_SPEC.md"
       ]
     }

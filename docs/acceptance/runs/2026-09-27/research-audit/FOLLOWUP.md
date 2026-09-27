@@ -1,6 +1,10 @@
 # Research capture and completion follow-up
 
-Date: 27 September 2026. Status: local fixes and verification, not deployed.
+Date: 27 September 2026. Original status: local fixes and verification.
+Deployment addendum: pushed and verified Live on 27 September 2026 as
+`6b522eb4c097a7e78440c2338c8e589853683459`, Render deployment
+`dep-dasofmjl550s739gv0sg`. The release ledger records health, build and worker
+evidence. The limitations below retain the original audit scope.
 
 This follows the read-only production findings in [REPORT.md](REPORT.md).
 The original report remains a historical audit, not a description of these
@@ -111,12 +115,11 @@ new database regression; the complete classroom runner was not rerun in this tas
 
 ## Remaining boundaries
 
-These fixes are not yet pushed or deployed. A post-deployment browser check and
+At the time of the original local audit these fixes were not deployed. A production browser check and
 a newly generated production ZIP are still needed before claiming the live
 collection path is verified. The earlier production preflight and historical
 ZIP checks do not substitute for that check. Missing historical display records
 and absent final reassessments cannot be reconstructed from generated feedback.
 Technical tests do not establish pedagogical validity or absence of all bugs.
 
-The Word deployment ledger is not advanced until a requested push/deployment is
-performed and its actual result is known.
+The Word ledger now records the verified deployment as CMCQ-20260927-04.
