@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-26T23:35:00-06:00",
+  "updated_at": "2026-09-27T12:17:00-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -550,6 +550,62 @@
         "src/lib/services/teacher-research-data/analysis-ready-export.ts",
         "docs/DATA_LOGGING_SPEC.md",
         "docs/acceptance/runs/2026-09-27/feedback-continuation/REPORT.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260927-01",
+      "date": "2026-09-27",
+      "title": "画像批准配置修复与定向初始反馈额度",
+      "application_commit": "db46d29b9319994688d5972f44b6c3081109356e",
+      "push_status": "已推送 configured origin/main；GitHub 接收 db46d29b9319994688d5972f44b6c3081109356e。无关 output 和 outputs 目录未提交。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-daslo4bncjis73elilvg",
+        "source_commit": "db46d29b9319994688d5972f44b6c3081109356e",
+        "verified_at": "2026-09-27T12:17:00-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-daslo4bncjis73elilvg",
+        "evidence": [
+          "Render 于 12:10:25 MDT 自动部署该完整提交；12:14:53 日志报告 Live，刷新详情显示 Deploy succeeded | Live，来源为 db46d29b9319994688d5972f44b6c3081109356e。",
+          "上线后 SSH 只读核验 RENDER_GIT_COMMIT 和构建记录均为上述提交；构建时间 2026-09-27T18:10:57.417Z，artifact_hash 为 c041b9b3a97cf7a094726bd70d3ea36e379e4181608033d723c2d9e036f6b906。",
+          "实际运行批准校验 valid=true、issues=[]。新 runtime_hash 为 b8dd11719ef4705e91ef5d30e9b7b9a47c90adc1e177a21f7d61841ca34798a4，只有一个 grant；从已保存会话的身份解析目标额度为 30000，其他用户的默认值为 3000。旧故障尝试保持 student_exited，没有再次重置或替学生开始新尝试。",
+          "后台 initial-preparation-worker.ts 运行中，old-space=96 MiB、semi-space=4 MiB，并使用相同的新批准哈希。Render 512 MiB 规格及 web 192 MiB 预算未改。",
+          "12:16:55 MDT 无缓存公开 health 返回 status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。部署日志显示 65 个已有迁移，无待执行迁移。生产未执行真实学生 AI 请求；合成容量验证与上线配置核验分别记录。"
+        ]
+      },
+      "summary": "修复生产批准记录仍为 student-profiling-v5 而应用已使用 v6 的不匹配。新增仅对一个授权学生及一个测验生效的初始反馈 30000 输出额度；其余角色和学生维持原额度。真实合成调用同时发现并修复把局部误解当成整体证据冲突已解决的验证问题。",
+      "changes": [
+        {"area": "可追溯的批准修订", "problem": "直接修改 token 环境变量不能解决 prompt version 和 hash 不一致。", "fix": "核验原批准及其哈希，独立生成 v5 到 v6、consistency v2 和单项预算授权的新批准。原记录保留；其他模型、推理努力、角色额度及超时不变。", "impact": "记录明确为操作者授权和自动化测试，不冒称新独立人工语义审查；后续 prompt 改动仍需新的批准。"},
+        {"area": "定向初始反馈额度", "problem": "故障学生需要更高生成空间，但无需扩大全班所有调用的额度。", "fix": "仅用数据库中的会话所属学生及测验匹配私有批准中的 grant。初始反馈 provider 请求与调用审计均使用相同的 30000 有效额度。", "impact": "不是要求生成 30000 token，也不是提高输入上下文或日常消费限额。后续自由对话及其他学生或测验维持原值。"},
+        {"area": "保留真正未解决的冲突", "problem": "首轮合成调用正确识别同一命题的互相矛盾回答，却因存在已引用的局部误解而被旧验证器拒绝。", "fix": "consistency v2 不再将局部误解或模式标志当成冲突已解决的证明。仍要求有来源的冲突信号和有效引用，加入针对性回归。", "impact": "允许有依据的需要澄清结论；不把局部误解自动推广为整体掌握状态，不重新计算历史画像。"}
+      ],
+      "data_impact": [
+        "无数据库迁移、历史回填或真实学生 AI 调用。原回答、封存包、会话、尝试次数和已批准的新开始机会未改动。",
+        "agent_calls.max_output_tokens 保存发给 provider 的实际有效上限。input_payload.runtime_budget 新增 policy_version、approved_runtime_hash、grant_id、base_max_output_tokens 和 effective_max_output_tokens；只用于审计，不送入学生回答的 provider input。实际 token 使用量仍独立保存。",
+        "新证据一致性结果标记 student-profile-evidence-consistency-v2；原 v1 结果保留原版本。私有授权使用数据库标识，此报告与代码仓库不记录学生身份或授权对象的标识。",
+        "额度耗尽仍记录失败，不展示部分生成输出，不制造学习证据；既有显式重试和无 AI 反馈继续路径保留。"
+      ],
+      "tests": [
+        {"name": "批准及作用范围", "result": "20 项通过", "detail": "验证指定学生与测验、其他学生或测验不变、默认额度不变、重复授权拒绝、prompt 身份、批准来源、篡改和缺少 canary 的拒绝。旧 planning-budget-only 独立通过。"},
+        {"name": "真实合成模型调用", "result": "最终 3 次通过", "detail": "两轮共六次 provider 调用。第一轮两个规划调用通过，canonical profile 被旧冲突验证器拒绝，失败保留。修复后 3 题和 12 题在 30000 上限分别用 1795、2861 输出 token，21.633、24.169 秒；v6 profiling 在原 4000 上限用 1152 输出 token，12.011 秒。全部通过 schema、引用和场景断言。"},
+        {"name": "运行和失败恢复", "result": "通过", "detail": "stance-evidence、canonical semantic validation、初始准备、失败继续、机会策略和 initial-profile-only provider 验证通过。准备和失败测试使用 96 MiB old-space。独立临时数据库已删除，未接触生产研究资料。"},
+        {"name": "研究与浏览器", "result": "通过", "detail": "analysis-ready export、selected-session export、research-export integrity、process-data summary 四套通过；preparation-browser 通过，包含等待、重试、无反馈继续、记录及返回导航。"},
+        {"name": "静态与构建", "result": "通过", "detail": "Typecheck、lint、83 页生产构建和 whitespace 检查通过。完整 lint 有五条既有警告，修改文件单独 lint 零警告。首次本地构建被沙箱 IPC 阻断，获得权限后通过；保留 Webpack 缓存警告，未更改 Render 内存或收费规格。"}
+      ],
+      "limitations": [
+        "六次合成调用及工程测试不证明所有真实学生路径、全课堂并发、教学效度或学习收益。首轮失败与修复没有从记录中删除。",
+        "30000 为指定学生在指定测验的每次初始反馈输出上限，包括 provider 的 reasoning allocation；其他学生仍用原初始反馈额度。更大上限可能增加延迟和费用，不能保证不超时或 provider 永不失败。",
+        "本次为有自动化证据的定向操作者批准，semantic_review_confirmed=false。未重新执行原完整模型升级研究，不声称独立人工评价完成。",
+        "授权没有自动到期；撤销或扩展需新的审查批准。无效证据或来源冲突仍需教师处理，失败继续不等同于成功生成学习对话。"
+      ],
+      "references": [
+        "docs/PROFILING_APPROVAL_REPAIR_2026-09-27.md",
+        "docs/acceptance/runs/2026-09-27/profiling-approval-repair/REPORT.md",
+        "src/lib/operational/scoped-feedback-budget.ts",
+        "src/lib/operational/active-approval-bundle.ts",
+        "src/lib/agents/student-profiling/semantic-validation.ts",
+        "prisma/profiling-repair-live-canary.ts"
       ]
     }
   ],

@@ -189,6 +189,13 @@ def build(data, identity, output):
 
     for p in doc.paragraphs:
         if p.style.name in ("Normal", "List Bullet"):
+            p.paragraph_format.space_after = Pt(3)
+            p.paragraph_format.line_spacing = 1.08
+        elif p.style.name in ("Title", "Subtitle"):
+            p.paragraph_format.space_before = Pt(0)
+            p.paragraph_format.space_after = Pt(4)
+        elif p.style.name == "Heading 1":
+            p.paragraph_format.space_before = Pt(8)
             p.paragraph_format.space_after = Pt(4)
 
     for release in data["releases"]:
