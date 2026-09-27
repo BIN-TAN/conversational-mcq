@@ -199,7 +199,7 @@ def build(data, identity, output):
             p.paragraph_format.space_after = Pt(4)
 
     for release in data["releases"]:
-        doc.add_heading(release["title"], 1).paragraph_format.page_break_before = True
+        doc.add_heading(release["title"], 1)
         paragraph(doc, release["id"] + "  |  " + release["date"])
         paragraph(doc, release["summary"])
         paragraph(doc, release["application_commit"], label="应用提交")

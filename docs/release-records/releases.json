@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-27T12:49:00-06:00",
+  "updated_at": "2026-09-27T13:28:09-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -663,6 +663,73 @@
         "src/lib/operational/active-approval-bundle.ts",
         "src/lib/services/student-assessment/service.ts",
         "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260927-03",
+      "date": "2026-09-27",
+      "title": "反馈失败时保留尝试并引导教师协助",
+      "application_commit": "a0f587f74e8860e9d3e395bee2abaac3133a7fa6",
+      "push_status": "已推送 configured origin/main；GitHub 接收 a0f587f74e8860e9d3e395bee2abaac3133a7fa6。无关 output 与 outputs 目录未提交。",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dasmq8bl550s739f5jgg",
+        "source_commit": "a0f587f74e8860e9d3e395bee2abaac3133a7fa6",
+        "verified_at": "2026-09-27T13:28:09-06:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dasmq8bl550s739f5jgg",
+        "evidence": [
+          "Render 详情明确显示 Deploy succeeded，完整来源提交为 a0f587f74e8860e9d3e395bee2abaac3133a7fa6；13:23:13 MDT 自动部署开始，耗时 4 分 33 秒，13:27:42 服务就绪。",
+          "13:28:01 MDT 通过 SSH 只读检查运行环境和构建记录，均为该完整提交；构建时间 2026-09-27T19:23:40.955Z，artifact_hash 为 5428b690c17a7f03a84b70b8254d676117393e4c86ab2bc383e921c348c1044c。",
+          "生产批准完整，18 个角色且 mismatch_reasons=[]；批准哈希 fd05af6414cbd6bfa16e3d8973a27bd0b9a4d1baca88aae6d3fa0d9cd5ed5e26，初始反馈上限仍为 30000。PID 15 的 initial-preparation-worker.ts 运行且批准哈希一致，使用 96 MiB old-space 和 4 MiB semi-space。",
+          "13:28:09 MDT 公开无缓存 health 返回 status=ok、database_reachable=true、database_schema_ready=true、migration_readiness=ready。没有读取或修改真实学生资料，没有调用生产 AI。",
+          "只读 SSH 命令退出 0；额外 ED25519 主机密钥签名警告仍存在，未关闭主机验证。此部署核验不等同于新的教学效度或全课堂负载评价。"
+        ]
+      },
+      "summary": "根据教师进一步反馈，修正上一版本的错误恢复体验：初始反馈失败时推荐重试或联系教师，不再在错误面板或当前页面顶部提供结束尝试。学生可以暂停后返回，保留当前尝试和全部作答。",
+      "changes": [
+        {
+          "area": "不强迫终止的恢复界面",
+          "problem": "上一版本把终止尝试放在反馈故障旁，容易让学生误以为必须放弃已完成的作答。",
+          "fix": "移除错误面板中的 End attempt，并在准备失败状态隐藏页面顶部同名控制。可安全重试时提供 Try again；所有失败均显示联系教师和保留当前尝试的提示。",
+          "impact": "来源完整性冲突不提供不安全重试；Pause and leave 保持可恢复。没有发送邮件，也不声称教师已收到通知。"
+        },
+        {
+          "area": "保留既有生命周期与数据",
+          "problem": "界面纠正不能抹去原记录或让读取错误提示消耗新机会。",
+          "fix": "保持后端生命周期、普通主动终止及历史事件契约不变；更新产品、流程和数据文档，明确错误提示本身不是终止或已联系教师的证据。",
+          "impact": "30000 初始反馈上限和批准配置保持不变。无反馈继续的旧接口仍返回 410；没有修改真实学生会话。"
+        }
+      ],
+      "data_impact": [
+        "无数据库迁移、历史回填或导出公式变更。没有新增虚构的教师联系事件；读取提示或刷新页面不会产生终止事件。",
+        "浏览器验证暂停并恢复后 session ID、attempt_number 和单一尝试保持不变；ItemResponse 与 ResponsePackage 完整记录逐项一致，initial_feedback_terminated 和 initial_feedback_skipped 均为零。",
+        "旧客户端或其他正常入口的显式终止仍有原有审计记录；此次改进仅取消把终止作为反馈故障的推荐处理方式。"
+      ],
+      "tests": [
+        {
+          "name": "浏览器与持久化",
+          "result": "12 组通过",
+          "detail": "scripts/initial-preparation-ux-smoke.mjs 使用隔离本地临时数据库和生产构建；验证普通失败重试、容量失败、来源冲突提示、两处结束按钮均消失、旧接口 401/410、刷新、暂停/恢复及原回答和响应包不变。保留 worker 恢复和浏览器 typing/paste 聚合到研究 CSV 的回归。外部 AI 禁用，临时数据库已删除。"
+        },
+        {
+          "name": "布局与静态检查",
+          "result": "通过",
+          "detail": "1440、390、320 px 无横向溢出；1440 和 320 px 错误页面截图已检查。npm run typecheck、npm run lint、npm run build 通过，83 静态页；lint 零错误、五条既有无关警告。首次构建受沙箱 IPC 限制，获准重跑通过；既有 Webpack 缓存警告保留。源码 git diff --check 通过。"
+        }
+      ],
+      "limitations": [
+        "未新执行真实 AI 调用、全课堂并发或教学效度评价；本次为错误恢复界面纠正，不改变模型、prompt、30000 上限、请求超时或收费规格。",
+        "联系教师是明确提示，不是自动发信或工单。普通主动终止入口仍保留给确实希望退出的学生；故障本身不会自动终止或自动返还机会。"
+      ],
+      "references": [
+        "src/components/student-assessment/assessment-session-client.tsx",
+        "scripts/initial-preparation-ux-smoke.mjs",
+        "docs/acceptance/runs/2026-09-27/feedback-teacher-help/REPORT.md",
+        "docs/PRODUCT_SPEC.md",
+        "docs/ASSESSMENT_FLOW.md",
         "docs/DATA_LOGGING_SPEC.md"
       ]
     }
