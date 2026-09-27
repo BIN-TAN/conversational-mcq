@@ -321,6 +321,24 @@ formative conversation session exists.
 
 ## Backend Authority
 
+### Continuing after initial feedback failure
+
+After a failed initial-preparation job, **Try again** reuses the sealed responses.
+**Continue without AI feedback** instead moves to the next published topic or
+finishes the attempt. This explicit student action is permitted only on an active,
+owned attempt with a submitted, hash-verified package and no running preparation.
+Source-integrity conflicts still require teacher review. Concurrent retry and
+continue requests serialize; repeated continuation is idempotent for the source
+topic. Background work for a topic already left cannot advance the session.
+
+The failed job and its calls remain failed. The topic's follow-up is `incomplete`,
+without a fabricated completion timestamp or new profile; the teacher review flag
+records the operational problem. A finished assessment is not proof that all
+learning support was delivered. The provider/model configuration and all output
+validation remain unchanged. A detected `max_output_tokens` failure stops automatic
+retries instead of spending the same budget repeatedly; explicit retry stays
+available. Other transient failures retain the existing bounded retry policy.
+
 The application owns:
 
 - current state;

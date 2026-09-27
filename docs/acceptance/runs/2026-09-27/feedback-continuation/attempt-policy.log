@@ -1,0 +1,25 @@
+prisma:error 
+Invalid `prisma.assessmentSession.create()` invocation:
+
+
+Transaction failed due to a write conflict or a deadlock. Please retry your transaction
+PASS simultaneous starts reserve exactly one chance and resume one session
+prisma:error 
+Invalid `prisma.assessmentSession.create()` invocation:
+
+
+Transaction failed due to a write conflict or a deadlock. Please retry your transaction
+PASS third attempt resumes after allowance is exhausted without consuming another chance
+PASS fourth starts blocked at the server and student catalog; no misleading lifecycle event
+PASS teacher ownership and restoration reason enforced
+PASS restoration is idempotent, audited and preserves original attempts and ordinal numbers
+PASS corrected versions cannot reset the allowance
+PASS migration backfills all historical attempts including more than three without erasing evidence
+PASS deleting session data does not silently grant another chance
+PASS dashboard and comparison agree on sealed submissions despite a newer unfinished attempt and mutable revisions
+PASS analysis-ready ZIP preserves every attempt with restricted fields excluded
+PASS analysis-ready ZIP preserves every attempt with restricted fields included
+PASS technical restoration updates results consistently; source packages unchanged; zero AI calls
+{"passed":12,"synthetic_fixture":"attempt_policy_1790486626607_results_assessment"}
+
+

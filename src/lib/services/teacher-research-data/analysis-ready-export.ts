@@ -1046,6 +1046,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       ? null
       : latestActivityAttempt;
     const activitySkippedEvent = lastEvent(sessionEvents, ["formative_activity_skipped"]);
+    const feedbackUnavailableEvent = lastEvent(sessionEvents, ["initial_feedback_skipped"]);
     const teacherEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_teacher"]);
     const studentEndedEvent = lastEvent(sessionEvents, ["attempt_ended_by_student"]);
     const completionEvent = lastEvent(sessionEvents, [
@@ -1084,7 +1085,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
               ? "paused"
               : null;
     const formativeActivityCompletionStatus =
-      activeActivityAttempt?.status === "move_on_recommended"
+      feedbackUnavailableEvent ? "incomplete_technical_failure" : activeActivityAttempt?.status === "move_on_recommended"
         ? "skipped"
         : activeActivityAttempt?.completed_at
           ? "completed"
@@ -1148,15 +1149,16 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         ? "FORMATIVE_CONVERSATION"
         : activeActivityAttempt?.status ?? null,
       formative_activity_completion_status: formativeActivityCompletionStatus,
-      activity_skip_reason: activitySkippedEvent
+      activity_skip_reason: feedbackUnavailableEvent ? "initial_feedback_unavailable" : activitySkippedEvent
         ? payloadString(activitySkippedEvent.payload, ["skip_reason", "reason"]) ?? "student_selected_skip_activity"
         : null,
-      selected_navigation_destination: payloadString(activitySkippedEvent?.payload, [
+      selected_navigation_destination: payloadString((feedbackUnavailableEvent ?? activitySkippedEvent)?.payload, [
+        "destination",
         "selected_navigation_destination",
         "destination_type"
       ]),
       assessment_completion_reason:
-        completionEvent?.event_type ??
+        (payloadString(completionEvent?.payload, ["reason"]) === "initial_feedback_unavailable" ? "initial_feedback_unavailable" : completionEvent?.event_type) ??
         (attemptLifecycleStatus === "completed" ? "session_completed" : terminalReason),
       attempt_policy_version:
         payloadString(attemptStartedEvent?.payload, ["attempt_policy_version"]) ??
@@ -1166,7 +1168,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       completed_initial_item_count: initialResponses.filter((response) => response.item_submitted_at).length,
       current_item_index: responses.length ? Math.max(...responses.map((response) => response.item.item_order)) : null,
       session_completion_status: session.status,
-      session_limitations: responses.length ? "" : "no_item_responses_recorded",
+      session_limitations: [!responses.length ? "no_item_responses_recorded" : "", feedbackUnavailableEvent ? "initial_feedback_unavailable" : ""].filter(Boolean).join("|"),
       session_wall_clock_elapsed_ms: sessionTiming.session_wall_clock_elapsed_ms,
       session_resumable_active_window_ms: sessionTiming.session_resumable_active_window_ms,
       session_visible_window_ms: sessionTiming.session_visible_window_ms,

@@ -328,6 +328,7 @@ export const processEventTypes = [
   "workflow_job_claimed",
   "workflow_job_succeeded",
   "workflow_job_failed",
+  "initial_feedback_skipped",
   "workflow_job_retry_scheduled",
   "workflow_automation_paused",
   "workflow_automation_resumed",

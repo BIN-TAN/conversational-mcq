@@ -36,6 +36,14 @@ Historical attempts, including those beyond three, remain retained. Teachers can
 restore a chance for a documented technical problem after closing the affected
 attempt, without deleting its evidence. See `ATTEMPT_COMPARISONS.md`.
 
+If initial AI feedback fails, students can explicitly retry or continue without
+that topic's learning support. A token-capacity failure stops automatic repeats
+immediately. Continuing moves to the next topic or finishes the assessment, while
+marking learning support incomplete for teacher review. It never supplies partial
+or fabricated AI feedback, a profile update, or a learning-gain claim. A fresh-start
+reset closes the affected attempt and restores its chance; it does not copy its
+responses into the next attempt or remove the original research records.
+
 The teacher dashboard defaults to **Overview**. Participation reflects the latest
 attempt, while item results use the latest full initial submission, so a new
 unfinished attempt cannot erase earlier results. **Compare attempts** provides

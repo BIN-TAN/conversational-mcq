@@ -21,6 +21,7 @@ const tests = suites.length ? suites : [
   "student-assessment-start-resume-conflict-smoke-test",
   "student-attempt-lifecycle-smoke-test",
   "initial-preparation-smoke-test",
+  "initial-feedback-failure-smoke-test",
   "student-demo-recovery-smoke-test",
   "student-formative-conversation-foundation-smoke-test",
   "formative-conversation-v18r2-pipeline-runtime-smoke-test",

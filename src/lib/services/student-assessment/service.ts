@@ -6173,6 +6173,11 @@ export async function submitInitialConceptUnitForPreparation(input: {
         assessment_session_db_id: session.id, concept_unit_db_id: session.current_concept_unit.id
       } }
     });
+    const continuedWithoutFeedback = await tx.processEvent.findFirst({ where: {
+      assessment_session_db_id: session.id, concept_unit_session_db_id: unit.id,
+      event_type: "initial_feedback_skipped", event_source: "backend"
+    }, select: { id: true } });
+    if (continuedWithoutFeedback) throw publicConflict("You already continued without feedback for this topic.");
     const items = await tx.item.findMany({
       where: { concept_unit_db_id: unit.concept_unit_db_id, status: "published", included_in_published_set: true },
       select: { id: true, item_public_id: true }

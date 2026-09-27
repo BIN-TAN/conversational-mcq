@@ -1,0 +1,21 @@
+PASS submission and progress are student-owned
+PASS failed enqueue rolls back submission, evidence snapshot, and submission event
+submission_acknowledgement_ms=86
+PASS concurrent submissions return before AI work with one sealed package and one job
+PASS legacy workflow worker cannot consume initial-preparation jobs
+PASS two workers cannot claim the same job
+PASS another student's preparation can complete while the first job is still running
+PASS heartbeats protect long work; refresh and repeated submission only observe it
+PASS restart recovers abandoned work and stale workers cannot finish a newer lease
+PASS bounded retries stop; explicit retry preserves one job and attempt history
+PASS pause defers without spending retries; ending cancels queued preparation
+PASS an attempt ended during preparation cannot advance to the next stage
+PASS changed source evidence fails closed and cannot be retried by the student
+PASS failed profile retries retain the failed audit, recover the opening, and replay without duplicating evidence
+PASS concurrent retries reserve one call, preserve all prior failures, retain successful results, and enforce session scope
+PASS recovery after successful generation reuses validated results without duplicate calls or opening
+PASS standalone worker completes the validated mock pipeline; replay does not repeat work or rewrite evidence
+PASS zero provider calls and zero network requests in the test process
+{"passed":17,"results":["submission and progress are student-owned","failed enqueue rolls back submission, evidence snapshot, and submission event","concurrent submissions return before AI work with one sealed package and one job","legacy workflow worker cannot consume initial-preparation jobs","two workers cannot claim the same job","another student's preparation can complete while the first job is still running","heartbeats protect long work; refresh and repeated submission only observe it","restart recovers abandoned work and stale workers cannot finish a newer lease","bounded retries stop; explicit retry preserves one job and attempt history","pause defers without spending retries; ending cancels queued preparation","an attempt ended during preparation cannot advance to the next stage","changed source evidence fails closed and cannot be retried by the student","failed profile retries retain the failed audit, recover the opening, and replay without duplicating evidence","concurrent retries reserve one call, preserve all prior failures, retain successful results, and enforce session scope","recovery after successful generation reuses validated results without duplicate calls or opening","standalone worker completes the validated mock pipeline; replay does not repeat work or rewrite evidence","zero provider calls and zero network requests in the test process"]}
+
+

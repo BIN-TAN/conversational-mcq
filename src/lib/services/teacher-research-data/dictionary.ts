@@ -1493,13 +1493,13 @@ function definition(table: string, variable: string) {
     last_runtime_state:
       "Latest formative activity runtime attempt status associated with this assessment attempt, if any.",
     formative_activity_completion_status:
-      "Session-level formative activity outcome summary. Skipped activity choices are marked skipped rather than completed.",
+      "Session-level formative activity outcome summary. Skipped activities are not completed. Any initial_feedback_skipped event yields incomplete_technical_failure; this is an operational limitation, not a learning outcome.",
     activity_skip_reason:
-      "Reason code for a recorded formative activity skip, derived from the formative_activity_skipped process event when present.",
+      "Reason for a recorded skip. initial_feedback_unavailable derives from initial_feedback_skipped; otherwise read formative_activity_skipped. Original topic events distinguish multiple skips.",
     selected_navigation_destination:
       "Destination selected by the student or backend after a formative activity decision, such as skip_activity_to_transfer.",
     assessment_completion_reason:
-      "Reason code describing how the assessment reached completion or why it remains incomplete.",
+      "Reason code describing assessment completion. initial_feedback_unavailable means the student finished after AI support failed; completion does not establish learning or successful feedback.",
     attempt_policy_version:
       "Version label for the attempt policy applied when the attempt started or was exported.",
     teacher_override_metadata:

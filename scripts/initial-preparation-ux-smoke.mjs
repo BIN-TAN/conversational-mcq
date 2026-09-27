@@ -52,7 +52,7 @@ async function ready(process) {
   }
   throw new Error(process.output.slice(-3000));
 }
-let fixture, browser;
+let fixture, failedFixture, browser;
 let passed = 0;
 const pass = (name) => { passed++; console.log(`PASS ${name}`); };
 try {
@@ -192,7 +192,47 @@ try {
   assert(exportedEvents.some(event => event.event_type === "paste_detected" && event.payload_pasted_text_length_band === "21_100"));
   assert(!bundle.files.some(file => file.data.includes(draft) || file.data.includes("synthetic clipboard content")));
   pass("real browser typing and synthetic paste aggregates survive reload, database capture, and research CSV export without raw input text");
-  await stop(worker); await stop(server);
+  await stop(worker);
+  failedFixture = await createResponseCollectionFixture({ prisma: db, prefix: `${prefix}_capacity`, responseCollectionMode: "deterministic" });
+  await db.itemResponse.createMany({ data: failedFixture.items.map(item => ({
+    concept_unit_session_db_id: failedFixture.conceptUnitSession.id, item_db_id: item.id,
+    selected_option: "A", correct_option_snapshot: "A", reasoning_text: "Preserved synthetic response",
+    confidence_rating: "medium", item_submitted_at: new Date(), item_version_snapshot: item.version, item_snapshot: item
+  })) });
+  const failedInput = { student_user_db_id: failedFixture.student.id, session_public_id: failedFixture.session.session_public_id,
+    concept_unit_public_id: failedFixture.conceptUnit.concept_unit_public_id };
+  await require("../src/lib/services/student-assessment/service.ts").submitInitialConceptUnitForPreparation(failedInput);
+  await db.workflowJob.updateMany({ where: { assessment_session_db_id: failedFixture.session.id },
+    data: { status: "failed", last_error_category: "output_token_limit" } });
+  const failedPayload = Buffer.from(JSON.stringify({ user_db_id: failedFixture.student.id, user_id: failedFixture.student.user_id,
+    role: "student", auth_version: failedFixture.student.auth_version, iat: now, exp: now + 3600 })).toString("base64url");
+  await context.addCookies([{ name: "cmcq_session", value: `${failedPayload}.${createHmac("sha256", secret).update(failedPayload).digest("base64url")}`,
+    url: base, httpOnly: true, sameSite: "Lax" }]);
+  const continuePath = `/api/student/sessions/${failedInput.session_public_id}/concept-units/${failedInput.concept_unit_public_id}/continue-without-feedback`;
+  assert.equal((await fetch(base + continuePath, { method: "POST" })).status, 401);
+  await page.goto(`${base}/student/assessment/${failedInput.session_public_id}`);
+  await page.getByText("Your responses are saved. AI feedback reached its response limit and could not finish.", { exact: true }).waitFor();
+  assert.equal(await page.getByTestId("retry-initial-preparation").isEnabled(), true);
+  assert.equal(await page.getByTestId("continue-without-feedback").isEnabled(), true);
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.screenshot({ path: join(output, `capacity-failure-${width}.png`), fullPage: true });
+    assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+  }
+  const continued = page.waitForResponse(response => response.url().endsWith("/continue-without-feedback"));
+  await page.getByTestId("continue-without-feedback").click();
+  assert.equal((await continued).status(), 200);
+  await page.getByText("Your responses are saved. This attempt is finished without AI feedback.", { exact: true }).waitFor();
+  await page.reload();
+  await page.getByText("Your responses are saved. This attempt is finished without AI feedback.", { exact: true }).waitFor();
+  await page.screenshot({ path: join(output, "capacity-failure-continued.png"), fullPage: true });
+  assert.equal(await db.processEvent.count({ where: { assessment_session_db_id: failedFixture.session.id, event_type: "initial_feedback_skipped" } }), 1);
+  assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: failedFixture.session.id } }), 0);
+  await page.getByRole("button", { name: "Back to assessments", exact: true }).last().click();
+  await page.waitForURL(`${base}/student/assessment`);
+  await page.getByRole("heading", { name: "Assessments", exact: true }).waitFor();
+  pass("capacity failure shows explicit error, retry and continue at desktop/mobile widths; continuation persists across refresh without AI calls");
+  await stop(server);
   const supervised = child(["scripts/start-app.mjs", "start", "-H", "127.0.0.1", "-p", String(port)]);
   await ready(supervised);
   await stop(supervised);
@@ -203,6 +243,7 @@ try {
   if (browser) await browser.close();
   for (const process of children) await stop(process);
   if (fixture) await cleanupSmokeStudentSessions({ prisma: db, userDbId: fixture.student.id, sessionPublicIds: [fixture.session.session_public_id] });
+  if (failedFixture) await cleanupSmokeStudentSessions({ prisma: db, userDbId: failedFixture.student.id, sessionPublicIds: [failedFixture.session.session_public_id] });
   await cleanupResponseCollectionFixture(db, prefix);
   await db.$disconnect();
   await require("../src/lib/db.ts").prisma.$disconnect();

@@ -1,0 +1,10 @@
+PASS token exhaustion stops automatic repeats immediately; authorized retry and continuation remain available
+PASS one idempotent technical continuation preserves sealed products and failed calls, creates no profile or learning gain, and marks support incomplete
+PASS technical continuation is retained in research CSV and readable teacher process data
+PASS multi-topic continuation reaches the next real item and replay cannot skip another topic
+PASS source conflicts and tampered sealed evidence cannot be bypassed
+PASS old truncation does not misclassify a new transient error; in-flight work cannot be skipped
+PASS concurrent retry and continue cannot both commit conflicting destinations
+{"passed":7,"external_provider_calls":0}
+
+

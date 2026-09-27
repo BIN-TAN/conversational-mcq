@@ -22,6 +22,7 @@ const eventLabels: Record<string, string> = {
   paste_detected: "Paste action recorded",
   package_review_opened: "Responses opened for review",
   package_submitted: "Response package submitted",
+  initial_feedback_skipped: "Student continued after AI feedback was unavailable",
   attempt_paused: "Assessment paused",
   session_paused: "Assessment paused",
   attempt_resumed: "Assessment resumed",

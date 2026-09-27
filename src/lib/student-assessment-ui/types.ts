@@ -266,8 +266,10 @@ export const StudentSessionStateSchema = z.object({
   }),
   current_concept_unit: StudentConceptUnitSchema.nullable(),
   preparation: z.object({
-    status: z.enum(["queued", "preparing", "retrying", "ready", "failed", "paused", "cancelled"]),
-    can_retry: z.boolean()
+    status: z.enum(["queued", "preparing", "retrying", "ready", "failed", "paused", "cancelled", "skipped"]),
+    can_retry: z.boolean(),
+    can_continue: z.boolean().default(false),
+    failure_reason: z.enum(["output_token_limit", "source_conflict", "unavailable"]).nullable().default(null)
   }).nullable().optional(),
   next_step: z.enum([
     "concept_unit_intro",

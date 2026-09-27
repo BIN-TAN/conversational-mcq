@@ -1,0 +1,55 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1034,
+      "heap_limit_mib": 512,
+      "log_sha256": "7ef4cec8736a4700df5eba2df0e21f557f0e5c1274daeea8c8c8b2ae67158f60"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 177,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "feedback-failure",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1258,
+      "heap_limit_mib": 96,
+      "log_sha256": "7d5ad6cc61452200adc6623e3c30344edd35d5740da272c099a6fafd4f296797"
+    },
+    {
+      "label": "initial-preparation",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 4618,
+      "heap_limit_mib": 96,
+      "log_sha256": "5cbdd6052d85d6cfee998161d32fc86a71dfea0d80fc1c35f9f2030063a4c297"
+    },
+    {
+      "label": "attempt-policy",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1456,
+      "heap_limit_mib": 512,
+      "log_sha256": "e139f3d6c0ecedac93be14bb78f9e962415fcab338d884345b89a6e4fe77c2f4"
+    },
+    {
+      "label": "provider-validation",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 41438,
+      "heap_limit_mib": 96,
+      "log_sha256": "1fc439812a7611ac9a93dc86df6ea44e95a6d98dc54bcc0e469881a2b2f77c00"
+    }
+  ]
+}

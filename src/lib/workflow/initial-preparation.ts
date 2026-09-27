@@ -69,11 +69,20 @@ class PreparationInterrupted extends Error {
 
 export async function assertInitialPreparationActive(job: WorkflowJob) {
   const current = await prisma.workflowJob.findFirst({ where: leaseWhere(job), include: {
-    assessment_session: { include: { user: { select: { account_status: true } } } }
+    assessment_session: { include: { user: { select: { account_status: true } } } },
+    concept_unit_session: { select: { concept_unit_db_id: true } }
   } });
   if (!current) throw new PreparationInterrupted("lost_lease");
   const session = current.assessment_session;
   if (resolveCanonicalAttemptLifecycle(session).terminal) throw new PreparationInterrupted("cancelled");
+  if (current.concept_unit_session?.concept_unit_db_id !== session.current_concept_unit_db_id) {
+    throw new PreparationInterrupted("cancelled");
+  }
+  const continued = await prisma.processEvent.findFirst({ where: {
+    assessment_session_db_id: session.id, concept_unit_session_db_id: current.concept_unit_session_db_id,
+    event_type: "initial_feedback_skipped", event_source: "backend"
+  }, select: { id: true } });
+  if (continued) throw new PreparationInterrupted("cancelled");
   if (session.status !== "active" || session.automation_paused_at || session.user.account_status !== "active") {
     throw new PreparationInterrupted("paused");
   }
@@ -136,6 +145,19 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
     if (error instanceof z.ZodError || (error instanceof Error && error.message === "preparation_source_conflict")) {
       status = "failed";
       errorCategory = "preparation_source_conflict";
+    } else if (!(error instanceof PreparationInterrupted)) {
+      // A capacity failure will not improve by silently repeating the same request.
+      // Only inspect calls from this job attempt, not failures from an earlier retry.
+      const truncated = await prisma.agentCall.findFirst({ where: {
+        assessment_session_db_id: job.assessment_session_db_id,
+        concept_unit_session_db_id: job.concept_unit_session_db_id,
+        created_at: { gte: job.locked_at ?? job.updated_at },
+        call_status: "failed", incomplete_reason: "max_output_tokens"
+      }, select: { id: true } });
+      if (truncated) {
+        status = "failed";
+        errorCategory = "output_token_limit";
+      }
     }
   } finally {
     clearInterval(timer);

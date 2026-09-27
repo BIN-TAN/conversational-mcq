@@ -1,5 +1,38 @@
 # Data Logging Specification
 
+## Initial Feedback Technical Continuation (2026-09-27)
+
+`initial_feedback_skipped` is an authoritative backend event for an explicit
+student choice after failed AI preparation. It is not a missing student response,
+misconception resolution, or successful intervention. Its payload contains
+`policy_version=initial-feedback-continuation-v1`, `job_public_id`, the sealed
+`response_package_hash`, `failure_reason`, `actor_type=student`, `destination`
+(`next_concept` or `assessment_complete`), `learning_support_completed=false`,
+`from_phase`, and `to_phase`. The event time is the server-observed choice time.
+There is no derived score or duration. Repeated requests append only one event.
+
+The original failed job, AgentCalls, responses, package and profiles are retained.
+`concept_unit_sessions.followup_status=incomplete` and a session teacher-review
+flag distinguish unavailable support. No follow-up completion time or learning
+profile transition is synthesized. The standard research ZIP includes the event
+in `process_events.csv`; its detailed payload remains in the existing audit.
+Existing `sessions.csv` columns encode the limitation without duplicating data:
+`formative_activity_completion_status=incomplete_technical_failure` and
+`activity_skip_reason=initial_feedback_unavailable` when any topic has this event;
+`session_limitations` includes `initial_feedback_unavailable`;
+`selected_navigation_destination` records the latest technical continuation's
+destination. `assessment_completion_reason=initial_feedback_unavailable` only
+when that choice directly finished the last topic. For multiple topics, use the
+topic-linked source events rather than treating a session summary as every topic.
+
+For new failed preparation attempts, the worker checks same-topic failed calls
+created at or after its lease began. A persisted `incomplete_reason=max_output_tokens`
+sets job `last_error_category=output_token_limit` and ends automatic retries.
+Older failures are not backfilled or used to relabel a newer transient error.
+Human-readable process data label continuation as student continuation after AI
+feedback was unavailable. Restoring a technical attempt chance continues to use
+the existing teacher waiver ledger; no student evidence is deleted or renumbered.
+
 ## Initial Preparation Retry Audits (2026-09-26)
 
 Failed or invalid initial-profile calls retain their original AgentCall, invocation

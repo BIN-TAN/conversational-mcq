@@ -6,6 +6,7 @@ import { ModalDialog } from "@/components/ui/modal-dialog";
 import {
   AlertTriangle,
   ArrowLeft,
+  ArrowRight,
   Loader2,
   LogOut,
   MessageSquareText,
@@ -29,6 +30,7 @@ import {
   chooseStudentActivityRuntimeAction,
   chooseProgression,
   completeInitialConceptUnit,
+  continueWithoutFeedback,
   completeReadyItem,
   endAssessmentAttempt,
   exitSession,
@@ -2735,6 +2737,21 @@ export function AssessmentSessionClient({
     }
   }
 
+  async function handleContinueWithoutFeedback() {
+    if (!state?.current_concept_unit || isBusy) return;
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const result = await continueWithoutFeedback(state.session_public_id, state.current_concept_unit.concept_unit_public_id);
+      setState(result.state);
+      setActivityRuntime(result.state.activity_runtime ?? null);
+      await refreshSecondaryData(result.state.session_public_id);
+    } catch (errorValue) {
+      handleError(errorValue, "Continue without AI feedback", () => { void handleContinueWithoutFeedback(); });
+    } finally { setIsBusy(false); }
+  }
+
   async function handleRetryFormativeConversationResponse() {
     const conversation = state?.formative_conversation;
     const response = conversation?.assistant_response;
@@ -3716,7 +3733,9 @@ export function AssessmentSessionClient({
       <p className="font-medium text-ink">
         {preparationPending ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         {state.preparation.status === "failed"
-          ? "Your responses are saved, but learning support could not be prepared."
+          ? state.preparation.failure_reason === "output_token_limit"
+            ? "Your responses are saved. AI feedback reached its response limit and could not finish."
+            : "Your responses are saved, but learning support could not be prepared."
           : state.preparation.status === "paused"
             ? "Your responses are saved. Preparation is paused."
             : "Your responses are saved. Preparing your learning conversation..."}
@@ -3734,6 +3753,15 @@ export function AssessmentSessionClient({
           data-testid="retry-initial-preparation" disabled={isBusy} onClick={handleCompletePackage}>
           <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
         </button>
+      ) : null}
+      {state.preparation.can_continue ? (
+        <div className="mt-3">
+          <button type="button" className="inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-50"
+            data-testid="continue-without-feedback" disabled={isBusy} onClick={() => void handleContinueWithoutFeedback()}>
+            <ArrowRight className="h-4 w-4 shrink-0" aria-hidden="true" /> Continue without AI feedback
+          </button>
+          <p className="mt-2 text-sm text-muted">Your answers will stay saved. Learning support for this topic will remain incomplete for your teacher to review.</p>
+        </div>
       ) : null}
       {state.preparation.status === "failed" && !state.preparation.can_retry ? (
         <p className="mt-2 text-sm text-muted">Please ask your teacher to review this attempt.</p>
@@ -3866,12 +3894,16 @@ export function AssessmentSessionClient({
           {readOnlyReview ? (
             <AgentMessage>
               <p className="font-medium text-ink">
-                {isReviewablePastAttempt
+                {state.preparation?.status === "skipped"
+                  ? "Your responses are saved. This attempt is finished without AI feedback."
+                  : isReviewablePastAttempt
                   ? "Past attempt review"
                   : "This attempt is not available as a past attempt."}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted">
-                {isReviewablePastAttempt
+                {state.preparation?.status === "skipped"
+                  ? "Learning support could not be completed. Your teacher can review your responses with you."
+                  : isReviewablePastAttempt
                   ? "This is a read-only view. You can look back through your answers and learning conversation."
                   : "Return to assessments to resume or manage this attempt."}
               </p>
