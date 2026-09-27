@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -25,7 +26,14 @@ class RecordTests(unittest.TestCase):
     def test_referenced_repository_files_exist(self):
         for release in self.data["releases"]:
             for path in release["references"]:
-                self.assertTrue((record.ROOT / path).is_file(), path)
+                if (record.ROOT / path).is_file():
+                    continue
+                # Retired modules remain valid historical references at their release.
+                result = subprocess.run(
+                    ["git", "cat-file", "-e", f"{release['application_commit']}:{path}"],
+                    cwd=record.ROOT, capture_output=True,
+                )
+                self.assertEqual(result.returncode, 0, path)
 
     def test_duplicate_release_rejected(self):
         self.data["releases"].append(copy.deepcopy(self.data["releases"][0]))

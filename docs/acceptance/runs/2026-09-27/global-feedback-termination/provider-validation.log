@@ -1,0 +1,4 @@
+PASS rejected provider output can recover on a valid retry without replacing the failed audit or student evidence
+Initial semantic profile provider-boundary tests passed: valid persistence, canonicalization, missing fields, invented quotes, protected content, and invalid student-facing output. No OpenAI calls.
+
+

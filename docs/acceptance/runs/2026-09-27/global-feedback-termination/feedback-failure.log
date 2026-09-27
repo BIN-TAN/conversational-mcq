@@ -1,0 +1,10 @@
+PASS token exhaustion stops automatic repeats; explicit retry stays available, continuation is disabled
+PASS one idempotent termination preserves products and failed calls; no completion, profile or learning gain; existing review flags retained
+PASS research CSV distinguishes technical termination from completion and skipped activities
+PASS termination ends the whole attempt, never starts a later topic, and cannot resume on replay
+PASS source conflicts require teacher review but do not prevent a student from ending safely
+PASS old truncation does not misclassify a new transient error; in-flight work cannot be skipped
+PASS concurrent retry and end leaves no runnable work or next-topic destination
+{"passed":7,"external_provider_calls":0}
+
+
