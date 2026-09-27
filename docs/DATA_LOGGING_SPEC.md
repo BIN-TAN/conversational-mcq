@@ -2,6 +2,11 @@
 
 ## Initial Feedback Technical Termination (2026-09-27)
 
+The current failure screen recommends retry or teacher help and preserves an open
+attempt; it does not offer termination. Displaying this guidance does not emit a
+termination or teacher-contact event. The following event contract is retained
+for explicit ordinary end requests and historical records, not failure alone.
+
 `initial_feedback_terminated` records a confirmed student end after the current
 topic's persisted preparation job failed. The session becomes `student_exited`,
 not `completed`, with no completion timestamp or next-topic creation. The server

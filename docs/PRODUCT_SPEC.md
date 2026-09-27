@@ -39,12 +39,13 @@ attempt, without deleting its evidence. See `ATTEMPT_COMPARISONS.md`.
 All students have a 30,000-output-token ceiling per initial-feedback generation,
 including provider reasoning allocation. This is not a requested reply length;
 other agent-role ceilings, timeouts and spending controls remain unchanged.
-If initial AI feedback fails, students can explicitly retry or confirm **End
-attempt**. Continuing to another topic without AI feedback is not permitted.
-A token-capacity failure stops automatic repeats immediately. Ending preserves
-responses and failed calls, marks support incomplete for teacher review, and
-closes the whole attempt as student-ended, never successfully completed. No
-partial/fabricated feedback, profile update or learning-gain claim is created. A fresh-start
+If initial AI feedback fails, students can explicitly retry or contact their
+teacher for help. The failure screen does not offer **End attempt**; the attempt
+stays open, and **Pause and leave** preserves it for returning later. Teacher
+contact is guidance, not an automatically sent notification. Continuing to
+another topic without AI feedback is not permitted. A token-capacity failure
+stops automatic repeats immediately. Responses and failed calls remain saved;
+no partial/fabricated feedback, profile update or learning-gain claim is created. A fresh-start
 reset closes the affected attempt and restores its chance; it does not copy its
 responses into the next attempt or remove the original research records.
 

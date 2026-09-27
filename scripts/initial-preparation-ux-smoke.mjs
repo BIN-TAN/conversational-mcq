@@ -136,6 +136,8 @@ try {
   await db.workflowJob.update({ where: { id: job.id }, data: { status: "failed", attempt_count: 3, last_error_category: "preparation_failed" } });
   await page.getByTestId("retry-initial-preparation").waitFor();
   assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /try again or contact your teacher/);
+  assert.equal(await page.getByTestId("end-attempt").count(), 0);
   const retry = page.waitForResponse((response) => response.url().endsWith("/complete-initial"));
   await page.getByTestId("retry-initial-preparation").click();
   assert.equal((await retry).status(), 202);
@@ -204,6 +206,9 @@ try {
   await require("../src/lib/services/student-assessment/service.ts").submitInitialConceptUnitForPreparation(failedInput);
   await db.workflowJob.updateMany({ where: { assessment_session_db_id: failedFixture.session.id },
     data: { status: "failed", last_error_category: "output_token_limit" } });
+  const savedResponses = await db.itemResponse.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } });
+  const savedPackages = await db.responsePackage.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } });
+  const savedSession = await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } });
   const failedPayload = Buffer.from(JSON.stringify({ user_db_id: failedFixture.student.id, user_id: failedFixture.student.user_id,
     role: "student", auth_version: failedFixture.student.auth_version, iat: now, exp: now + 3600 })).toString("base64url");
   await context.addCookies([{ name: "cmcq_session", value: `${failedPayload}.${createHmac("sha256", secret).update(failedPayload).digest("base64url")}`,
@@ -214,7 +219,10 @@ try {
   await page.getByText("Your responses are saved. AI feedback reached its response limit and could not finish.", { exact: true }).waitFor();
   assert.equal(await page.getByTestId("retry-initial-preparation").isEnabled(), true);
   assert.equal(await page.getByTestId("continue-without-feedback").count(), 0);
-  assert.equal(await page.getByTestId("end-after-feedback-failure").isEnabled(), true);
+  assert.equal(await page.getByTestId("end-after-feedback-failure").count(), 0);
+  assert.equal(await page.getByTestId("end-attempt").count(), 0);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /try again or contact your teacher/);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /Your attempt stays open/);
   assert.equal((await context.request.post(base + continuePath)).status(), 410);
   assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
   for (const width of [1440, 390, 320]) {
@@ -222,23 +230,37 @@ try {
     await page.screenshot({ path: join(output, `capacity-failure-${width}.png`), fullPage: true });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   }
-  page.once("dialog", dialog => dialog.dismiss());
-  await page.getByTestId("end-after-feedback-failure").click();
-  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
-  const ended = page.waitForResponse(response => response.url().endsWith("/end"));
-  page.once("dialog", dialog => { assert(dialog.message().includes("learning support is incomplete")); return dialog.accept(); });
-  await page.getByTestId("end-after-feedback-failure").click();
-  assert.equal((await ended).status(), 200);
-  await page.waitForURL(`${base}/student/assessment`);
-  const terminal = await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } });
-  assert.equal(terminal.status, "student_exited");
-  assert.equal(terminal.completed_at, null);
-  assert.equal(await db.processEvent.count({ where: { assessment_session_db_id: failedFixture.session.id, event_type: "initial_feedback_terminated" } }), 1);
-  assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: failedFixture.session.id } }), 0);
-  await page.getByRole("heading", { name: "Assessments", exact: true }).waitFor();
   await page.reload();
-  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "student_exited");
-  pass("capacity failure offers retry or confirmed termination; old endpoint is retired; cancel and reload preserve correct state at desktop/mobile widths");
+  await page.getByTestId("initial-feedback-help").waitFor();
+  assert.equal(await page.getByTestId("end-attempt").count(), 0);
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
+
+  await db.workflowJob.updateMany({ where: { assessment_session_db_id: failedFixture.session.id },
+    data: { last_error_category: "preparation_source_conflict" } });
+  await page.reload();
+  await page.getByTestId("initial-feedback-help").waitFor();
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /Please contact your teacher for help with this test/);
+  assert.equal(await page.getByTestId("retry-initial-preparation").count(), 0);
+  assert.equal(await page.getByTestId("end-attempt").count(), 0);
+  pass("source conflicts recommend teacher help without unsafe retry or forced termination");
+
+  await page.getByTestId("save-exit").click();
+  await page.waitForURL(`${base}/student/assessment`);
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "paused");
+  await page.getByTestId(`resume-assessment-${failedFixture.assessment.assessment_public_id}`).click();
+  await page.waitForURL(`${base}/student/assessment/${failedInput.session_public_id}`);
+  await page.getByTestId("initial-feedback-help").waitFor();
+  const resumed = await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } });
+  assert.equal(resumed.status, "active");
+  assert.equal(resumed.completed_at, null);
+  assert.equal(resumed.attempt_number, savedSession.attempt_number);
+  assert.equal(await db.assessmentSession.count({ where: { user_db_id: failedFixture.student.id, assessment_db_id: failedFixture.assessment.id } }), 1);
+  assert.equal(await db.processEvent.count({ where: { assessment_session_db_id: failedFixture.session.id,
+    event_type: { in: ["initial_feedback_terminated", "initial_feedback_skipped"] } } }), 0);
+  assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: failedFixture.session.id } }), 0);
+  assert.deepEqual(await db.itemResponse.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } }), savedResponses);
+  assert.deepEqual(await db.responsePackage.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } }), savedPackages);
+  pass("capacity failure offers retry or teacher help; reload and pause/resume preserve the open attempt and all saved evidence at desktop/mobile widths");
   await stop(server);
   const supervised = child(["scripts/start-app.mjs", "start", "-H", "127.0.0.1", "-p", String(port)]);
   await ready(supervised);

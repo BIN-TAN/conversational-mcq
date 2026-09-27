@@ -321,17 +321,23 @@ formative conversation session exists.
 
 ## Backend Authority
 
-### Ending after initial feedback failure
+### Help after initial feedback failure
 
 After a failed initial-preparation job, **Try again** reuses the sealed responses.
-**End attempt** requires confirmation and closes the whole owned attempt. It
-does not advance to another topic or count as successful completion. The retired
+The failure screen offers teacher-contact guidance instead of **End attempt**,
+including hiding the usual header end control in this state. **Pause and leave**
+remains available. Reading the guidance or reloading does not end the attempt,
+consume another chance or notify the teacher automatically. Source-integrity
+conflicts require teacher help rather than another unsafe retry. The retired
 continue-without-feedback API returns HTTP 410, including to old browser tabs.
-Source-integrity conflicts still require teacher review, but the student can end
-the attempt. Retry and end serialize on the session; end cancels runnable work,
+
+The ordinary confirmed end API remains available outside this recovery screen
+and to old clients; it does not advance to another topic or count as successful
+completion. Retry and end serialize on the session; end cancels runnable work,
 and repeated end requests are idempotent. Background work cannot revive it.
 
-The failed job and its calls remain failed. The topic's follow-up is `incomplete`,
+If that ordinary end action is explicitly requested, the failed job and its calls
+remain failed. The topic's follow-up is `incomplete`,
 without a fabricated completion timestamp or new profile; the teacher review flag
 records the operational problem. The attempt becomes `student_exited`, without
 a completion timestamp. Existing chances are not automatically refunded; teachers

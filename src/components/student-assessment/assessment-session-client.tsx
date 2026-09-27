@@ -2019,15 +2019,17 @@ function StudentAssessmentChatShell({
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 Pause and leave
               </button>
-              <button
-                className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
-                data-testid="end-attempt"
-                disabled={isBusy || !state.can_end_attempt}
-                onClick={onEndAttempt}
-                type="button"
-              >
-                End attempt
-              </button>
+              {state.preparation?.status !== "failed" ? (
+                <button
+                  className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="end-attempt"
+                  disabled={isBusy || !state.can_end_attempt}
+                  onClick={onEndAttempt}
+                  type="button"
+                >
+                  End attempt
+                </button>
+              ) : null}
             </>
           )}
         </div>
@@ -3739,17 +3741,13 @@ export function AssessmentSessionClient({
           <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
         </button>
       ) : null}
-      {state.preparation.status === "failed" && state.can_end_attempt ? (
-        <div className="mt-3">
-          <button type="button" className="inline-flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 py-2 font-semibold text-red-800 disabled:opacity-50"
-            data-testid="end-after-feedback-failure" disabled={isBusy} onClick={() => void handleEndAttempt()}>
-            <LogOut className="h-4 w-4 shrink-0" aria-hidden="true" /> End attempt
-          </button>
-          <p className="mt-2 text-sm text-muted">Your responses are saved. You can retry or end this attempt and contact your teacher. Ending will leave learning support incomplete.</p>
-        </div>
-      ) : null}
-      {state.preparation.status === "failed" && !state.preparation.can_retry ? (
-        <p className="mt-2 text-sm text-muted">Please ask your teacher to review this attempt.</p>
+      {state.preparation.status === "failed" ? (
+        <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-help">
+          {state.preparation.can_retry
+            ? "You can try again or contact your teacher for help."
+            : "Please contact your teacher for help with this test."}{" "}
+          Your attempt stays open. You can pause and return later without starting a new attempt.
+        </p>
       ) : null}
       {review?.locked && !state.package_results ? (
         <details className="mt-4 border-t border-line pt-3" data-testid="submitted-response-review">
