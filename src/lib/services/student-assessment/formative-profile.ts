@@ -68,6 +68,7 @@ import {
 } from "@/lib/services/student-assessment/formative-conversation/service";
 import { ensureFormativeConversationOpeningForConceptUnitSession } from "@/lib/services/student-assessment/formative-conversation/opening-orchestration";
 import { StudentAssessmentServiceError } from "./errors";
+import { latestFormativeCallAttempt, recordUnexpectedFormativeCallFailure, reserveFormativeCallAttempt } from "./formative-call-attempts";
 import {
   resolveTopicDialogueExecutionPlan,
   type FormativeExecutionMode
@@ -2462,28 +2463,36 @@ async function callProviderOrMock(input: {
     }
   }
 
-  const agentCall = await prisma.agentCall.create({
-    data: {
-      id: randomUUID(),
-      assessment_session_db_id: input.assessment_session_db_id,
-      concept_unit_session_db_id: input.concept_unit_session_db_id,
-      agent_name: CHAT_NATIVE_PROFILE_AGENT_NAME,
-      agent_version: CHAT_NATIVE_PROFILE_AGENT_VERSION,
-      model_name: modelName,
-      provider: runtimeProvider,
-      client_request_id: `chat_native_profile_${randomUUID()}`,
-      agent_invocation_key: input.agent_invocation_key,
-      prompt_hash: CHAT_NATIVE_PROFILE_PROMPT_HASH,
-      reasoning_effort: modelConfig?.reasoning_effort ?? null,
-      max_output_tokens: modelConfig?.max_output_tokens ?? null,
-      prompt_version: CHAT_NATIVE_PROFILE_PROMPT_VERSION,
-      schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION,
-      input_payload: prismaJson(redactForAudit(input.provider_input)),
-      live_call_allowed: liveCallAllowed,
-      call_status: "started",
-      started_at: startedAt
-    }
+  const reservation = await reserveFormativeCallAttempt({
+    id: randomUUID(),
+    assessment_session_db_id: input.assessment_session_db_id,
+    concept_unit_session_db_id: input.concept_unit_session_db_id,
+    agent_name: CHAT_NATIVE_PROFILE_AGENT_NAME,
+    agent_version: CHAT_NATIVE_PROFILE_AGENT_VERSION,
+    model_name: modelName,
+    provider: runtimeProvider,
+    client_request_id: `chat_native_profile_${randomUUID()}`,
+    agent_invocation_key: input.agent_invocation_key,
+    prompt_hash: CHAT_NATIVE_PROFILE_PROMPT_HASH,
+    reasoning_effort: modelConfig?.reasoning_effort ?? null,
+    max_output_tokens: modelConfig?.max_output_tokens ?? null,
+    prompt_version: CHAT_NATIVE_PROFILE_PROMPT_VERSION,
+    schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION,
+    input_payload: prismaJson(redactForAudit(input.provider_input)),
+    live_call_allowed: liveCallAllowed,
+    call_status: "started",
+    started_at: startedAt
   });
+  const agentCall = reservation.call;
+  if (!reservation.created) {
+    const replay = ChatNativeFormativeProfileOutputSchema.safeParse(agentCall.output_payload);
+    if (agentCall.call_status === "succeeded" && agentCall.output_validated && replay.success) {
+      return { agent_call_id: agentCall.id, output: replay.data, validation_status: "validated_idempotent_replay",
+        validation_issues: [] as string[], provider_result: null as StructuredAgentResult<ChatNativeFormativeProfileOutput> | null };
+    }
+    throw new StudentAssessmentServiceError("llm_runtime_blocked", ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE, 409,
+      { reason: agentCall.call_status === "started" ? "agent_call_in_progress" : "agent_call_requires_review" });
+  }
 
   if (!liveCallAllowed) {
     const output = deterministicMockOutput();
@@ -2527,6 +2536,7 @@ async function callProviderOrMock(input: {
     await assertAgentCallUsageAllowed(agentCall.id);
   } catch (error) {
     if (error instanceof LlmUsageBlockedError) throw new FormativeConversationUnavailableError(error.reason);
+    await recordUnexpectedFormativeCallFailure(agentCall.id);
     throw error;
   }
   const provider = chatNativeFormativeProviderOverrideForTest ?? createLlmProvider();
@@ -2546,6 +2556,9 @@ async function callProviderOrMock(input: {
       prompt_version: CHAT_NATIVE_PROFILE_PROMPT_VERSION,
       schema_version: CHAT_NATIVE_PROFILE_SCHEMA_VERSION
     }
+  }).catch(async error => {
+    await recordUnexpectedFormativeCallFailure(agentCall.id);
+    throw error;
   });
   let validationIssues: SafeValidationIssue[] = [
     safeValidationIssue({
@@ -3917,11 +3930,9 @@ export async function ensureChatNativeFormativeActivity(input: {
       })
     )
     .digest("hex");
-  const existingCall = await prisma.agentCall.findUnique({
-    where: { agent_invocation_key: invocationKey }
-  });
+  const existingCall = await latestFormativeCallAttempt(invocationKey);
 
-  if (existingCall?.call_status === "succeeded" && existingCall.output_payload) {
+  if (existingCall?.call_status === "succeeded" && existingCall.output_validated && existingCall.output_payload) {
     const parsed = ChatNativeFormativeProfileOutputSchema.safeParse(existingCall.output_payload);
 
     if (parsed.success) {

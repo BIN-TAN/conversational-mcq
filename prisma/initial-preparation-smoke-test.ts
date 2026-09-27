@@ -9,6 +9,7 @@ import { submitInitialConceptUnitForPreparation, getStudentReviewResponses, getS
 import { claimInitialPreparationJob, processInitialPreparationJob, renewInitialPreparationLease } from "../src/lib/workflow/initial-preparation";
 import { getOwnedInitialPreparationStatus } from "../src/lib/workflow/initial-preparation-status";
 import { claimNextWorkflowJob } from "../src/lib/workflow/jobs";
+import { latestFormativeCallAttempt, recordUnexpectedFormativeCallFailure, reserveFormativeCallAttempt } from "../src/lib/services/student-assessment/formative-call-attempts";
 
 const database = new URL(process.env.DATABASE_URL ?? "");
 assert(["localhost", "127.0.0.1"].includes(database.hostname));
@@ -163,6 +164,77 @@ async function main() {
   assert.equal((await getOwnedInitialPreparationStatus(invalid.input)).preparation?.can_retry, false);
   await assert.rejects(submitInitialConceptUnitForPreparation(invalid.input));
   pass("changed source evidence fails closed and cannot be retried by the student");
+
+  const failedProfile = await fixture("failed_profile_retry");
+  await submitInitialConceptUnitForPreparation(failedProfile.input);
+  const profileJob = await claim();
+  const updateAgentCall = prisma.agentCall.update.bind(prisma.agentCall);
+  let failedCallId: string | null = null;
+  prisma.agentCall.update = (async (args: Prisma.AgentCallUpdateArgs) => {
+    const call = await prisma.agentCall.findUniqueOrThrow({ where: args.where });
+    if (!failedCallId && call.assessment_session_db_id === failedProfile.session.id &&
+        call.agent_name === "formative_value_and_planning_agent" && args.data.call_status === "succeeded") {
+      failedCallId = call.id;
+      await updateAgentCall({ where: { id: call.id }, data: {
+        call_status: "invalid_output", output_validated: false, output_payload: Prisma.JsonNull,
+        validation_error: "synthetic_provider_validation_failure", completed_at: new Date()
+      } });
+      throw new Error("synthetic_provider_validation_failure");
+    }
+    return updateAgentCall(args);
+  }) as unknown as typeof prisma.agentCall.update;
+  try { assert.equal(await processInitialPreparationJob(profileJob), "retryable"); }
+  finally { prisma.agentCall.update = updateAgentCall; }
+  assert(failedCallId);
+  const failureRecord = await prisma.agentCall.findUniqueOrThrow({ where: { id: failedCallId } });
+  const sealedBeforeRetry = await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: failedProfile.conceptUnitSession.id } });
+  await makeDue(profileJob);
+  assert.equal(await processInitialPreparationJob(await claim()), "completed", "A failed profile call must not poison the next preparation attempt's invocation key.");
+  assert.deepEqual(await prisma.agentCall.findUniqueOrThrow({ where: { id: failedCallId } }), failureRecord);
+  assert.deepEqual(await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: failedProfile.conceptUnitSession.id } }), sealedBeforeRetry);
+  const retriedCalls = await prisma.agentCall.findMany({ where: {
+    assessment_session_db_id: failedProfile.session.id, agent_name: "formative_value_and_planning_agent"
+  } });
+  assert.equal(retriedCalls.length, 2);
+  assert.equal(retriedCalls.filter(call => call.call_status === "succeeded" && call.output_validated).length, 1);
+  assert.equal((await getStudentSessionState(failedProfile.input)).formative_conversation?.opening_status, "ready");
+  await prisma.workflowJob.update({ where: { id: profileJob.id }, data: { status: "retryable", run_after: new Date(0), completed_at: null } });
+  assert.equal(await processInitialPreparationJob(await claim()), "completed");
+  assert.equal(await prisma.agentCall.count({ where: {
+    assessment_session_db_id: failedProfile.session.id, agent_name: "formative_value_and_planning_agent"
+  } }), 2);
+  pass("failed profile retries retain the failed audit, recover the opening, and replay without duplicating evidence");
+
+  const reservationFixture = await fixture("call_reservation");
+  const reservationData = {
+    assessment_session_db_id: reservationFixture.session.id, concept_unit_session_db_id: reservationFixture.conceptUnitSession.id,
+    agent_invocation_key: `synthetic-retry:${prefix}`, agent_name: "synthetic_formative_retry", agent_version: "test-v1",
+    model_name: "mock", prompt_version: "test-v1", schema_version: "test-v1", input_payload: { synthetic: true },
+    call_status: "started" as const, started_at: new Date()
+  };
+  const concurrentReservations = await Promise.all(Array.from({ length: 4 }, () => reserveFormativeCallAttempt(reservationData)));
+  assert.equal(concurrentReservations.filter(result => result.created).length, 1);
+  assert.equal(new Set(concurrentReservations.map(result => result.call.id)).size, 1);
+  let latest = concurrentReservations[0].call;
+  for (let index = 1; index <= 12; index++) {
+    await recordUnexpectedFormativeCallFailure(latest.id);
+    const savedFailure = await prisma.agentCall.findUniqueOrThrow({ where: { id: latest.id } });
+    const retries = await Promise.all(Array.from({ length: 3 }, () => reserveFormativeCallAttempt(reservationData)));
+    assert.equal(retries.filter(result => result.created).length, 1);
+    assert.equal(new Set(retries.map(result => result.call.id)).size, 1);
+    assert.deepEqual(await prisma.agentCall.findUniqueOrThrow({ where: { id: latest.id } }), savedFailure);
+    latest = retries[0].call;
+    assert(latest.agent_invocation_key?.endsWith(`:retry:${String(index).padStart(8, "0")}`));
+    assert.equal((await latestFormativeCallAttempt(reservationData.agent_invocation_key))?.id, latest.id);
+  }
+  await prisma.agentCall.update({ where: { id: latest.id }, data: { call_status: "succeeded", output_validated: true } });
+  await recordUnexpectedFormativeCallFailure(latest.id);
+  const replay = await reserveFormativeCallAttempt(reservationData);
+  assert.equal(replay.created, false);
+  assert.equal(replay.call.call_status, "succeeded");
+  await assert.rejects(reserveFormativeCallAttempt({ ...reservationData, assessment_session_db_id: first.session.id }),
+    (error: unknown) => (error as { code: string }).code === "idempotency_conflict");
+  pass("concurrent retries reserve one call, preserve all prior failures, retain successful results, and enforce session scope");
 
   const full = await fixture("full_pipeline");
   await submitInitialConceptUnitForPreparation(full.input);

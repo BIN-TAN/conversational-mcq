@@ -1,5 +1,29 @@
 # Data Logging Specification
 
+## Initial Preparation Retry Audits (2026-09-26)
+
+Failed or invalid initial-profile calls retain their original AgentCall, invocation
+key, provider metadata, validation diagnostics, and token usage. A retry is a new
+AgentCall whose `agent_invocation_key` is `<original-key>:retry:00000001`, then
+`00000002`, and so on. The unsuffixed call is attempt zero. This index counts
+application-level profile-call attempts, not student test chances or provider
+transport retries; `retry_count` retains its existing provider meaning. No
+response package, item response, attempt allowance, or prior failed audit is
+rewritten. Standard research exports retain separate operational rows by
+`agent_call_public_id`, including status, timing and token usage; the invocation
+key itself remains in the operational/raw AgentCall audit, not a new standard
+dataset column.
+
+Reservation is serialized briefly on the topic-session row. An already-started
+call is not duplicated, a validated successful retry is reusable, and
+`needs_review` is not automatically retried. Unexpected provider execution
+exceptions mark a still-started call as `failed` with the fixed diagnostic
+`provider_execution_interrupted`, without copying exception text. A process killed
+before that audit update can still leave a started call requiring operational
+investigation; this policy does not infer that such a call is safe to repeat.
+Existing bounded workflow retries and usage guards remain in force. The initial
+failure's cause must be investigated separately from a retry-key collision.
+
 ## Collection and Summary Evidence (2026-09-26)
 
 Item-admin tutor v2 preserves submitted student wording, including limited and

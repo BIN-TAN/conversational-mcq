@@ -191,7 +191,8 @@ class SyntheticFormativeProvider implements LlmProvider {
         | "protected_content"
         | "multiple_statuses"
         | "bad_semantic_quote"
-        | "long_text";
+        | "unfinished_text"
+        | "oversized_text";
       targeted?: "valid" | "invalid" | "heading" | "iterative" | "endless_revision";
     }
   ) {}
@@ -260,7 +261,11 @@ class SyntheticFormativeProvider implements LlmProvider {
         };
       }
 
-      if (mode === "long_text" && isProfile) {
+      if (mode === "oversized_text" && isProfile) {
+        return { ...validProfileOutput, student_facing_pattern_statement: "Detailed starting point. ".repeat(20).trim() };
+      }
+
+      if (mode === "unfinished_text" && isProfile) {
         return {
           ...validProfileOutput,
           main_issue:
@@ -425,7 +430,7 @@ function validationFieldPaths(value: string | null) {
 }
 
 async function assertInvalidProfileModeBlocks(input: {
-  mode: "internal_label" | "protected_content" | "multiple_statuses" | "long_text" | "bad_semantic_quote";
+  mode: "internal_label" | "protected_content" | "multiple_statuses" | "unfinished_text" | "oversized_text" | "bad_semantic_quote";
   expectedRuleCode: string;
   expectedFieldPath: string;
 }) {
@@ -568,6 +573,27 @@ async function assertInvalidProfileBlocks() {
       Boolean(invalidCall.provider_request_id || invalidCall.provider_response_id),
       "Invalid live profile should preserve provider metadata when available."
     );
+    const failedAudit = await prisma.agentCall.findFirstOrThrow({ where: {
+      assessment_session_db_id: session.id, agent_name: "formative_value_and_planning_agent"
+    } });
+    const packagesBeforeRetry = await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: conceptUnitSession.id } });
+    await withTemporaryEnv(simulatedLiveRuntimeEnv(), () => withChatNativeFormativeProviderForTest(
+      new SyntheticFormativeProvider({ profile: "valid", targeted: "valid" }),
+      () => completeInitialConceptUnitAdministration({
+        student_user_db_id: student.id, session_public_id: started.session.session_public_id,
+        concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id ?? ""
+      })
+    ));
+    const callsAfterRetry = await prisma.agentCall.findMany({ where: {
+      assessment_session_db_id: session.id, agent_name: "formative_value_and_planning_agent"
+    } });
+    assert(callsAfterRetry.length === 2 && callsAfterRetry.some(call => call.call_status === "succeeded" && call.output_validated),
+      "A valid retry after rejected provider output must create a separate validated call.");
+    assert(JSON.stringify(await prisma.agentCall.findUniqueOrThrow({ where: { id: failedAudit.id } })) === JSON.stringify(failedAudit),
+      "The failed provider audit, including tokens and validation details, must remain unchanged.");
+    assert(JSON.stringify(await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: conceptUnitSession.id } })) === JSON.stringify(packagesBeforeRetry),
+      "Retrying the provider must not alter the sealed student package.");
+    console.log("PASS rejected provider output can recover on a valid retry without replacing the failed audit or student evidence");
   } finally {
     await cleanupSmokeStudentSessions({
       prisma,
@@ -1219,9 +1245,14 @@ async function main() {
     expectedFieldPath: "student_learning_profile.status"
   });
   await assertInvalidProfileModeBlocks({
-    mode: "long_text",
-    expectedRuleCode: "unsafe_student_facing_text",
-    expectedFieldPath: "student_facing_text"
+    mode: "unfinished_text",
+    expectedRuleCode: "student_message_incomplete",
+    expectedFieldPath: "student_facing_pattern_statement"
+  });
+  await assertInvalidProfileModeBlocks({
+    mode: "oversized_text",
+    expectedRuleCode: "too_big",
+    expectedFieldPath: "student_facing_pattern_statement"
   });
   assert(
     canonicalizeStudentFacingLearningStatus("Developing") === "Still developing",
