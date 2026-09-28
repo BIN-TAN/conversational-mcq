@@ -311,6 +311,14 @@ Mark the session complete when the assessment workflow is finished.
 
 ## Persistent Formative Conversation Cutover
 
+The result review and live tutor have separate jobs: the review displays observed
+answer results, while the tutor supplies the sole conversational opening. Internal
+legacy package summaries must not reappear as student dialogue in teacher-readable
+projections. Host v7.10 anchors the opening in an actual student statement, preserves
+accurate parts of reasoning, clarifies option/reason mismatches without rescoring,
+and adapts explanatory depth to the student's request. It adds no provider stage,
+mandatory exercise, new turn limit or profile-transition shortcut.
+
 For sessions with a `FormativeConversationSession`, the authoritative
 post-profile path is:
 

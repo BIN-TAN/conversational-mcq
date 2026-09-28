@@ -20,6 +20,22 @@ The LLM can be involved throughout the chat, but only inside application-governe
 
 ## Student Experience
 
+### Evidence-linked conversation and transcript boundaries
+
+The answer review reports the observed result once. The formative tutor opens
+with a specific acknowledgment of the student's own reasoning, uncertainty or
+question, then one manageable discussion focus. Generic evidence-audit warnings
+are not student instructions. Brief correct explanations remain legitimate;
+unobserved transfer is a sampling limit, not a student deficit. A mismatch between
+an option label and its explanation calls for neutral clarification when relevant,
+not automatic diagnosis. Rejected alternatives are not current beliefs.
+
+Teacher Readable transcript excludes explicitly internal/draft/not-shown records
+and retired package-feedback tasks suppressed by the formative-conversation route.
+The Assessment log and research archive preserve originals. A transcript-eligible
+message is not proof that it was on screen or read. Unmarked historical visibility
+remains uncertain, and historical AI wording and profiles are not regenerated.
+
 Teachers import rosters from **Student accounts** or create individual students.
 Both default to the course temporary password, `edpy507`; random generation or a
 custom temporary password requires an explicit choice. Replacing

@@ -24,6 +24,10 @@ const scopedForbiddenOpeningPatterns: Array<{
   pattern: RegExp;
 }> = [
   {
+    issue_code: "opening_exposes_internal_evidence_report",
+    pattern: /\breasoning evidence needs (?:additional|further) review\b|\bbefore making a stronger claim\b|\bthis first package\b|\btransfer (?:not yet observed|to a new item)\b/i
+  },
+  {
     issue_code: "opening_exposes_profile_language",
     pattern:
       /\b(?:your|the student's?)\s+(?:(?:current|learning|response|diagnostic)\s+)?profile\b|\b(?:profile|profile status)\s+(?:shows?|indicates?|classifies?|categorizes?)\s+(?:that\s+)?(?:you|your)\b/i

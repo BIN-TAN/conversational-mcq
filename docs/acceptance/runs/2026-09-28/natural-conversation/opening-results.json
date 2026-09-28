@@ -1,0 +1,1053 @@
+{
+  "synthetic_only": true,
+  "database_writes": false,
+  "criteria": [
+    {
+      "id": "correct_concise",
+      "reason": "A blueprint checks whether the questions cover the communication skills we want to assess.",
+      "tempting": null,
+      "explanation": null,
+      "criterion": "Acknowledge the specific coverage idea without calling brevity an error or demanding more evidence by default."
+    },
+    {
+      "id": "label_explanation_mismatch",
+      "reason": "The blueprint and expert review can reveal missing parts of communication.",
+      "tempting": "A",
+      "explanation": "I considered checking agreement with an established external communication measure, but coverage seems more relevant here.",
+      "criterion": "Neutrally clarify external-measure comparison versus option A's between-item correlations; do not diagnose a rejected temptation or change the recorded label."
+    },
+    {
+      "id": "rejected_temptation",
+      "reason": "The blueprint helps identify communication skills missing from these questions.",
+      "tempting": "A",
+      "explanation": "I considered keeping strongly correlated items, but rejected that because they could all test the same narrow skill and miss other skills.",
+      "criterion": "Recognize the explicit correct rejection; do not teach as though the student still believes correlation guarantees coverage."
+    }
+  ],
+  "prompt_version": "formative-conversation-host-v7.10",
+  "prompt_sha256": "a41dd3c1d22449ad9d9efea254535bb0f71d2c8ebb9d9885ee637f399ee63ff1",
+  "config": {
+    "model_name": "gpt-5.6-sol",
+    "reasoning_effort": "medium",
+    "max_output_tokens": 10000
+  },
+  "manual_review": "pending_non_independent_review",
+  "calls": 3,
+  "results": [
+    {
+      "id": "correct_concise",
+      "input_sha256": "d1975647a8e36bb29adf139e022f1c9faba863996ab3b060ccad5c4051d96fd5",
+      "context": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "context_version": "formative-conversation-context-v4",
+        "conversation_public_id": "synthetic-opening-correct_concise",
+        "assessment_public_id": "fcv18_test_assessment",
+        "concept_unit_public_id": "fcv18_test_measurement",
+        "latest_student_message": null,
+        "visible_transcript": [],
+        "administered_items": [
+          {
+            "item_public_id": "synthetic_communication",
+            "item_number": 1,
+            "item_stem": "An assessment should cover explaining, listening and checking understanding, but its questions cover only explaining. Which review addresses the gap?",
+            "options": [
+              {
+                "label": "A",
+                "text": "Keep items that correlate strongly with the total score."
+              },
+              {
+                "label": "B",
+                "text": "Map questions to a domain blueprint and ask experts to check coverage."
+              },
+              {
+                "label": "C",
+                "text": "Correlate scores with an established external communication measure."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "B",
+            "concise_explanation": "A blueprint and expert review address domain coverage; strong correlations alone do not establish it.",
+            "administered": true
+          }
+        ],
+        "assessment_specification": null,
+        "assessment_response_evidence": [
+          {
+            "item_public_id": "synthetic_communication",
+            "selected_option": "B",
+            "correctness": "correct",
+            "written_reasoning": "A blueprint checks whether the questions cover the communication skills we want to assess.",
+            "confidence": "medium",
+            "revision_summary": null,
+            "tempting_option": null,
+            "tempting_option_reason": null,
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          }
+        ],
+        "assessment_process_evidence": [],
+        "initial_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "A blueprint checks whether the questions cover the communication skills we want to assess."
+          ],
+          "unresolved_evidence": [],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "A blueprint checks whether the questions cover the communication skills we want to assess."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": []
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_2da1d37b36265a89db945e51",
+            "indicators": []
+          }
+        },
+        "current_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "A blueprint checks whether the questions cover the communication skills we want to assess."
+          ],
+          "unresolved_evidence": [],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "A blueprint checks whether the questions cover the communication skills we want to assess."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": []
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_2da1d37b36265a89db945e51",
+            "indicators": []
+          }
+        },
+        "allowed_misconception_claim_catalog": {
+          "identity_version": "misconception-claim-identity-v1",
+          "profile_scope_id": "mp_2da1d37b36265a89db945e51",
+          "indicators": []
+        },
+        "allowed_evidence_catalog": {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_dec826e1bf5259a3ca52c8e8",
+          "evidence": [
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_e490a3af0d53c46243f34d87",
+              "evidence_scope_id": "es_dec826e1bf5259a3ca52c8e8",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored correct."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_539e6a5cd0b06cb819cab962",
+              "evidence_scope_id": "es_dec826e1bf5259a3ca52c8e8",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "A blueprint checks whether the questions cover the communication skills we want to assess."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_6039f404971e4522265126c8",
+              "evidence_scope_id": "es_dec826e1bf5259a3ca52c8e8",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: medium."
+            }
+          ]
+        },
+        "profile_history": [],
+        "telemetry_summary": {
+          "observable_student_turn_count": 0,
+          "observable_tutor_turn_count": 0,
+          "lifecycle_event_count": 0,
+          "latest_activity_at": null,
+          "total_input_tokens": 0,
+          "total_output_tokens": 0
+        },
+        "formative_lifecycle": {
+          "student_turn_index": 0,
+          "max_student_turns": 30,
+          "final_allowed_turn": false,
+          "another_student_turn_available": true
+        },
+        "teacher_guidance": [],
+        "intervention_history": [],
+        "memory": null,
+        "safety_boundary": {
+          "boundary_version": "formative-conversation-safety-boundary-v1",
+          "administered_item_public_ids": [
+            "synthetic_communication"
+          ],
+          "unadministered_item_protection_required": true,
+          "hidden_prompts_excluded": true,
+          "raw_teacher_notes_excluded": true,
+          "credentials_excluded": true
+        }
+      },
+      "output": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "outcome": "continue_conversation",
+        "student_visible_message": "You explained that a blueprint checks whether the questions cover the communication skills the assessment is meant to measure. That directly addresses the gap here: the assessment includes explaining but leaves out listening and checking understanding.\n\nA useful distinction is that **coverage evidence** asks whether the right parts of the skill are represented. By contrast, correlations—either among the assessment’s own items or with an external measure—can provide other useful evidence, but they cannot by themselves show that every important part of communication was included.\n\nIs there any part of that distinction you’d like to explore further?",
+        "teaching_artifact": null,
+        "evidence_observations": [],
+        "profile_transition_recommendation": null,
+        "teacher_assistance_recommendation": {
+          "recommended": false,
+          "reason_code": null
+        },
+        "lifecycle_recommendation": "continue"
+      },
+      "attempts": [
+        {
+          "sequence": 1,
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "continue_conversation",
+            "student_visible_message": "You explained that a blueprint checks whether the questions cover the communication skills the assessment is meant to measure. That directly addresses the gap here: the assessment includes explaining but leaves out listening and checking understanding.\n\nA useful distinction is that **coverage evidence** asks whether the right parts of the skill are represented. By contrast, correlations—either among the assessment’s own items or with an external measure—can provide other useful evidence, but they cannot by themselves show that every important part of communication was included.\n\nIs there any part of that distinction you’d like to explore further?",
+            "teaching_artifact": null,
+            "evidence_observations": [],
+            "profile_transition_recommendation": null,
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "continue"
+          },
+          "latency_ms": 6310,
+          "usage": {
+            "input_tokens": 8905,
+            "output_tokens": 201,
+            "total_tokens": 9106,
+            "reasoning_tokens": 0,
+            "cached_input_tokens": 7247,
+            "raw": {
+              "input_tokens": 8905,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 7247
+              },
+              "output_tokens": 201,
+              "output_tokens_details": {
+                "reasoning_tokens": 0
+              },
+              "total_tokens": 9106
+            }
+          },
+          "provider_response_id": "resp_05cec5987d522a78016abab53e0ab887d0820a7f45bda68290"
+        }
+      ],
+      "audit": {
+        "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+        "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
+        "planned_base_logical_calls": 1,
+        "logical_calls_entered": 1,
+        "pre_dispatch_request_rejections": 0,
+        "http_requests_dispatched": 1,
+        "provider_responses_completed": 1,
+        "provider_attempts": 1,
+        "transport_retries": 0,
+        "incomplete_output_recovery_calls": 0,
+        "semantic_regeneration_calls": 0,
+        "parsed_candidates": 1,
+        "semantically_accepted_candidates": 1,
+        "attempts": [
+          {
+            "sequence": 1,
+            "kind": "base",
+            "logical_call_id": "2ff538fd-4a44-44ef-8576-614ec9ae8e2b:1",
+            "canonical_request_hash": "76a4216153a7d36120cfe485df2ec570e13646faf70c48380e2e83c7c050298d",
+            "result_status": "completed",
+            "failure_class": null,
+            "accepted": true,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 1,
+            "provider_request_id": "req_1923f4af39884e6aa8be466121d37284",
+            "provider_response_id": "resp_05cec5987d522a78016abab53e0ab887d0820a7f45bda68290",
+            "client_request_id": "2ff538fd-4a44-44ef-8576-614ec9ae8e2b",
+            "incomplete_reason": null,
+            "latency_ms": 6310,
+            "input_tokens": 8905,
+            "output_tokens": 201,
+            "total_tokens": 9106,
+            "invalid_candidate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "label_explanation_mismatch",
+      "input_sha256": "d0b0e81cf7acdac41acbdfaa27899cb8f4d964369af6145d588d52f5b88ed4fa",
+      "context": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "context_version": "formative-conversation-context-v4",
+        "conversation_public_id": "synthetic-opening-label_explanation_mismatch",
+        "assessment_public_id": "fcv18_test_assessment",
+        "concept_unit_public_id": "fcv18_test_measurement",
+        "latest_student_message": null,
+        "visible_transcript": [],
+        "administered_items": [
+          {
+            "item_public_id": "synthetic_communication",
+            "item_number": 1,
+            "item_stem": "An assessment should cover explaining, listening and checking understanding, but its questions cover only explaining. Which review addresses the gap?",
+            "options": [
+              {
+                "label": "A",
+                "text": "Keep items that correlate strongly with the total score."
+              },
+              {
+                "label": "B",
+                "text": "Map questions to a domain blueprint and ask experts to check coverage."
+              },
+              {
+                "label": "C",
+                "text": "Correlate scores with an established external communication measure."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "B",
+            "concise_explanation": "A blueprint and expert review address domain coverage; strong correlations alone do not establish it.",
+            "administered": true
+          }
+        ],
+        "assessment_specification": null,
+        "assessment_response_evidence": [
+          {
+            "item_public_id": "synthetic_communication",
+            "selected_option": "B",
+            "correctness": "correct",
+            "written_reasoning": "The blueprint and expert review can reveal missing parts of communication.",
+            "confidence": "medium",
+            "revision_summary": null,
+            "tempting_option": "A",
+            "tempting_option_reason": "I considered checking agreement with an established external communication measure, but coverage seems more relevant here.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          }
+        ],
+        "assessment_process_evidence": [],
+        "initial_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "The blueprint and expert review can reveal missing parts of communication."
+          ],
+          "unresolved_evidence": [
+            "Clarify the alternative label and reason without inferring endorsement."
+          ],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "The blueprint and expert review can reveal missing parts of communication."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": [
+              "Clarify the alternative label and reason without inferring endorsement."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_d7e076f53ad7e29e518e6c35",
+            "indicators": []
+          }
+        },
+        "current_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "The blueprint and expert review can reveal missing parts of communication."
+          ],
+          "unresolved_evidence": [
+            "Clarify the alternative label and reason without inferring endorsement."
+          ],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "The blueprint and expert review can reveal missing parts of communication."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": [
+              "Clarify the alternative label and reason without inferring endorsement."
+            ]
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_d7e076f53ad7e29e518e6c35",
+            "indicators": []
+          }
+        },
+        "allowed_misconception_claim_catalog": {
+          "identity_version": "misconception-claim-identity-v1",
+          "profile_scope_id": "mp_d7e076f53ad7e29e518e6c35",
+          "indicators": []
+        },
+        "allowed_evidence_catalog": {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_643bd4bfa75aae91eefc831d",
+          "evidence": [
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_0ccb88ed027c6ae06bb8ec04",
+              "evidence_scope_id": "es_643bd4bfa75aae91eefc831d",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored correct."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_526d35027947ebe437697203",
+              "evidence_scope_id": "es_643bd4bfa75aae91eefc831d",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "The blueprint and expert review can reveal missing parts of communication."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_0aa481d559553e8014e49803",
+              "evidence_scope_id": "es_643bd4bfa75aae91eefc831d",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: medium."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_41c4e35953e17cedc8a36352",
+              "evidence_scope_id": "es_643bd4bfa75aae91eefc831d",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option A. I considered checking agreement with an established external communication measure, but coverage seems more relevant here."
+            }
+          ]
+        },
+        "profile_history": [],
+        "telemetry_summary": {
+          "observable_student_turn_count": 0,
+          "observable_tutor_turn_count": 0,
+          "lifecycle_event_count": 0,
+          "latest_activity_at": null,
+          "total_input_tokens": 0,
+          "total_output_tokens": 0
+        },
+        "formative_lifecycle": {
+          "student_turn_index": 0,
+          "max_student_turns": 30,
+          "final_allowed_turn": false,
+          "another_student_turn_available": true
+        },
+        "teacher_guidance": [],
+        "intervention_history": [],
+        "memory": null,
+        "safety_boundary": {
+          "boundary_version": "formative-conversation-safety-boundary-v1",
+          "administered_item_public_ids": [
+            "synthetic_communication"
+          ],
+          "unadministered_item_protection_required": true,
+          "hidden_prompts_excluded": true,
+          "raw_teacher_notes_excluded": true,
+          "credentials_excluded": true
+        }
+      },
+      "output": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "outcome": "continue_conversation",
+        "student_visible_message": "You correctly focused on **coverage**: a blueprint and expert review can reveal that listening and checking understanding are missing.\n\nThere is one detail I’d like to clarify. Your recorded tempting option was **A**, which concerns items correlating with the total score, but your explanation mentions agreement with an established external communication measure, which is **C**. Which alternative did you mean you had considered—A or C?",
+        "teaching_artifact": null,
+        "evidence_observations": [],
+        "profile_transition_recommendation": null,
+        "teacher_assistance_recommendation": {
+          "recommended": false,
+          "reason_code": null
+        },
+        "lifecycle_recommendation": "continue"
+      },
+      "attempts": [
+        {
+          "sequence": 1,
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "continue_conversation",
+            "student_visible_message": "You correctly focused on **coverage**: a blueprint and expert review can reveal that listening and checking understanding are missing.\n\nThere is one detail I’d like to clarify. Your recorded tempting option was **A**, which concerns items correlating with the total score, but your explanation mentions agreement with an established external communication measure, which is **C**. Which alternative did you mean you had considered—A or C?",
+            "teaching_artifact": null,
+            "evidence_observations": [],
+            "profile_transition_recommendation": null,
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "continue"
+          },
+          "latency_ms": 4553,
+          "usage": {
+            "input_tokens": 9101,
+            "output_tokens": 219,
+            "total_tokens": 9320,
+            "reasoning_tokens": 48,
+            "cached_input_tokens": 7247,
+            "raw": {
+              "input_tokens": 9101,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 7247
+              },
+              "output_tokens": 219,
+              "output_tokens_details": {
+                "reasoning_tokens": 48
+              },
+              "total_tokens": 9320
+            }
+          },
+          "provider_response_id": "resp_06f439552a0c3f56016abab543d26487d097aef056863a1d48"
+        }
+      ],
+      "audit": {
+        "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+        "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
+        "planned_base_logical_calls": 1,
+        "logical_calls_entered": 1,
+        "pre_dispatch_request_rejections": 0,
+        "http_requests_dispatched": 1,
+        "provider_responses_completed": 1,
+        "provider_attempts": 1,
+        "transport_retries": 0,
+        "incomplete_output_recovery_calls": 0,
+        "semantic_regeneration_calls": 0,
+        "parsed_candidates": 1,
+        "semantically_accepted_candidates": 1,
+        "attempts": [
+          {
+            "sequence": 1,
+            "kind": "base",
+            "logical_call_id": "979c25c6-1742-4f25-9ef4-6cc72d62dfa7:1",
+            "canonical_request_hash": "fdb200b4ad1d6ff0a4cbd2da5952bd334b9b7a1364b7d45f210db56685bd1568",
+            "result_status": "completed",
+            "failure_class": null,
+            "accepted": true,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 1,
+            "provider_request_id": "req_4292cbe778c84c978096a5848f5afee8",
+            "provider_response_id": "resp_06f439552a0c3f56016abab543d26487d097aef056863a1d48",
+            "client_request_id": "979c25c6-1742-4f25-9ef4-6cc72d62dfa7",
+            "incomplete_reason": null,
+            "latency_ms": 4553,
+            "input_tokens": 9101,
+            "output_tokens": 219,
+            "total_tokens": 9320,
+            "invalid_candidate": null
+          }
+        ]
+      }
+    },
+    {
+      "id": "rejected_temptation",
+      "input_sha256": "3492505d1986d11441df95f525bf93f43fba6cc1dffdd29666eeec4eed117e44",
+      "context": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "context_version": "formative-conversation-context-v4",
+        "conversation_public_id": "synthetic-opening-rejected_temptation",
+        "assessment_public_id": "fcv18_test_assessment",
+        "concept_unit_public_id": "fcv18_test_measurement",
+        "latest_student_message": null,
+        "visible_transcript": [],
+        "administered_items": [
+          {
+            "item_public_id": "synthetic_communication",
+            "item_number": 1,
+            "item_stem": "An assessment should cover explaining, listening and checking understanding, but its questions cover only explaining. Which review addresses the gap?",
+            "options": [
+              {
+                "label": "A",
+                "text": "Keep items that correlate strongly with the total score."
+              },
+              {
+                "label": "B",
+                "text": "Map questions to a domain blueprint and ask experts to check coverage."
+              },
+              {
+                "label": "C",
+                "text": "Correlate scores with an established external communication measure."
+              }
+            ],
+            "student_answer": "B",
+            "correct_answer": "B",
+            "concise_explanation": "A blueprint and expert review address domain coverage; strong correlations alone do not establish it.",
+            "administered": true
+          }
+        ],
+        "assessment_specification": null,
+        "assessment_response_evidence": [
+          {
+            "item_public_id": "synthetic_communication",
+            "selected_option": "B",
+            "correctness": "correct",
+            "written_reasoning": "The blueprint helps identify communication skills missing from these questions.",
+            "confidence": "medium",
+            "revision_summary": null,
+            "tempting_option": "A",
+            "tempting_option_reason": "I considered keeping strongly correlated items, but rejected that because they could all test the same narrow skill and miss other skills.",
+            "safe_timing_summary": {
+              "total_item_time_ms": null,
+              "response_time_answer_ms": null,
+              "response_time_reasoning_ms": null,
+              "response_time_confidence_ms": null
+            }
+          }
+        ],
+        "assessment_process_evidence": [],
+        "initial_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "The blueprint helps identify communication skills missing from these questions."
+          ],
+          "unresolved_evidence": [],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "The blueprint helps identify communication skills missing from these questions."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": []
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_91b58de276570b606ef755b9",
+            "indicators": []
+          }
+        },
+        "current_profile": {
+          "profile_version": "v18r2-test-profile-initial",
+          "evidence_cutoff_sequence_index": 0,
+          "outcome": "not_yet_determined",
+          "evidence_summary": [
+            "The blueprint helps identify communication skills missing from these questions."
+          ],
+          "unresolved_evidence": [],
+          "evidence_limitations": [
+            "Single initial response only."
+          ],
+          "canonical_profile": {
+            "schema_version": "formative-conversation-learning-profile-v1",
+            "ability_profile": "mostly_correct_understanding",
+            "ability_pattern_flags": [],
+            "engagement_profile": "insufficient_process_evidence",
+            "engagement_pattern_flags": [],
+            "integrated_diagnostic_profile": "correct_but_independence_uncertain",
+            "integrated_profile_confidence": "medium",
+            "integrated_profile_rationale": "The explanation correctly identifies content coverage. No independent application has been sampled.",
+            "evidence_sufficiency": "adequate",
+            "confidence_alignment": "insufficient_evidence",
+            "independence_interpretability": "independent_understanding_uncertain",
+            "misconception_indicators": [],
+            "item_level_evidence": [
+              "The blueprint helps identify communication skills missing from these questions."
+            ],
+            "reasoning_quality_summary": "A concise supported content-coverage explanation.",
+            "engagement_summary": "No engagement inference.",
+            "process_interpretation_cautions": [
+              "Process observations are descriptive and not learner traits."
+            ],
+            "profile_confidence": "medium",
+            "rationale": "Limited to the administered response.",
+            "recommended_next_evidence": []
+          },
+          "misconception_claim_catalog": {
+            "identity_version": "misconception-claim-identity-v1",
+            "profile_scope_id": "mp_91b58de276570b606ef755b9",
+            "indicators": []
+          }
+        },
+        "allowed_misconception_claim_catalog": {
+          "identity_version": "misconception-claim-identity-v1",
+          "profile_scope_id": "mp_91b58de276570b606ef755b9",
+          "indicators": []
+        },
+        "allowed_evidence_catalog": {
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_b84e46a667bdfea76a72aa65",
+          "evidence": [
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_4fa6961f6a390769aa882653",
+              "evidence_scope_id": "es_b84e46a667bdfea76a72aa65",
+              "evidence_kind": "assessment_answer",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Selected option B; scored correct."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_a3f0c124a1dc2f27cbbbdd20",
+              "evidence_scope_id": "es_b84e46a667bdfea76a72aa65",
+              "evidence_kind": "assessment_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "The blueprint helps identify communication skills missing from these questions."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_e421e9bba035769a947da4ac",
+              "evidence_scope_id": "es_b84e46a667bdfea76a72aa65",
+              "evidence_kind": "assessment_confidence",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "evidence_quality_context",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Submitted confidence: medium."
+            },
+            {
+              "identity_version": "canonical-evidence-identity-v2",
+              "evidence_id": "ev_363244cf95cd1b56617e5fe5",
+              "evidence_scope_id": "es_b84e46a667bdfea76a72aa65",
+              "evidence_kind": "assessment_distractor_reasoning",
+              "source_role": "student",
+              "evidence_stage": "baseline_assessment",
+              "eligibility": "student_understanding",
+              "assessment_public_id": "fcv18_test_assessment",
+              "concept_unit_public_id": "fcv18_test_measurement",
+              "conversation_public_id": null,
+              "item_public_id": "synthetic_communication",
+              "source_sequence_index": null,
+              "source_ordinal": null,
+              "content": "Tempting option A. I considered keeping strongly correlated items, but rejected that because they could all test the same narrow skill and miss other skills."
+            }
+          ]
+        },
+        "profile_history": [],
+        "telemetry_summary": {
+          "observable_student_turn_count": 0,
+          "observable_tutor_turn_count": 0,
+          "lifecycle_event_count": 0,
+          "latest_activity_at": null,
+          "total_input_tokens": 0,
+          "total_output_tokens": 0
+        },
+        "formative_lifecycle": {
+          "student_turn_index": 0,
+          "max_student_turns": 30,
+          "final_allowed_turn": false,
+          "another_student_turn_available": true
+        },
+        "teacher_guidance": [],
+        "intervention_history": [],
+        "memory": null,
+        "safety_boundary": {
+          "boundary_version": "formative-conversation-safety-boundary-v1",
+          "administered_item_public_ids": [
+            "synthetic_communication"
+          ],
+          "unadministered_item_protection_required": true,
+          "hidden_prompts_excluded": true,
+          "raw_teacher_notes_excluded": true,
+          "credentials_excluded": true
+        }
+      },
+      "output": {
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "outcome": "continue_conversation",
+        "student_visible_message": "You pointed out an important limitation of strongly correlated questions: they can all measure the same narrow skill while leaving listening and checking understanding uncovered. That is why a **domain blueprint** is useful—it lays out the full communication domain and lets reviewers compare the intended skills with the questions actually included.\n\nThis addresses **content coverage**. By contrast, correlating scores with an external communication measure could provide a different kind of evidence about how the scores relate to another measure, but it would not directly show whether this assessment includes every intended communication skill.\n\nWhat part of assessment quality would you like to explore further: content coverage, score reliability, or relationships with external measures?",
+        "teaching_artifact": null,
+        "evidence_observations": [],
+        "profile_transition_recommendation": null,
+        "teacher_assistance_recommendation": {
+          "recommended": false,
+          "reason_code": null
+        },
+        "lifecycle_recommendation": "continue"
+      },
+      "attempts": [
+        {
+          "sequence": 1,
+          "status": "completed",
+          "output": {
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "outcome": "continue_conversation",
+            "student_visible_message": "You pointed out an important limitation of strongly correlated questions: they can all measure the same narrow skill while leaving listening and checking understanding uncovered. That is why a **domain blueprint** is useful—it lays out the full communication domain and lets reviewers compare the intended skills with the questions actually included.\n\nThis addresses **content coverage**. By contrast, correlating scores with an external communication measure could provide a different kind of evidence about how the scores relate to another measure, but it would not directly show whether this assessment includes every intended communication skill.\n\nWhat part of assessment quality would you like to explore further: content coverage, score reliability, or relationships with external measures?",
+            "teaching_artifact": null,
+            "evidence_observations": [],
+            "profile_transition_recommendation": null,
+            "teacher_assistance_recommendation": {
+              "recommended": false,
+              "reason_code": null
+            },
+            "lifecycle_recommendation": "continue"
+          },
+          "latency_ms": 7406,
+          "usage": {
+            "input_tokens": 9054,
+            "output_tokens": 286,
+            "total_tokens": 9340,
+            "reasoning_tokens": 65,
+            "cached_input_tokens": 7247,
+            "raw": {
+              "input_tokens": 9054,
+              "input_tokens_details": {
+                "cache_write_tokens": 0,
+                "cached_tokens": 7247
+              },
+              "output_tokens": 286,
+              "output_tokens_details": {
+                "reasoning_tokens": 65
+              },
+              "total_tokens": 9340
+            }
+          },
+          "provider_response_id": "resp_029ea45724e293db016abab5485a0c87d092cff222a571d24d"
+        }
+      ],
+      "audit": {
+        "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+        "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v1",
+        "planned_base_logical_calls": 1,
+        "logical_calls_entered": 1,
+        "pre_dispatch_request_rejections": 0,
+        "http_requests_dispatched": 1,
+        "provider_responses_completed": 1,
+        "provider_attempts": 1,
+        "transport_retries": 0,
+        "incomplete_output_recovery_calls": 0,
+        "semantic_regeneration_calls": 0,
+        "parsed_candidates": 1,
+        "semantically_accepted_candidates": 1,
+        "attempts": [
+          {
+            "sequence": 1,
+            "kind": "base",
+            "logical_call_id": "d09fac01-fa95-412c-9143-5842e8a9175b:1",
+            "canonical_request_hash": "69a062366ab126cd4cf9616d9ec4289fb5ae6c12239ebeaa133843a1492c42ba",
+            "result_status": "completed",
+            "failure_class": null,
+            "accepted": true,
+            "logical_call_entered": true,
+            "pre_dispatch_request_rejection_count": 0,
+            "http_request_count": 1,
+            "provider_response_completed_count": 1,
+            "provider_attempt_count": 1,
+            "transport_retry_count": 0,
+            "parsed_candidate_count": 1,
+            "semantically_accepted_candidate_count": 1,
+            "provider_request_id": "req_840d6a48fa0d44958d727d24e0ae511c",
+            "provider_response_id": "resp_029ea45724e293db016abab5485a0c87d092cff222a571d24d",
+            "client_request_id": "d09fac01-fa95-412c-9143-5842e8a9175b",
+            "incomplete_reason": null,
+            "latency_ms": 7406,
+            "input_tokens": 9054,
+            "output_tokens": 286,
+            "total_tokens": 9340,
+            "invalid_candidate": null
+          }
+        ]
+      }
+    }
+  ]
+}

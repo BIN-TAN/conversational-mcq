@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db";
 import { TeacherReviewServiceError } from "./errors";
 import { asRecord, serializeDate } from "./serializers";
 import { buildTurnResponseLatencyRows } from "./turn-response-latencies";
+import { conversationVisibility } from "../student-assessment/conversation-visibility";
 
 export type TeacherReadableTranscriptTurn = {
   turn_index: number;
@@ -202,6 +203,7 @@ export async function getTeacherReadableTranscript(
       id: true,
       session_public_id: true,
       user: { select: { user_id: true, display_name: true } },
+      formative_conversation_sessions: { select: { concept_unit_session_db_id: true } },
       assessment: { select: { assessment_public_id: true, title: true } }
     }
   });
@@ -227,6 +229,7 @@ export async function getTeacherReadableTranscript(
         structured_payload: true,
         created_at: true,
         item_db_id: true,
+        concept_unit_session_db_id: true,
         concept_unit_session: {
           select: {
             concept_unit: {
@@ -282,12 +285,23 @@ export async function getTeacherReadableTranscript(
     })
   ]);
   const limitations = new Set<string>();
+  const conversationTopics = new Set(session.formative_conversation_sessions.map(entry => entry.concept_unit_session_db_id));
+  const readableTurns = turns.flatMap((turn, index) => {
+    const visibility = conversationVisibility(turn.structured_payload,
+      Boolean(turn.concept_unit_session_db_id && conversationTopics.has(turn.concept_unit_session_db_id)));
+    if (visibility === "internal_only") {
+      limitations.add("internal_turns_excluded_available_in_assessment_log");
+      return [];
+    }
+    if (visibility === "legacy_unspecified") limitations.add("legacy_visibility_unspecified_not_proof_of_exposure");
+    return [{ ...turn, turn_index: index + 1 }];
+  });
   const latencyRows = buildTurnResponseLatencyRows({
-    turns: turns.map((turn, index) => ({
+    turns: readableTurns.map((turn) => ({
       session_public_id: session.session_public_id,
       student_user_id: session.user.user_id,
       assessment_public_id: session.assessment.assessment_public_id,
-      turn_index: index + 1,
+      turn_index: turn.turn_index,
       actor_type: turn.actor_type,
       phase: turn.phase,
       agent_name: turn.agent_name,
@@ -318,8 +332,8 @@ export async function getTeacherReadableTranscript(
   });
   const latencyByPromptTurnIndex = new Map(latencyRows.map((row) => [row.prompt_turn_index, row]));
 
-  const projectedTurns = turns.flatMap((turn, index) => {
-    const turnIndex = index + 1;
+  const projectedTurns = readableTurns.flatMap((turn) => {
+    const turnIndex = turn.turn_index;
     const reconstructedText = turn.actor_type === "student" ? reconstructReadableStudentAction({
       message_text: turn.message_text,
       structured_payload: turn.structured_payload
@@ -376,6 +390,7 @@ export function renderTeacherReadableTranscriptMarkdown(
     `Assessment: ${transcript.assessment_label}`,
     "",
     "This teacher/research transcript omits structured payloads, answer keys, correctness labels, raw provider data, and process-event payloads.",
+    "Internal-only turns remain in the Assessment log, not this dialogue. Legacy turns without visibility metadata are not proof that a student viewed or read them.",
     ""
   ];
 

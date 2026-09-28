@@ -1,4 +1,5 @@
 import { asRecord } from "./serializers";
+import { conversationVisibility } from "../student-assessment/conversation-visibility";
 
 export type LatencyConversationTurn = {
   session_public_id: string;
@@ -121,6 +122,7 @@ function safePayloadString(payload: unknown, keys: string[]) {
 
 function isPromptTurn(turn: LatencyConversationTurn) {
   return (
+    conversationVisibility(turn.structured_payload) !== "internal_only" &&
     (turn.actor_type === "agent" || turn.actor_type === "orchestrator" || turn.actor_type === "system") &&
     typeof turn.message_text === "string" &&
     turn.message_text.trim().length > 0 &&
@@ -204,6 +206,7 @@ function findNextStudentTurn(prompt: LatencyConversationTurn, turns: LatencyConv
     const turnTime = timestamp(turn.created_at);
     return (
       turn.actor_type === "student" &&
+      conversationVisibility(turn.structured_payload) !== "internal_only" &&
       turnTime !== null &&
       turnTime >= promptTime &&
       turn.turn_index > prompt.turn_index &&

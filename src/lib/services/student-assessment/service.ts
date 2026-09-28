@@ -14,6 +14,7 @@ import {
 import { z } from "zod";
 import { FEEDBACK_DISPLAY_VERSION, feedbackContentId } from "@/lib/student-assessment-ui/feedback-display";
 import { prisma } from "@/lib/db";
+import { conversationVisibility } from "./conversation-visibility";
 import { recordFormativeConversationLifecycleEvent } from "./formative-conversation/telemetry";
 import { ConfidenceLevelSchema, ProcessEventTypeSchema } from "@/lib/domain/enums";
 import { getServerEnv } from "@/lib/env";
@@ -7654,15 +7655,10 @@ export async function getStudentSafeTranscript(input: {
     const messageType = conversationPayloadMessageType(payload);
 
     if (
-      (["package_feedback", "pattern_statement"].includes(messageType ?? "") &&
-        turn.concept_unit_session_db_id &&
+      conversationVisibility(payload, Boolean(turn.concept_unit_session_db_id &&
         formativeConversationConceptUnitSessionIds.has(
           turn.concept_unit_session_db_id
-        )) ||
-      payload.student_visible === false ||
-      payload.shown_to_student === false ||
-      ["draft", "internal", "not_shown"].includes(String(payload.visibility_status ?? "")) ||
-      messageType === "next_interaction"
+        ))) === "internal_only"
     ) {
       return false;
     }

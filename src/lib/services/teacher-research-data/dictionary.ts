@@ -302,6 +302,8 @@ export const CONVERSATION_TURNS_COLUMNS = [
   "context_label",
   "created_at",
   "message_text",
+  "student_visibility",
+  "conversation_visibility_version",
   "response_or_action_latency_ms",
   "prompt_to_student_action_latency_ms",
   "latency_recorded_on_turn",
@@ -1453,7 +1455,7 @@ function measuredValueDefinition(table: string, variable: string) {
     visibility_interval_duration_ms: "Duration in milliseconds for a paired page-hidden interval derived from hidden and visible event timestamps.",
     pause_duration_ms: "Duration in milliseconds for a recorded pause or inactivity interval.",
     response_or_action_latency_ms: "Compatibility field for prompt_to_student_action_latency_ms, stored on the preceding agent prompt turn.",
-    prompt_to_student_action_latency_ms: "Milliseconds from a student-visible agent prompt turn to the next qualifying student turn/action.",
+    prompt_to_student_action_latency_ms: "Server-record elapsed milliseconds from a nonempty, non-internal tutor/system turn to the next non-internal student turn. Not display time, active work time, or proof of a reply to that particular prompt. Null for internal or empty-text turns. Legacy visibility remains uncertain.",
     latency_recorded_on_turn: "Indicates that prompt-to-student latency is recorded on the prompt turn rather than the student response row."
   };
   return (
@@ -1463,6 +1465,8 @@ function measuredValueDefinition(table: string, variable: string) {
 }
 
 function definition(table: string, variable: string) {
+  if (variable === "student_visibility") return "conversation-visibility-v1 projection: internal_only when explicitly hidden/draft or suppressed by the active formative-conversation route; student_visible when explicitly eligible for the student transcript; legacy_unspecified when no visibility marker exists. Eligibility is not viewport exposure or reading. All original rows remain in this table.";
+  if (variable === "conversation_visibility_version") return "Version of the read-only visibility projection applied at export time; not a historical collection version. No source turns or profiles are rewritten.";
   if (variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     if (PROFILE_FIELD_DEFINITIONS[variable]) return PROFILE_FIELD_DEFINITIONS[variable];
   }
@@ -1665,7 +1669,7 @@ function collectionMethod(table: string, variable: string) {
     session_idle_time_ms:
       "Union of [event timestamp minus duration, event timestamp] idle intervals intersected with active lifecycle windows. Overlapping threshold signals count once; empty when absent.",
     prompt_to_student_action_latency_ms:
-      "Calculated in conversationRows() on the preceding agent prompt turn as next student turn timestamp minus prompt turn timestamp.",
+      "Calculated in conversationRows() as next non-internal student turn created_at minus eligible nonempty non-internal prompt created_at, in stored sequence order within the same session. Null for internal/empty turns or missing endpoints. Overlapping intervals must not be summed; not client display or active work time.",
     assessment_specific_understanding_category:
       "Persisted output from the assessment-specific profile/evidence integration workflow using response package, item evidence, and process context.",
     reasoning_quality_category:

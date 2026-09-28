@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
@@ -1519,13 +1520,18 @@ function processEventRows(sessions: AnalysisSession[]) {
 }
 
 function conversationRows(sessions: AnalysisSession[]) {
-  return sessions.flatMap((session) =>
-    session.conversation_turns.map((turn, index) => {
+  return sessions.flatMap((session) => {
+    const conversationTopics = new Set(session.formative_conversation_sessions.map(entry => entry.concept_unit_session_db_id));
+    const visibility = (turn: AnalysisSession["conversation_turns"][number]) => conversationVisibility(
+      turn.structured_payload, Boolean(turn.concept_unit_session_db_id && conversationTopics.has(turn.concept_unit_session_db_id)));
+    return session.conversation_turns.map((turn, index) => {
+      const studentVisibility = visibility(turn);
       const nextStudentTurn = session.conversation_turns
         .slice(index + 1)
-        .find((candidate) => candidate.actor_type === "student");
+        .find((candidate) => candidate.actor_type === "student" && visibility(candidate) !== "internal_only");
+      const eligiblePrompt = studentVisibility !== "internal_only" && turn.actor_type !== "student" && Boolean(turn.message_text?.trim());
       const promptLatency =
-        turn.actor_type !== "student" && nextStudentTurn ? diff(ms(turn.created_at), ms(nextStudentTurn.created_at)) : null;
+        eligiblePrompt && nextStudentTurn ? diff(ms(turn.created_at), ms(nextStudentTurn.created_at)) : null;
       return {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
@@ -1543,15 +1549,19 @@ function conversationRows(sessions: AnalysisSession[]) {
           "session",
         created_at: iso(turn.created_at),
         message_text: turn.message_text,
+        student_visibility: studentVisibility,
+        conversation_visibility_version: CONVERSATION_VISIBILITY_VERSION,
         response_or_action_latency_ms: promptLatency,
         prompt_to_student_action_latency_ms: promptLatency,
-        latency_recorded_on_turn: turn.actor_type !== "student" ? "prompt_turn" : "not_applicable",
+        latency_recorded_on_turn: eligiblePrompt ? "prompt_turn" : "not_applicable",
         response_text_present: Boolean(turn.message_text?.trim()),
         turn_status: "recorded",
-        limitation_code: "structured_payload_excluded"
+        limitation_code: ["structured_payload_excluded", "server_record_time_not_client_display_time",
+          "elapsed_time_not_active_work_time", studentVisibility === "internal_only" ? "internal_turn_not_student_prompt" :
+            studentVisibility === "legacy_unspecified" ? "legacy_visibility_unspecified_not_proof_of_exposure" : "visibility_not_proof_of_exposure"].join("|")
       } satisfies CsvRow;
-    })
-  );
+    });
+  });
 }
 
 function agentAndActivityRows(sessions: AnalysisSession[], supplemental: SupplementalRecords) {

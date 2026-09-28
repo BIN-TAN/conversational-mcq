@@ -1965,7 +1965,7 @@ export function studentSafeProjectionFromEvidenceProfile(
 
 export function packageResultsForStudent(profile: EvidenceIntegratedProfileV2) {
   return {
-    result_summary: `Initial item results: ${profile.student_safe_summary.initial_results}`,
+    result_summary: `You answered ${profile.student_safe_summary.initial_results}.`,
     answer_reveal_policy: profile.outcome_summary.restricted_answer_reveal_state.answer_reveal_policy,
     result_status_reveal_policy:
       profile.outcome_summary.restricted_answer_reveal_state.correctness_status_reveal_policy,

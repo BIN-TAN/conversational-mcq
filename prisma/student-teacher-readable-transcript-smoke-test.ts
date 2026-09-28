@@ -57,6 +57,19 @@ async function addActivityAndLegacyEditTurns() {
   const itemDbId = conceptUnitSession?.item_responses[0]?.item_db_id;
   assert(conceptUnitSession && itemDbId, "Fixture missing concept-unit item response.");
 
+  await prisma.formativeConversationSession.create({ data: {
+    assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id
+  } });
+
+  await prisma.conversationTurn.createMany({ data: [
+    { student_visible: false }, { shown_to_student: false }, { visibility_status: "internal" },
+    { visibility: "draft" }, { message_type: "next_interaction" },
+    { message_type: "package_feedback" }, { message_type: "pattern_statement" }
+  ].map(structured_payload => ({ assessment_session_db_id: session.id,
+    concept_unit_session_db_id: conceptUnitSession.id, phase: "planning_completed" as const,
+    actor_type: "agent" as const, message_text: "SYNTHETIC_INTERNAL_REPORT_NOT_A_STUDENT_PROMPT", structured_payload })) });
+
   await prisma.conversationTurn.create({
     data: {
       assessment_session_db_id: session.id,
@@ -104,6 +117,8 @@ async function main() {
     await addActivityAndLegacyEditTurns();
 
     const readable = await getTeacherReadableTranscript(teacherReviewSessionPublicId);
+    assert(!readable.turns.some(turn => turn.message_text.includes("SYNTHETIC_INTERNAL_REPORT")), "Internal messages must not masquerade as student dialogue.");
+    assert(readable.limitations.includes("internal_turns_excluded_available_in_assessment_log"), "Filtered projection must disclose its scope.");
     assert(readable.session_public_id === teacherReviewSessionPublicId, "Readable transcript session mismatch.");
     assert(readable.turns.length >= 8, "Readable transcript should include fixture turns and added activity turn.");
     assert(
@@ -136,6 +151,7 @@ async function main() {
     assertNoProtectedReadableText(readable);
 
     const structured = await getTeacherReviewTranscript(teacherReviewSessionPublicId);
+    assert(structured.turns.some(turn => turn.message_text?.includes("SYNTHETIC_INTERNAL_REPORT")), "Internal audit must retain source messages.");
     assert(
       structured.turns.some((turn) => turn.structured_payload),
       "Structured payload audit transcript should remain available separately."

@@ -1,5 +1,31 @@
 # Data Logging Specification
 
+## Conversation visibility projection (2026-09-28)
+
+`conversation-visibility-v1` is a read-only projection, not new behavioral data.
+`conversation_turns.csv` retains all original turns and adds `student_visibility`
+and `conversation_visibility_version`. Values are `internal_only` for explicit
+hidden/draft records or legacy tasks suppressed by the formative-conversation
+route, `student_visible` for explicit transcript eligibility, and
+`legacy_unspecified` when no visibility declaration exists. Conflicting declarations
+favor exclusion. These values do not prove display, reading or understanding; use
+the separately documented feedback-exposure observations for partial exposure.
+
+Readable transcript and its download omit internal-only rows without renumbering
+the retained source turn indexes. Internal messages remain in the Assessment log
+and raw research CSV. Unknown historical visibility stays qualified; no source
+text, timestamp, score, profile, evidence reference or exposure event is rewritten.
+
+Internal/empty messages no longer receive prompt-response latency in the research
+CSV. For eligible rows, this field remains the next non-internal student turn's
+server timestamp minus the prompt's server timestamp in source sequence order,
+within the same session. It is not necessarily a response to that particular
+question, does not measure client display or active work, and overlapping intervals
+must not be summed. The readable view's existing event/turn timing likewise excludes
+hidden prompts. New exports correct the derivation; older downloaded datasets do not
+change automatically. Host v7.10 source-call provenance identifies newly generated
+personalized messages and retains the prior confidence-alignment carry-forward rule.
+
 ## Initial Feedback Technical Termination (2026-09-27)
 
 The current failure screen recommends retry or teacher help and preserves an open

@@ -1,0 +1,71 @@
+{
+  "synthetic_only": true,
+  "external_ai_blocked": true,
+  "database_dropped": true,
+  "results": [
+    {
+      "label": "migrate",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1322,
+      "heap_limit_mib": 512,
+      "log_sha256": "34b640a412069958b1615862914b8ddb9d2243ad6c06cc4efb953b5c2e260b6b"
+    },
+    {
+      "label": "seed",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 207,
+      "heap_limit_mib": 512,
+      "log_sha256": "1d884a1c24311ebcf2cbd0e2d572d81f2072fdece6585643ebd129d24ec02532"
+    },
+    {
+      "label": "student-teacher-readable-transcript-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 396,
+      "heap_limit_mib": 512,
+      "log_sha256": "8de4fbda89b0ade87fb37a0f00074747d6b157b43fdb38aab39fdf7b7bf9e930"
+    },
+    {
+      "label": "student-analysis-ready-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 1686,
+      "heap_limit_mib": 512,
+      "log_sha256": "fbfd6ed0b96cfd8fc01906625fb3fb54329922ace422616edd625516bbfff3a6"
+    },
+    {
+      "label": "student-selected-session-export-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 734,
+      "heap_limit_mib": 512,
+      "log_sha256": "02b741615511b9fafb8c6741d4e9be9d896c79b15ec6d3578b989449a75dd83b"
+    },
+    {
+      "label": "student-research-export-integrity-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 710,
+      "heap_limit_mib": 512,
+      "log_sha256": "281c45d42e84036357623526f1e30faabfd460135cfaaaea98dabe47333ed804"
+    },
+    {
+      "label": "process-data-summary-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 123,
+      "heap_limit_mib": 512,
+      "log_sha256": "abe22d84aedc94ee3d397bf7f9e14bb987f548b86365314a676ae2a5821db4ce"
+    },
+    {
+      "label": "formative-conversation-v18r2-pipeline-runtime-smoke-test",
+      "passed": true,
+      "exit_code": 0,
+      "duration_ms": 2015,
+      "heap_limit_mib": 512,
+      "log_sha256": "5a4a3d9d2d6539e36f00ca457d0ceed0c51e06a02b1d75d0bad088df0d08e6a0"
+    }
+  ]
+}

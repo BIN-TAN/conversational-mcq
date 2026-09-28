@@ -85,6 +85,11 @@ async function main() {
   await ensureTeacherReviewDemoFixture(prisma);
 
   try {
+    const syntheticSession = await prisma.assessmentSession.findUniqueOrThrow({ where: { session_public_id: "session_demo_teacher_review" } });
+    await prisma.conversationTurn.createMany({ data: [
+      { actor_type: "agent" as const, message_text: "SYNTHETIC_INTERNAL_EXPORT_REPORT", structured_payload: { student_visible: false } },
+      { actor_type: "student" as const, message_text: "Synthetic later student reply", structured_payload: { student_visible: true } }
+    ].map(turn => ({ ...turn, assessment_session_db_id: syntheticSession.id, phase: "planning_completed" as const })) });
     const multilineCsv =
       'message_text,actor\n"First line\nSecond line",student\n';
     assert(
@@ -159,6 +164,11 @@ async function main() {
     const itemResponses = parseCsv<Record<string, string>>(fileData(result.files, "item_responses.csv"));
     const processEvents = parseCsv<Record<string, string>>(fileData(result.files, "process_events.csv"));
     const turns = parseCsv<Record<string, string>>(fileData(result.files, "conversation_turns.csv"));
+    const internalTurn = turns.find(turn => turn.message_text === "SYNTHETIC_INTERNAL_EXPORT_REPORT");
+    assert(internalTurn?.student_visibility === "internal_only", "Raw export must retain and distinguish internal messages.");
+    assert(internalTurn.prompt_to_student_action_latency_ms === "", "Internal messages must not receive student-response latency.");
+    assert(internalTurn.conversation_visibility_version === "conversation-visibility-v1", "Visibility projection version must be recorded.");
+    assert(turns.some(turn => turn.student_visibility === "legacy_unspecified"), "Historical missing visibility is unknown, not proven exposure.");
     const agentRecords = parseCsv<Record<string, string>>(fileData(result.files, "agent_activity_records.csv"));
     const contentRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_content.csv"));
     const summaryRows = parseCsv<Record<string, string>>(fileData(result.files, "assessment_summary.csv"));
