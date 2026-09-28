@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-28T14:45:09.645-06:00",
+  "updated_at": "2026-09-28T17:36:53-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -875,6 +875,92 @@
         "src/lib/services/student-assessment/conversation-visibility.ts",
         "src/lib/services/teacher-review/readable-transcript.ts",
         "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260928-02",
+      "date": "2026-09-28",
+      "title": "Consistent understanding summaries for teaching and research",
+      "application_commit": "007278cc9b7262c451d1edc64d5ab200f9a8a615",
+      "push_status": "Pushed to configured origin/main. GitHub accepted 200771aa..007278cc; independent remote-head verification matched the full application commit. Pre-existing untracked outputs were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-datfgrrrjlhs73bks340",
+        "source_commit": "007278cc9b7262c451d1edc64d5ab200f9a8a615",
+        "verified_at": "2026-09-28T23:36:53Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-datfgrrrjlhs73bks340",
+        "evidence": [
+          "Render auto-deploy started at 17:29:51 MDT. The initial record observed a build in progress; the later deployment detail confirmed Deploy succeeded | Live with duration 4m50s and exact source 007278cc9b7262c451d1edc64d5ab200f9a8a615.",
+          "Public health returned HTTP 200 at 2026-09-28T23:35:12.459Z: status ok, database reachable, database schema ready and migration readiness ready. No new migration is part of this release.",
+          "Authenticated Render shell read-only verification matched RENDER_GIT_COMMIT and application build metadata to the exact source commit. Build timestamp 2026-09-28T23:30:20.588Z; artifact hash 0d6af6400f62d91339b507056b86e78b3e05b3cf2589894c8601207af735ec66. next-server PID 14 and initial-preparation-worker PID 15 were present; worker retained 96 MiB old-space and 4 MiB semi-space limits. No student database records were accessed by this command.",
+          "Authenticated live Test 3 dashboard loaded: eligible students 9; Need more work 1, Still developing 0, Mostly understood 1, unavailable 7; initial profiles 2 and updated after conversation 0. Participation remained 6 not started, 2 started but not completed and 1 completed. The expanded evidence explanation was visible. This verifies the deployed display, not new learning or a newly generated profile.",
+          "A browser label selector initially found no match; the observed combobox role selected the assessment successfully. No production data-changing operation or new model call was used for this post-deployment check."
+        ]
+      },
+      "summary": "Use the same current validated profile and categorical understanding rules in the teacher dashboard and all three export surfaces. Recognize supported mostly-correct understanding while retaining reasoning limitations separately. Distinguish original profiles from validated conversation updates without changing stored student evidence.",
+      "changes": [
+        {
+          "area": "Canonical profile selection",
+          "problem": "Some summary surfaces selected the newest profile row, which can be an intermediate pipeline artifact rather than the current validated learning profile. Their classification rules also differed.",
+          "fix": "Share a single selector across dashboard, simple CSV, detailed CSV and research export. For a formative conversation use its latest canonical validated transition, otherwise its original initial profile. Without a conversation use the topic's current-profile pointer. Reject missing or ineligible provenance for interpretation.",
+          "impact": "The same session is summarized from the same retained profile identity across surfaces. Pausing, finishing or generating an unlinked later profile does not count as reassessment."
+        },
+        {
+          "area": "Understanding labels and cautions",
+          "problem": "The dashboard mapped an integrated fragile-reasoning focus to Still developing even where the native ability dimension supported mostly-correct understanding. Missing or conflicting evidence must also remain distinct from an observed deficit.",
+          "fix": "Apply explicit documented precedence for provenance, evidence sufficiency, supported misconception, partial ability and supported mostly-correct ability. Keep reasoning refinement and independence cautions separate. Report transfer evidence separately; correctness or confidence alone cannot promote a label.",
+          "impact": "Mostly understood means supported understanding of most assessed content, not mastery or proven transfer. Native fragile understanding remains Still developing; supported misconception remains Need more work; insufficient evidence remains unavailable."
+        },
+        {
+          "area": "Teacher usability and traceable exports",
+          "problem": "Teachers could not readily distinguish initial from updated profiles or see the denominator and scope behind the labels. Export summaries lacked a shared version and source trace.",
+          "fix": "Add initial and updated profile counts and a collapsed evidence explanation to the dashboard. Add eight documented summary fields, including version, reason, caution, profile identity, profile stage and timestamp, and transfer status. Preserve the older status column as a compatibility alias.",
+          "impact": "Keep the dashboard compact while researchers can join derived summaries to original records. Existing percentages retain the eligible-student denominator. The historical student-safe-status column is not evidence of words shown to students."
+        }
+      ],
+      "data_impact": [
+        "No schema migration, answer-key change, rescoring, attempt reset, profile regeneration or rewrite of original student evidence. Raw profiles, messages, answers, timestamps and transitions remain unchanged.",
+        "understanding-summary-v1 identifies the new read-only mapping. Dashboard advances to v2, simple CSV to v3 and detailed CSV to v2. Research sessions and assessment summaries receive additive versioned fields; the overall research dataset version is unchanged.",
+        "Dashboard participation uses the latest attempt; understanding uses the latest full initial submission excluding waived attempts. Session export rows refer to their own attempt, so comparisons must align session IDs. Multiple-topic summaries use the newest current topic profile, not an average across topics.",
+        "Historical exports are not rewritten. Re-exported summary labels can change under the explicitly recorded new mapping. These are categorical rules, not calculated scores, learning-gain estimates or independent evidence of transfer."
+      ],
+      "tests": [
+        {
+          "name": "Classification and persistence regression",
+          "result": "13 suites passed",
+          "detail": "Ran on a migrated and seeded disposable localhost database with external AI blocked, then dropped it. Suites: learning-profile summary, profile-record projection, teacher dashboard, attempt comparison, analysis-ready export, selected-session export, research export integrity, process summary, readable transcript, simple CSV, detailed CSV, streaming export and v18r2 pipeline runtime. Checks compare labels and profile IDs across all surfaces, validated updated versus baseline selection, unlinked later rows, fallback, conflicts and preservation of originals."
+        },
+        {
+          "name": "Static checks and browser preview",
+          "result": "Passed with existing lint limitation",
+          "detail": "Typecheck and diff checks passed; scoped ESLint passed for changed TypeScript files. An isolated production build passed. Synthetic browser checks passed at desktop and 390-pixel mobile width, including evidence disclosure, overview/comparison navigation and no horizontal overflow. Whole-repository lint still reports six pre-existing ignored .data grant-demo script errors and five unrelated warnings; those files were untouched."
+        },
+        {
+          "name": "Pre-push rerun and corrected test failures",
+          "result": "Passed after environmental workaround",
+          "detail": "Typecheck and diff checks passed again before push. npm's tsx wrapper hit sandbox IPC listen EPERM; node --import tsx prisma/learning-profile-summary-smoke-test.ts ran the same test successfully with 73 assertions. Earlier complete-suite runs exposed an overly broad text assertion and missing source-call fixture cleanup; both test issues were corrected before the final 13-suite pass. Initial GitHub lookup hit sandbox DNS restrictions; the approved network-enabled retry and independent push verification succeeded."
+        },
+        {
+          "name": "Read-only production audit before this release",
+          "result": "Observed with archive-verification limitation",
+          "detail": "Authenticated review confirmed a mostly-correct native profile with a fragile-reasoning focus and no validated later change; no identifiable transcript is retained here. Existing production export export_20260928_fu851ms completed with 11643 rows. Download was invoked, but the browser exposed no file path, so production ZIP bytes, checksums and contents were not independently verified. Local export integrity and streaming tests passed separately."
+        }
+      ],
+      "limitations": [
+        "No new real provider calls or historical re-profiling were performed. This change aligns summary selection and mapping; it does not establish the educational validity of every retained model judgment.",
+        "Local persistence tests use synthetic data. No large-cohort load test, exhaustive navigation test or independent psychometric validation is claimed.",
+        "The production export generation check preceded this release. Successful generation is not independent validation of the downloaded archive. Historical missing evidence is not backfilled."
+      ],
+      "references": [
+        "docs/UNDERSTANDING_SUMMARIES.md",
+        "src/lib/services/student-assessment/learning-profile-summary.ts",
+        "src/lib/services/teacher-dashboard/assessment-dashboard.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "prisma/learning-profile-summary-smoke-test.ts",
+        "prisma/profile-record-projection-smoke-test.ts",
         "docs/DATA_LOGGING_SPEC.md"
       ]
     }

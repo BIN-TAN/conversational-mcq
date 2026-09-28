@@ -146,3 +146,22 @@ Local candidate only; no push or Render deployment is claimed by this record.
 
 Limits: no new model calls, historical re-profiling, psychometric validation,
 large-cohort load test, or production deployment occurred in this verification.
+
+## Deployment Follow-up: 2026-09-28
+
+After the local audit above, application commit
+`007278cc9b7262c451d1edc64d5ab200f9a8a615` was pushed to `origin/main` and
+deployed to the canonical Render service. Deployment
+`dep-datfgrrrjlhs73bks340` reported **Deploy succeeded | Live**, with matching
+runtime build metadata and both web and preparation-worker processes running.
+Health returned HTTP 200, database reachable and schema ready at
+`2026-09-28T23:35:12.459Z`.
+
+Live Test 3 dashboard verification showed 9 eligible students: Need more work 1,
+Still developing 0, Mostly understood 1, and unavailable 7. It displayed 2 initial
+profiles and 0 updated profiles; the evidence explanation expanded correctly.
+These are versioned projections of retained evidence, not newly measured learning
+gains. No original student record or profile was rewritten. The production ZIP
+verification limitation above remains. Full release evidence is recorded under
+`CMCQ-20260928-02` in `docs/release-records/releases.json` and the existing Word
+change record.
