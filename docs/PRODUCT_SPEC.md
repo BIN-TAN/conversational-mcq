@@ -71,6 +71,12 @@ unfinished attempt cannot erase earlier results. **Compare attempts** provides
 attempt 1/2/3/latest distributions and matched-student changes, with item details
 collapsed initially. Rich research tables remain in the existing research ZIP.
 
+Understanding summaries use the same canonical profile and versioned mapping in
+the dashboard and research/CSV exports. Supported understanding does not require
+demonstrated transfer. Missing, invalid or conflicting evidence is unavailable,
+not a student deficit. Initial versus conversation-updated profiles are identified
+without creating a new measurement. See `UNDERSTANDING_SUMMARIES.md`.
+
 The student UI should use agent messages on the left and student messages on the right.
 
 The student should experience the assessment as a natural sequence of short conversational turns:

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
@@ -15,7 +16,7 @@ import {
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
 
-export const TEACHER_DETAILED_CSV_EXPORT_VERSION = "teacher-detailed-csv-export-v1" as const;
+export const TEACHER_DETAILED_CSV_EXPORT_VERSION = "teacher-detailed-csv-export-v2" as const;
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
@@ -151,6 +152,7 @@ const analysisColumns = [
   "uncertainty_marker_present",
   "response_quality_summary",
   "latest_student_safe_status",
+  ...UNDERSTANDING_SUMMARY_COLUMNS,
   "latest_diagnostic_purpose",
   "evidence_sufficiency",
   "interpretation_limitations",
@@ -260,6 +262,7 @@ const detailedSessionSelect = {
   last_activity_at: true,
   completed_at: true,
   created_at: true,
+  formative_conversation_sessions: { select: learningConversationSelect },
   user: {
     select: {
       user_id: true,
@@ -319,17 +322,7 @@ const detailedSessionSelect = {
           created_at: true
         }
       },
-      student_profiles: {
-        orderBy: { created_at: "desc" },
-        take: 1,
-        select: {
-          integrated_diagnostic_profile: true,
-          evidence_sufficiency: true,
-          recommended_next_evidence: true,
-          item_level_evidence: true,
-          created_at: true
-        }
-      },
+      latest_student_profile: { include: learningProfileInclude },
       formative_decisions: {
         orderBy: { created_at: "desc" },
         take: 1,
@@ -526,20 +519,6 @@ function mediaPublicIds(response: DetailedSession["concept_unit_sessions"][numbe
     .join(";");
 }
 
-function safeStatus(profile: DetailedSession["concept_unit_sessions"][number]["student_profiles"][number] | undefined) {
-  if (!profile) return "";
-  switch (profile.integrated_diagnostic_profile) {
-    case "robust_understanding_ready_for_transfer":
-    case "underconfident_but_reasoning_supported":
-      return "Mostly understood";
-    case "insufficient_evidence_for_formative_decision":
-    case "low_engagement_limits_interpretability":
-      return "Needs more work";
-    default:
-      return "Still developing";
-  }
-}
-
 async function supplementalCounts(sessionIds: string[]) {
   const [activityAttempts, evidenceRecords, snapshots] = await Promise.all([
     prisma.activityRuntimeAttempt.groupBy({
@@ -616,7 +595,7 @@ function analysisRows(input: {
     const engagementByItem = new Map(engagementRows.map((row) => [row.item_public_id ?? "", row]));
     const agentFailedCount = session.agent_calls.filter((call) => ["failed", "invalid_output"].includes(call.call_status)).length;
     const agentValidationFailureCount = session.agent_calls.filter((call) => call.output_validated === false).length;
-    const latestProfile = session.concept_unit_sessions.flatMap((entry) => entry.student_profiles)[0];
+    const latestProfile = latestLearningProfile(session);
     const latestDecision = session.concept_unit_sessions.flatMap((entry) => entry.formative_decisions)[0];
     const allResponses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
     const commonSession = {
@@ -657,7 +636,8 @@ function analysisRows(input: {
       activity_attempt_count: input.supplemental.activity.get(session.session_public_id) ?? 0,
       post_activity_evidence_count: input.supplemental.evidence.get(session.session_public_id) ?? 0,
       diagnostic_snapshot_count: input.supplemental.snapshots.get(session.session_public_id) ?? 0,
-      latest_student_safe_status: safeStatus(latestProfile),
+      latest_student_safe_status: learningProfileSummary(latestProfile).understanding_label,
+      ...learningProfileSummary(latestProfile),
       latest_diagnostic_purpose: latestDecision?.formative_value ?? "",
       evidence_sufficiency: latestProfile?.evidence_sufficiency ?? "",
       interpretation_limitations: "process_indicators_are_contextual_not_misconduct_or_ability_labels"

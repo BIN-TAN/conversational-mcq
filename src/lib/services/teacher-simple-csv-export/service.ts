@@ -2,7 +2,7 @@ import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { buildAbilityEvidencePacketForSession } from "@/lib/services/student-assessment/ability-evidence";
-import { projectStoredStudentProfileIntegration } from "@/lib/services/student-assessment/profile-integration";
+import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -14,7 +14,7 @@ import {
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
 
-export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v2" as const;
+export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v3" as const;
 
 export const SESSION_CSV_COLUMNS = [
   ...EXPORT_SOURCE_COLUMNS,
@@ -37,6 +37,7 @@ export const SESSION_CSV_COLUMNS = [
   "post_activity_evidence_count",
   "diagnostic_snapshot_count",
   "latest_student_safe_status",
+  ...UNDERSTANDING_SUMMARY_COLUMNS,
   "latest_diagnostic_purpose",
   "unsupported_correct_response_count",
   "estimated_guessing_risk_max",
@@ -71,6 +72,8 @@ export const MATRIX_CSV_COLUMNS = [
 ] as const;
 
 export const SIMPLE_CSV_DATA_DICTIONARY = [
+  ...Object.entries(UNDERSTANDING_SUMMARY_DEFINITIONS).map(([field, definition]) => ({ field, definition })),
+  { field: "latest_student_safe_status", definition: "Compatibility alias of understanding_label. A teacher/research summary, not a record of text actually shown to the student." },
   {
     field: "row grain",
     assessment_csv: "One row per student assessment session attempt for the selected assessment.",
@@ -164,15 +167,7 @@ const sessionSelect = {
           created_at: true
         }
       },
-      student_profiles: {
-        select: {
-          item_level_evidence: true,
-          recommended_next_evidence: true,
-          integrated_diagnostic_profile: true,
-          created_at: true
-        },
-        orderBy: { created_at: "desc" }
-      },
+      latest_student_profile: { include: learningProfileInclude },
       formative_decisions: {
         select: {
           formative_value: true,
@@ -245,7 +240,8 @@ const sessionSelect = {
     select: {
       formative_conversation_sessions: true
     }
-  }
+  },
+  formative_conversation_sessions: { select: learningConversationSelect }
 } satisfies Prisma.AssessmentSessionSelect;
 
 type ExportSession = Prisma.AssessmentSessionGetPayload<{ select: typeof sessionSelect }>;
@@ -369,37 +365,6 @@ function summarizePackageEvidence(packages: Array<{ payload: Prisma.JsonValue }>
     unsupported_correct_response_count: unsupportedCount,
     estimated_guessing_risk_max: risk
   };
-}
-
-function inferStudentSafeStatus(profile: ExportSession["concept_unit_sessions"][number]["student_profiles"][number] | null) {
-  if (!profile) {
-    return { status: "", limitation: "latest_student_safe_status_unavailable" };
-  }
-
-  const projected = projectStoredStudentProfileIntegration(profile);
-  if (projected) {
-    return { status: projected.status, limitation: null };
-  }
-
-  switch (profile.integrated_diagnostic_profile) {
-    case "robust_understanding_ready_for_transfer":
-    case "underconfident_but_reasoning_supported":
-      return {
-        status: "Mostly understood",
-        limitation: "latest_student_safe_status_inferred_from_profile"
-      };
-    case "insufficient_evidence_for_formative_decision":
-    case "low_engagement_limits_interpretability":
-      return {
-        status: "Needs more work",
-        limitation: "latest_student_safe_status_inferred_from_profile"
-      };
-    default:
-      return {
-        status: "Still developing",
-        limitation: "latest_student_safe_status_inferred_from_profile"
-      };
-  }
 }
 
 function latestByCreatedAt<T extends { created_at: Date }>(records: T[]) {
@@ -591,16 +556,15 @@ async function buildSessionRow(
 ): Promise<SessionCsvRow> {
   const itemResponses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
   const responsePackages = session.concept_unit_sessions.flatMap((entry) => entry.response_packages);
-  const profiles = session.concept_unit_sessions.flatMap((entry) => entry.student_profiles);
   const decisions = session.concept_unit_sessions.flatMap((entry) => entry.formative_decisions);
-  const latestProfile = latestByCreatedAt(profiles);
+  const latestProfile = latestLearningProfile(session);
   const latestDecision = latestByCreatedAt(decisions);
-  const status = inferStudentSafeStatus(latestProfile);
+  const status = learningProfileSummary(latestProfile);
   const activityCounts = await loadActivityCounts(session.session_public_id);
   const correctness = await correctnessSummary(session.session_public_id, responsePackages);
   const limitations = new Set<string>(correctness.limitations);
 
-  if (status.limitation) limitations.add(status.limitation);
+  if (status.understanding_label === "Unavailable / insufficient evidence") limitations.add(status.understanding_reason);
   if (responsePackages.length === 0) limitations.add("response_package_missing");
   if (!activityCounts.uses_formative_conversation) {
     if (activityCounts.activity_attempt_count === 0) limitations.add("activity_attempts_missing");
@@ -628,7 +592,8 @@ async function buildSessionRow(
     activity_attempt_count: activityCounts.activity_attempt_count,
     post_activity_evidence_count: activityCounts.post_activity_evidence_count,
     diagnostic_snapshot_count: activityCounts.diagnostic_snapshot_count,
-    latest_student_safe_status: status.status,
+    latest_student_safe_status: status.understanding_label,
+    ...status,
     latest_diagnostic_purpose:
       activityCounts.latest_diagnostic_purpose || latestDecision?.formative_value || "",
     unsupported_correct_response_count: correctness.unsupported_correct_response_count,

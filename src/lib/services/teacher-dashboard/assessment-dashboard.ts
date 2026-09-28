@@ -5,8 +5,9 @@ import { ContentServiceError } from "@/lib/services/content/errors";
 import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
+import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
 
-export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v1" as const;
+export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v2" as const;
 
 const CANDIDATE_PATTERN_THRESHOLD = 3;
 const MAX_REASONING_SNIPPETS = 3;
@@ -84,6 +85,7 @@ const dashboardSessionSelect = {
   completed_at: true,
   created_at: true,
   updated_at: true,
+  formative_conversation_sessions: { select: learningConversationSelect },
   user: {
     select: {
       user_id: true,
@@ -130,18 +132,7 @@ const dashboardSessionSelect = {
         },
         orderBy: [{ created_at: "desc" }]
       },
-      student_profiles: {
-        select: {
-          integrated_diagnostic_profile: true,
-          engagement_profile: true,
-          engagement_pattern_flags: true,
-          engagement_summary: true,
-          evidence_sufficiency: true,
-          created_at: true
-        },
-        orderBy: [{ created_at: "desc" }],
-        take: 1
-      }
+      latest_student_profile: { include: learningProfileInclude }
     }
   }
 } satisfies Prisma.AssessmentSessionSelect;
@@ -150,7 +141,7 @@ type DashboardAssessment = Prisma.AssessmentGetPayload<{ select: typeof dashboar
 type DashboardSession = Prisma.AssessmentSessionGetPayload<{ select: typeof dashboardSessionSelect }>;
 type DashboardItem = DashboardAssessment["concept_units"][number]["items"][number];
 type DashboardItemResponse = DashboardSession["concept_unit_sessions"][number]["item_responses"][number];
-type DashboardProfile = DashboardSession["concept_unit_sessions"][number]["student_profiles"][number];
+type DashboardProfile = LearningProfile;
 
 export type TeacherAssessmentDashboard = {
   dashboard_version: typeof TEACHER_ASSESSMENT_DASHBOARD_VERSION;
@@ -170,6 +161,12 @@ export type TeacherAssessmentDashboard = {
   detailed_status_distribution: ChartDatum[];
   progress_chart: ChartDatum[];
   understanding_distribution: ChartDatum[];
+  understanding_basis: {
+    version: typeof UNDERSTANDING_SUMMARY_VERSION;
+    baseline_count: number;
+    updated_count: number;
+    unavailable_count: number;
+  };
   engagement_distribution: ChartDatum[];
   engagement_review_reasons: EngagementReviewReason[];
   time_indicator: TimeIndicator;
@@ -381,8 +378,8 @@ function itemStemPreview(value: string) {
 }
 
 function latestProfile(session: DashboardSession): DashboardProfile | null {
-  const profiles = session.concept_unit_sessions.flatMap((conceptUnitSession) => conceptUnitSession.student_profiles);
-  return [...profiles].sort((left, right) => right.created_at.getTime() - left.created_at.getTime())[0] ?? null;
+  const profile = latestLearningProfile(session);
+  return learningProfileSummary(profile).understanding_profile_stage === "unavailable" ? null : profile;
 }
 
 function allResponses(session: DashboardSession) {
@@ -390,21 +387,7 @@ function allResponses(session: DashboardSession) {
 }
 
 function understandingCategoryFromProfile(profile: DashboardProfile | null) {
-  if (!profile) return "Unavailable / insufficient evidence" as const;
-
-  switch (profile.integrated_diagnostic_profile) {
-    case "robust_understanding_ready_for_transfer":
-    case "underconfident_but_reasoning_supported":
-      return "Mostly understood" as const;
-    case "insufficient_evidence_for_formative_decision":
-    case "low_engagement_limits_interpretability":
-    case "conflicting_evidence_needs_clarification":
-      return "Unavailable / insufficient evidence" as const;
-    case "misconception_with_sufficient_engagement":
-      return "Need more work" as const;
-    default:
-      return "Still developing" as const;
-  }
+  return learningProfileSummary(profile).understanding_label;
 }
 
 function sessionReviewReasonLooksEngagementRelated(reason: string | null) {
@@ -1066,6 +1049,7 @@ export async function getTeacherAssessmentDashboard(input: {
       detailed_status_distribution: [],
       progress_chart: [],
       understanding_distribution: [],
+      understanding_basis: { version: UNDERSTANDING_SUMMARY_VERSION, baseline_count: 0, updated_count: 0, unavailable_count: 0 },
       engagement_distribution: [],
       engagement_review_reasons: [],
       time_indicator: {
@@ -1160,6 +1144,9 @@ export async function getTeacherAssessmentDashboard(input: {
   const understandingValues = resultAttempts.map((attempt) =>
     attempt.session ? understandingCategoryFromProfile(latestProfile(attempt.session)) : "Unavailable / insufficient evidence"
   );
+  const understandingStages = resultAttempts.map(attempt => learningProfileSummary(
+    attempt.session ? latestProfile(attempt.session) : null
+  ).understanding_profile_stage);
   const engagementValues = resultAttempts.map((attempt) =>
     engagementReviewSignal({
       profile: attempt.session ? latestProfile(attempt.session) : null,
@@ -1237,10 +1224,16 @@ export async function getTeacherAssessmentDashboard(input: {
     understanding_distribution: chart(
       countBy(
         understandingValues,
-        ["Need more work", "Still developing", "Mostly understood", "Unavailable / insufficient evidence"] as const
+        UNDERSTANDING_LABELS
       ),
       totalStudents
     ),
+    understanding_basis: {
+      version: UNDERSTANDING_SUMMARY_VERSION,
+      baseline_count: understandingStages.filter(stage => stage === "baseline").length,
+      updated_count: understandingStages.filter(stage => stage === "updated").length,
+      unavailable_count: understandingStages.filter(stage => stage === "unavailable").length
+    },
     engagement_distribution: chart(
       countBy(
         engagementValues,
@@ -1269,7 +1262,7 @@ export async function getTeacherAssessmentDashboard(input: {
         ? "Participation uses the latest attempt. Understanding, engagement and item results use the latest fully submitted attempt."
         : "No student data are available for this assessment.",
       "Dashboard categories are assessment-specific diagnostic signals, not stable learner traits.",
-      "Understanding categories come from persisted profile outputs for the selected assessment; missing or insufficient profile evidence remains unavailable.",
+      "Understanding uses the current canonical profile of the latest full initial submission, not the newest pipeline artifact. For multiple topics it uses the most recently created current topic profile, not an average. Missing, invalid or insufficient evidence remains unavailable; Mostly understood does not require transfer evidence.",
       "Engagement review signals come from persisted profile engagement evidence or defined engagement/evidence-quality review flags; missing profile evidence is counted as insufficient evidence, not as no concern.",
       "Flagged for review is an overlapping review indicator and is not part of the mutually exclusive status distribution.",
       ...timeIndicator.limitations,

@@ -6,6 +6,9 @@ import { profileRecordProvenance, profileEvidenceCounts, profileItemEvidence, pr
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 import { buildTeacherResearchBulkExport } from "../src/lib/services/teacher-research-export/service";
 import { getTeacherReviewSessionDetail } from "../src/lib/services/teacher-review/session-detail";
+import { getTeacherAssessmentDashboard } from "../src/lib/services/teacher-dashboard/assessment-dashboard";
+import { downloadAssessmentCsv } from "../src/lib/services/teacher-simple-csv-export/service";
+import { buildTeacherDetailedCsvBundle } from "../src/lib/services/teacher-detailed-csv-export/service";
 import { ensureTeacherReviewDemoFixture, cleanupTeacherReviewDemoFixture } from "./demo-teacher-review-fixture";
 
 const prisma = new PrismaClient();
@@ -99,6 +102,31 @@ async function main() {
       return parse(String(file.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
     };
     const bundle = await readBundle();
+    async function assertSummaryParity(expected: string) {
+      const input = { teacher_user_db_id: fixture.teacher.id, assessment_public_id: fixture.assessment.assessment_public_id };
+      const dashboard = await getTeacherAssessmentDashboard(input);
+      const research = rows(await readBundle(), "sessions.csv")[0];
+      const simple = (parse((await downloadAssessmentCsv(input)).content, { columns: true, skip_empty_lines: true }) as Record<string, string>[])
+        .find(row => row.session_public_id === fixture.session.session_public_id)!;
+      const detailed = rows(await buildTeacherDetailedCsvBundle({ ...input, scope: "selected_session", session_public_id: fixture.session.session_public_id }), "analysis_rows.csv")[0];
+      for (const row of [research, simple, detailed]) {
+        assert.equal(row.latest_student_safe_status, expected);
+        assert.equal(row.understanding_label, expected);
+        assert.equal(row.understanding_summary_version, "understanding-summary-v1");
+        assert.equal(row.understanding_profile_record_id, research.understanding_profile_record_id);
+      }
+      assert.equal(dashboard.understanding_distribution.find(row => row.label === expected)?.count, 1, "Dashboard and all export paths use the same canonical profile and label");
+    }
+    await assertSummaryParity("Mostly understood");
+    await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "correct_but_fragile_understanding" } });
+    await assertSummaryParity("Mostly understood");
+    assert.equal(rows(await readBundle(), "sessions.csv")[0].understanding_caution, "reasoning_refinement_needed");
+    await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "misconception_with_sufficient_engagement", ability_profile: "misconception_based_understanding" } });
+    await assertSummaryParity("Need more work");
+    await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "conflicting_evidence_needs_clarification", ability_profile: "mostly_correct_understanding" } });
+    await assertSummaryParity("Unavailable / insufficient evidence");
+    await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "developing_understanding_with_productive_engagement", ability_profile: "mostly_correct_understanding" } });
+    await assertSummaryParity("Mostly understood");
     assert.equal(rows(bundle, "sessions.csv")[0].profile_record_id, profileRecordProvenance({ ...unit, id: initial.id }).profile_record_id, "Canonical baseline beats a later intermediate pointer");
     assert.equal(rows(bundle, "sessions.csv")[0].profile_native_confidence_alignment, "well_calibrated");
     assert.equal(rows(bundle, "sessions.csv")[0].profile_confidence_alignment_scope, "initial_assessment");
@@ -127,7 +155,8 @@ async function main() {
     } });
     await prisma.formativeConversationSession.update({ where: { id: conversation.id }, data: { initial_student_profile_db_id: failed.id, current_student_profile_db_id: failed.id, status: "ended", lifecycle_reason: "student_ended_conversation" } });
     const failedBundle = await readBundle();
-    assert.equal(rows(failedBundle, "sessions.csv")[0].latest_student_safe_status, "Profile unavailable");
+    assert.equal(rows(failedBundle, "sessions.csv")[0].latest_student_safe_status, "Unavailable / insufficient evidence");
+    await assertSummaryParity("Unavailable / insufficient evidence");
     assert.equal(rows(failedBundle, "sessions.csv")[0].misconception_indicator_count, "");
     assert.equal(rows(failedBundle, "formative_conversation_sessions.csv")[0].profile_reassessment_status, "reassessment_incomplete");
     const detail = await getTeacherReviewSessionDetail(fixture.session.session_public_id);
@@ -142,6 +171,9 @@ async function main() {
     } });
     const carried = await prisma.studentProfile.create({ data: { ...base, profile_type: "updated", based_on_agent_call_db_id: formativeCall.id } });
     const carriedBundle = await readBundle();
+    assert.equal(rows(carriedBundle, "sessions.csv")[0].understanding_profile_record_id,
+      rows(failedBundle, "sessions.csv")[0].understanding_profile_record_id,
+      "An unlinked later updated profile must not override the current conversation baseline");
     const carriedArtifact = rows(carriedBundle, "agent_activity_records.csv").find(row => row.profile_record_id === profileRecordProvenance({ ...unit, id: carried.id }).profile_record_id);
     assert.equal(carriedArtifact?.profile_confidence_alignment_scope, "carried_forward_not_reassessed");
     const carriedLegacy = await buildTeacherResearchBulkExport({ session_public_id: fixture.session.session_public_id });

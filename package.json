@@ -142,6 +142,7 @@
     "student:analysis-ready-export-smoke": "tsx prisma/student-analysis-ready-export-smoke-test.ts",
     "student:research-export-streaming-smoke": "node --import tsx prisma/research-export-streaming-smoke-test.ts",
     "student:profile-record-projection-smoke": "tsx prisma/profile-record-projection-smoke-test.ts",
+    "student:learning-profile-summary-smoke": "tsx prisma/learning-profile-summary-smoke-test.ts",
     "research-export:preflight": "tsx prisma/research-export-preflight.ts",
     "student:research-export-readiness-smoke": "tsx prisma/student-research-export-readiness-smoke-test.ts",
     "student:research-export-error-ui-smoke": "tsx prisma/student-research-export-error-ui-smoke-test.ts",

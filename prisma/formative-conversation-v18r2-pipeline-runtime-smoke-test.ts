@@ -463,6 +463,11 @@ async function main() {
       assert(transitionFile);
       const exportedTransitions = parse(String(transitionFile.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
       assert.equal(exportedTransitions.length, 1);
+      const summaryFile = researchBundle.files.find(file => file.path === "sessions.csv")!;
+      const summaryRows = parse(String(summaryFile.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
+      assert.equal(summaryRows[0].understanding_profile_record_id, exportedTransitions[0].updated_profile_record_id, "Summary selects the validated transition, not the initial profile or newest artifact");
+      assert.equal(summaryRows[0].understanding_profile_stage, "updated");
+      assert.equal(summaryRows[0].latest_student_safe_status, summaryRows[0].understanding_label);
       assert.equal(exportedTransitions[0].prior_confidence_alignment_scope, "initial_assessment", "Prior call provenance must be loaded, not exported as unavailable");
       assert.equal(exportedTransitions[0].updated_confidence_alignment_scope, "legacy_scope_unrecorded", "Historical host-v7.1 fixture must not masquerade as current confidence policy");
       const scopeDictionary = researchBundle.files.find(file => file.path === "formative_conversation_data_dictionary.csv")!;

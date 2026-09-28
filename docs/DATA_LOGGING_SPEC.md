@@ -1779,6 +1779,12 @@ a retroactive upgrade of every historical package inside it.
 
 ## Profile Tracking Projection
 
+The additive `understanding-summary-v1` teacher/research projection is documented
+in `UNDERSTANDING_SUMMARIES.md`. It unifies summary labels and canonical profile
+selection, retains original dimensions and provenance, and records its version,
+reason, source profile, baseline/updated stage, original timestamp and separate
+transfer status. No raw learning evidence is changed or backfilled.
+
 `profile-record-projection-v1` is an additive, read-only export and review
 projection. It never changes stored answers, source calls, profile timestamps,
 sealed packages, or historical AI interpretations. No database migration is

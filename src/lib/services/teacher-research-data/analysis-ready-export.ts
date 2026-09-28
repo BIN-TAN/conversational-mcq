@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
+import { learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
@@ -190,6 +191,7 @@ const analysisSessionSelect = {
           created_at: true
         }
       },
+      latest_student_profile: { include: learningProfileInclude },
       formative_decisions: {
         orderBy: [{ created_at: "desc" }],
         select: {
@@ -884,19 +886,7 @@ function optionsByLabel(value: unknown) {
 }
 
 function latestProfile(session: AnalysisSession) {
-  const candidates = session.concept_unit_sessions.flatMap((entry) => {
-    const conversation = session.formative_conversation_sessions.find(
-      (candidate) => candidate.concept_unit_session_db_id === entry.id
-    );
-    if (conversation) {
-      const transitions = canonicalPersistedFormativeConversationProfileTransitions(conversation.profile_transitions);
-      const current = latestPersistedFormativeConversationProfileTransition(transitions)?.updated_student_profile ?? conversation.initial_student_profile;
-      return current ? [current] : [];
-    }
-    const current = entry.student_profiles.find((profile) => profile.id === entry.latest_student_profile_db_id);
-    return current ? [current] : [];
-  });
-  return candidates.sort((a, b) => b.created_at.getTime() - a.created_at.getTime())[0] ?? null;
+  return latestLearningProfile(session);
 }
 
 function evidenceProfileV2(profile: { item_level_evidence: unknown } | null) {
@@ -941,23 +931,7 @@ function answerRevealState(record: Record<string, unknown> | null) {
 }
 
 function studentSafeStatus(profile: ReturnType<typeof latestProfile>) {
-  if (!profile) return null;
-  if (!profileRecordProvenance(profile).profile_valid_for_learning_analysis) return "Profile unavailable";
-  const profileV2 = evidenceProfileV2(profile);
-  const summary = asRecord(profileV2?.student_safe_summary);
-  if (typeof summary.understanding_label === "string") {
-    return summary.understanding_label;
-  }
-  switch (profile.integrated_diagnostic_profile) {
-    case "robust_understanding_ready_for_transfer":
-    case "underconfident_but_reasoning_supported":
-      return "Mostly understood";
-    case "insufficient_evidence_for_formative_decision":
-    case "low_engagement_limits_interpretability":
-      return "Insufficient evidence";
-    default:
-      return "Still developing";
-  }
+  return learningProfileSummary(profile).understanding_label;
 }
 
 function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
@@ -1259,6 +1233,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
           : null,
       engagement_review_category: profile?.engagement_profile ?? null,
       latest_student_safe_status: studentSafeStatus(profile),
+      ...learningProfileSummary(profile),
       ...(profile ? profileRecordProvenance(profile) : {}),
       ...(profile ? profileEvidenceCounts(profile) : {}),
       evidence_sufficiency: profile?.evidence_sufficiency ?? null,
@@ -1432,6 +1407,7 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
       agent_call_count: row.agent_call_count ?? session.agent_calls.length,
       formative_activity_attempt_count: row.formative_activity_attempt_count ?? 0,
       latest_student_safe_status: row.latest_student_safe_status ?? null,
+      ...Object.fromEntries(UNDERSTANDING_SUMMARY_COLUMNS.map(column => [column, row[column] ?? null])),
       assessment_specific_understanding_category: row.assessment_specific_understanding_category ?? null,
       reasoning_quality_category: row.reasoning_quality_category ?? null,
       confidence_calibration_category: row.confidence_calibration_category ?? null,

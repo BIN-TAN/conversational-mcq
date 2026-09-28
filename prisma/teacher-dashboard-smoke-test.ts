@@ -174,7 +174,7 @@ function assertDashboardSurface() {
     "Legend:",
     "Chart data table",
     "Category",
-    "Percent",
+    ">Percent<",
     "Assessment-specific understanding",
     "Engagement review signals",
     "Review option choices, correctness percentages, confidence distribution",
@@ -184,6 +184,8 @@ function assertDashboardSurface() {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
   }
+  assertIncludes(client, "Evidence behind these labels", "Understanding evidence disclosure");
+  assertIncludes(client, "Updated after conversation", "Understanding profile stage counts");
 }
 
 function assertStandardTeacherNav() {
@@ -300,6 +302,7 @@ async function cleanupDashboardFixture(prefix: string) {
   await prisma.responsePackage.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.itemResponse.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.studentProfile.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
+  await prisma.agentCall.deleteMany({ where: { concept_unit_session_db_id: { in: conceptUnitSessionIds } } });
   await prisma.conceptUnitSession.deleteMany({ where: { id: { in: conceptUnitSessionIds } } });
   await prisma.assessmentSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.item.deleteMany({ where: { concept_unit_db_id: { in: conceptUnitIds } } });
@@ -433,11 +436,19 @@ async function assertDashboardAggregationService() {
         evidence_sufficiency?: EvidenceSufficiency;
       }
     ) {
-      return prisma.studentProfile.create({
+      const call = await prisma.agentCall.create({ data: {
+        concept_unit_session_db_id: conceptUnitSessionId,
+        agent_name: "student_profiling_agent", agent_version: "synthetic", model_name: "mock", provider: "mock",
+        prompt_version: "synthetic", schema_version: "student-profile-output-v4", input_payload: {},
+        call_status: "succeeded", output_validated: true
+      } });
+      const profile = await prisma.studentProfile.create({
         data: {
           concept_unit_session_db_id: conceptUnitSessionId,
+          based_on_agent_call_db_id: call.id,
           profile_type: "initial",
-          ability_profile: "partial_understanding",
+          ability_profile: input.integrated_diagnostic_profile === "robust_understanding_ready_for_transfer"
+            ? "mostly_correct_understanding" : "partial_understanding",
           ability_pattern_flags: {},
           engagement_profile: input.engagement_profile,
           engagement_pattern_flags: {},
@@ -457,6 +468,8 @@ async function assertDashboardAggregationService() {
           recommended_next_evidence: {}
         }
       });
+      await prisma.conceptUnitSession.update({ where: { id: conceptUnitSessionId }, data: { latest_student_profile_db_id: profile.id } });
+      return profile;
     }
     async function createSession(input: {
       studentIndex: number;
