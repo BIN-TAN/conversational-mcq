@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-27T15:30:00-06:00",
+  "updated_at": "2026-09-28T14:45:09.645-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -802,6 +802,79 @@
         "src/components/student-assessment/observed-feedback.tsx",
         "src/lib/teacher-session-labels.ts",
         "prisma/feedback-display-completion-smoke-test.ts",
+        "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260928-01",
+      "date": "2026-09-28",
+      "title": "Student specific feedback and faithful conversation records",
+      "application_commit": "15a6ca6ab7869bee715f29863b2730b83a81647f",
+      "push_status": "Pushed to configured origin/main. GitHub accepted 7007d19d..15a6ca6a; independent remote-head check matched the full application commit. Pre-existing untracked outputs excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-datcvtm0tbcc73fq8u4g",
+        "source_commit": "15a6ca6ab7869bee715f29863b2730b83a81647f",
+        "verified_at": "2026-09-28T20:45:09.645Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-datcvtm0tbcc73fq8u4g",
+        "evidence": [
+          "Render deployment detail reported Deploy succeeded | Live for exact source 15a6ca6ab7869bee715f29863b2730b83a81647f, auto-deploy starting 14:37:10 MDT and duration 4m57s. Pre-deploy found all 65 migrations with none pending.",
+          "Public health returned HTTP 200 at 2026-09-28T20:42:25.722Z: status ok, database reachable, schema ready and migration readiness ready.",
+          "Read-only checks in the authenticated Render web shell verified RENDER_GIT_COMMIT and build metadata match the application commit. Build timestamp 2026-09-28T20:37:46.661Z; artifact hash 8fdea67262c45e3501d28598f784bcf4fbd664d48884365c04860fe6304aa6fc. Source contains host prompt v7.10.",
+          "Approval complete for 18 roles with no mismatch reasons; approved hash fd05af6414cbd6bfa16e3d8973a27bd0b9a4d1baca88aae6d3fa0d9cd5ed5e26 and initial feedback allowance 30000. Worker PID 15 uses the matching approval hash with 96 MiB old-space and 4 MiB semi-space. No production student records were accessed.",
+          "Two SSH attempts exited 1 without results and reported an ED25519 signature warning; host checking was not disabled. Web-console verification initially encountered an escaped-input problem and then a syntax typo; neither executed a data-changing command. The corrected bounded read-only command completed and returned to the shell prompt."
+        ]
+      },
+      "summary": "Improve the actual tutor's student-specific language while correcting a teacher transcript projection that displayed internal package summaries as dialogue. The active student flow already hid those summaries; their presence in a teacher transcript did not prove student exposure. Preserve raw research records and distinguish visibility from reading or engagement.",
+      "changes": [
+        {
+          "area": "Natural and evidence-linked formative conversation",
+          "problem": "Generic evidence-review language was unsuitable for student dialogue. Concise correct reasons, option-label mismatches and explicitly rejected temptations require different responses, not a blanket request for more reasoning.",
+          "fix": "Host prompt v7.10 starts with a specific accurate paraphrase, clarifies a relevant label/explanation mismatch, respects self-correction and rejected alternatives, and adjusts explanation length to the request. The opening validator rejects specified internal audit phrases. Existing coverage, evidence eligibility and state-transition controls remain in force.",
+          "impact": "Students receive a focused conversational opening without a duplicate score report or invented deficit. The application still controls scoring and progression. Assent is not promoted to mastery. The prompt adds no additional provider-call stage or lower token allowance."
+        },
+        {
+          "area": "Readable transcript and research visibility",
+          "problem": "The teacher readable transcript did not apply the active student's internal-turn filters. Raw conversation latency also treated internal agent records as prompts, potentially misleading exposure and response-time analysis.",
+          "fix": "Share explicit and active-formative visibility rules across student and teacher projections. Preserve original turn indices and raw audit rows. Export student_visibility and conversation_visibility_version, and leave internal/empty-turn response latency null. Document the derivation and historical uncertainty.",
+          "impact": "Readable review excludes internal reports; the Assessment log and raw research rows retain them. Visibility classification is not evidence of viewport exposure, reading or comprehension. Missing historical metadata remain uncertain rather than being backfilled."
+        }
+      ],
+      "data_impact": [
+        "No schema migration, answer-key change, rescoring, attempt reset or production student-data modification. Original messages, timestamps and source identities remain unchanged.",
+        "conversation-visibility-v1 is an additive export projection. Labels are internal_only, student_visible and legacy_unspecified. A legacy record with insufficient visibility metadata must not be counted as confirmed exposure.",
+        "Eligible prompt latency is the server timestamp difference to the next non-internal student turn in recorded sequence. It can include time away and overlap other intervals; it is not active work time and must not be summed as session duration. Internal-only prompts receive null, never a fabricated zero."
+      ],
+      "tests": [
+        {
+          "name": "Real AI dialogue and opening canaries",
+          "result": "Passed for the evaluated cases",
+          "detail": "15 synthetic real provider calls with gpt-5.6-sol at medium reasoning: six two-turn scenarios plus three openings. All accepted on the first request, no regeneration or transport retry; 72 programmed dialogue checks passed. Twelve dialogue outputs replayed through the production pipeline. The implementing assistant reviewed all visible replies; this was not independent expert validation. Provider latencies 4.553 to 37.845 seconds; total usage 180642 tokens including input."
+        },
+        {
+          "name": "Persistence and research export regression",
+          "result": "Passed",
+          "detail": "Six suites passed against a migrated and seeded disposable local database with external AI blocked: readable transcript, analysis-ready export, selected-session export, research integrity, process summary, formative pipeline runtime. The final rerun covers unmarked old package/pattern messages in active formative sessions. The database was dropped after verification."
+        },
+        {
+          "name": "Static checks and production build",
+          "result": "Passed with retained lint limitation",
+          "detail": "Typecheck, conversation-visibility smoke, transcript-quality regression, formative interpretation policy and diff checks passed. Production build passed with existing webpack serialization warnings. Normal npm lint encountered six pre-existing errors in ignored local .data grant-demo scripts; those files were untouched. ESLint excluding .data passed with five pre-existing warnings."
+        }
+      ],
+      "limitations": [
+        "Canaries used synthetic in-memory inputs and production request/validation code. Database tests used mock AI separately. This is not a full classroom concurrency test, exhaustive navigation test or psychometric validity study.",
+        "No new identifiable production dataset was downloaded. Historical student exposure cannot be reconstructed from missing metadata. Prior conversations are not regenerated or rewritten by this release.",
+        "Some requested worked explanations remain lengthy. No rigid word limit or compulsory quiz was introduced; naturalness remains model-dependent and requires continued review."
+      ],
+      "references": [
+        "docs/acceptance/runs/2026-09-28/natural-conversation/REPORT.md",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+        "src/lib/services/student-assessment/conversation-visibility.ts",
+        "src/lib/services/teacher-review/readable-transcript.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
         "docs/DATA_LOGGING_SPEC.md"
       ]
     }
