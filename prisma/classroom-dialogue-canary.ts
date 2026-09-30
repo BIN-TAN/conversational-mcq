@@ -15,6 +15,7 @@ import { buildFormativeConversationV18R2ProductionRequest, FORMATIVE_CONVERSATIO
 import { formativeConversationV18R2LifecycleForTurnCount } from "../src/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { v18r2TestContext } from "./formative-conversation-v18r2-test-fixtures";
 import { FRESH_DIALOGUE_CASES } from "../src/lib/evaluation/fresh-dialogue-cases";
+import { CONTENT_SAFETY_DIALOGUE_CASES, DISPUTED_CTT_ITEM } from "../src/lib/evaluation/content-safety-dialogue-cases";
 import { prepareFormativeInterpretationResult, validateFormativeInterpretation } from "../src/lib/services/student-assessment/formative-conversation/interpretation-policy";
 
 const originalCases = [
@@ -56,7 +57,8 @@ const originalCases = [
   }
 ] as const;
 
-const cases = process.argv.includes("--fresh") ? FRESH_DIALOGUE_CASES : originalCases;
+const contentSafety = process.argv.includes("--content-safety");
+const cases = contentSafety ? CONTENT_SAFETY_DIALOGUE_CASES : process.argv.includes("--fresh") ? FRESH_DIALOGUE_CASES : originalCases;
 
 const items: FormativeConversationV18R2AgentInput["administered_items"] = [
   { item_public_id: "measurement_reliability", item_number: 1,
@@ -164,6 +166,7 @@ async function main() {
   assert(selectedCases.length > 0);
   const outputDir = mkdtempSync(join(tmpdir(), "cmcq-dialogue-probe-"));
   const sources = ["prisma/classroom-dialogue-canary.ts", "src/lib/evaluation/fresh-dialogue-cases.ts",
+    "src/lib/evaluation/content-safety-dialogue-cases.ts", "src/lib/assessment-content-policy.ts", "src/lib/student-visible-safety.ts",
     "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts", "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
     "src/lib/services/student-assessment/formative-conversation/candidate-validation-v18r2.ts", "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
     "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts", "src/lib/services/student-assessment/formative-conversation/runtime.ts",
@@ -191,7 +194,13 @@ async function main() {
     let context = v18r2TestContext({ student_turn_count: 1, max_student_turns: 30,
       student_messages: [scenario.messages[0]], conversation_public_id: `synthetic-dialogue-${scenario.id}` });
     context.administered_items = structuredClone(items);
-    context.safety_boundary.administered_item_public_ids = items.map(item => item.item_public_id);
+    if (contentSafety) {
+      context.administered_items.push(structuredClone(DISPUTED_CTT_ITEM));
+      if ("baseline_question" in scenario && typeof scenario.baseline_question === "string") {
+        context.assessment_response_evidence[0].written_reasoning += " " + scenario.baseline_question;
+      }
+    }
+    context.safety_boundary.administered_item_public_ids = context.administered_items.map(item => item.item_public_id);
     const baselineClaimIds = context.allowed_misconception_claim_catalog.indicators.flatMap(entry => entry.claims.map(claim => claim.claim_id));
     context = refresh(context);
     if (parent) {

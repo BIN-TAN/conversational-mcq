@@ -39,6 +39,30 @@ const tabs = buildProcessDataSummary({ ...base, events: [...events, event("page_
 assert.equal(tabs.timing.observed_hidden_ms, null);
 assert(tabs.limitations.some((entry) => entry.includes("Multiple browser")));
 assert.equal(processEventLabel("navigation_event", { reason: "assessment_view_entered" }), "Assessment view opened");
+const exposure = buildProcessDataSummary({ ...base, events: [
+  event("formative_feedback_shown", 10, { payload: { display_event_contract_version: "display-ack-v2",
+    client_occurred_at: at(9).toISOString(), server_received_at: at(10).toISOString(), source_turn_sequence_index: 3,
+    secret: "DO_NOT_EXPORT", student_visible_message: "DO_NOT_EXPORT" } }),
+  event("package_results_shown", 11, { payload: { display_event_contract_version: "display-ack-v1" } }),
+  event("workflow_job_enqueued", 1), event("workflow_job_failed", 2)
+] });
+assert.equal(exposure.version, "process-data-summary-v3");
+assert.equal(exposure.export_scope, "teacher_process_summary_not_full_research_dataset");
+assert(exposure.definitions.display_observation.includes("legacy component mount"));
+const display = exposure.timeline.find(entry => entry.event_type === "formative_feedback_shown")!;
+assert.equal(display.category, "Feedback display");
+assert.equal(display.source_turn_sequence_index, 3);
+assert.equal(display.display_event_contract_version, "display-ack-v2");
+assert.equal(display.client_occurred_at, at(9).toISOString());
+assert.equal(display.server_received_at, at(10).toISOString());
+assert.equal(exposure.timeline.filter(entry => entry.category === "System waiting").length, 2);
+assert(exposure.timeline.find(entry => entry.event_type === "package_results_shown")!.action.includes("visibility unverified"));
+assert(!JSON.stringify(exposure).includes("DO_NOT_EXPORT"));
+assert.equal(result.items[0].timing_contract_version.length > 0, true);
+assert(Array.isArray(result.items[0].timing_limitations));
+assert(result.items[0].calculation_version);
+const exposureCsv = parse<Record<string, string>>(processDataTimelineCsv(exposure, "synthetic"), { columns: true, bom: true });
+assert.equal(exposureCsv.find(row => row.event_type === "formative_feedback_shown")!.source_turn_sequence_index, "3");
 const mixedRevisions = buildProcessDataSummary({ ...base, events: [
   event("answer_changed", 5, { item_public_id: "new-item" }),
   event("option_selected", 5, { item_public_id: "new-item", payload: { revision: true } }),

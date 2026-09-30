@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v3" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v4" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v2" as const;
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v3" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([

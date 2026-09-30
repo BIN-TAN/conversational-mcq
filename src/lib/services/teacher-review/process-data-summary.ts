@@ -1,7 +1,8 @@
 import { deriveItemTiming, deriveSessionTiming, type TimingEventLike } from "../student-assessment/timing-contract";
 import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
+import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v2";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v3";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -36,14 +37,36 @@ const eventLabels: Record<string, string> = {
   option_clicked: "Answer selected",
   reasoning_submitted: "Explanation submitted",
   confidence_clicked: "Confidence selected",
-  item_completed: "Item responses completed"
+  item_completed: "Item responses completed",
+  package_results_shown: "Answer review partly displayed",
+  item_correctness_status_shown: "Item explanation partly displayed",
+  formative_feedback_shown: "Tutor reply partly displayed",
+  workflow_job_enqueued: "Background preparation queued",
+  workflow_job_claimed: "Background preparation started",
+  workflow_job_succeeded: "Background preparation finished",
+  workflow_job_failed: "Background preparation failed",
+  workflow_job_retry_scheduled: "Background preparation retry scheduled"
 };
+
+type ProcessTimelineEntry = {
+  at: string | null; action: string; context: string; category: string; duration_ms: number | null;
+  event_type?: string; event_source?: string | null; recorded_at_field?: string;
+  client_occurred_at?: string | null; server_received_at?: string | null;
+  source_turn_sequence_index?: number | null; display_event_contract_version?: string | null;
+};
+const exposureTypes = ["package_results_shown", "item_correctness_status_shown", "formative_feedback_shown"];
+const iso = (value: unknown) => typeof value === "string" && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : null;
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 export function processEventLabel(type: string, payload?: unknown) {
+  if (exposureTypes.includes(type) && record(payload).display_event_contract_version !== "display-ack-v2") {
+    return record(payload).display_event_contract_version === "display-ack-v1"
+      ? "Feedback component loaded (legacy; visibility unverified)"
+      : "Feedback acknowledgement (visibility unverified)";
+  }
   if (type === "response_stage_observation") {
     const p = record(payload);
     const stage = String(p.response_stage ?? "response").replaceAll("_", " ");
@@ -125,16 +148,23 @@ export function buildProcessDataSummary(input: {
   // Legacy and canonical records can describe the same operation. Collapse only
   // matched timestamps in the readable view; retain unmatched historical events.
   const readableEvents = input.events.filter((event) => !aliases[event.event_type] || !canonicalLifecycle.has(lifecycleKey(event, aliases[event.event_type])));
-  const timeline = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
+  const timeline: ProcessTimelineEntry[] = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
     (event.event_type === "confidence_selected" && record(event.payload).revised === true) ||
     (event.event_type === "response_stage_observation" && ["ready", "first_input", "offline", "online"].includes(String(record(event.payload).observation_kind))) ||
     (event.event_type === "response_stage_outcome" && record(event.payload).validation_rejected === true)).map((event) => {
     const at = event.occurred_at ?? event.created_at;
+    const payload = record(event.payload);
+    const exposure = exposureTypes.includes(event.event_type);
     return {
       at: at ? new Date(at).toISOString() : null,
       action: processEventLabel(event.event_type, event.payload),
       context: [event.topic_title, event.item_order != null ? `Item ${event.item_order}` : null].filter(Boolean).join(" / ") || "Assessment",
-      category: event.event_type === "typing_activity_summary" ? "Typing" : ["window_blur", "window_focus"].includes(event.event_type) ? "Window focus" :
+      event_type: event.event_type, event_source: event.event_source ?? null,
+      recorded_at_field: event.occurred_at ? "occurred_at" : event.created_at ? "created_at_fallback" : "unavailable",
+      client_occurred_at: iso(payload.client_occurred_at), server_received_at: iso(payload.server_received_at),
+      source_turn_sequence_index: exposure && Number.isInteger(payload.source_turn_sequence_index) && Number(payload.source_turn_sequence_index) > 0 ? Number(payload.source_turn_sequence_index) : null,
+      display_event_contract_version: exposure && ["display-ack-v1", "display-ack-v2"].includes(String(payload.display_event_contract_version)) ? String(payload.display_event_contract_version) : null,
+      category: exposure ? "Feedback display" : event.event_type.startsWith("workflow_job_") ? "System waiting" : event.event_type === "typing_activity_summary" ? "Typing" : ["window_blur", "window_focus"].includes(event.event_type) ? "Window focus" :
         browserTypes.includes(event.event_type) ? "Browser activity" : ["answer_changed", "reasoning_revised", "reasoning_edited", "confidence_changed", "confidence_selected", "tempting_option_changed"].includes(event.event_type) ? "Revisions" : "Assessment activity",
       duration_ms: ["long_pause", "inactivity_detected"].includes(event.event_type) ? event.pause_duration_ms ?? null : null
     };
@@ -145,8 +175,12 @@ export function buildProcessDataSummary(input: {
     for (const event of conversation.lifecycle_events) {
       const names: Record<string, string> = { paused: "Learning conversation paused", resumed: "Learning conversation resumed",
         left: "Learning conversation left", reentered: "Learning conversation re-entered", disconnected: "Connection lost",
-        reconnected: "Connection restored", conversation_ended: "Learning conversation ended", completed: "Learning conversation completed" };
+        reconnected: "Connection restored", conversation_ended: "Learning conversation ended", completed: "Learning conversation completed",
+        student_message_persisted: "Student message received", agent_call_started: "Tutor reply generation started",
+        agent_call_completed: "Tutor reply generation finished", agent_call_failed: "Tutor reply generation failed",
+        assistant_response_failed: "Tutor reply unavailable", tutor_message_persisted: "Tutor reply saved" };
       if (names[event.event_type]) timeline.push({ at: event.occurred_at.toISOString(), action: names[event.event_type],
+        event_type: event.event_type, event_source: event.event_source, recorded_at_field: "occurred_at",
         context: conversation.topic_title, category: "Learning conversation", duration_ms: null });
     }
   }
@@ -162,6 +196,16 @@ export function buildProcessDataSummary(input: {
   const deliveryGaps = input.events.reduce((sum, event) => sum + finiteCount(record(event.payload).delivery_gap_count), 0);
   return {
     version: PROCESS_DATA_SUMMARY_VERSION,
+    export_scope: "teacher_process_summary_not_full_research_dataset",
+    definitions: {
+      elapsed_ms: "Elapsed interval, not active work. Item: first answer-ready to final accepted submission using one browser document's monotonic clock; legacy items use their stated timing contract.",
+      time_to_first_action_ms: "Answer-stage ready to first input or submission, not pointer movement or focus.",
+      explanation_elapsed_ms: "Reasoning-stage ready to last accepted submission; includes pre-input time and pauses, not pure typing.",
+      system_wait_ms: "Sum of observed submission-to-usable-controls intervals. Overlaps stage/item elapsed time; do not add to it. Initial AI preparation and free-text generation are separate timeline events.",
+      conversation_edits: "Input-change events for submitted messages, not answer revisions or changes of belief. These overlap whole-page typing observations.",
+      display_observation: "display-ack-v2: partial viewport display for at least 500 ms, not proof of reading, full exposure or understanding. display-ack-v1: legacy component mount, not verified visibility. Missing version is unknown. No event means unobserved, not necessarily unseen.",
+      timeline_clocks: "at uses the named recorded_at_field. Client occurrence and server receipt are separate clocks; missing provenance is unknown. Saved/generated replies do not establish display."
+    },
     browser_observations_available: observed,
     timing: {
       elapsed_ms: timing.session_wall_clock_elapsed_ms,
@@ -197,6 +241,10 @@ export function buildProcessDataSummary(input: {
         explanation_elapsed_ms: itemTiming.reasoning_elapsed_time_ms,
         stage_summary: summarizeItemStageVisits(stageVisits.filter(v => v.item_public_id === item.item_public_id)),
         stage_visits: stageVisits.filter(v => v.item_public_id === item.item_public_id),
+        calculation_version: RESPONSE_STAGE_CALCULATION_VERSION,
+        timing_contract_version: itemTiming.timing_contract_version,
+        timing_source_version: itemTiming.timing_source_version,
+        timing_limitations: itemTiming.timing_limitations,
         timing_quality: itemTiming.timing_quality_status };
     }),
     conversations: input.conversations.map((conversation) => ({
@@ -215,6 +263,8 @@ export function buildProcessDataSummary(input: {
       "Idle thresholds can overlap and include reading or waiting for feedback; they are not separate pauses to add together.",
       "Browser close, device shutdown, and offline events are best-effort observations. Missing events are not proof that an action did not occur.",
       "Typing summaries contain counts, not keystroke text or a full draft history. Conversation input edits are not additional submitted responses.",
+      "This is a teacher process summary, not the complete research dataset. Use the research export for response products, profile changes, source calls and full event evidence.",
+      "Feedback saved, feedback partly displayed and student understanding are separate observations. Historical missing display evidence is not backfilled.",
       ...(!observed ? ["No browser activity was recorded for this attempt; browser counts are unavailable, not zero."] : []),
       ...(incompleteVisibility ? [`${incompleteVisibility} visibility interval(s) lack a reliable start or return; their duration is not estimated.`] : []),
       ...(timing.timing_limitations.includes("multiple_browser_documents_visibility_ambiguous") ? ["Multiple browser documents were observed. A single total time away cannot be determined reliably."] : []),

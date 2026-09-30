@@ -1868,3 +1868,67 @@ never by CSV row position. Snapshot timeout/failure does not produce a truncated
 successful export. Source student records are unchanged. See
 `RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md` for evidence, verification, cleanup
 behavior and remaining capacity limitations.
+
+### Teacher process summary v3
+
+`process-data-summary-v3` is a teacher-facing summary, not the complete research
+dataset. `export_scope=teacher_process_summary_not_full_research_dataset` makes
+this distinction explicit. Existing research ZIP tables retain response
+products, raw events, source calls and profile history; no extra raw-data table
+or historical backfill is introduced.
+
+Each item now carries `calculation_version`, `timing_contract_version`,
+`timing_source_version`, `timing_quality` and `timing_limitations`. Read these
+together with `stage_visits` and `stage_summary`. A partial item can still have
+valid stage durations: for example, active typing duration may be unavailable.
+Missing data remain null, not zero. The export's `definitions` describes:
+
+- `elapsed_ms`: item answer-ready to final accepted submission using a single
+  browser document's monotonic clock when available; otherwise the explicitly
+  identified legacy timing contract. Elapsed time is not active work.
+- `time_to_first_action_ms`: answer-ready to first recorded input or submission,
+  not pointer movement or focus.
+- `explanation_elapsed_ms`: reasoning-ready to last accepted submission,
+  including pre-input time and pauses; not pure typing time.
+- `system_wait_ms`: sum of observed submission-to-usable-controls intervals.
+  These overlap stage/item elapsed intervals, so must not be added to them.
+  Background initial preparation and free-text generation are separate events.
+- Conversation input edits: input-change events for submitted messages, not
+  answer revisions or changes of belief. They overlap whole-page typing counts.
+
+The readable timeline and its CSV now include existing feedback-display,
+background-job and conversation-generation events. Each timeline row carries
+`event_type`, `event_source`, `recorded_at_field`, and available
+`client_occurred_at`/`server_received_at`. `at` uses `occurred_at`, falling back
+to `created_at`; the fallback is explicitly labeled. Display records also
+retain `source_turn_sequence_index` and `display_event_contract_version`.
+No raw event payload or arbitrary provider text is included in this projection.
+
+`display-ack-v2` is partial viewport visibility for at least 500 ms, not proof of
+reading the entire message or understanding it. `display-ack-v1` is a legacy
+component-mount acknowledgement, not verified visibility. Missing versions or
+acknowledgements mean unknown exposure. Generation, persistence and display are
+different events. Client and server timestamps are different clocks; do not
+infer a precise latency by subtracting clocks without a clock-quality check.
+
+### Instructional question coverage and content uncertainty
+
+Host v7.11 can record `student_question_pending`, `student_question_addressed`
+and `assessment_content_ambiguity` in existing `evidence_observations` after
+the opening turn. Each must cite canonical student reasoning or student
+conversation evidence. Request-only turns marked `evidence_quality_context`
+can establish a question, but remain ineligible to establish understanding or
+resolve a misconception. These are model interpretations, not direct behavior
+measurements, verified mastery or exhaustive coverage counts. An answered
+question does not by itself resolve a misconception. The live interpretation
+policy v3 prevents automatic completion while declared questions remain and
+turns are available, except a teacher-assistance referral; student pause and
+application-owned finish controls remain available. Content ambiguity cannot
+support a global sound-understanding judgment.
+
+Existing source-call/observation exports retain these records and references;
+they are never part of the student message. Original provider output, mechanical
+projection audit and rejected candidates remain preserved under policy v3 as
+under v1/v2. Historical responses, scores, profiles and missing observations are
+not rewritten. More complete semantic coverage still requires reviewer audit;
+schema and citation validation cannot establish educational validity alone.

@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-content-policy";
+import { containsInternalSystemInformation } from "@/lib/student-visible-safety";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
@@ -188,7 +190,7 @@ const CHAT_NATIVE_PROFILE_AGENT_NAME = "formative_value_and_planning_agent";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME = "followup_agent";
 const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
-const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v4";
+const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v5";
 const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v1";
 const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v3";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
@@ -198,6 +200,12 @@ You are supporting a chat-native formative MCQ assessment after a protected init
 Use the response package to produce exactly one short structured formative profile and one matched formative activity.
 The application owns state transitions and persistence.
 Return valid structured output only.
+
+${ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS}
+Preserve a student's explicit conceptual questions in the interpretation rationale even when the
+choice is correct. Do not convert an unanswered question or defensible objection into a misconception.
+For ambiguous content, record the interpretive limitation in existing review rationales and use
+undetermined proposition correctness where warranted; do not manufacture contradicted endorsements.
 
 Review EVERY administered item in semantic_item_reviews, once per exact item_public_id.
 Judge the reasoning against the item stem, options, learning objective, and teacher diagnostic context.
@@ -1292,6 +1300,11 @@ function addCommonStudentFacingTextIssues(input: {
   max_length?: number;
 }) {
   const lower = input.text.toLowerCase();
+
+  if (containsInternalSystemInformation(input.text)) {
+    input.issues.push(safeValidationIssue({ field_path: input.field_path,
+      rule_code: "internal_system_information", message: "Keep only student-facing instructional language." }));
+  }
 
   for (const term of INTERNAL_STUDENT_FACING_LABELS) {
     if (lower.includes(term.term)) {

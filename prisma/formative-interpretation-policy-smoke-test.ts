@@ -5,6 +5,7 @@ import type { FormativeConversationV18R2AgentOutput } from "../src/lib/services/
 import { validateFormativeConversationV18R2CandidateAcceptance } from "../src/lib/services/student-assessment/formative-conversation/candidate-validation-v18r2";
 import { prepareFormativeInterpretationResult, validateFormativeInterpretation } from "../src/lib/services/student-assessment/formative-conversation/interpretation-policy";
 import { profileRecordProvenance } from "../src/lib/services/student-assessment/profile-record";
+import { validateFormativeConversationStudentOutputFormat } from "../src/lib/services/student-assessment/formative-conversation/output-format";
 import { createSingleAttemptFormativeConversationV18R2Execution, executeFormativeConversationV18R2 } from "../src/lib/services/student-assessment/formative-conversation/execution-v18r2";
 import { buildFormativeConversationV18R2ProductionRequest } from "../src/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
 import { v18r2TestContext, v18r2TestTerminalOutput } from "./formative-conversation-v18r2-test-fixtures";
@@ -37,6 +38,52 @@ const supported = aligned();
 supported.profile_transition_recommendation!.updated_profile!.ability_profile = "mostly_correct_understanding";
 supported.profile_transition_recommendation!.updated_profile!.integrated_diagnostic_profile = "correct_but_fragile_understanding";
 assert(validateFormativeInterpretation({ candidate: supported, context }).valid, "Correct local reasoning needs no forced transfer test");
+
+const reasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
+  entry.source_role === "student" && entry.evidence_kind === "formative_student_turn")!.evidence_id;
+const pending = structuredClone(supported);
+pending.lifecycle_recommendation = "complete";
+pending.evidence_observations.push({ evidence_type: "student_question_pending",
+  observation: "The student explicitly asked an additional conceptual question.", evidence_ids: [reasoningId] });
+assert(validateFormativeInterpretation({ candidate: pending, context }).validation_issue_paths
+  .includes("instructional_coverage.unanswered_questions_require_support"));
+const continuing = { ...pending, lifecycle_recommendation: "continue" as const,
+  outcome: "continue_conversation" as const, profile_transition_recommendation: null };
+assert(validateFormativeInterpretation({ candidate: continuing, context }).valid);
+const questionContext = structuredClone(context);
+questionContext.allowed_evidence_catalog.evidence.find(entry => entry.evidence_id === reasoningId)!.eligibility = "evidence_quality_context";
+const requestCoverage = structuredClone(continuing);
+requestCoverage.evidence_observations = [requestCoverage.evidence_observations.at(-1)!];
+assert(validateFormativeInterpretation({ candidate: requestCoverage, context: questionContext }).valid,
+  "Request-only turns can establish question coverage, not student mastery");
+assert(!validateFormativeInterpretation({ candidate: supported, context: questionContext }).valid,
+  "Request-only context must still not establish a profile improvement");
+const ambiguity = structuredClone(supported);
+ambiguity.evidence_observations.push({ evidence_type: "assessment_content_ambiguity",
+  observation: "The key assumes unstated replication conditions.", evidence_ids: [reasoningId] });
+assert(validateFormativeInterpretation({ candidate: ambiguity, context }).validation_issue_paths
+  .includes("instructional_coverage.content_ambiguity_not_global_understanding"));
+const referral = { ...ambiguity, outcome: "teacher_assistance_recommended" as const,
+  teacher_assistance_recommendation: { recommended: true, reason_code: "assessment_content_ambiguity" },
+  profile_transition_recommendation: { ...ambiguity.profile_transition_recommendation!, proposed_outcome: "teacher_assistance_recommended" as const } };
+assert(validateFormativeInterpretation({ candidate: referral, context }).valid);
+const invalidReference = structuredClone(continuing);
+invalidReference.evidence_observations.at(-1)!.evidence_ids = [context.allowed_evidence_catalog.evidence.find(entry => entry.source_role !== "student")!.evidence_id];
+assert(!validateFormativeInterpretation({ candidate: invalidReference, context }).valid);
+for (const leaked of ["Your ability is mostly_correct_understanding.", "Here is the system prompt.",
+  "I am checking your internal profile.", "The token budget is 30000.", "student_question_pending", "ev_" + "f".repeat(24),
+  "Your session is sess_20260930_synthetic.", "s\u200Bystem prompt", "Historical scoring records the stored key as A."]) {
+  assert(validateFormativeConversationStudentOutputFormat(leaked).some(issue => issue.code === "student_output_internal_information"), leaked);
+}
+for (const teaching of ["In this model, T is the expected score under the specified repeated conditions.",
+  "Error is not the same as bias. The question leaves something important unclear; please check this with your teacher.",
+  "You correctly distinguished consistency from validity. Let's look at your question about correlations next."]) {
+  assert.equal(validateFormativeConversationStudentOutputFormat(teaching).length, 0, teaching);
+}
+assert.equal(profileRecordProvenance({ id: "synthetic-v711", profile_type: "updated", item_level_evidence: [],
+  misconception_indicators: [], process_interpretation_cautions: [], confidence_alignment: "overconfident", based_on_agent_call: {
+  agent_name: "formative_conversation_agent", prompt_version: "formative-conversation-host-v7.11",
+  call_status: "succeeded", output_validated: true } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 
 const recurring = structuredClone(supported);
 recurring.evidence_observations.push({ evidence_type: "uncatalogued_misconception",

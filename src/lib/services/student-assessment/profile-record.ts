@@ -76,7 +76,7 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_native_confidence_alignment: validated ? profile.confidence_alignment : null,
     profile_confidence_alignment_scope: !validated ? "unavailable" : role === "baseline"
       ? "initial_assessment" : call?.agent_name === "formative_conversation_agent" &&
-        ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7", "formative-conversation-host-v7.8", "formative-conversation-host-v7.9", "formative-conversation-host-v7.10"].includes(call.prompt_version ?? "")
+        ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7", "formative-conversation-host-v7.8", "formative-conversation-host-v7.9", "formative-conversation-host-v7.10", "formative-conversation-host-v7.11"].includes(call.prompt_version ?? "")
         ? "carried_forward_not_reassessed" : "legacy_scope_unrecorded",
     profile_unavailable_reason: fallback ? "profiling_fallback" :
       intermediate ? "intermediate_artifact" : validated ? null : "validation_provenance_unavailable"

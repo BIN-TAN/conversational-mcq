@@ -1,5 +1,6 @@
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { analyzeResponseCollectionMessage } from "./reasoning-extraction";
+import { containsInternalSystemInformation } from "@/lib/student-visible-safety";
 
 const forbiddenAssistantPatterns = [
   /\b(the )?correct answer\b/i,
@@ -121,6 +122,9 @@ export function validateResponseCollectionOutputSemantics(input: {
 }): ResponseCollectionSemanticValidation {
   const issues: string[] = [];
   const { output } = input;
+  if (containsInternalSystemInformation(output.assistant_message)) {
+    issues.push("assistant_message must not expose internal system information.");
+  }
   const analysis = analyzeResponseCollectionMessage({
     message: input.student_message,
     has_existing_reasoning: input.has_existing_reasoning

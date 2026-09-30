@@ -83,7 +83,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
     {data.conversations.length ? <section>
       <h3 className="mb-3 text-lg font-semibold">Learning conversation activity</h3>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
-        <thead className="border-b border-line text-muted"><tr>{["Topic", "Student messages", "Input coverage", "Input edits", "Backspaces", "Paste actions", "Pauses / resumes"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
+        <thead className="border-b border-line text-muted"><tr>{["Topic", "Student messages", "Input coverage", "Input changes", "Backspaces", "Paste actions", "Pauses / resumes"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{data.conversations.map((conversation, index) => <tr className="border-b border-line" key={index}>
           <th className="px-3 py-3 font-medium">{conversation.topic_title}</th>
           <td className="px-3 py-3">{conversation.student_turn_count}</td><td className="px-3 py-3">{conversation.messages_with_input_telemetry} / {conversation.student_turn_count}</td>
@@ -99,7 +99,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
         <h3 className="text-lg font-semibold">Activity timeline</h3>
         <label className="flex items-center gap-2 text-sm">Activity
           <select className="h-10 max-w-full rounded-md border border-line bg-white px-3" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1); }}>
-            <option value="key_activity">Key activity</option><option value="">All activity</option>{["Assessment activity", "Browser activity", "Revisions", "Learning conversation", "Typing", "Window focus"].map((value) => <option key={value}>{value}</option>)}
+            <option value="key_activity">Key activity</option><option value="">All activity</option>{["Assessment activity", "Browser activity", "Revisions", "Learning conversation", "Feedback display", "System waiting", "Typing", "Window focus"].map((value) => <option key={value}>{value}</option>)}
           </select>
         </label>
       </div>

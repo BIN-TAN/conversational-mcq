@@ -8,7 +8,7 @@ import {
 import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
 import { learningSummaryEvidenceIssues } from "./learning-summary-policy";
 
-export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v2";
+export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v3";
 
 // This projection fixes bookkeeping only. Raw output and every evidence reference survive.
 export function prepareFormativeInterpretationResult(
@@ -64,6 +64,26 @@ export function validateFormativeInterpretation(input: {
   const recommendation = output.profile_transition_recommendation;
   const updated = recommendation?.updated_profile;
   const issues: string[] = learningSummaryEvidenceIssues(output, input.context);
+  const coverage = output.evidence_observations.filter(observation =>
+    ["student_question_pending", "student_question_addressed", "assessment_content_ambiguity"].includes(observation.evidence_type));
+  for (const observation of coverage) {
+    if (!observation.evidence_ids.length || observation.evidence_ids.some(id => {
+      const evidence = input.context.allowed_evidence_catalog.evidence.find(entry => entry.evidence_id === id);
+      // A request can establish that a question was asked without establishing understanding.
+      return !evidence || evidence.source_role !== "student" ||
+        !["student_understanding", "evidence_quality_context"].includes(evidence.eligibility) ||
+        !["assessment_reasoning", "assessment_distractor_reasoning", "formative_student_turn"].includes(evidence.evidence_kind);
+    })) issues.push("instructional_coverage.student_reasoning_reference_required");
+  }
+  const pendingQuestions = coverage.some(observation => observation.evidence_type === "student_question_pending");
+  const contentAmbiguity = coverage.some(observation => observation.evidence_type === "assessment_content_ambiguity");
+  if ((pendingQuestions || contentAmbiguity) && output.lifecycle_recommendation === "complete" &&
+      input.context.formative_lifecycle.another_student_turn_available && output.outcome !== "teacher_assistance_recommended") {
+    issues.push("instructional_coverage.unanswered_questions_require_support");
+  }
+  if (contentAmbiguity && output.outcome === "sound_understanding") {
+    issues.push("instructional_coverage.content_ambiguity_not_global_understanding");
+  }
   const uncatalogued = output.evidence_observations.filter(observation =>
     observation.evidence_type === "uncatalogued_misconception"
   );

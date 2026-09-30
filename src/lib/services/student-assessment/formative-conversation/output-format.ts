@@ -7,8 +7,10 @@ import {
   type FormativeConversationProfileTransitionValidationIssue
 } from "./profile-transition-validator";
 
+import { containsInternalSystemInformation } from "@/lib/student-visible-safety";
+
 export const FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION: string =
-  "formative-conversation-student-output-format-v2";
+  "formative-conversation-student-output-format-v3";
 
 export type FormativeConversationOutputValidationIssue = {
   code:
@@ -18,6 +20,7 @@ export type FormativeConversationOutputValidationIssue = {
     | "student_output_link_unsupported"
     | "student_output_raw_html_unsupported"
     | "student_output_concrete_answer_example"
+    | "student_output_internal_information"
     | FormativeConversationProfileTransitionValidationIssue["code"];
   field_path: string;
   message: string;
@@ -43,6 +46,10 @@ export function validateFormativeConversationStudentOutputFormat(
   fieldPath = "student_visible_message"
 ): FormativeConversationOutputValidationIssue[] {
   const issues: FormativeConversationOutputValidationIssue[] = [];
+  if (containsInternalSystemInformation(value)) {
+    issues.push({ code: "student_output_internal_information", field_path: fieldPath,
+      message: "Remove internal identifiers, diagnostic fields and operational information. Keep only natural instructional dialogue; do not quote the blocked text." });
+  }
   // Input-format examples must not contain choices that could expose a new key.
   const plain = value.replace(/[*_`]/g, "");
   if (/(?:\b(?:respond|reply|type|enter|submit|answer|format)\b[^\n]{0,180}?(?:such as|for example|e\.g\.|like|with|format\s*:)|(?:例如|比如|回复格式)[：:]?)[^\n]{0,35}?(?:\b\d{1,2}\s*[.):=-]?\s*[A-E]\b|["'“][A-E]["'”])/i.test(plain)) {

@@ -511,3 +511,40 @@ questions instead of rejected as malformed assessment answers.
 The student UI does not expose a `Choose another activity` action. Clarification
 and requests for an example are handled as turns within the same activity
 attempt.
+
+## Content validity and student dialogue boundary
+
+The active formative host v7.11 reviews explicit questions in the initial
+reasoning, tempting-option rationale and visible conversation, separately from
+endorsed misconceptions. It responds to the current request and returns to
+other unanswered questions without requiring a new quiz or treating a question
+as a false belief. Internal observations document coverage; students see only
+natural instructional dialogue.
+
+Authoring, initial semantic review and formative teaching share
+`assessment-content-validity-v1`. The separately approved canonical profiling
+and advisory item-verification prompts remain unchanged in this release; extending
+this policy to those agents requires a separately verified approval amendment.
+A plausible challenge
+to an ambiguous key is not automatically a student misconception. Explanations
+must state relevant definitions and assumptions rather than invent premises to
+defend a key. In particular, formal CTT true score is expected observed score
+over defined replications, not necessarily construct-pure ability. Stable
+irrelevant influences can affect that expectation and validity; averaging
+random errors does not eliminate stable bias. See Livingston (2018), *Test
+Reliability--Basic Concepts*, ETS RM-18-01, pp. 9-11:
+https://www.ets.org/Media/Research/pdf/RM-18-01.pdf.
+
+A disputed administered item must be reviewed by a teacher. The application
+continues to protect sealed item snapshots and historical responses. Corrected
+content uses the existing linked draft/revision workflow, not silent rescoring.
+Publishing a correction is separate from deploying this software policy.
+
+Student-message validation screens known internal field names, evidence/session
+identifiers and operational terminology before display. Collection and initial
+feedback use their existing safe failure/repair paths; formative conversation
+uses its bounded regeneration/retry path. The screen does not filter student
+responses or modify historical transcripts. It is a defense in depth, not a
+guarantee that arbitrary model prose cannot leak information. Provider inputs
+must still exclude secrets and unrelated student data. Requests for internal
+information receive a brief neutral refusal and appropriate instructional help.
