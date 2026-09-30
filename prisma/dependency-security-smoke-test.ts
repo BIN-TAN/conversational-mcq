@@ -50,7 +50,7 @@ async function main() {
     };
     for (const [location, entry] of Object.entries(lock.packages) as Array<[string, { version: string }]>) {
       const name = location.split("node_modules/").at(-1)!;
-      const floor = name === "brace-expansion" ? (entry.version.startsWith("1.") ? "1.1.18" : "5.0.9") : floors[name];
+      const floor = name === "brace-expansion" ? (entry.version.startsWith("1.") ? "1.1.21" : "5.0.12") : floors[name];
       if (!floor) continue;
       const actual = entry.version.split(".").map(Number);
       const minimum = floor.split(".").map(Number);
