@@ -75,6 +75,18 @@ that directory passed with five existing warnings. No pre-existing demo files
 were changed. Final build and source verification are recorded in the release
 ledger along with push and deployment status.
 
+`server-final.json` repeats the server check on application commit
+`16c3f636c5b592702aed5c43dc6a2e45a0172569` after retaining the approved
+independent prompts. Typecheck, 63/63 classroom suites and 21/21 navigation
+scenarios passed with an unchanged source fingerprint. The same unrelated lint
+failure remains; the runner's overall failure is retained rather than relabeled.
+The production build passed separately.
+
+The application commit was pushed and its remote head verified. At 18:29 UTC,
+read-only Render SSH still reported the previous application commit
+`007278cc9b7262c451d1edc64d5ab200f9a8a615`. Render dashboard authentication is
+required to inspect the new deployment; this record does not claim it is Live.
+
 No independent subject-matter validation, learning-gain study, fairness evaluation,
 exhaustive security review or classroom-scale load test is claimed. The corrected
 item requires teacher approval. Process summaries are not the complete research

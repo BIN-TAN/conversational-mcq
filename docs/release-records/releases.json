@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-28T17:36:53-06:00",
+  "updated_at": "2026-09-30T12:29:26-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -961,6 +961,86 @@
         "src/lib/services/teacher-research-data/analysis-ready-export.ts",
         "prisma/learning-profile-summary-smoke-test.ts",
         "prisma/profile-record-projection-smoke-test.ts",
+        "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260930-01",
+      "date": "2026-09-30",
+      "title": "Student dialogue safety and unanswered question coverage",
+      "application_commit": "16c3f636c5b592702aed5c43dc6a2e45a0172569",
+      "push_status": "Pushed to origin/main. GitHub accepted 5b4461ad..16c3f636; independent remote-head verification matched the full application commit at 2026-09-30 18:22 UTC. Unrelated local outputs and demo scripts were excluded.",
+      "deployment": {
+        "status": "pending",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "source_commit": "16c3f636c5b592702aed5c43dc6a2e45a0172569",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0",
+        "evidence": [
+          "Push was verified. Render and GitHub login require authentication; the login tab awaits the user. New deployment ID, Live status, worker readiness and the deployment delay's cause remain unverified.",
+          "Read-only SSH at 2026-09-30 18:29 UTC returned old RENDER_GIT_COMMIT 007278cc9b7262c451d1edc64d5ab200f9a8a615, not this release. Exit 0; existing additional ED25519 signature warning retained, host verification unchanged.",
+          "Health at 2026-09-30T18:23:46.598Z: HTTP 200, status ok, database/schema ready. GitHub status/check-run lists were empty. These are not new-deployment evidence."
+        ]
+      },
+      "summary": "Address overlooked questions and disputed explanations without rewriting student evidence; prevent known internal information from reaching student messages; make process-summary timing and exposure provenance explicit.",
+      "changes": [
+        {
+          "area": "Instructional coverage and content validity",
+          "problem": "An explicit question embedded in a correct initial answer could be overlooked. A CTT explanation treated a stable construct-irrelevant influence as random error without specifying the replication definition.",
+          "fix": "Share assessment-content-validity-v1 across current initial semantic review, authoring and tutoring. Host v7.11 revisits initial questions and conversation, separately recording pending questions, addressed questions and content ambiguity. Keep questions separate from endorsed errors and mastery. Clarify expected observed score, stable bias and average versus individual error.",
+          "impact": "The tutor can acknowledge a defensible objection and recommend teacher clarification instead of defending an ambiguous key. A linked Test 4 correction draft was saved for instructor review, not published. Existing content, scores and attempts remain unchanged."
+        },
+        {
+          "area": "Student conversation boundary",
+          "problem": "A synthetic reply described stored keys and historical scoring; other internal labels and identifiers could appear in natural-language replies.",
+          "fix": "Add a shared pre-display screen to collection, initial/targeted feedback and formative dialogue, plus explicit tutor instructions. Reject known internal field names, identifiers, operational details and stored-key narration using existing bounded regeneration/retry paths. Preserve original rejected candidates for audit.",
+          "impact": "Students receive learning-focused dialogue rather than operational narration. The guard does not alter their responses or historical transcripts. It is defense in depth, not exhaustive semantic or security assurance."
+        },
+        {
+          "area": "Research provenance and deployment compatibility",
+          "problem": "Teacher process summaries lacked some timing/version context and mixed generation with exposure. Updating independently approved agent prompts would introduce an approval mismatch.",
+          "fix": "Process summary v3 adds calculation/source versions, limitations, event clocks and display-contract provenance. Include existing generation, persistence and background events; distinguish legacy mount acknowledgement from partial viewport display. Retain canonical profiling v6 and advisory verification v4 with their existing approved hashes.",
+          "impact": "Researchers can distinguish elapsed time, input changes, waiting and observed display without treating them as learning. No approval protection is bypassed. Extending the new policy to the two independent agents remains a separate approval task."
+        }
+      ],
+      "data_impact": [
+        "No schema migration, historical rescoring, attempt reset, transcript rewrite or profile regeneration. The only production content write was a linked unpublished correction draft through the teacher revision workflow.",
+        "process-data-summary-v3 explicitly identifies itself as a teacher summary, not the full research dataset. The JSON and readable timeline CSV include safe event provenance, not arbitrary provider payloads. Existing research ZIP tables remain unchanged.",
+        "Elapsed timing is not active work. System-wait intervals overlap stage and item durations and must not be added to them. Input-change counts are not answer revisions. Partial item timing may coexist with valid stage timings; missing values remain null.",
+        "display-ack-v2 indicates partial viewport visibility for at least 500 ms, not reading or understanding. display-ack-v1 is legacy component mount only. Missing exposure evidence remains unknown and is not backfilled.",
+        "Question-coverage observations are model interpretations with student evidence references. Request-only evidence_quality_context may support coverage but never mastery or misconception resolution. Interpretation-policy v3 retains original provider output and projection audits; v1/v2 historical records remain readable."
+      ],
+      "tests": [
+        {
+          "name": "Three synthetic real AI scenarios",
+          "result": "Final 6 responses and 36 programmed checks passed",
+          "detail": "CTT bias and average error, a baseline unanswered question, and internal-information request followed by pause. Production request compiler and bounded validation path used gpt-5.6-sol with medium reasoning and 10000 output tokens. All final responses accepted first try; approximate latency 10-26 seconds. Implementing assistant inspected every final message; no independent expert validation claimed."
+        },
+        {
+          "name": "Failures retained and corrected",
+          "result": "18 provider requests across three runs",
+          "detail": "Initial six accepted replies exposed stored-key/scoring narration during manual review. A stricter guard followed. The second run made six calls with four accepted turns and two rejected candidates: request-only evidence was wrongly excluded from question coverage. Coverage eligibility was corrected without relaxing mastery eligibility. Final six passed. An earlier regression also found two stale prompt-version/literal test expectations; corrected before reruns."
+        },
+        {
+          "name": "Final engineering regression",
+          "result": "63 classroom suites and 21 navigation scenarios passed",
+          "detail": "Final server run used disposable migrated/seeded localhost databases with external AI blocked; source fingerprint unchanged. Typecheck, process-summary/privacy, interpretation/projection and 46 approval-integrity checks passed. Production build passed. Scoped ESLint passed with five existing warnings. Whole-repository lint failed on six pre-existing errors in ignored local .data demo scripts; those files were untouched, so the runner correctly reports an overall failure rather than a clean pass."
+        }
+      ],
+      "limitations": [
+        "Render authentication currently blocks deployment-detail and worker verification. Do not infer successful Live status from push, health alone or an older deployment.",
+        "The corrected Test 4 draft needs instructor review and publication. Existing student attempts still retain their originally administered content; no automatic rescoring decision was made.",
+        "The separately approved canonical profiling and advisory verification prompts are unchanged to prevent runtime approval mismatch. A reviewed approval amendment is needed before expanding their content policy.",
+        "Live AI canaries were synthetic in-memory dialogue checks. Persistence/navigation tests used mock AI separately. No full classroom load test, exhaustive leak proof, independent content validation or learning/transfer effect is claimed."
+      ],
+      "references": [
+        "docs/acceptance/runs/2026-09-30/content-safety/REPORT.md",
+        "docs/acceptance/runs/2026-09-30/content-safety/server-final.json",
+        "src/lib/assessment-content-policy.ts",
+        "src/lib/student-visible-safety.ts",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts",
+        "src/lib/services/teacher-review/process-data-summary.ts",
+        "docs/ASSESSMENT_FLOW.md",
         "docs/DATA_LOGGING_SPEC.md"
       ]
     }
