@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-30T12:29:26-06:00",
+  "updated_at": "2026-09-30T13:44:00-06:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -971,15 +971,17 @@
       "application_commit": "16c3f636c5b592702aed5c43dc6a2e45a0172569",
       "push_status": "Pushed to origin/main. GitHub accepted 5b4461ad..16c3f636; independent remote-head verification matched the full application commit at 2026-09-30 18:22 UTC. Unrelated local outputs and demo scripts were excluded.",
       "deployment": {
-        "status": "pending",
+        "status": "failed",
         "service": "conversational-mcq",
         "service_id": "srv-d987t1vaqgkc73d5l5q0",
         "source_commit": "16c3f636c5b592702aed5c43dc6a2e45a0172569",
-        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-daul6om0tbcc73dp64o0",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-daul6om0tbcc73dp64o0",
         "evidence": [
           "Push was verified. Render and GitHub login require authentication; the login tab awaits the user. New deployment ID, Live status, worker readiness and the deployment delay's cause remain unverified.",
           "Read-only SSH at 2026-09-30 18:29 UTC returned old RENDER_GIT_COMMIT 007278cc9b7262c451d1edc64d5ab200f9a8a615, not this release. Exit 0; existing additional ED25519 signature warning retained, host verification unchanged.",
-          "Health at 2026-09-30T18:23:46.598Z: HTTP 200, status ok, database/schema ready. GitHub status/check-run lists were empty. These are not new-deployment evidence."
+          "Health at 2026-09-30T18:23:46.598Z: HTTP 200, status ok, database/schema ready. GitHub status/check-run lists were empty. These are not new-deployment evidence.",
+          "Follow-up after dashboard authentication at approximately 19:27 UTC identified the actual failure: auto-deploy began at 12:22:26 MDT and exited during the dependency security gate after 36.3 seconds with dependency_audit_high_findings. The existing service stayed on 007278cc. The inherited brace-expansion dependency fix and delivery of this application change are tracked separately in CMCQ-20260930-02; this failed source is not relabeled as directly deployed."
         ]
       },
       "summary": "Address overlooked questions and disputed explanations without rewriting student evidence; prevent known internal information from reaching student messages; make process-summary timing and exposure provenance explicit.",
@@ -1028,7 +1030,7 @@
         }
       ],
       "limitations": [
-        "Render authentication currently blocks deployment-detail and worker verification. Do not infer successful Live status from push, health alone or an older deployment.",
+        "Initial Render authentication blocked verification. Later authenticated inspection confirmed this exact deployment failed its dependency security gate. Follow-up delivery is recorded under CMCQ-20260930-02.",
         "The corrected Test 4 draft needs instructor review and publication. Existing student attempts still retain their originally administered content; no automatic rescoring decision was made.",
         "The separately approved canonical profiling and advisory verification prompts are unchanged to prevent runtime approval mismatch. A reviewed approval amendment is needed before expanding their content policy.",
         "Live AI canaries were synthetic in-memory dialogue checks. Persistence/navigation tests used mock AI separately. No full classroom load test, exhaustive leak proof, independent content validation or learning/transfer effect is claimed."
@@ -1042,6 +1044,69 @@
         "src/lib/services/teacher-review/process-data-summary.ts",
         "docs/ASSESSMENT_FLOW.md",
         "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20260930-02",
+      "date": "2026-09-30",
+      "title": "Patched build dependencies and delivery of dialogue safeguards",
+      "application_commit": "db688c0c9889347ef82b88c5e4d23d89bfe4bedc",
+      "push_status": "Pushed to origin/main; GitHub accepted 83577e9a..db688c0c and independent remote-head verification matched the full commit. Only the lockfile and dependency regression test changed; unrelated outputs were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-daum89nf3r2c73fvps40",
+        "verified_at": "2026-09-30T13:44:00-06:00",
+        "source_commit": "db688c0c9889347ef82b88c5e4d23d89bfe4bedc",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-daum89nf3r2c73fvps40",
+        "evidence": [
+          "Authenticated deployment detail shows Deploy succeeded | Live, source db688c0c9889347ef82b88c5e4d23d89bfe4bedc, auto-deploy started Sep 30 at 13:33:59 MDT, duration 5m05s. Logs show completed production build and pre-deploy migration check: 65 migrations present, none pending.",
+          "Read-only SSH independently returned RENDER_GIT_COMMIT db688c0c9889347ef82b88c5e4d23d89bfe4bedc. /app/build/application-build-info.json matched this revision, built at 2026-09-30T19:34:30.872Z, artifact SHA256 30d71d1cf506aae35fd61202ef3a0c8742f314b217ff47a98464342dee7c6528. Process inspection found next-server PID 14 and initial-preparation-worker PID 15. SSH exit 0 retained the additional ED25519 signature warning; host verification was not disabled.",
+          "Public /api/health returned HTTP 200 at 2026-09-30T19:41:21.965Z with status ok, database_reachable true, database_schema_ready true and migration_readiness ready.",
+          "Authenticated teacher LLM status page loaded after deployment: live calls enabled, operational integration enabled, integration block reason none. This is configuration evidence, not a new generated-feedback or provider-authentication success. A separate SSH readiness invocation exited 1 without a diagnostic result; no cause or successful auth check is inferred."
+        ]
+      },
+      "summary": "Resolve the verified security-gate deployment failure without bypassing the gate or changing assessment behavior. This follow-up includes all dialogue-safety, question-coverage and process-summary changes from CMCQ-20260930-01.",
+      "changes": [
+        {
+          "area": "Build dependency security",
+          "problem": "Render rejected the preceding release because npm audit reported high-severity brace-expansion findings in transitive ESLint dependencies. The prior locally successful production build did not by itself verify the separate network-backed audit gate.",
+          "fix": "Update only brace-expansion 1.1.18 to 1.1.21 and 5.0.9 to 5.0.12 in the integrity-pinned lockfile. Raise the existing regression test's patched floors accordingly. Keep the all-dependency, zero-findings gate unchanged.",
+          "impact": "The approved application changes can proceed through the same secure deployment checks. There is no direct dependency major-version change, new feature, prompt change, approval change or runtime-memory change in this follow-up."
+        }
+      ],
+      "data_impact": [
+        "No new database migration, response rewrite, rescoring, attempt reset or content publication. Production student records were not changed during deployment verification.",
+        "The inherited dialogue and process-summary behavior is documented in CMCQ-20260930-01. The corrected Test 4 remains an unpublished teacher-review draft. Historical records are not retroactively collected or reclassified as newly observed behavior."
+      ],
+      "tests": [
+        {
+          "name": "Dependency security and regression",
+          "result": "Passed",
+          "detail": "npm run security:dependencies returned zero findings at every severity after the targeted update. npm run security:dependency-smoke passed all 17 checks, including patched floors and refusal of failed, incomplete or vulnerable audit reports. Typecheck, changed-file ESLint and git diff --check passed. No provider calls were needed for this dependency-only follow-up."
+        },
+        {
+          "name": "Production build and retained local failures",
+          "result": "Passed with existing build configuration after two local failures",
+          "detail": "The sandboxed build first failed on tsx IPC permission. An authorized retry hit the local default approximately 4 GiB heap limit. Using the existing Docker build-only setting NODE_OPTIONS=--max-old-space-size=12288 and NEXT_PRIVATE_BUILD_WORKER=1 passed compilation, type validation and 83 static pages. No memory configuration was changed. Two existing source warnings remain. Whole-repository lint still fails on six pre-existing ignored .data demo-script errors and five existing warnings; those files were untouched."
+        },
+        {
+          "name": "Post-deploy verification",
+          "result": "Live revision, web/worker presence and health verified",
+          "detail": "Matched the exact source on Render and via independent runtime/build-metadata reads. Verified no pending migrations, public health HTTP 200 and teacher LLM configuration page. The standalone SSH provider-readiness invocation returned no result and exit 1; it is retained as inconclusive, not passed. No production student interaction or research export was created during these checks."
+        }
+      ],
+      "limitations": [
+        "The audit is a time-specific known-advisory check, not proof of absence of all vulnerabilities. Subsequent advisory changes can correctly block a future build.",
+        "The earlier synthetic AI and database/navigation tests are retained under CMCQ-20260930-01; they were not reclassified as newly performed live classroom tests. No educational-outcome, comprehensive load or independent psychometric validity claim is made."
+      ],
+      "references": [
+        "package-lock.json",
+        "prisma/dependency-security-smoke-test.ts",
+        "scripts/dependency-security-check.mjs",
+        "Dockerfile",
+        "docs/acceptance/runs/2026-09-30/content-safety/REPORT.md"
       ]
     }
   ],

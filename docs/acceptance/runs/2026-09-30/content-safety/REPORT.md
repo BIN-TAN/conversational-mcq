@@ -91,3 +91,40 @@ No independent subject-matter validation, learning-gain study, fairness evaluati
 exhaustive security review or classroom-scale load test is claimed. The corrected
 item requires teacher approval. Process summaries are not the complete research
 dataset, and old component-mount acknowledgements do not establish reading.
+
+## Deployment follow-up
+
+At approximately 19:27 UTC, authenticated Render inspection resolved the earlier
+uncertainty. Deployment `dep-daul6om0tbcc73dp64o0` for `16c3f636` failed after
+36.3 seconds at the separate dependency security gate, before application build.
+It reported `dependency_audit_high_findings`; the previous release remained live.
+The earlier successful local build was not evidence that the network-backed audit
+had passed. This failed deployment is retained in the release ledger.
+
+The audit identified transitive ESLint `brace-expansion` versions 1.1.18 and
+5.0.9. The targeted follow-up moves them to 1.1.21 and 5.0.12 and updates the
+regression floors. The reviewed advisories describe
+[nested-group stack exhaustion](https://github.com/advisories/GHSA-qhr7-859c-m2p7),
+[quadratic expansion](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr), and
+[comma-parser recursion](https://github.com/advisories/GHSA-6j4f-fj2g-mc7p).
+No audit gate was relaxed, and no student data or assessment logic was changed
+by this dependency-only follow-up.
+
+Commit `db688c0c9889347ef82b88c5e4d23d89bfe4bedc` was pushed and independently
+confirmed on origin/main. The exact security gate returned zero findings;
+17 dependency checks, typecheck, changed-file lint and diff checks passed.
+The production build passed with the Dockerfile's existing build-only 12 GiB
+heap setting after a sandbox IPC failure and a local default-heap failure.
+Whole-repository lint retains the previously documented ignored demo-script
+errors. The Render deployment outcome and post-deploy checks are recorded in
+CMCQ-20260930-02; no new real AI call is claimed for the dependency-only change.
+
+At 19:44 UTC, deployment `dep-daum89nf3r2c73fvps40` was verified as
+`Deploy succeeded | Live` with exact source `db688c0c9889347ef82b88c5e4d23d89bfe4bedc`.
+Read-only runtime and build metadata independently matched; web and preparation
+worker processes were present. No migrations were pending. Public health returned
+HTTP 200 with database/schema ready at 19:41:21.965 UTC. The authenticated teacher
+LLM page reported integration enabled with no block reason. A separate SSH
+provider-readiness command exited 1 without a result and is inconclusive; neither
+that command nor the configuration page establishes new AI response quality.
+No student records were modified by these verification checks.
