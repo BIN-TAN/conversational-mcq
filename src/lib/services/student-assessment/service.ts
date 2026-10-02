@@ -6943,6 +6943,8 @@ export async function exitStudentAssessmentSession(input: {
         reason: "student_requested_pause",
         preserved_phase: session.current_phase,
         next_step: stateBeforeExit.next_step,
+        current_concept_unit_public_id: stateBeforeExit.current_concept_unit?.concept_unit_public_id ?? null,
+        current_item_public_id: stateBeforeExit.current_item?.item_public_id ?? null,
         operation_identity: stableHash({
           command: "pause_attempt",
           actor: input.student_user_db_id,

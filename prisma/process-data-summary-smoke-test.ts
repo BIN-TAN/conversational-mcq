@@ -46,7 +46,7 @@ const exposure = buildProcessDataSummary({ ...base, events: [
   event("package_results_shown", 11, { payload: { display_event_contract_version: "display-ack-v1" } }),
   event("workflow_job_enqueued", 1), event("workflow_job_failed", 2)
 ] });
-assert.equal(exposure.version, "process-data-summary-v3");
+assert.equal(exposure.version, "process-data-summary-v4");
 assert.equal(exposure.export_scope, "teacher_process_summary_not_full_research_dataset");
 assert(exposure.definitions.display_observation.includes("legacy component mount"));
 const display = exposure.timeline.find(entry => entry.event_type === "formative_feedback_shown")!;

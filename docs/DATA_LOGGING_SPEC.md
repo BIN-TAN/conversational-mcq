@@ -1,5 +1,15 @@
 # Data Logging Specification
 
+## Pause and session observation projection (2026-10-02)
+
+`process-data-summary-v4` and `session-timing-v4` include later conversation
+activity in the observation endpoint of open attempts. Completed attempts retain
+their terminal cutoff. `pause_episodes.csv` records matched explicit pauses and
+resumes with available phase, display and student-message context. No preference,
+motivation or learning judgment is inferred from pauses. See
+[Process participation observations](PROCESS_PARTICIPATION_OBSERVATIONS.md) for
+field definitions, formulas, join keys, missing-data rules and verification.
+
 ## Conversation visibility projection (2026-09-28)
 
 `conversation-visibility-v1` is a read-only projection, not new behavioral data.

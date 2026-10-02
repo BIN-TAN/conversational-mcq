@@ -53,6 +53,11 @@ async function addUnansweredPromptForLatencyLimitTest() {
   });
   const conceptUnitSession = session.concept_unit_sessions[0];
   assert(conceptUnitSession, "Fixture missing concept-unit session.");
+  await prisma.processEvent.createMany({ data: [
+    { event_type: "attempt_paused", occurred_at: new Date("2026-06-19T14:58:10.000Z"), payload: { preserved_phase: "initial_item_administration", reason: "student_requested_pause" } },
+    { event_type: "session_paused", occurred_at: new Date("2026-06-19T14:58:10.000Z"), payload: {} },
+    { event_type: "attempt_resumed", occurred_at: new Date("2026-06-19T14:58:20.000Z"), payload: {} }
+  ].map(event => ({ ...event, assessment_session_db_id: session.id, event_category: "attempt_lifecycle", event_source: "backend" })) });
 
   await prisma.conversationTurn.createMany({
     data: [
@@ -110,7 +115,7 @@ async function main() {
       snapshots: await prisma.postActivityDiagnosticSnapshot.count()
     };
 
-    const review = await buildResearchExportIntegrityReview({ write_artifact: true });
+    const review = await buildResearchExportIntegrityReview({ session_public_id: teacherReviewSessionPublicId, write_artifact: true });
     assert(review.summary.status !== "failed", `Integrity review failed: ${JSON.stringify(review.findings, null, 2)}`);
     assert(review.summary.required_files_present, "Required export files should be present.");
     assert(review.summary.manifest_present, "Manifest should be present.");
@@ -183,6 +188,15 @@ async function main() {
       include_restricted_fields: true
     });
     const dictionaryRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "research_data_dictionary.csv"));
+    const pauses = parseCsvRows<Record<string, string>>(fileData(normalized.files, "pause_episodes.csv"));
+    assert(pauses.length === 1, "Expected one matched pause episode, without legacy alias duplication.");
+    assert(pauses[0].pause_duration_ms === "10000", "Pause export must use paired server timestamps.");
+    assert(pauses[0].student_messages_before_pause === "", "Unknown conversation linkage must stay empty.");
+    const pauseDictionary = parseCsvRows<Record<string, string>>(fileData(normalized.files, "pause_episode_data_dictionary.csv"));
+    assert(csvHeader(fileData(normalized.files, "pause_episodes.csv")).every(key => pauseDictionary.some(row => row.variable === key)), "Every pause column needs a definition.");
+    const sessionRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "sessions.csv"));
+    assert(sessionRows.every(row => row.session_wall_clock_elapsed_ms === row.elapsed_session_time_ms), "Elapsed aliases must agree.");
+    assert(sessionRows.every(row => row.timing_contract_version === "session-timing-v4" && row.session_observation_end_at), "Export must carry corrected timing version and endpoint.");
     const processEventRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "process_events.csv"));
     const processCodebookRows = parseCsvRows<Record<string, string>>(fileData(normalized.files, "process_event_codebook.csv"));
     const dictionaryKeys = new Set(dictionaryRows.map((row) => `${row.table_name}.${row.variable_name}`));

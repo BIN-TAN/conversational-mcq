@@ -3,9 +3,13 @@ import { TeacherReviewServiceError } from "./errors";
 import { asRecord, serializeDate } from "./serializers";
 import { buildTurnResponseLatencyRows } from "./turn-response-latencies";
 import { conversationVisibility } from "../student-assessment/conversation-visibility";
+import { presentedItemPositions } from "./presented-item-positions";
 
 export type TeacherReadableTranscriptTurn = {
   turn_index: number;
+  source_turn_sequence_index?: number;
+  item_public_id?: string | null;
+  presented_item_position?: number | null;
   speaker: "agent" | "student" | "system";
   timestamp: string | null;
   phase_label: string;
@@ -223,6 +227,7 @@ export async function getTeacherReadableTranscript(
       orderBy: [{ sequence_index: "asc" }],
       select: {
         phase: true,
+        sequence_index: true,
         actor_type: true,
         agent_name: true,
         message_text: true,
@@ -263,6 +268,7 @@ export async function getTeacherReadableTranscript(
         event_type: true,
         event_category: true,
         event_source: true,
+        payload: true,
         occurred_at: true,
         created_at: true,
         item: {
@@ -285,6 +291,7 @@ export async function getTeacherReadableTranscript(
     })
   ]);
   const limitations = new Set<string>();
+  const positions = presentedItemPositions(processEvents.map(event => ({ ...event, item_public_id: event.item?.item_public_id })));
   const conversationTopics = new Set(session.formative_conversation_sessions.map(entry => entry.concept_unit_session_db_id));
   const readableTurns = turns.flatMap((turn, index) => {
     const visibility = conversationVisibility(turn.structured_payload,
@@ -346,6 +353,9 @@ export async function getTeacherReadableTranscript(
 
     return [{
       turn_index: turnIndex,
+      source_turn_sequence_index: turn.sequence_index,
+      item_public_id: turn.item?.item_public_id ?? null,
+      presented_item_position: turn.item ? positions.get(turn.item.item_public_id) ?? null : null,
       speaker: speakerLabel(turn.actor_type),
       timestamp: serializeDate(turn.created_at),
       phase_label: phaseLabel(turn.phase),
@@ -355,7 +365,7 @@ export async function getTeacherReadableTranscript(
           turn.concept_unit_session?.concept_unit.concept_unit_public_id ??
           turn.item?.concept_unit.concept_unit_public_id ??
           null,
-        item_order: turn.item?.item_order ?? null,
+        item_order: turn.item ? positions.get(turn.item.item_public_id) ?? null : null,
         item_public_id: turn.item?.item_public_id ?? null,
         followup_round_index: turn.followup_round?.round_index ?? null
       }),
@@ -400,6 +410,8 @@ export function renderTeacherReadableTranscriptMarkdown(
       `## ${turn.turn_index}. ${turn.speaker} · ${turn.phase_label}${context}`,
       "",
       `Timestamp: ${turn.timestamp ?? "Not recorded"}`,
+      turn.source_turn_sequence_index !== undefined ? `Source turn sequence: ${turn.source_turn_sequence_index}` : "",
+      turn.item_public_id ? `Item ID: ${turn.item_public_id}` : "",
       turn.next_student_response_latency_seconds !== null
         ? `Next student response/action after: ${turn.next_student_response_latency_seconds}s`
         : "",

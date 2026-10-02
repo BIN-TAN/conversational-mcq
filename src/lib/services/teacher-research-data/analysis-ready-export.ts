@@ -5,6 +5,8 @@ import { learningProfileInclude, latestLearningProfile, learningProfileSummary, 
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
+import { conversationActivityDates, conversationParticipation, derivePauseEpisodes, PAUSE_EPISODE_DEFINITIONS } from "../teacher-review/participation-observations";
+import { presentedItemPositions } from "../teacher-review/presented-item-positions";
 import { acceptedTemptingEvidence, RESPONSE_EVIDENCE_VERSION } from "../student-assessment/response-evidence";
 import { ResearchExportSpool, withResearchExportSlot } from "./export-spool";
 import { exportStorageDirectory, pathForStorageKey } from "../master-export/storage";
@@ -19,6 +21,7 @@ import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import {
   TIMING_CONTRACT_VERSION,
   TIMING_SOURCE_VERSION,
+  SESSION_TIMING_CONTRACT_VERSION,
   deriveItemTiming,
   deriveSessionTiming,
   deriveVisibilityIntervals,
@@ -442,6 +445,11 @@ type AnalysisSession = Prisma.AssessmentSessionGetPayload<{ select: typeof analy
 type SupplementalRecords = Awaited<ReturnType<typeof loadSupplementalRecords>>;
 
 const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
+  "participation_observation_version",
+  "tutor_reply_count",
+  "displayed_tutor_reply_count",
+  "first_tutor_display_received_at",
+  "first_student_message_at",
   ...PROFILE_PROVENANCE_COLUMNS,
   "profile_reassessment_status",
   "initial_profile_record_id",
@@ -992,14 +1000,15 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
     const sessionEvents = session.process_events;
     const initialResponses = responses.filter(isInitialResponse);
     const longPauseEvents = session.process_events.filter((event) => event.event_type === "long_pause");
-    const elapsed = diff(ms(session.started_at ?? session.created_at), ms(session.completed_at ?? session.last_activity_at ?? session.updated_at));
     const sessionTiming = deriveSessionTiming({
       session_started_at: session.started_at ?? session.created_at,
       session_completed_at: session.completed_at,
       last_activity_at: session.last_activity_at,
       updated_at: session.updated_at,
-      events: session.process_events
+      events: session.process_events,
+      additional_activity_at: conversationActivityDates(session.formative_conversation_sessions)
     });
+    const elapsed = sessionTiming.session_wall_clock_elapsed_ms;
     const activeTime = sessionTiming.session_active_interaction_time_ms;
     const totalIdle = sessionTiming.session_idle_time_ms;
     const profile = latestProfile(session);
@@ -1149,6 +1158,8 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       session_completion_status: session.status,
       session_limitations: [!responses.length ? "no_item_responses_recorded" : "", feedbackUnavailableEvent ? "initial_feedback_unavailable" : ""].filter(Boolean).join("|"),
       session_wall_clock_elapsed_ms: sessionTiming.session_wall_clock_elapsed_ms,
+      session_observation_end_at: iso(sessionTiming.session_observation_end_at),
+      session_observation_end_source: sessionTiming.session_observation_end_source,
       session_resumable_active_window_ms: sessionTiming.session_resumable_active_window_ms,
       session_visible_window_ms: sessionTiming.session_visible_window_ms,
       session_active_interaction_time_ms: sessionTiming.session_active_interaction_time_ms,
@@ -1429,6 +1440,7 @@ function processEventRows(sessions: AnalysisSession[]) {
   return sessions.flatMap((session) =>
     {
       const visibilityIntervals = deriveVisibilityIntervals(session.process_events);
+      const positions = presentedItemPositions(session.process_events.map(event => ({ ...event, item_public_id: event.item?.item_public_id })));
       const visibilityByStart = new Map(
         visibilityIntervals.map((interval) => [`${interval.browser_tab_id ?? "legacy"}:${interval.start_at.getTime()}`, interval])
       );
@@ -1462,7 +1474,8 @@ function processEventRows(sessions: AnalysisSession[]) {
         timing_contract_version: payloadString(payload, ["timing_contract_version"]) ?? "legacy_unversioned",
         timing_source_version: payloadString(payload, ["timing_source_version"]) ?? "legacy_unversioned",
         timing_quality_status: payloadString(payload, ["timing_quality_status"]),
-        item_position: event.item?.item_order ?? null,
+        item_position: event.item ? positions.get(event.item.item_public_id) ?? null : null,
+        authoring_item_order: event.item?.item_order ?? null,
         actual_total_item_count: initialItemCount(session) + session.concept_unit_sessions.flatMap((entry) => entry.item_responses).filter((entry) => !isInitialResponse(entry)).length,
         payload_source: payloadString(payload, ["source"]),
         payload_action_status: payloadString(payload, ["action_status", "status"]),
@@ -1857,6 +1870,7 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
             .concept_unit_public_id,
         conversation_public_id: conversation.conversation_public_id,
         conversation_status: conversation.status,
+        ...conversationParticipation(conversation, session.process_events),
         started_at: iso(conversation.started_at),
         last_activity_at: iso(conversation.last_activity_at),
         paused_at: iso(conversation.paused_at),
@@ -2258,6 +2272,14 @@ function formativeConversationDataDictionaryRows() {
     }
   ];
   const definition = (dataset: string, variable: string) => {
+    const participationDefinitions: Record<string, string> = {
+      participation_observation_version: "Deterministic participation-observation projection version; no satisfaction or learning judgment.",
+      tutor_reply_count: "Number of persisted tutor messages in this conversation; saving does not establish display.",
+      displayed_tutor_reply_count: "Distinct persisted tutor turn sequence indexes with a matching conversation_public_id and display-ack-v2 acknowledgement. Zero means no such observations, not no reading.",
+      first_tutor_display_received_at: "Earliest server receipt for a linked display-ack-v2 tutor acknowledgement; partial viewport display, not reading time.",
+      first_student_message_at: "Earliest persisted student turn created_at in this conversation; blank if no student message was recorded."
+    };
+    if (participationDefinitions[variable]) return participationDefinitions[variable];
     if ((variable.startsWith("profile_") || variable.endsWith("_profile_record_id") || variable.endsWith("confidence_alignment_scope")) && PROFILE_FIELD_DEFINITIONS[variable]) {
       return PROFILE_FIELD_DEFINITIONS[variable];
     }
@@ -2538,6 +2560,8 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "formative_conversation_sessions.csv",
         "formative_conversation_turns.csv",
         "formative_conversation_events.csv",
+        "pause_episodes.csv",
+        "pause_episode_data_dictionary.csv",
         "formative_conversation_llm_calls.csv",
         "formative_conversation_profile_transitions.csv",
         "formative_conversation_interventions.csv",
@@ -2711,6 +2735,19 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
         .map(([variable, definition]) => ({ variable, definition })))
     },
     {
+      path: "pause_episodes.csv",
+      data: csv(["session_public_id", "research_student_id", ...Object.keys(PAUSE_EPISODE_DEFINITIONS)], sessions.flatMap(session =>
+        derivePauseEpisodes(session.process_events, session.formative_conversation_sessions.map(conversation => ({ ...conversation,
+          concept_unit_public_id: conversation.concept_unit_session.concept_unit.concept_unit_public_id
+        })), session.completed_at).map(episode => ({ session_public_id: session.session_public_id,
+          research_student_id: researchStudentId(session.user.user_id), ...episode }))))
+    },
+    {
+      path: "pause_episode_data_dictionary.csv",
+      data: csv(["variable", "definition"], Object.entries({ session_public_id: "Public session join key.",
+        research_student_id: "Pseudonymous student join key; not username.", ...PAUSE_EPISODE_DEFINITIONS }).map(([variable, definition]) => ({ variable, definition })))
+    },
+    {
       path: "formative_conversation_sessions.csv",
       data: csv(
         FORMATIVE_CONVERSATION_SESSION_COLUMNS,
@@ -2835,7 +2872,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     "Join session_public_id to sessions.csv. Join item snapshots using both assessment_snapshot_public_id and item_snapshot_public_id.",
     "event_public_id is stable across exports; event_sequence_index is export ordering, not a permanent identity.",
     "Empty CSV cells denote unavailable or inapplicable values, not measured zero or false. Formula-leading text is prefixed with an apostrophe for spreadsheet safety.",
-    "Timing v3 unions overlapping idle intervals and intersects visibility with active lifecycle windows. Visible time is an estimate, not attention or active learning.",
+    "Session timing v4 ends open attempts at the latest server-recorded process or conversation activity; completion remains the cutoff for closed attempts. Paused lifecycle windows are excluded from resumable time. Visible time is not attention or active learning. Item timing retains its own contract version.",
+    "pause_episodes.csv separates explicit assessment and conversation-only pauses, links matching resumes and available display/message context. Missing returns are censored at export, not withdrawal. Pauses do not measure dissatisfaction. See pause_episode_data_dictionary.csv.",
     "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
     "Browser events are best effort: delivery gaps, absent visibility, multiple documents, and unrecovered browser closure limit inference. Absence is not nonoccurrence.",
     "No consent or withdrawal decision is inferred. Apply the approved study cohort before analysis. Free text may contain identifying information and requires review.",
@@ -2863,6 +2901,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     },
     timing_contract_version: TIMING_CONTRACT_VERSION,
     timing_source_version: TIMING_SOURCE_VERSION,
+    session_timing_contract_version: SESSION_TIMING_CONTRACT_VERSION,
     omitted_fields: includeRestricted ? ["raw_provider_payloads", "raw_process_payloads"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
     entries: spool.manifestEntries()
   };

@@ -74,6 +74,8 @@ export const SESSIONS_COLUMNS = [
   "session_completion_status",
   "session_limitations",
   "session_wall_clock_elapsed_ms",
+  "session_observation_end_at",
+  "session_observation_end_source",
   "session_resumable_active_window_ms",
   "session_visible_window_ms",
   "session_active_interaction_time_ms",
@@ -262,6 +264,7 @@ export const PROCESS_EVENTS_COLUMNS = [
   "timing_source_version",
   "timing_quality_status",
   "item_position",
+  "authoring_item_order",
   "actual_total_item_count",
   "payload_source",
   "payload_action_status",
@@ -1417,13 +1420,17 @@ function countDefinition(table: string, variable: string) {
 
 function measuredValueDefinition(table: string, variable: string) {
   const overrides: Record<string, string> = {
-    session_wall_clock_elapsed_ms: "Elapsed wall-clock time in milliseconds from attempt start to terminal or latest activity timestamp; includes pauses and offline time.",
+    session_wall_clock_elapsed_ms: "Session timing v4: observation end minus attempt start, milliseconds, including pauses. Closed: completion or terminal event. Open: latest server-recorded process/conversation activity or last_activity_at; updated_at only when these are missing.",
+    session_observation_end_at: "Actual upper bound used for session timing. Late acknowledgements do not extend a closed attempt. Browser client time does not determine this endpoint.",
+    session_observation_end_source: "completion, terminal_event, latest_recorded_activity, updated_at_fallback, or unavailable. Conversation activity includes persisted turns and lifecycle events.",
+    item_position: "Student-facing initial item position from persisted item_presented.payload.item_position; blank for missing/conflicting evidence. Not the authoring order.",
+    authoring_item_order: "Content-library item order retained separately from the administered position.",
     session_resumable_active_window_ms: "Sum of resumable active attempt windows in milliseconds from started/resumed events to paused/ended/completed events.",
     session_visible_window_ms: "Resumable active window time minus paired page-hidden intervals when visibility instrumentation is available.",
     session_active_interaction_time_ms: "Validated active interaction time in milliseconds; null when active-interaction instrumentation is insufficient.",
     session_idle_time_ms: "Recorded idle duration in milliseconds within active windows when explicit idle/pause instrumentation is available.",
     active_interaction_time_ms: "Deprecated compatibility field for session active interaction time; use session_active_interaction_time_ms.",
-    elapsed_session_time_ms: "Legacy elapsed session time in milliseconds from session start to completion or latest activity; use session_wall_clock_elapsed_ms for the timing-contract-v3 construct.",
+    elapsed_session_time_ms: "Compatibility alias of session_wall_clock_elapsed_ms, calculated with the same session timing contract.",
     total_idle_time_ms: "Total recorded idle duration in milliseconds across eligible idle or long-pause process events.",
     total_page_hidden_ms: "Total paired page-hidden duration in milliseconds from page_visibility_hidden/page_hidden to the next page_visibility_visible/page_visible event; window blur is not double-counted.",
     page_hidden_interval_count: "Number of valid paired page-hidden intervals.",
@@ -1662,7 +1669,7 @@ function collectionMethod(table: string, variable: string) {
       "Calculated in sessionRows() from paired page_visibility_hidden/page_hidden to page_visibility_visible/page_visible timestamp intervals, not from frontend cumulative duration payloads.",
     page_hidden_interval_count: "Calculated in sessionRows() from valid paired page-hidden intervals.",
     session_wall_clock_elapsed_ms:
-      "Calculated in sessionRows() as terminal or latest activity timestamp minus attempt start timestamp.",
+      "Calculated by deriveSessionTiming() as session_observation_end_at minus started_at (created_at fallback); includes process and conversation timestamps for open attempts.",
     session_resumable_active_window_ms:
       "Calculated in sessionRows() as the sum of attempt started/resumed to paused/ended/completed intervals.",
     session_visible_window_ms:
@@ -1830,11 +1837,11 @@ function timingMetadata(variable: string, table: string) {
     session_wall_clock_elapsed_ms: {
       construct: "session_wall_clock_elapsed_time",
       start: "started_at",
-      end: "completed_at or last_activity_at",
-      formula: "completed_at or last_activity_at minus started_at",
+      end: "session_observation_end_at",
+      formula: "session_observation_end_at minus started_at (created_at fallback)",
       idle: "Includes pauses, idle periods, and offline time.",
       hidden: "Includes page-hidden periods.",
-      method: "Calculated by deriveSessionTiming() from AssessmentSession timestamps."
+      method: "Session timing v4 combines assessment, process-event server receipts and conversation activity; terminal/completion timestamps remain authoritative."
     },
     session_resumable_active_window_ms: {
       construct: "session_resumable_active_window_time",
@@ -1875,11 +1882,11 @@ function timingMetadata(variable: string, table: string) {
     elapsed_session_time_ms: {
       construct: "session_elapsed_time",
       start: "session.started_at or session.created_at",
-      end: "session.completed_at, last_activity_at, or updated_at for incomplete sessions",
-      formula: "end timestamp minus start timestamp",
+      end: "session_observation_end_at",
+      formula: "session_wall_clock_elapsed_ms (compatibility alias)",
       idle: "Includes idle periods.",
       hidden: "Includes page-hidden periods.",
-      method: "Calculated at export time from persisted session timestamps."
+      method: "Shares deriveSessionTiming() with the canonical session elapsed field; uses the recorded observation endpoint."
     },
     total_idle_time_ms: {
       construct: "session_recorded_idle_time",

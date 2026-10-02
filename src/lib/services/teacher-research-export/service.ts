@@ -318,6 +318,8 @@ function dataDictionary() {
       item_submitted_at: "Item submission/completion timestamp.",
       item_version_snapshot: "Administered item version number only; answer keys and raw item metadata are excluded.",
       turn_index: "Conversation turn index within a session.",
+      source_turn_sequence_index: "Persisted source conversation sequence index; join within session to display acknowledgements and source conversation rows. Distinct from readable display ordering.",
+      presented_item_position: "Student-facing initial item position from persisted item_presented metadata; null when missing or conflicting. Not content-library order.",
       speaker: "Readable transcript speaker label.",
       timestamp: "Readable transcript turn timestamp.",
       phase_label: "Human-readable phase label.",

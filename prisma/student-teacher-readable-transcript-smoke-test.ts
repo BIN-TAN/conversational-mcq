@@ -117,6 +117,8 @@ async function main() {
     await addActivityAndLegacyEditTurns();
 
     const readable = await getTeacherReadableTranscript(teacherReviewSessionPublicId);
+    const sourceTurns = await prisma.conversationTurn.findMany({ where: { assessment_session: { session_public_id: teacherReviewSessionPublicId } }, select: { sequence_index: true, created_at: true } });
+    assert(readable.turns.every(turn => sourceTurns.some(source => source.sequence_index === turn.source_turn_sequence_index && source.created_at.toISOString() === turn.timestamp)), "Readable source references must match persisted turns, not renumbered array indexes.");
     assert(!readable.turns.some(turn => turn.message_text.includes("SYNTHETIC_INTERNAL_REPORT")), "Internal messages must not masquerade as student dialogue.");
     assert(readable.limitations.includes("internal_turns_excluded_available_in_assessment_log"), "Filtered projection must disclose its scope.");
     assert(readable.session_public_id === teacherReviewSessionPublicId, "Readable transcript session mismatch.");

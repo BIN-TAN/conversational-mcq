@@ -588,6 +588,9 @@ export type ReadableTranscriptResponse = {
   assessment_label: string;
   turns: Array<{
     turn_index: number;
+    source_turn_sequence_index?: number;
+    item_public_id?: string | null;
+    presented_item_position?: number | null;
     speaker: "agent" | "student" | "system";
     timestamp: string | null;
     phase_label: string;

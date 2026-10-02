@@ -1,6 +1,7 @@
 import { browserItemTiming } from "./response-stage-data";
 export const TIMING_CONTRACT_VERSION = "timing-contract-v3" as const;
 export const TIMING_SOURCE_VERSION = "student-assessment-timing-source-v3" as const;
+export const SESSION_TIMING_CONTRACT_VERSION = "session-timing-v4" as const;
 
 export type TimingQualityStatus =
   | "valid"
@@ -64,6 +65,8 @@ export type VisibilityInterval = {
 };
 
 export type DerivedSessionTiming = {
+  session_observation_end_at: Date | null;
+  session_observation_end_source: "completion" | "terminal_event" | "latest_recorded_activity" | "updated_at_fallback" | "unavailable";
   session_wall_clock_elapsed_ms: number | null;
   session_resumable_active_window_ms: number | null;
   session_visible_window_ms: number | null;
@@ -73,7 +76,7 @@ export type DerivedSessionTiming = {
   page_hidden_interval_count: number;
   page_hidden_timing_quality_status: TimingQualityStatus;
   visibility_intervals: VisibilityInterval[];
-  timing_contract_version: typeof TIMING_CONTRACT_VERSION;
+  timing_contract_version: typeof SESSION_TIMING_CONTRACT_VERSION;
   timing_source_version: typeof TIMING_SOURCE_VERSION;
   timing_quality_status: TimingQualityStatus;
   timing_limitations: string[];
@@ -126,6 +129,13 @@ export function eventTimestamp(event: TimingEventLike | null | undefined): Date 
   const payload = recordValue(event.payload);
   const client = asDate(typeof payload.client_occurred_at === "string" ? payload.client_occurred_at : null);
   return client ?? asDate(event.occurred_at ?? null) ?? asDate(event.created_at ?? null);
+}
+
+// Server receipt is the observation boundary, not the browser's potentially skewed clock.
+export function recordedEventTimestamp(event: TimingEventLike): Date | null {
+  const payload = recordValue(event.payload);
+  return asDate(typeof payload.server_received_at === "string" ? payload.server_received_at : null)
+    ?? asDate(event.occurred_at) ?? asDate(event.created_at);
 }
 
 function dateMs(value: Date | null | undefined): number | null {
@@ -407,15 +417,20 @@ export function deriveSessionTiming(input: {
   session_completed_at?: Date | null;
   last_activity_at?: Date | null;
   updated_at?: Date | null;
+  additional_activity_at?: (Date | null)[];
   events: TimingEventLike[];
 }): DerivedSessionTiming {
   const start = input.session_started_at ?? eventTimestamp(firstEvent(input.events, ["attempt_started", "session_started"]));
-  const end =
-    input.session_completed_at ??
-    eventTimestamp(lastEvent(input.events, ["assessment_completed", "session_completed", "attempt_ended_by_student", "attempt_ended_by_teacher"])) ??
-    input.last_activity_at ??
-    input.updated_at ??
-    null;
+  const latestDate = (dates: (Date | null | undefined)[]) => dates.filter((date): date is Date => Boolean(date && Number.isFinite(date.getTime())))
+    .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  const terminalEnd = latestDate(input.events.filter(event =>
+    ["assessment_completed", "session_completed", "attempt_ended_by_student", "attempt_ended_by_teacher"].includes(event.event_type)
+  ).map(recordedEventTimestamp));
+  const latestActivity = latestDate([input.last_activity_at, ...input.events.map(recordedEventTimestamp), ...(input.additional_activity_at ?? [])]);
+  // Completion remains authoritative: late acknowledgements cannot extend a closed attempt.
+  const end = input.session_completed_at ?? terminalEnd ?? latestActivity ?? input.updated_at ?? null;
+  const endSource = input.session_completed_at ? "completion" : terminalEnd ? "terminal_event" : latestActivity
+    ? "latest_recorded_activity" : input.updated_at ? "updated_at_fallback" : "unavailable";
   const session_wall_clock_elapsed_ms = diffMs(start ?? null, end ?? null);
   const events = [...input.events].sort((a, b) => {
     const left = eventTimestamp(a)?.getTime() ?? 0;
@@ -469,6 +484,11 @@ export function deriveSessionTiming(input: {
   const limitations: string[] = [];
   pushMissing(limitations, !start, "session_start_missing");
   pushMissing(limitations, !end, "session_end_or_latest_activity_missing");
+  pushMissing(limitations, endSource === "updated_at_fallback", "session_end_uses_administrative_updated_at_fallback");
+  pushMissing(limitations, events.some(event => {
+    const client = eventTimestamp(event);
+    return client && ((start && client < start) || (end && client > end));
+  }), "event_clock_outside_session_bounds");
   pushMissing(limitations, !visibilityAvailable, "visibility_instrumentation_insufficient");
   pushMissing(limitations, tabIds.size > 1, "multiple_browser_documents_visibility_ambiguous");
   pushMissing(limitations, visibilityAvailable, "visibility_estimated_between_observed_events_not_attention");
@@ -485,6 +505,8 @@ export function deriveSessionTiming(input: {
   ]);
 
   return {
+    session_observation_end_at: end,
+    session_observation_end_source: endSource,
     session_wall_clock_elapsed_ms,
     session_resumable_active_window_ms,
     session_visible_window_ms,
@@ -499,7 +521,7 @@ export function deriveSessionTiming(input: {
           ? "valid"
           : "partial",
     visibility_intervals,
-    timing_contract_version: TIMING_CONTRACT_VERSION,
+    timing_contract_version: SESSION_TIMING_CONTRACT_VERSION,
     timing_source_version: TIMING_SOURCE_VERSION,
     timing_quality_status,
     timing_limitations: limitations,

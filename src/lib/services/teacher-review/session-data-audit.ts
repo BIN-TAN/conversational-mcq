@@ -315,8 +315,10 @@ export async function buildTeacherSessionDataAudit(input: {
       formative_conversation_sessions: {
         select: {
           status: true,
-          concept_unit_session: { select: { concept_unit: { select: { title: true } } } },
-          conversation_turns: { where: { actor_type: "student" }, select: { sequence_index: true } },
+          conversation_public_id: true, started_at: true, last_activity_at: true, completed_at: true, ended_at: true,
+          concept_unit_session: { select: { concept_unit: { select: { title: true, concept_unit_public_id: true } } } },
+          conversation_turns: { where: { actor_type: { in: ["student", "agent"] }, message_text: { not: null } },
+            select: { actor_type: true, created_at: true, sequence_index: true } },
           lifecycle_events: { orderBy: { occurred_at: "asc" }, select: { event_type: true, occurred_at: true, event_source: true } },
           input_telemetry: { select: { edit_count: true, backspace_count: true, paste_event_count: true, final_message_length_chars: true } }
         }
@@ -717,7 +719,8 @@ export async function buildTeacherSessionDataAudit(input: {
       }))),
       conversations: session.formative_conversation_sessions.map((conversation) => ({
         topic_title: conversation.concept_unit_session.concept_unit.title,
-        student_turn_count: conversation.conversation_turns.length,
+        student_turn_count: conversation.conversation_turns.filter(turn => turn.actor_type === "student").length,
+        observation: { ...conversation, concept_unit_public_id: conversation.concept_unit_session.concept_unit.concept_unit_public_id },
         lifecycle_events: conversation.lifecycle_events,
         input_telemetry: conversation.input_telemetry
       }))

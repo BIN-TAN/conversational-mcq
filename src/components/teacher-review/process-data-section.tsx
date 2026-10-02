@@ -18,7 +18,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
   const pages = Math.max(1, Math.ceil(events.length / 50));
   const currentPage = Math.min(page, pages);
   const metrics = [
-    { title: "Elapsed time", value: formatDuration(data.timing.elapsed_ms), detail: "Start to completion or last recorded activity; includes waiting and pauses." },
+    { title: "Attempt time span", value: formatDuration(data.timing.elapsed_ms), detail: "Start to completion or last recorded process/conversation activity; includes waiting and pauses, not active study time." },
     { title: "Page hidden / returns", value: `${number(data.core.page_hidden_count)} / ${number(data.core.matched_return_count)}`, detail: "Returns are paired with a recorded page-hidden event. Window focus changes are not counted as page exits." },
     { title: "Idle intervals", value: number(data.core.idle_interval_count), detail: `${number(data.core.extended_idle_interval_count)} extended idle observations. The thresholds overlap; do not add these counts. Reading and waiting can produce idle intervals.` },
     { title: "Response revisions", value: number(data.core.recorded_response_revision_count), detail: "Recorded response updates, not keystrokes. One update can change several response fields." },
@@ -56,7 +56,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
         <table className="w-full min-w-[760px] text-left text-sm">
           <thead className="border-b border-line text-muted"><tr>{["Topic / item", "Elapsed response time", "First action", "Explanation time", "Confidence time", "System waiting", "Revisions"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
           <tbody>{data.items.map((item) => <tr className="border-b border-line" key={item.item_public_id}>
-            <th className="px-3 py-3 font-medium">{item.topic_title}<span className="block text-muted">Item {item.item_order}</span></th>
+            <th className="px-3 py-3 font-medium">{item.topic_title}<span className="block text-muted">{item.presented_item_position ? `Item ${item.presented_item_position}` : `Authoring item ${item.item_order}`}</span></th>
             <td className="px-3 py-3">{formatDuration(item.elapsed_ms)}</td><td className="px-3 py-3">{formatDuration(item.time_to_first_action_ms)}</td>
             <td className="px-3 py-3">{formatDuration(item.explanation_elapsed_ms)}</td>
             <td className="px-3 py-3">{formatDuration(item.stage_summary?.confidence_time_ms ?? null)}</td>
@@ -70,7 +70,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
         <div className="mt-3 overflow-x-auto"><table className="w-full min-w-[880px] text-left">
           <thead className="border-b border-line text-muted"><tr>{["Item / stage", "Context", "Before typing", "To first submission", "Submissions / accepted", "Clarification required", "Time hidden", "Capture"].map(label => <th className="px-3 py-3" key={label}>{label}</th>)}</tr></thead>
           <tbody>{data.items.flatMap(item => (item.stage_visits ?? []).map(visit => <tr className="border-b border-line" key={visit.stage_visit_id}>
-            <th className="px-3 py-3 font-medium">Item {item.item_order} / {visit.response_stage.replaceAll("_", " ")}</th>
+            <th className="px-3 py-3 font-medium">{item.presented_item_position ? `Item ${item.presented_item_position}` : `Authoring item ${item.item_order}`} / {visit.response_stage.replaceAll("_", " ")}</th>
             <td className="px-3 py-3">{visit.response_phase}</td><td className="px-3 py-3">{formatDuration(visit.input_start_latency_ms)}</td>
             <td className="px-3 py-3">{formatDuration(visit.response_elapsed_ms)}</td><td className="px-3 py-3">{visit.submission_count} / {visit.accepted_submission_count}</td>
             <td className="px-3 py-3">{visit.validation_rejection_count}</td><td className="px-3 py-3">{formatDuration(visit.hidden_duration_ms)}</td>
@@ -85,7 +85,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <thead className="border-b border-line text-muted"><tr>{["Topic", "Student messages", "Input coverage", "Input changes", "Backspaces", "Paste actions", "Pauses / resumes"].map((heading) => <th className="px-3 py-3 font-semibold" key={heading}>{heading}</th>)}</tr></thead>
         <tbody>{data.conversations.map((conversation, index) => <tr className="border-b border-line" key={index}>
-          <th className="px-3 py-3 font-medium">{conversation.topic_title}</th>
+          <th className="px-3 py-3 font-medium">{conversation.topic_title}{conversation.participation ? <span className="mt-1 block font-normal text-muted">{conversation.participation.displayed_tutor_reply_count > 0 ? `${conversation.participation.displayed_tutor_reply_count} tutor ${conversation.participation.displayed_tutor_reply_count === 1 ? "reply" : "replies"} partly displayed` : "Tutor display not recorded"}{conversation.student_turn_count === 0 ? "; no student reply recorded" : ""}</span> : null}</th>
           <td className="px-3 py-3">{conversation.student_turn_count}</td><td className="px-3 py-3">{conversation.messages_with_input_telemetry} / {conversation.student_turn_count}</td>
           <td className="px-3 py-3">{conversation.messages_with_input_telemetry ? conversation.edits : "Not recorded"}</td>
           <td className="px-3 py-3">{conversation.messages_with_input_telemetry ? conversation.backspaces : "Not recorded"}</td>
@@ -94,6 +94,20 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
         </tr>)}</tbody>
       </table></div>
     </section> : null}
+    <section>
+      <h3 className="mb-3 text-lg font-semibold">Pauses and returns</h3>
+      {data.pause_episodes.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
+        <thead className="border-b border-line text-muted"><tr>{["Paused / context", "Student replies before pause", "Last tutor display to pause", "Return", "Pause interval"].map(label => <th className="px-3 py-3 font-semibold" key={label}>{label}</th>)}</tr></thead>
+        <tbody>{data.pause_episodes.map((episode, index) => <tr key={index} className="border-b border-line">
+          <th className="px-3 py-3 font-medium">{formatDate(episode.paused_at, true)}<span className="block font-normal text-muted">{episode.pause_scope === "assessment" ? "Assessment" : "Learning conversation"}{episode.pause_scope === "assessment" && episode.phase_at_pause ? ` / ${episode.phase_at_pause === "planning_completed" ? "Learning conversation" : episode.phase_at_pause.replaceAll("_", " ")}` : ""}</span></th>
+          <td className="px-3 py-3">{number(episode.student_messages_before_pause)}</td>
+          <td className="px-3 py-3">{formatDuration(episode.display_receipt_to_pause_ms)}</td>
+          <td className="px-3 py-3">{episode.resumed_at ? formatDate(episode.resumed_at, true) : episode.return_status === "ended_without_recorded_resume" ? "Attempt ended; no resume recorded" : "No resume recorded yet"}</td>
+          <td className="px-3 py-3">{formatDuration(episode.pause_duration_ms)}</td>
+        </tr>)}</tbody>
+      </table></div> : <p className="text-sm text-muted">No explicit pauses recorded.</p>}
+      <p className="mt-3 text-sm text-muted">Pausing does not tell us why a student stopped. A displayed reply is not proof of reading; display-to-pause intervals use server receipt times. Page-hidden and idle observations are separate.</p>
+    </section>
     <section>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-lg font-semibold">Activity timeline</h3>
@@ -120,6 +134,8 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
       <dl className="my-4 grid gap-3 sm:grid-cols-2">
         <div><dt className="text-muted">Observed time hidden</dt><dd>{formatDuration(data.timing.observed_hidden_ms)}</dd></div>
         <div><dt className="text-muted">Observed idle time (overlap removed)</dt><dd>{formatDuration(data.timing.observed_idle_ms)}</dd></div>
+        <div><dt className="text-muted">Attempt window excluding explicit pauses</dt><dd>{formatDuration(data.timing.resumable_window_ms)}</dd></div>
+        <div><dt className="text-muted">Observation cutoff</dt><dd>{formatDate(data.timing.observation_end_at, true)}</dd></div>
         <div><dt className="text-muted">Whole-page typing summaries / keys / backspaces</dt><dd>{data.typing.summary_count} / {number(data.typing.key_count)} / {number(data.typing.backspace_count)}</dd></div>
         <div><dt className="text-muted">Whole-page paste actions</dt><dd>{number(data.core.paste_action_count)}</dd></div>
         <div><dt className="text-muted">Changed fields: answers / explanations / confidence / alternatives</dt><dd>{Object.values(data.core.revision_fields).join(" / ")}</dd></div>

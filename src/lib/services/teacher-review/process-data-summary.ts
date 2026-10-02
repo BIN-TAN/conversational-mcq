@@ -1,8 +1,10 @@
 import { deriveItemTiming, deriveSessionTiming, type TimingEventLike } from "../student-assessment/timing-contract";
 import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
 import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
+import { conversationActivityDates, conversationParticipation, derivePauseEpisodes, type ObservedConversation } from "./participation-observations";
+import { presentedItemPositions } from "./presented-item-positions";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v3";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v4";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -97,6 +99,7 @@ type ProcessDataEvent = TimingEventLike & {
   topic_title?: string | null;
 };
 type ConversationObservation = {
+  observation?: ObservedConversation;
   topic_title: string;
   student_turn_count: number;
   lifecycle_events: { event_type: string; occurred_at: Date; event_source: string }[];
@@ -130,8 +133,11 @@ export function buildProcessDataSummary(input: {
   conversations: ConversationObservation[];
 }) {
   const count = (...types: string[]) => input.events.filter((event) => types.includes(event.event_type)).length;
+  const conversations = input.conversations.flatMap(c => c.observation ? [c.observation] : []);
+  const positions = presentedItemPositions(input.events);
   const timing = deriveSessionTiming({ session_started_at: input.started_at,
-    session_completed_at: input.completed_at, last_activity_at: input.last_activity_at, events: input.events });
+    session_completed_at: input.completed_at, last_activity_at: input.last_activity_at, events: input.events,
+    additional_activity_at: [...conversationActivityDates(conversations), ...input.conversations.flatMap(c => c.lifecycle_events.map(e => e.occurred_at))] });
   const browserTypes = ["navigation_event", "page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible",
     "window_blur", "window_focus", "long_pause", "inactivity_detected", "typing_activity_summary", "paste_detected", "refresh_recovery"];
   const browserEvents = input.events.filter((event) => browserTypes.includes(event.event_type) && event.event_source === "frontend");
@@ -158,7 +164,7 @@ export function buildProcessDataSummary(input: {
     return {
       at: at ? new Date(at).toISOString() : null,
       action: processEventLabel(event.event_type, event.payload),
-      context: [event.topic_title, event.item_order != null ? `Item ${event.item_order}` : null].filter(Boolean).join(" / ") || "Assessment",
+      context: [event.topic_title, event.item_public_id && positions.has(event.item_public_id) ? `Item ${positions.get(event.item_public_id)}` : event.item_order != null ? `Authoring item ${event.item_order}` : null].filter(Boolean).join(" / ") || "Assessment",
       event_type: event.event_type, event_source: event.event_source ?? null,
       recorded_at_field: event.occurred_at ? "occurred_at" : event.created_at ? "created_at_fallback" : "unavailable",
       client_occurred_at: iso(payload.client_occurred_at), server_received_at: iso(payload.server_received_at),
@@ -203,12 +209,18 @@ export function buildProcessDataSummary(input: {
       explanation_elapsed_ms: "Reasoning-stage ready to last accepted submission; includes pre-input time and pauses, not pure typing.",
       system_wait_ms: "Sum of observed submission-to-usable-controls intervals. Overlaps stage/item elapsed time; do not add to it. Initial AI preparation and free-text generation are separate timeline events.",
       conversation_edits: "Input-change events for submitted messages, not answer revisions or changes of belief. These overlap whole-page typing observations.",
+      pause_episodes: "Explicit pauses paired with the next same-scope resume before termination; duplicates collapse. pause_duration_ms = resumed_at - paused_at on server timestamps. Unmatched durations are null; no_resume_recorded is censored at export, not abandonment. Overlapping assessment/conversation scopes are not additive.",
+      display_receipt_to_pause_ms: "Pause server timestamp minus latest matching display-ack-v2 tutor receipt timestamp. Includes network effects; not reading time or satisfaction. Student messages before pause count only persisted turns in the uniquely linked conversation; unknown context is null.",
+      presented_item_position: "Student-facing initial position from persisted item_presented metadata. Null when unknown/conflicting; item_order remains authoring order.",
       display_observation: "display-ack-v2: partial viewport display for at least 500 ms, not proof of reading, full exposure or understanding. display-ack-v1: legacy component mount, not verified visibility. Missing version is unknown. No event means unobserved, not necessarily unseen.",
       timeline_clocks: "at uses the named recorded_at_field. Client occurrence and server receipt are separate clocks; missing provenance is unknown. Saved/generated replies do not establish display."
     },
     browser_observations_available: observed,
     timing: {
       elapsed_ms: timing.session_wall_clock_elapsed_ms,
+      resumable_window_ms: timing.session_resumable_active_window_ms,
+      observation_end_at: timing.session_observation_end_at?.toISOString() ?? null,
+      observation_end_source: timing.session_observation_end_source,
       observed_hidden_ms: timing.total_page_hidden_ms,
       observed_idle_ms: timing.session_idle_time_ms,
       quality: timing.timing_quality_status,
@@ -236,7 +248,7 @@ export function buildProcessDataSummary(input: {
     items: [...observedItems.values()].map((item) => {
       const events = input.events.filter((event) => event.item_public_id === item.item_public_id);
       const itemTiming = deriveItemTiming({ events });
-      return { ...item, elapsed_ms: itemTiming.item_elapsed_response_time_ms,
+      return { ...item, presented_item_position: positions.get(item.item_public_id) ?? null, elapsed_ms: itemTiming.item_elapsed_response_time_ms,
         time_to_first_action_ms: itemTiming.time_to_first_response_action_ms,
         explanation_elapsed_ms: itemTiming.reasoning_elapsed_time_ms,
         stage_summary: summarizeItemStageVisits(stageVisits.filter(v => v.item_public_id === item.item_public_id)),
@@ -249,6 +261,7 @@ export function buildProcessDataSummary(input: {
     }),
     conversations: input.conversations.map((conversation) => ({
       topic_title: conversation.topic_title,
+      participation: conversation.observation ? conversationParticipation(conversation.observation, input.events) : null,
       student_turn_count: conversation.student_turn_count,
       messages_with_input_telemetry: conversation.input_telemetry.length,
       edits: conversation.input_telemetry.reduce((sum, entry) => sum + entry.edit_count, 0),
@@ -257,9 +270,11 @@ export function buildProcessDataSummary(input: {
       pause_count: conversation.lifecycle_events.filter((event) => event.event_type === "paused").length,
       resume_count: conversation.lifecycle_events.filter((event) => event.event_type === "resumed").length
     })),
+    pause_episodes: derivePauseEpisodes(input.events, conversations, input.completed_at),
     timeline,
     limitations: [
       "Page visibility and idle intervals do not establish attention, learning, or misconduct. The system cannot see what happens on other pages.",
+      "Explicit pauses, page-hidden intervals and unanswered tutor messages are separate facts. They do not establish dissatisfaction. No recorded return means none observed by export, not permanent withdrawal.",
       "Idle thresholds can overlap and include reading or waiting for feedback; they are not separate pauses to add together.",
       "Browser close, device shutdown, and offline events are best-effort observations. Missing events are not proof that an action did not occur.",
       "Typing summaries contain counts, not keystroke text or a full draft history. Conversation input edits are not additional submitted responses.",

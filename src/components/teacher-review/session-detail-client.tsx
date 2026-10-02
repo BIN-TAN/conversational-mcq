@@ -1810,6 +1810,10 @@ function ReadableTranscriptSection({
             {turn.safe_context_label ? (
               <p className="mt-2 text-xs font-medium text-muted">{turn.safe_context_label}</p>
             ) : null}
+            {turn.source_turn_sequence_index !== undefined ? <details className="mt-2 text-xs text-muted">
+              <summary className="cursor-pointer">Record reference</summary>
+              <p className="mt-1 break-all">Source turn {turn.source_turn_sequence_index}{turn.item_public_id ? ` / ${turn.item_public_id}` : ""}</p>
+            </details> : null}
             {turn.speaker === "agent" ? (
               <SafeTutorMessageMarkdown
                 className="mt-3 text-ink"
