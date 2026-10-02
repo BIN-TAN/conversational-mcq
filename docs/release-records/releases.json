@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-09-30T13:44:00-06:00",
+  "updated_at": "2026-10-02T19:35:20+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1107,6 +1107,101 @@
         "scripts/dependency-security-check.mjs",
         "Dockerfile",
         "docs/acceptance/runs/2026-09-30/content-safety/REPORT.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261002-01",
+      "date": "2026-10-02",
+      "title": "Pause and return observations with consistent research timing",
+      "application_commit": "da12cc78d0ad0029c4596084ac85d712c4e896f6",
+      "push_status": "Application commits 52d8c941, a78ef703 and da12cc78 were accepted by origin/main. The final revision includes the initial session-observation changes and both boundary corrections found during release review. Unrelated outputs and identifiable student material were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db00cdgjo6nc7395ipl0",
+        "verified_at": "2026-10-02T19:35:20+00:00",
+        "source_commit": "da12cc78d0ad0029c4596084ac85d712c4e896f6",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db00cdgjo6nc7395ipl0",
+        "evidence": [
+          "Intermediate release 52d8c941e9bcd153b1ac62218eaa21451298dc5e was verified Deploy succeeded | Live on deployment dep-db0072rm8hqs73ck27bg. Build duration 4m23s; 65 migrations, none pending. The existing web/worker heap budgets were unchanged.",
+          "Intermediate follow-up a78ef703068c7d80a0b5ccd4f9d2ef02b9298d06 was verified Deploy succeeded | Live on deployment dep-db009h2vcj2c738qrhd0. Logs show 65 migrations, none pending, and service live at 19:28:53 UTC.",
+          "Final deployment dep-db00cdgjo6nc7395ipl0 shows Deploy succeeded | Live with source da12cc78d0ad0029c4596084ac85d712c4e896f6, duration 4m33s, 65 migrations and none pending. Logs record service live at 19:34:31 UTC.",
+          "Independent SSH verified RENDER_GIT_COMMIT and build metadata at da12cc78d0ad0029c4596084ac85d712c4e896f6, build time 19:30:34.789 UTC, artifact SHA256 18ce5a4b1da10df4b0fe9093a9fdc2f95268a6a2eebc65cd01ff82dea033e7f2. Process inspection found next-server PID 14 and initial-preparation-worker PID 15. Public health at 19:35:20.409 UTC returned status ok, database_reachable true, database_schema_ready true and migration_readiness ready. Independent origin/main verification matched the full application commit."
+        ]
+      },
+      "summary": "Make pauses, returns and subsequent conversation activity traceable in teacher review and research output. Correct stale session endpoints and distinguish observed behavior from interpretations of motivation. Preserve original student responses, raw events and source identifiers.",
+      "changes": [
+        {
+          "area": "Consistent session observation boundaries",
+          "problem": "The parent assessment last-activity timestamp could precede later learning-conversation events, clipping visible/hidden intervals. Browser-origin lifecycle timestamps could also contain clock skew.",
+          "fix": "Use session-timing-v4 in teacher summaries and research exports. Open attempts end at the latest recorded process or conversation activity; completed attempts retain their authoritative cutoff. Prefer explicit server receipt, then database creation time for frontend events, while retaining original client timestamps.",
+          "impact": "Teacher and research elapsed-time fields agree. Attempt time span includes waits and pauses and is not presented as active study time. Re-exporting uses existing raw records; old downloaded files remain unchanged."
+        },
+        {
+          "area": "Pause and return evidence",
+          "problem": "Counts alone concealed when students paused, whether they returned, and how much conversation preceded a pause. Legacy alias events could duplicate a pause, and missing terminal lifecycle events could leave a finished conversation marked as awaiting return.",
+          "fix": "Add shared participation-observation-v1 projections and a Pauses and returns table. Separate assessment and conversation scopes, match the first same-scope resume, collapse duplicate pause aliases, and honor persisted completion/end timestamps even when terminal lifecycle events are absent.",
+          "impact": "Each episode retains timestamps, scope, available topic/conversation context, student messages before pause and display-receipt context. Missing returns and durations remain missing, not zero. Pausing creates no affect label, automatic profile downgrade or penalty."
+        },
+        {
+          "area": "Display participation and transcript identity",
+          "problem": "Saved tutor replies, displayed replies and student responses were easy to conflate. Mutable authoring order and filtered transcript positions also complicated joins with exported events.",
+          "fix": "Count distinct display-ack-v2 source turns only when they match the conversation and a persisted tutor reply. Normalize numeric and historical numeric-string source indexes. Retain source-turn sequence indexes and public item IDs; derive displayed item numbers from stored presentation events and retain authoring order separately.",
+          "impact": "Teachers and researchers can trace references to source records. Missing display evidence remains unobserved, not proof that text was unseen. Technical references remain in teacher/research surfaces, not student conversations."
+        },
+        {
+          "area": "Research export and documentation",
+          "problem": "Researchers needed explicit formulas, join keys and missing-value rules for the new observations without losing raw data or introducing an interpretation score.",
+          "fix": "Add pause_episodes.csv and its dictionary, endpoint provenance and conversation participation fields. Update manifests, field dictionaries, the timing specification and PROCESS_PARTICIPATION_OBSERVATIONS.md. Preserve the existing disk-backed HTTP export path.",
+          "impact": "Raw logs remain available alongside reproducible summary views. There is no schema migration, response rewrite, rescoring, attempt reset, prompt change or new provider call required by this release."
+        }
+      ],
+      "data_impact": [
+        "process-data-summary-v4, session-timing-v4 and participation-observation-v1 identify the revised projections. Item timing retains its separate contract.",
+        "pause_duration_ms equals the matching resume timestamp minus pause timestamp. Terminated/unmatched episodes have empty duration; overlapping assessment/conversation scopes must not be summed. display_receipt_to_pause_ms uses server receipts and is not reading time.",
+        "Historical missingness is preserved. No pause is interpreted as dislike, disengagement, permanent withdrawal or learning failure. Those explanations require separately collected evidence such as student feedback.",
+        "All production verification used read-only student-data queries. Research checks processed the eight supplied sessions separately and returned aggregate validation results only; identifiable transcripts and credentials are absent from this record."
+      ],
+      "tests": [
+        {
+          "name": "Local deterministic and database regression",
+          "result": "Passed",
+          "detail": "Typecheck, changed-file ESLint and git diff --check passed. Participation, process summary, resumed-session timing, visibility timing, item timing, timing dictionary, export-format and Markdown regressions passed. Local synthetic transcript and standard/restricted research-export integrity checks passed. Terminal-without-event, late resume, duplicate display-index representation and skewed frontend lifecycle clocks have explicit assertions. No provider calls were made."
+        },
+        {
+          "name": "Browser review",
+          "result": "Passed locally and on the first live release",
+          "detail": "Synthetic 1440 px and 390 px checks covered layout, filtering, JSON download, overflow and browser errors. Authenticated production checks confirmed teacher login, the real-session process panel, pause/return table and populated Test 6 dashboard. The comparison view also loaded. A selected-session research export job completed through the normal disk-backed web workflow and exposed its Download link. This creates an export audit entry, not changes to student responses. The default Test 4 draft correctly had no participant records; existing assessment content was not published or altered."
+        },
+        {
+          "name": "Production research cross-check",
+          "result": "Passed on a78ef703 and final deployed da12cc78",
+          "detail": "At 19:29:59 UTC and again at 19:35:13 UTC on the final revision, eight supplied sessions each generated 38 research files. All manifest SHA-256 checks, teacher/export elapsed-time comparisons, compatibility aliases, pause-row fields, pause dictionaries and source-turn references passed. Five related assessment dashboard queries completed on each run. The verification made no AI calls and modified no student records."
+        },
+        {
+          "name": "Retained failures and corrections",
+          "result": "Documented",
+          "detail": "Earlier local export checks exposed missing dictionary definitions for two transcript-reference fields; both were added before the passing rerun. The legacy regression was scoped to its own synthetic fixture instead of unrelated historical local records. Whole-repository lint had six existing ignored .data demo-script errors and five warnings; changed application files passed lint. One misnamed export-format command failed before loading a test; the correct student-research-export-format test passed. Render login was refreshed through existing GitHub SSO. SSH attempts made with stdin or during deployment produced no result or disconnected; these were not counted as passing checks. Command-mode verification on each live revision subsequently passed. Successful SSH calls retained the existing additional ED25519 signature warning without disabling host verification."
+        }
+      ],
+      "limitations": [
+        "Pause events describe actions, not reasons. Display acknowledgements establish partial viewport exposure, not complete reading or comprehension. Historical absent telemetry is not reconstructed as newly observed data.",
+        "The checks cover the supplied sessions and targeted regression scenarios, not every future concurrent workload or educational outcome. No new live generative-AI evaluation was needed for these deterministic data changes.",
+        "The production research checks used one supplied session at a time to bound verification memory. They verify export content and consistency, not a concurrent large-cohort load test."
+      ],
+      "references": [
+        "docs/PROCESS_PARTICIPATION_OBSERVATIONS.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/timing-contract.ts",
+        "src/lib/services/teacher-review/participation-observations.ts",
+        "src/lib/services/teacher-review/presented-item-positions.ts",
+        "src/lib/services/teacher-review/readable-transcript.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "src/lib/services/teacher-research-data/dictionary.ts",
+        "prisma/participation-observations-smoke-test.ts",
+        "prisma/participation-ui-smoke-test.ts",
+        "prisma/student-research-export-integrity-smoke-test.ts"
       ]
     }
   ],
