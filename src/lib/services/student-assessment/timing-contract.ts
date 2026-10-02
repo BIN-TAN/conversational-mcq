@@ -135,6 +135,7 @@ export function eventTimestamp(event: TimingEventLike | null | undefined): Date 
 export function recordedEventTimestamp(event: TimingEventLike): Date | null {
   const payload = recordValue(event.payload);
   return asDate(typeof payload.server_received_at === "string" ? payload.server_received_at : null)
+    ?? (event.event_source === "frontend" ? asDate(event.created_at) : null)
     ?? asDate(event.occurred_at) ?? asDate(event.created_at);
 }
 

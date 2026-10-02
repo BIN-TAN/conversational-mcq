@@ -71,6 +71,10 @@ the endpoint is the latest of assessment last activity, process-event server
 receipt/recorded timestamp, conversation start/end/activity, persisted turn dates,
 and conversation lifecycle dates. Administrative `updated_at` is only a fallback
 when no activity endpoint exists; the fallback is explicitly marked.
+For frontend events, the timestamp priority is explicit `server_received_at`,
+then database `created_at`, then legacy `occurred_at` when receipt data is absent.
+Backend events retain their recorded `occurred_at`. Original client timestamps
+remain unchanged; a skewed browser clock cannot override an available receipt.
 
 `session_wall_clock_elapsed_ms = session_observation_end_at - started_at`
 (session creation is the start fallback). `elapsed_session_time_ms` is the same

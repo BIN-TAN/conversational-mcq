@@ -319,7 +319,7 @@ export async function buildTeacherSessionDataAudit(input: {
           concept_unit_session: { select: { concept_unit: { select: { title: true, concept_unit_public_id: true } } } },
           conversation_turns: { where: { actor_type: { in: ["student", "agent"] }, message_text: { not: null } },
             select: { actor_type: true, created_at: true, sequence_index: true } },
-          lifecycle_events: { orderBy: { occurred_at: "asc" }, select: { event_type: true, occurred_at: true, event_source: true } },
+          lifecycle_events: { orderBy: { occurred_at: "asc" }, select: { event_type: true, occurred_at: true, created_at: true, event_source: true } },
           input_telemetry: { select: { edit_count: true, backspace_count: true, paste_event_count: true, final_message_length_chars: true } }
         }
       },

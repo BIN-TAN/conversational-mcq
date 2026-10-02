@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { deriveSessionTiming, type TimingEventLike } from "../src/lib/services/student-assessment/timing-contract";
+import { conversationActivityDates } from "../src/lib/services/teacher-review/participation-observations";
 import { conversationParticipation, derivePauseEpisodes, type ObservedConversation } from "../src/lib/services/teacher-review/participation-observations";
 import { presentedItemPositions } from "../src/lib/services/teacher-review/presented-item-positions";
 import { buildProcessDataSummary } from "../src/lib/services/teacher-review/process-data-summary";
@@ -30,6 +31,9 @@ const terminal = deriveSessionTiming({ session_started_at: at(0), events: [...ev
 assert.equal(terminal.session_wall_clock_elapsed_ms, 140_000, "Unsorted terminal records must be honored");
 const skew = deriveSessionTiming({ session_started_at: at(0), events: [event("window_focus", 20, { client_occurred_at: at(9000).toISOString(), server_received_at: at(20).toISOString() })] });
 assert.equal(skew.session_wall_clock_elapsed_ms, 20_000, "Client clock must not extend endpoint");
+const clientLifecycle = { ...conversation, lifecycle_events: [{ ...event("page_hidden", 9000), event_source: "frontend", created_at: at(260) }] };
+const clientLifecycleTiming = deriveSessionTiming({session_started_at:at(0), events:[], additional_activity_at:conversationActivityDates([clientLifecycle])});
+assert.equal(clientLifecycleTiming.session_wall_clock_elapsed_ms, 260_000, "Lifecycle browser clocks must use the stored server receipt even without payload metadata");
 const episodes = derivePauseEpisodes(events, [conversation], null);
 assert.equal(episodes.length, 3, "Legacy alias must not duplicate an episode; scopes remain separate");
 assert.equal(episodes[0].student_messages_before_pause, 0);
