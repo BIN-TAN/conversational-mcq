@@ -15,6 +15,9 @@ export type ObservedConversation = {
 const record = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value)
   ? value as Record<string, unknown> : {};
 const text = (value: unknown) => typeof value === "string" ? value : null;
+const conversationEnd = (conversation: ObservedConversation) => [conversation.completed_at, conversation.ended_at]
+  .filter((date): date is Date => !!date && Number.isFinite(date.getTime()))
+  .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
 
 export function conversationActivityDates(conversations: ObservedConversation[]) {
   return conversations.flatMap(conversation => [conversation.started_at, conversation.last_activity_at ?? null,
@@ -34,7 +37,7 @@ export function conversationParticipation(conversation: ObservedConversation, ev
   return {
     participation_observation_version: PARTICIPATION_OBSERVATION_VERSION,
     tutor_reply_count: turns.filter(turn => turn.actor_type === "agent").length,
-    displayed_tutor_reply_count: new Set(displays.map(event => record(event.payload).source_turn_sequence_index)).size,
+    displayed_tutor_reply_count: new Set(displays.map(event => Number(record(event.payload).source_turn_sequence_index))).size,
     first_tutor_display_received_at: displays.length ? recordedEventTimestamp(displays[0])?.toISOString() ?? null : null,
     first_student_message_at: [...turns].filter(turn => turn.actor_type === "student")
       .sort((a, b) => a.created_at.getTime() - b.created_at.getTime())[0]?.created_at.toISOString() ?? null
@@ -50,7 +53,8 @@ export function derivePauseEpisodes(events: TimingEventLike[], conversations: Ob
     ...conversations.flatMap(conversation => conversation.lifecycle_events.map(event => ({ event, scope: "learning_conversation" as const, conversation })))
   ].flatMap(row => {
     const at = recordedEventTimestamp(row.event);
-    return at && (!cutoff || at <= cutoff) ? [{ ...row, at }] : [];
+    const end = row.conversation ? conversationEnd(row.conversation) : null;
+    return at && (!cutoff || at <= cutoff) && (!end || at <= end) ? [{ ...row, at }] : [];
   }).sort((a, b) => a.at.getTime() - b.at.getTime());
   const episodes: Array<{
     pause_scope: "assessment" | "learning_conversation";
@@ -117,7 +121,11 @@ export function derivePauseEpisodes(events: TimingEventLike[], conversations: Ob
       open.clear();
     }
   }
-  if (cutoff) for (const episode of open.values()) episode.return_status = "ended_without_recorded_resume";
+  for (const [key, episode] of open) {
+    const conversation = episode.pause_scope === "learning_conversation"
+      ? conversations.find(candidate => candidate.conversation_public_id === key) : null;
+    if (cutoff || conversation && conversationEnd(conversation)) episode.return_status = "ended_without_recorded_resume";
+  }
   return episodes;
 }
 

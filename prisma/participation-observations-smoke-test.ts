@@ -39,6 +39,13 @@ assert.equal(episodes[1].pause_duration_ms, 10_000);
 assert.equal(episodes[2].student_messages_before_pause, 1);
 assert.equal(episodes[2].return_status, "no_resume_recorded");
 assert.equal(episodes[2].pause_duration_ms, null);
+const endedConversation = { ...conversation, ended_at: at(260), lifecycle_events: [...conversation.lifecycle_events, event("resumed", 270), event("paused", 280)] };
+const endedConversationEpisodes = derivePauseEpisodes(events, [endedConversation], null);
+assert.equal(endedConversationEpisodes.length, 3, "Ignore lifecycle records after the authoritative conversation end");
+assert.equal(endedConversationEpisodes[2].return_status, "ended_without_recorded_resume", "Conversation end closes an unmatched pause even if its lifecycle event is missing");
+assert.equal(endedConversationEpisodes[2].resumed_at, null);
+assert.equal(endedConversationEpisodes[2].pause_duration_ms, null, "Never invent a return interval at completion");
+assert.equal(derivePauseEpisodes(events, [{ ...conversation, completed_at: at(260) }], null)[2].return_status, "ended_without_recorded_resume");
 assert.equal(derivePauseEpisodes(events, [conversation], at(260))[2].return_status, "ended_without_recorded_resume");
 const initialPause = derivePauseEpisodes([event("attempt_paused", 90, { preserved_phase: "initial_item_administration" })], [conversation], null)[0];
 assert.equal(initialPause.conversation_public_id, null, "Do not attach initial administration to a learning conversation");
@@ -55,6 +62,7 @@ assert.equal(ended[0].return_status, "ended_without_recorded_resume");
 assert.equal(ended[0].resumed_at, null);
 assert.equal(derivePauseEpisodes([event("attempt_ended_by_teacher", 15), event("attempt_paused", 20)], [], null).length, 0, "Ignore late pause observations after termination");
 const participation = conversationParticipation(conversation, [display, display,
+  event("formative_feedback_shown", 90, { display_event_contract_version: "display-ack-v2", conversation_public_id: "conversation-demo", source_turn_sequence_index: "151" }),
   event("formative_feedback_shown", 90, { display_event_contract_version: "display-ack-v1", conversation_public_id: "conversation-demo", source_turn_sequence_index: 159 }),
   event("formative_feedback_shown", 90, { display_event_contract_version: "display-ack-v2", conversation_public_id: "other", source_turn_sequence_index: 159 }),
   event("formative_feedback_shown", 90, { display_event_contract_version: "display-ack-v2", conversation_public_id: "conversation-demo", source_turn_sequence_index: 555 })]);

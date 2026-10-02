@@ -43,6 +43,9 @@ AI waiting, browser-hidden periods and unobserved inactivity can remain in it.
    or terminated episode has an empty duration, not zero. `no_resume_recorded`
    means no resume observed by the export snapshot; it is right-censored rather
    than permanent abandonment. Overlapping scopes must not be summed.
+   A recorded conversation completion/end also closes an unmatched conversation
+   pause when its lifecycle event is missing. Later lifecycle records are excluded
+   from that conversation's pause projection; no return time is invented.
 3. `student_messages_before_pause` counts persisted student turns at or before the
    pause in the linked conversation. Unknown/ambiguous conversation context is
    empty, not zero. A historical assessment pause links only to a unique eligible
@@ -55,6 +58,7 @@ AI waiting, browser-hidden periods and unobserved inactivity can remain in it.
 5. `formative_conversation_sessions.csv` adds saved/displayed tutor counts, first
    display receipt and first student reply. Counts of displayed replies are
    distinct source tutor turns. Missing acknowledgements do not mean unseen text.
+   Numeric and historical numeric-string sequence indexes identify the same turn.
 
 Raw process events, lifecycle events and conversation turns remain available.
 These summary tables are reproducible convenience views, not replacement data.
