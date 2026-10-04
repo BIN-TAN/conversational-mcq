@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-04T02:47:09+00:00",
+  "updated_at": "2026-10-04T03:22:57+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1347,6 +1347,90 @@
         "prisma/initial-preparation-smoke-test.ts",
         "docs/ASSESSMENT_FLOW.md",
         "docs/DATA_LOGGING_SPEC.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261003-03",
+      "date": "2026-10-03",
+      "title": "Approved build dependency exception and recovery release delivery",
+      "application_commit": "b4ad27091bc1b821755b6536d6e77d9f9f70eba1",
+      "push_status": "Pushed to origin/main; independent remote-head verification matched b4ad27091bc1b821755b6536d6e77d9f9f70eba1. Unrelated local outputs and private diagnostic files were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db0s3m0ae00c73eubro0",
+        "verified_at": "2026-10-04T03:22:57+00:00",
+        "source_commit": "b4ad27091bc1b821755b6536d6e77d9f9f70eba1",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db0s3m0ae00c73eubro0",
+        "evidence": [
+          "Canonical Render deployment details show Deploy succeeded | Live, duration 5m00s, and the exact application source. The service became live at 2026-10-04T03:07:47Z. This delivers the previously blocked CMCQ-20261003-02 API recovery changes as well as the approved build exception.",
+          "Render passed the build gate with the explicit exception, built the application, then passed the pruned-runtime audit with zero findings and excepted_build_nodes absent. Database startup found 65 migrations and no pending migrations. The web service reported Ready in 1022 ms.",
+          "Read-only SSH checks matched RENDER_GIT_COMMIT and build/application-build-info.json to b4ad27091bc1b821755b6536d6e77d9f9f70eba1. Artifact SHA256 was 7a0cd68f111b19ef65290a26929159f5a5a61e6577b6190a239052c6860cb2b4. The deployed pruning verifier confirmed that the excepted dependencies were absent.",
+          "The live container had a next-server process and a separately verified initial-preparation-worker.ts process. The 2 GiB memory limit was unchanged; sampled usage was 252973056 bytes, with zero oom and oom_kill counts. This is a point-in-time observation, not a load test.",
+          "Public /api/health at 2026-10-04T03:12:51.084Z reported status ok, database_reachable true, database_schema_ready true and migration_readiness ready. A synthetic direct-provider structured request on the deployed version completed with the expected result in 1407 ms."
+        ]
+      },
+      "summary": "Resolve the deployment blocker through one explicitly owner-approved, seven-day build-only security exception. Retain strict production checks and deliver the previously tested API recovery work from CMCQ-20261003-02 without rewriting student evidence.",
+      "changes": [
+        {
+          "area": "Time-limited build risk acceptance",
+          "problem": "The deployment failed on GHSA-vfj7-8cjw-p6xm, a braces stack-exhaustion advisory without an upstream patch at verification time. Seven reported packages belong to the same build-tool dependency chain.",
+          "fix": "Accept only that advisory and its known eight lockfile locations, pinned versions and development-only flags. Validate the complete cause chain, report counts, audit exit status and integrity metadata. Every other advisory, malformed report or audit failure still blocks deployment.",
+          "impact": "This is a documented temporary exception, not a vulnerability patch. It runs from 2026-10-04T02:55:04Z through, but not including, 2026-10-11T02:55:04Z. There is no automatic renewal; logs retain the actual findings and expiry."
+        },
+        {
+          "area": "Production image protection",
+          "problem": "Build-only acceptance must not permit vulnerable tooling into the classroom runtime.",
+          "fix": "Require a separate zero-findings production audit, then prune development dependencies in the final Docker stage. Re-audit that stage and verify that all excepted paths and lockfile braces copies are physically absent.",
+          "impact": "There is no production-dependency exception. The deployment fix leaves application behavior unchanged while allowing the pending account-failure and bounded-retry recovery changes to be delivered."
+        }
+      ],
+      "data_impact": [
+        "No schema migration, answer rewrite, profile rescore, attempt reset, prompt change or research-calculation change was introduced by this deployment fix. Original failed deployments and API-call evidence remain recorded.",
+        "The inherited API-recovery release preserves submitted products and failed-call history; its additive restricted operational metadata and timing formulas remain documented in CMCQ-20261003-02 and DATA_LOGGING_SPEC. No billing operation or further capacity purchase was performed."
+      ],
+      "tests": [
+        {
+          "name": "Security controls",
+          "result": "Passed",
+          "detail": "npm run security:dependency-smoke passed ten new boundary tests and seventeen existing security checks. Cases include exact expiry, unrelated low-severity findings, another advisory on the same package, changed scope/version, malformed reports, cyclic causes and unpruned runtime paths. npm run security:dependencies passed with the explicit build exception and zero production findings."
+        },
+        {
+          "name": "Inherited recovery and research regression",
+          "result": "Passed again on this source",
+          "detail": "All ten focused recovery, preparation, transport, item-administration, formative-runtime, research-export and dictionary-privacy suites passed in a disposable migrated/seeded local database with external AI blocked. The test database was removed. These tests do not alter production student data."
+        },
+        {
+          "name": "Static checks and production build",
+          "result": "Passed with existing warnings",
+          "detail": "Typecheck, changed-file ESLint and git diff --check passed. The production build generated 83 static pages using the existing Render build-only 12 GiB heap setting. Repeated webpack cache warnings and two existing unused-import warnings remain; no service-memory setting was changed."
+        },
+        {
+          "name": "Live deployment and provider verification",
+          "result": "Deployment, health, worker and small AI probe passed; diagnostic limitation retained",
+          "detail": "The full source revision, runtime pruning, public health, migration readiness and preparation worker were verified after cutover. The built-in npm run llm:connectivity command returned incomplete / max_output_tokens with zero retries: its diagnostic response exceeded the small connectivity budget. A minimal structured direct-provider probe using the same approved connectivity model returned completed with ok true in 1407 ms. This verifies API access and short structured generation, not a complete learner conversation. No student records were modified; the built-in diagnostic retains its synthetic operational call record."
+        },
+        {
+          "name": "Operational verification retries",
+          "result": "Resolved with direct read-only commands",
+          "detail": "A multiline remote verification helper did not return results through Render SSH, and the minimal container lacks ps. Equivalent direct reads and short Node commands verified the runtime facts. SSH retained the existing additional ED25519 proof-signature warning without disabling host verification. The helper-command failures were not evidence of a failed application deployment."
+        }
+      ],
+      "limitations": [
+        "The underlying build-tool vulnerability remains during the approved exception. Upstream status was checked at https://github.com/advisories/GHSA-vfj7-8cjw-p6xm and the official npm registry. A reviewed patch or separately approved extension is required before the exception expires at October 10, 2026, 20:55:04 MDT.",
+        "Expiry blocks subsequent builds using this exception; it does not terminate an already-running classroom service. No unattended advisory monitor or automatic renewal was configured.",
+        "This is deployment and targeted regression verification, not a new classroom-concurrency benchmark or pedagogical-effectiveness evaluation. Full learner-conversation and live research-export validation were not repeated in this deployment-only check; local research-integrity and privacy suites passed.",
+        "The built-in connectivity diagnostic can exhaust its small output budget even when the provider is reachable. Its incomplete result is retained rather than reported as a pass. The separately successful minimal probe did not increase student budgets or change diagnostic settings."
+      ],
+      "references": [
+        "scripts/dependency-security-check.mjs",
+        "scripts/dependency-security-check.test.mjs",
+        "prisma/dependency-security-smoke-test.ts",
+        "Dockerfile",
+        "docs/DEPENDENCY_SECURITY_EXCEPTION_2026-10-03.md",
+        "src/lib/llm/provider-recovery.ts",
+        "src/lib/workflow/initial-preparation.ts"
       ]
     }
   ],
