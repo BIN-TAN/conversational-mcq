@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { providerRetryDelayMs } from "@/lib/llm/provider-recovery";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -362,9 +363,12 @@ export async function executeAgent<TAgentName extends AgentNameType>(
         providerResult.error?.retryable &&
         retryCount < runtime.max_retries
       ) {
-        retryCount += 1;
-        await sleep(retryDelayMs(retryCount));
-        continue;
+        const delay = providerRetryDelayMs(providerResult, retryDelayMs(retryCount + 1));
+        if (delay !== null) {
+          retryCount += 1;
+          await sleep(delay);
+          continue;
+        }
       }
 
       if (providerResult.status === "completed") {

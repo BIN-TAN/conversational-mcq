@@ -1,6 +1,7 @@
 import { mockOutputForAgent } from "../src/lib/agents/mock-fixtures";
 import type { AgentInputByName } from "../src/lib/agents/contracts";
 import type { AgentName } from "../src/lib/agents/names";
+import { buildCanonicalEvidenceCatalog } from "../src/lib/domain/canonical-evidence-identity";
 
 export function fixtureInputForAgent<TAgentName extends AgentName>(
   agentName: TAgentName
@@ -89,7 +90,12 @@ export function fixtureInputForAgent<TAgentName extends AgentName>(
         previous_profile: null,
         followup_evidence_package: null,
         profile_type: "initial",
-        profiling_constraints: { mock_only: true }
+        profiling_constraints: { mock_only: true },
+        allowed_evidence_catalog: buildCanonicalEvidenceCatalog({
+          evidence_namespace_public_id: "synthetic_namespace",
+          assessment_public_id: "synthetic_assessment",
+          concept_unit_public_id: "synthetic_concept"
+        })
       } as unknown as AgentInputByName[TAgentName];
     case "formative_value_and_planning_agent":
       return {

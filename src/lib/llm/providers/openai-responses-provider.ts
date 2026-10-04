@@ -9,6 +9,7 @@ import {
   resolveOpenAICredentialFromEnv
 } from "@/lib/llm/openai-credential-resolver";
 import { sanitizeUnknownError } from "@/lib/llm/errors";
+import { providerFailureAudit } from "@/lib/llm/provider-recovery";
 import {
   isApprovedOpenAIBaseUrl,
   normalizeOpenAITransportError,
@@ -612,7 +613,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         provider_request_id: observedProviderRequestId,
         retry_after_ms: observedRetryAfterMs
       });
-      return {
+      const failedResult: StructuredAgentResult<TOutput> = {
         provider: "openai",
         client_request_id: request.client_request_id,
         provider_request_id: normalized.provider_request_id ?? normalized.provider_request_header_id ?? undefined,
@@ -628,6 +629,8 @@ export class OpenAIResponsesProvider implements LlmProvider {
           normalized_error: normalized
         }
       };
+      failedResult.raw_output = { provider_failure: providerFailureAudit(failedResult) };
+      return failedResult;
     }
   }
 }

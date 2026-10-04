@@ -129,6 +129,52 @@ async function main() {
   await processInitialPreparationJob(await claim(), { prepare: async () => {} });
   pass("bounded retries stop; explicit retry preserves one job and attempt history");
 
+  const quota = await fixture("quota_recovery");
+  await submitInitialConceptUnitForPreparation(quota.input);
+  const quotaJob = await claim();
+  const responsesBefore = await prisma.itemResponse.findMany({ where: { concept_unit_session_db_id: quota.conceptUnitSession.id } });
+  const packageBefore = await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: quota.conceptUnitSession.id } });
+  assert.equal(await processInitialPreparationJob(quotaJob, { prepare: async () => {
+    await prisma.agentCall.create({ data: {
+      assessment_session_db_id: quota.session.id, concept_unit_session_db_id: quota.conceptUnitSession.id,
+      agent_name: "formative_conversation_agent", agent_version: "synthetic-v1", model_name: "mock",
+      prompt_version: "synthetic-v1", schema_version: "synthetic-v1", input_payload: { synthetic: true },
+      call_status: "failed", error_category: "quota", output_validated: false,
+      raw_output: { provider_failure: { provider_error_code: "credit_balance_exhausted" } }
+    } });
+    throw new Error("synthetic_quota_failure");
+  } }), "failed");
+  assert.equal((await jobFor(quota.session.id)).last_error_category, "provider_account_unavailable");
+  assert.equal(await claimInitialPreparationJob("quota-no-automatic-repeat"), null);
+  assert.equal((await getOwnedInitialPreparationStatus(quota.input)).preparation?.can_retry, true);
+  assert.equal((await prisma.assessmentSession.findUniqueOrThrow({ where: { id: quota.session.id } })).status, "active");
+  assert.deepEqual(await prisma.itemResponse.findMany({ where: { concept_unit_session_db_id: quota.conceptUnitSession.id } }), responsesBefore);
+  assert.deepEqual(await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: quota.conceptUnitSession.id } }), packageBefore);
+  await submitInitialConceptUnitForPreparation(quota.input);
+  assert.equal(await processInitialPreparationJob(await claim(), { prepare: async () => {} }), "completed");
+  assert.equal(await prisma.agentCall.count({ where: { assessment_session_db_id: quota.session.id, error_category: "quota" } }), 1);
+  pass("quota stops automatic retries without closing the attempt; explicit recovery retains responses, packages and failure audit");
+
+  const throttled = await fixture("throttle_delay");
+  await submitInitialConceptUnitForPreparation(throttled.input);
+  const delayedJob = await claim();
+  const failureAt = new Date();
+  assert.equal(await processInitialPreparationJob(delayedJob, { prepare: async () => {
+    await prisma.agentCall.create({ data: {
+      assessment_session_db_id: throttled.session.id, concept_unit_session_db_id: throttled.conceptUnitSession.id,
+      agent_name: "formative_conversation_agent", agent_version: "synthetic-v1", model_name: "mock",
+      prompt_version: "synthetic-v1", schema_version: "synthetic-v1", input_payload: { synthetic: true },
+      call_status: "failed", error_category: "rate_limit", output_validated: false, completed_at: failureAt,
+      raw_output: { provider_failure: { retry_after_ms: 61_000 } }
+    } });
+    throw new Error("synthetic_rate_limit");
+  } }), "retryable");
+  assert((await jobFor(throttled.session.id)).run_after.getTime() >= failureAt.getTime() + 61_000);
+  assert.equal(await claimInitialPreparationJob("server-delay-floor"), null);
+  await makeDue(delayedJob);
+  assert.equal(await processInitialPreparationJob(await claim(), { prepare: async () => {} }), "completed");
+  pass("background retry also honors the provider delay without shortening it to the worker backoff");
+
   const paused = await fixture("paused");
   await submitInitialConceptUnitForPreparation(paused.input);
   await prisma.assessmentSession.update({ where: { id: paused.session.id }, data: { status: "paused", resume_phase: "profiling_pending" } });

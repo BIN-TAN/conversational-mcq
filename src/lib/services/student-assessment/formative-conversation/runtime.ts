@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { providerFailureAudit } from "@/lib/llm/provider-recovery";
 import { assertNoProhibitedProviderInput, redactForAudit } from "@/lib/agents/redaction";
 import { prisma } from "@/lib/db";
 import { assertAgentCallUsageAllowed, LlmUsageBlockedError } from "@/lib/llm/usage/agent-call-guard";
@@ -812,7 +813,10 @@ async function executeOrResumeAgentCall(input: {
           provider_request_id: providerRequestId,
           provider_response_id: providerResponseId,
           client_request_id: lastResult.client_request_id,
-          raw_output: prismaJson({ provider_execution_audit: error.audit }),
+          raw_output: prismaJson({
+            provider_execution_audit: error.audit,
+            provider_failure: providerFailureAudit(error.last_result)
+          }),
           output_validated: false,
           validation_error: JSON.stringify({
             category: error.failure_category,
@@ -831,7 +835,8 @@ async function executeOrResumeAgentCall(input: {
                 attempt.invalid_candidate?.validation_issue_paths ?? []
             }))
           }),
-          error_category: error.failure_category,
+          error_category: error.failure_class === "transport_failure" && error.last_result.error?.category === "quota"
+            ? "quota" : error.failure_category,
           usage_guard_snapshot: prismaJson({
             generation_source: "live_llm",
             provider_execution_audit: error.audit

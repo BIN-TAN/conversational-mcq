@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getLlmReadiness } from "@/lib/llm/readiness";
+import { recentProviderNotice } from "@/lib/llm/provider-status";
 
 export default async function TeacherLlmSystemPage() {
   const user = await getCurrentUser();
@@ -19,11 +20,20 @@ export default async function TeacherLlmSystemPage() {
   const schemaVersions = readiness.schema_versions as Record<string, string>;
   const promptStatuses = readiness.prompt_statuses as Record<string, string>;
   const usage = readiness.usage;
+  const providerNotice = recentProviderNotice(usage?.recent_agent_calls ?? []);
   const operationalIntegration = readiness.guarded_operational_agent_integration;
 
   return (
     <main className="px-6 py-8">
       <div className="mx-auto max-w-6xl">
+        {providerNotice ? (
+          <section role="status" className="mb-5 border-l-4 border-amber-500 bg-amber-50 p-4 text-sm text-amber-950">
+            <h2 className="font-semibold">{providerNotice.title}</h2>
+            <p className="mt-1">{providerNotice.message}</p>
+            <p className="mt-1 text-xs">Last observed: {new Date(providerNotice.observed_at).toLocaleString()}</p>
+            <a className="mt-2 inline-block underline" href="https://platform.openai.com/settings/organization/billing/overview" target="_blank" rel="noreferrer">Open API billing</a>
+          </section>
+        ) : null}
         <section className="grid gap-4 md:grid-cols-3">
           <StatusCard label="Provider" value={String(readiness.provider)} />
           <StatusCard
@@ -198,7 +208,7 @@ export default async function TeacherLlmSystemPage() {
                     <th className="px-3 py-2">Agent</th>
                     <th className="px-3 py-2">Provider</th>
                     <th className="px-3 py-2">Status</th>
-                    <th className="px-3 py-2">Blocked reason</th>
+                    <th className="px-3 py-2">Failure / block reason</th>
                     <th className="px-3 py-2">Retries</th>
                     <th className="px-3 py-2">Tokens</th>
                   </tr>
@@ -217,7 +227,7 @@ export default async function TeacherLlmSystemPage() {
                         <td className="px-3 py-2 font-mono text-xs">{call.agent_name}</td>
                         <td className="px-3 py-2">{call.provider}</td>
                         <td className="px-3 py-2">{call.call_status}</td>
-                        <td className="px-3 py-2">{call.blocked_reason ?? "none"}</td>
+                        <td className="px-3 py-2">{call.error_category === "quota" ? "API credits or account limit" : call.blocked_reason ?? call.error_category ?? "none"}</td>
                         <td className="px-3 py-2">{call.retry_count}</td>
                         <td className="px-3 py-2">{call.total_tokens ?? 0}</td>
                       </tr>

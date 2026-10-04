@@ -377,6 +377,20 @@ limits and all output validation remain unchanged. A detected `max_output_tokens
 retries instead of spending the same budget repeatedly; explicit retry stays
 available. Other transient failures retain the existing bounded retry policy.
 
+Provider credit exhaustion and account quota failures also stop automatic initial
+preparation retries. The student retains the saved answers, **Try again**, and
+teacher-contact guidance; no attempt is ended or marked complete by this failure.
+Account/billing diagnostics appear only in the teacher's LLM status view and
+restricted technical records, never in student conversation messages.
+
+Temporary HTTP 429 responses use at most three transport attempts with 2-second
+and 8-second base delays. A provider's `Retry-After` (seconds or HTTP date) or
+`retry-after-ms` is a minimum, with up to 500 ms of rate-limit jitter. Inline
+retries wait at most 30 seconds each (60 seconds total); a longer provider delay
+is deferred, not shortened. Initial-preparation jobs honor that persisted delay
+before a background retry. Credit/quota failures are not temporary traffic limits
+and do not consume these automatic transport retries.
+
 The application owns:
 
 - current state;

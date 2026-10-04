@@ -109,6 +109,7 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
   };
   let status: "completed" | "retryable" | "failed" | "cancelled" = "completed";
   let errorCategory: string | null = null;
+  let retryNotBefore = 0;
   let paused = false;
   try {
     await assertActive();
@@ -146,17 +147,33 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
       status = "failed";
       errorCategory = "preparation_source_conflict";
     } else if (!(error instanceof PreparationInterrupted)) {
-      // A capacity failure will not improve by silently repeating the same request.
+      // Capacity and account failures will not improve by silently repeating requests.
       // Only inspect calls from this job attempt, not failures from an earlier retry.
-      const truncated = await prisma.agentCall.findFirst({ where: {
+      const nonretryableCall = await prisma.agentCall.findFirst({ where: {
         assessment_session_db_id: job.assessment_session_db_id,
         concept_unit_session_db_id: job.concept_unit_session_db_id,
         created_at: { gte: job.locked_at ?? job.updated_at },
-        call_status: "failed", incomplete_reason: "max_output_tokens"
-      }, select: { id: true } });
-      if (truncated) {
+        call_status: "failed", OR: [
+          { incomplete_reason: "max_output_tokens" }, { error_category: "quota" }
+        ]
+      }, orderBy: { created_at: "desc" }, select: { error_category: true } });
+      if (nonretryableCall) {
         status = "failed";
-        errorCategory = "output_token_limit";
+        errorCategory = nonretryableCall.error_category === "quota"
+          ? "provider_account_unavailable" : "output_token_limit";
+      } else if (status === "retryable") {
+        const failedCall = await prisma.agentCall.findFirst({ where: {
+          assessment_session_db_id: job.assessment_session_db_id,
+          concept_unit_session_db_id: job.concept_unit_session_db_id,
+          created_at: { gte: job.locked_at ?? job.updated_at }, call_status: "failed"
+        }, orderBy: { created_at: "desc" }, select: { raw_output: true, completed_at: true, created_at: true } });
+        const raw = failedCall?.raw_output;
+        const failure = raw && typeof raw === "object" && !Array.isArray(raw) ? raw.provider_failure : null;
+        const delay = failure && typeof failure === "object" && !Array.isArray(failure) ? failure.retry_after_ms : null;
+        if (typeof delay === "number" && Number.isFinite(delay) && delay > 0) {
+          const candidate = (failedCall!.completed_at ?? failedCall!.created_at).getTime() + delay;
+          if (Number.isFinite(new Date(candidate).getTime())) retryNotBefore = candidate;
+        }
       }
     }
   } finally {
@@ -168,7 +185,7 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
     const updated = await tx.workflowJob.updateMany({ where: leaseWhere(job), data: {
       status: outcome, locked_by: null, locked_at: null,
       ...(paused ? { max_attempts: { increment: 1 } } : {}),
-      run_after: new Date(Date.now() + retryDelayMs(job.attempt_count)),
+      run_after: new Date(Math.max(Date.now() + retryDelayMs(job.attempt_count), retryNotBefore)),
       completed_at: outcome === "completed" || outcome === "cancelled" ? new Date() : null,
       last_error_category: errorCategory,
       last_error_message: errorCategory ? "Learning support preparation did not finish. Saved responses are unchanged." : null

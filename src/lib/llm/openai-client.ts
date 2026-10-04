@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { parseProviderRetryAfter } from "./provider-recovery";
 import {
   isApprovedOpenAIBaseUrl,
   resolveOpenAIBaseUrl
@@ -36,18 +37,6 @@ export type OpenAIClientTransportInstrumentation = {
     bytes_received: number;
   }) => void | Promise<void>;
 };
-
-function retryAfterMs(headers: Headers) {
-  const retryAfterMsHeader = headers.get("retry-after-ms");
-  if (retryAfterMsHeader && Number.isFinite(Number(retryAfterMsHeader))) {
-    return Number(retryAfterMsHeader);
-  }
-  const retryAfter = headers.get("retry-after");
-  if (retryAfter && Number.isFinite(Number(retryAfter))) {
-    return Number(retryAfter) * 1000;
-  }
-  return null;
-}
 
 export async function instrumentOpenAIResponseBody(
   response: Response,
@@ -155,7 +144,7 @@ export function createOpenAIClient(instrumentation?: OpenAIClientTransportInstru
       url,
       status: response.status,
       request_id: response.headers.get("x-request-id") ?? response.headers.get("request-id"),
-      retry_after_ms: retryAfterMs(response.headers)
+      retry_after_ms: parseProviderRetryAfter(response.headers)
     });
     return instrumentOpenAIResponseBody(
       response,

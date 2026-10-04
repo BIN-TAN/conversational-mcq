@@ -362,6 +362,31 @@ created_at
 Likely current support:
 
 - `agent_calls` stores provider/model metadata, prompt and schema versions, input/output payloads, validation state, retry counts, usage, latency, and status.
+
+Provider recovery v1 adds `raw_output.provider_failure` to failed OpenAI calls
+and failed v18/v18r2 formative executions. Its allowlisted fields are
+`recovery_version`, `http_status`, `provider_error_code`, `provider_error_type`,
+`typed_failure_reason`, `retry_after_ms`, and `retryable`. Codes/types are restricted
+to short machine identifiers; this object contains no provider message text,
+credentials, or student content. It is a restricted operational audit object,
+not a new public research column or a measure of student engagement. Missing
+fields in historical calls remain missing; no earlier failures are relabeled.
+
+`provider-failure-taxonomy-v4` distinguishes account/credit exhaustion from
+temporary HTTP 429 responses, including responses with a completed error body.
+`bounded-provider-transport-retry-v3` traces the actual backoff delay and the
+reason `server_delay_exceeds_inline_retry_budget` when a delay is deferred.
+`retry_after_ms` is derived from provider milliseconds, provider seconds times
+1,000, or an HTTP-date minus receipt time, rounded up to milliseconds. It is not
+student response time. For initial preparation, `run_after` is the later of the
+worker's ordinary retry time and the failed call's completion time plus this
+delay (creation time is used if completion time is absent).
+
+Initial-preparation account failures use workflow category
+`provider_account_unavailable`. Failed jobs/calls remain recorded across explicit
+retries, while submitted response packages and item responses are unchanged.
+Teacher LLM status reports the latest persisted OpenAI success/failure from the
+recent-call window; it is historical evidence, not a continuous connectivity probe.
 - `operational_agent_effective_results` stores effective outputs after deterministic guards, canonicalization, fallback, and validation.
 - Student-visible messages should be linked through `conversation_turns` and should not expose hidden prompts, model metadata, answer keys, or audit-only details.
 

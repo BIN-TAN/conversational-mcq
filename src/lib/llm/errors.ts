@@ -1,10 +1,10 @@
 import { APIError } from "openai";
 import type { SanitizedAgentError } from "./providers/types";
+import { isOpenAIQuotaError } from "./provider-recovery";
 
 export function sanitizeUnknownError(error: unknown): SanitizedAgentError {
   if (error instanceof APIError) {
     const status = error.status;
-    const code = typeof error.code === "string" ? error.code : "";
     const message = error.message ?? "";
 
     if (!status) {
@@ -50,12 +50,13 @@ export function sanitizeUnknownError(error: unknown): SanitizedAgentError {
     }
 
     if (status === 429) {
+      const quota = isOpenAIQuotaError(error);
       return {
-        category: code.includes("quota") ? "quota" : "rate_limit",
-        message: code.includes("quota")
-          ? "OpenAI quota was exhausted."
+        category: quota ? "quota" : "rate_limit",
+        message: quota
+          ? "OpenAI API credits or account quota are exhausted. Check API billing and account limits."
           : "OpenAI rate limit was reached.",
-        retryable: !code.includes("quota")
+        retryable: !quota
       };
     }
 

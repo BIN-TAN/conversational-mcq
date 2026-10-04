@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { APIError } from "openai";
+import { isOpenAIQuotaError, parseProviderRetryAfter } from "./provider-recovery";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 import { OPENAI_RESPONSES_ADAPTER_VERSION } from "@/lib/llm/providers/openai-responses-adapter-version";
 import type {
@@ -67,21 +68,6 @@ function headersFromError(value: unknown): Headers | null {
   return null;
 }
 
-function retryAfterMs(headers: Headers | null) {
-  if (!headers) {
-    return null;
-  }
-  const retryMs = headers.get("retry-after-ms");
-  if (retryMs && Number.isFinite(Number(retryMs))) {
-    return Number(retryMs);
-  }
-  const retrySeconds = headers.get("retry-after");
-  if (retrySeconds && Number.isFinite(Number(retrySeconds))) {
-    return Number(retrySeconds) * 1000;
-  }
-  return null;
-}
-
 function errorCodeText(error: unknown) {
   return [
     stringProperty(error, "code"),
@@ -132,6 +118,7 @@ function classifyNetwork(error: unknown, message: string):
 function typedReason(input: {
   status: number | null;
   codeText: string;
+  quota: boolean;
   networkCategory: ReturnType<typeof classifyNetwork>;
 }): OpenAITransportTypedFailureReason {
   if (input.status === 401) {
@@ -144,7 +131,7 @@ function typedReason(input: {
     return "openai_model_not_found";
   }
   if (input.status === 429) {
-    return /quota|insufficient_quota|billing/.test(input.codeText)
+    return input.quota
       ? "openai_quota_exceeded"
       : "openai_rate_limited";
   }
@@ -188,7 +175,7 @@ export function normalizeOpenAITransportError(
     : numberProperty(error, "status") ?? observedResponse?.status ?? null;
   const codeText = errorCodeText(error);
   const networkCategory = status ? "http_error" : classifyNetwork(error, message) ?? "unknown";
-  const typed = typedReason({ status, codeText, networkCategory });
+  const typed = typedReason({ status, codeText, networkCategory, quota: isOpenAIQuotaError(error) });
   const cause = causeFromError(error);
   const providerRequestHeaderId =
     headers?.get("x-request-id") ??
@@ -212,7 +199,7 @@ export function normalizeOpenAITransportError(
     provider_request_id: stringProperty(error, "request_id"),
     provider_request_header_id: providerRequestHeaderId,
     retry_after_ms:
-      retryAfterMs(headers) ?? observedResponse?.retry_after_ms ?? null,
+      parseProviderRetryAfter(headers) ?? observedResponse?.retry_after_ms ?? null,
     node_cause_name: cause instanceof Error ? cause.name : stringProperty(cause, "name"),
     node_cause_code: stringProperty(cause, "code"),
     network_category: networkCategory,

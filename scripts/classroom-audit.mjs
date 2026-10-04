@@ -10,6 +10,7 @@ assert(database.pathname.startsWith("/conversational_mcq_classroom_audit_"), "di
 const files = [
   "dependency-security-smoke-test.ts",
   "classroom-acceptance-smoke-test.ts",
+  "provider-recovery-smoke-test.ts",
   "stance-evidence-smoke-test.ts",
   "formative-interpretation-policy-smoke-test.ts",
   "student-collection-learning-summary-smoke-test.ts",

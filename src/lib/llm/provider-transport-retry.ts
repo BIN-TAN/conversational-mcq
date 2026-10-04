@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { stableHash } from "@/lib/operational/stable-hash";
+import { providerRetryDelayMs } from "./provider-recovery";
 import type {
   LlmProvider,
   OpenAITransportMilestone,
@@ -10,11 +11,13 @@ import type {
 export const PROVIDER_FAILURE_TAXONOMY_VERSION:
   | "provider-failure-taxonomy-v1"
   | "provider-failure-taxonomy-v2"
-  | "provider-failure-taxonomy-v3" = "provider-failure-taxonomy-v3";
+  | "provider-failure-taxonomy-v3"
+  | "provider-failure-taxonomy-v4" = "provider-failure-taxonomy-v4";
 export const PROVIDER_TRANSPORT_RETRY_POLICY_VERSION =
-  "bounded-provider-transport-retry-v2" as
+  "bounded-provider-transport-retry-v3" as
     | "bounded-provider-transport-retry-v1"
-    | "bounded-provider-transport-retry-v2";
+    | "bounded-provider-transport-retry-v2"
+    | "bounded-provider-transport-retry-v3";
 export const PROVIDER_REQUEST_TRACING_POLICY_VERSION =
   "provider-request-tracing-policy-v3" as
     | "provider-request-tracing-policy-v2"
@@ -28,6 +31,9 @@ export const PROVIDER_TRANSPORT_RETRY_LIMITS = Object.freeze({
   provider_concurrency: 1,
   backoff_ms: [2_000, 8_000] as const,
   jitter: false,
+  rate_limit_jitter_max_ms: 500,
+  maximum_retry_delay_ms: 30_000,
+  maximum_total_retry_wait_ms: 60_000,
   sdk_managed_retries: 0
 });
 
@@ -101,7 +107,7 @@ const retryableHttpCategories: Record<number, ProviderFailureCategory> = {
 function classification(
   input: Omit<ProviderFailureClassification, "taxonomy_version">
 ): ProviderFailureClassification {
-  return { taxonomy_version: "provider-failure-taxonomy-v3", ...input };
+  return { taxonomy_version: "provider-failure-taxonomy-v4", ...input };
 }
 
 export function classifyProviderFailure<TOutput>(
@@ -127,6 +133,27 @@ export function classifyProviderFailure<TOutput>(
     normalized?.response_body_bytes_received ??
     result.transport_telemetry?.response_body_bytes_received ??
     0;
+
+  // An HTTP error body is not generated teaching content. A completed 429 error
+  // can be retried, but billing/quota failures need account action, not repetition.
+  if (typedReason === "openai_quota_exceeded" || errorCategory === "quota") {
+    return classification({
+      category: "quota_exceeded_nonretryable", domain: "request_contract",
+      retryable_transport_failure: false, semantic_regeneration_eligible: false,
+      http_status: httpStatus, typed_failure_reason: typedReason,
+      normalized_error_category: errorCategory,
+      rationale: "API credit or quota recovery requires account action; automatic retries are disabled."
+    });
+  }
+  if (httpStatus === 429 && (typedReason === "openai_rate_limited" || errorCategory === "rate_limit")) {
+    return classification({
+      category: "retryable_rate_limit", domain: "provider_infrastructure_transport",
+      retryable_transport_failure: true, semantic_regeneration_eligible: false,
+      http_status: httpStatus, typed_failure_reason: typedReason,
+      normalized_error_category: errorCategory,
+      rationale: "Temporary HTTP 429 follows server-directed delay or bounded jittered backoff, including when an error body was received."
+    });
+  }
 
   if (httpStatus !== null && retryableHttpCategories[httpStatus]) {
     return classification({
@@ -239,7 +266,6 @@ export function classifyProviderFailure<TOutput>(
     }
     if (
       typedReason === "openai_rate_limited" &&
-      errorCategory !== "quota" &&
       normalized?.retry_after_ms !== null &&
       normalized?.retry_after_ms !== undefined
     ) {
@@ -264,9 +290,6 @@ export function classifyProviderFailure<TOutput>(
   }
 
   const nonretryable = (() => {
-    if (typedReason === "openai_quota_exceeded" || errorCategory === "quota") {
-      return "quota_exceeded_nonretryable" as const;
-    }
     if (typedReason === "openai_authentication_failed" || errorCategory === "authentication") {
       return "authentication_failure" as const;
     }
@@ -527,6 +550,7 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
   source_is_current?: () => boolean;
   accept_result?: (result: StructuredAgentResult<TOutput>) => boolean;
   sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
   now?: () => Date;
   create_attempt_id?: (logicalCallId: string, attemptIndex: number) => string;
   create_client_request_id?: (logicalCallId: string, attemptIndex: number) => string;
@@ -626,11 +650,14 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
     const accepted = acceptResult(result);
     const classificationValue = accepted ? null : classifyProviderFailure(result);
     finalClassification = classificationValue;
-    const canRetry = Boolean(
+    const eligibleRetry = Boolean(
       classificationValue?.retryable_transport_failure &&
       attemptIndex < PROVIDER_TRANSPORT_RETRY_LIMITS.maximum_adapter_attempts_per_logical_call
     );
-    const backoffMs = canRetry ? providerTransportBackoffMs(attemptIndex - 1) : null;
+    const backoffMs = eligibleRetry
+      ? providerRetryDelayMs(result, providerTransportBackoffMs(attemptIndex - 1)!, input.random)
+      : null;
+    const canRetry = eligibleRetry && backoffMs !== null;
     traces.push({
       tracing_policy_version: PROVIDER_REQUEST_TRACING_POLICY_VERSION,
       logical_call_id: input.logical_call_id,
@@ -697,7 +724,9 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
         ? "valid_result_accepted"
         : canRetry
           ? `retryable_${classificationValue?.category ?? "unknown"}`
-          : `nonretryable_or_exhausted_${classificationValue?.category ?? "unknown"}`,
+          : eligibleRetry && backoffMs === null
+            ? "server_delay_exceeds_inline_retry_budget"
+            : `nonretryable_or_exhausted_${classificationValue?.category ?? "unknown"}`,
       backoff_ms_before_next_attempt: backoffMs,
       budget_before: budgetBefore,
       budget_after: cloneBudget(readBudget())
