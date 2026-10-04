@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-04T02:19:05+00:00",
+  "updated_at": "2026-10-04T02:47:09+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1274,6 +1274,79 @@
         "src/lib/services/teacher-research-data/export-spool.ts",
         "src/lib/workflow/initial-preparation.ts",
         "docs/RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261003-02",
+      "date": "2026-10-03",
+      "title": "API credit recovery and bounded assessment retries",
+      "application_commit": "02a90c9ce409e072c5ffddfd3fd67cf0a17cbd72",
+      "push_status": "Committed and pushed to origin/main; independent remote-head verification matched the complete application commit. Private diagnostics, credentials and unrelated outputs were excluded.",
+      "deployment": {
+        "status": "failed",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db0rri0jo6nc739v9tlg",
+        "verified_at": "2026-10-04T02:47:09+00:00",
+        "source_commit": "02a90c9ce409e072c5ffddfd3fd67cf0a17cbd72",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db0rri0jo6nc739v9tlg",
+        "evidence": [
+          "Render deployment details show Deploy failed, exact source 02a90c9ce409e072c5ffddfd3fd67cf0a17cbd72, Auto-Deploy, duration 40.8 seconds. At 02:46:08 UTC the build stopped at dependency_audit_high_findings before application build or migration/cutover.",
+          "The blocking advisory is GHSA-vfj7-8cjw-p6xm for braces through 3.0.3 (https://github.com/advisories/GHSA-vfj7-8cjw-p6xm). All seven npm audit findings are its build/development dependency chain; npm audit --omit=dev reports zero findings. Upstream lists no patched version. The all-dependency security gate remains unchanged; a narrowly scoped seven-day exception was proposed to the user but was not applied without approval.",
+          "The previous da12cc78 release on the approved 2 GB service remains Live. Public health at 02:47:08.990 UTC reported status ok, reachable database, ready schema and migration readiness. The new application changes are not yet live."
+        ]
+      },
+      "summary": "Identify exhausted API credits separately from hosting memory and temporary traffic throttling. Prepare tested recovery fixes that preserve student attempts and audit records. Verify API connectivity after the user independently replenished credits, while recording the separate security-gate deployment blocker.",
+      "changes": [
+        {
+          "area": "Provider failure classification and evidence",
+          "problem": "The existing code recognized quota only in the provider error code. HTTP 429 credit_balance_exhausted with type insufficient_quota was therefore incorrectly treated as retryable rate limiting, and some failure paths discarded the operational cause.",
+          "fix": "Use shared structural code/type classification for account, credit and quota errors. Persist a short allowlisted provider_failure audit object, and retain the quota category through formative execution failures. Add a teacher-only recent-failure notice and meaningful failure labels.",
+          "impact": "Operators can distinguish account problems from traffic limits without exposing account details in student conversation messages. No raw provider message is added to the failure audit object."
+        },
+        {
+          "area": "Retry behavior and student continuity",
+          "problem": "Quota failures could repeat automatically; temporary 429 error bodies could prevent legitimate retry, and server-requested delays were not consistently honored.",
+          "fix": "Stop automatic initial-preparation retries on quota failures while retaining Try again and teacher help. Temporary 429 responses use bounded attempts, provider minimum delays, and up to 500 ms jitter. Delay parsing accepts milliseconds, seconds and HTTP dates. Long delays are deferred rather than shortened, including in background preparation.",
+          "impact": "Saved answers, sealed packages and failed-call history survive explicit recovery. Failure does not end, complete or reset the attempt. Transport retries remain distinct from pedagogical regeneration."
+        }
+      ],
+      "data_impact": [
+        "No database migration, response rewrite, profile rescore, attempt reset, prompt change or historical relabeling. Provider-recovery-v1, failure taxonomy v4 and transport retry policy v3 identify new operational evidence only.",
+        "Restricted raw_output.provider_failure contains status, safe code/type, typed reason, retry delay and retryability. It is not a new public research column or a student engagement measure. DATA_LOGGING_SPEC documents timing calculations and historical missingness.",
+        "Local quota-recovery assertions confirm unchanged item responses and sealed packages, retained failed calls, an active attempt and one successful explicit recovery. Production probes used synthetic content only and did not modify student records. No payment or billing change was performed by the assistant."
+      ],
+      "tests": [
+        {
+          "name": "Focused regression and build",
+          "result": "Passed after recorded corrections",
+          "detail": "Typecheck, changed-file ESLint and git diff --check passed. Ten smoke suites passed in a disposable local database: provider recovery (59 checks), transport retry v2/v3, initial preparation (19 scenarios), item-admin audit, LLM execution, formative v18r2 pipeline/lifecycle, research-export integrity and dictionary privacy. Security behavior smoke passed 17 checks. No external AI calls occurred in these local suites. The production build passed with Render's existing 12 GiB build-time heap setting; this does not change the service RAM limit."
+        },
+        {
+          "name": "Real provider recovery",
+          "result": "Connectivity recovered on the currently live release",
+          "detail": "Synthetic approved-model probes returned HTTP 429 credit_balance_exhausted / insufficient_quota at 02:32:55 and 02:36:27 UTC. After the user independently replenished API credits, probes at 02:39:31 and 02:46:51 UTC completed with the requested structured result in 1,370 ms and 1,184 ms. These verify API connection and structured generation, not a full student learning conversation or the undeployed recovery code."
+        },
+        {
+          "name": "Retained failures and warnings",
+          "result": "Documented",
+          "detail": "An initial typecheck exposed taxonomy typing and redundant comparisons, corrected before the passing rerun. One old LLM-execution fixture lacked allowed_evidence_catalog; it now uses the canonical catalog builder and all ten suites passed again. The first build was blocked by local IPC permissions; the second hit the default 4 GiB build heap; the build passed using the existing Render 12 GiB build allowance. Webpack cache warnings and two existing unused-import lint warnings remain. Both local and Render all-dependency audits failed on the same unpatched build-only advisory. SSH retained its existing additional ED25519 proof-signature warning without disabling host verification."
+        }
+      ],
+      "limitations": [
+        "The recovery fix is pushed but not deployed. Render safety checks were not bypassed. The live service remains on the preceding release until the dependency blocker is resolved or a specifically approved temporary exception is implemented and verified.",
+        "No student attempt was reopened, resumed or reset automatically. A student whose attempt remains open can retry; already-ended attempts require the existing teacher recovery procedure.",
+        "Real-AI probes used short synthetic connectivity payloads. Full learner-level conversation validation, new live research export verification and browser review of the new notice remain deferred until deployment. The recent-failure notice reports persisted call history, not continuous monitoring."
+      ],
+      "references": [
+        "src/lib/llm/provider-recovery.ts",
+        "src/lib/llm/provider-transport-retry.ts",
+        "src/lib/workflow/initial-preparation.ts",
+        "src/app/teacher/system/llm/page.tsx",
+        "prisma/provider-recovery-smoke-test.ts",
+        "prisma/initial-preparation-smoke-test.ts",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md"
       ]
     }
   ],
