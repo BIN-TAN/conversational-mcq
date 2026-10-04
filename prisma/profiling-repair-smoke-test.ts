@@ -5,7 +5,9 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { ApprovedCandidateManifestSchema, LEGACY_GPT54_APPROVED_RUNTIME_HASH, PROFILING_V6_HASH,
   approvedOperationalRoleNamesForManifest, activateOperationalApprovalBundle, prepareProfilingRepairAmendment,
-  resolveActiveOperationalApproval, verifyApprovedCandidateArtifacts, prepareGlobalFeedbackBudgetAmendment } from "../src/lib/operational/active-approval-bundle";
+  resolveActiveOperationalApproval, verifyApprovedCandidateArtifacts, prepareGlobalFeedbackBudgetAmendment,
+  prepareConnectivityBudgetAmendment } from "../src/lib/operational/active-approval-bundle";
+import { agentModelReadiness, resolveConnectivityModelConfig, resolveOpenAIModelConfigForRole } from "../src/lib/llm/config";
 import { modelUpgradeCandidateRuntimeHash } from "../src/lib/operational/model-upgrade-candidate-identity";
 import { ScopedFeedbackBudgetSchema, selectInitialFeedbackBudget } from "../src/lib/operational/scoped-feedback-budget";
 import { getPromptForAgent } from "../src/lib/agents/prompts/registry";
@@ -94,6 +96,65 @@ try {
   }
   check(() => assert.throws(() => selectInitialFeedbackBudget({ base, grants: [grant], session, globalMaxOutputTokens: 30000, approvedRuntimeHash: parentHash })));
   check(() => assert.equal(global.evidence.human_review.semantic_review_confirmed, false));
+  const globalBundle = activateOperationalApprovalBundle({ ...globalVerify,
+    expectedSourceProviderRunId: global.evidence.source_provider_run_id, expectedDerivedEvaluationId: global.evidence.derived_evaluation_id,
+    confirmation: "activate approved gpt-5.6 operational candidate v2", outputDirectory: path.join(root, "global-active") });
+  const diagnosticParent = resolveActiveOperationalApproval({ bundlePath: globalBundle.bundle_path, env: {} });
+  assert(diagnosticParent?.kind === "derived_approval");
+  const diagnosticArgs = { parent: diagnosticParent, expectedParentHash: global.evidence.runtime_candidate_hash,
+    authorizationReference: "SYNTHETIC DIAGNOSTIC FIXTURE ONLY" };
+  const diagnostic = prepareConnectivityBudgetAmendment({ ...diagnosticArgs, outputDirectory: path.join(root, "diagnostic") });
+  const diagnosticVerify = { approvedManifestPath: diagnostic.manifestPath, approvalEvidencePath: diagnostic.evidencePath,
+    expectedRuntimeHash: diagnostic.evidence.runtime_candidate_hash, expectedEvaluationProtocolHash: diagnostic.evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: diagnostic.evidence.approval_evidence_hash };
+  const diagnosticManifest = verifyApprovedCandidateArtifacts(diagnosticVerify).manifest;
+  const expectedDiagnostic = structuredClone(globalManifest);
+  expectedDiagnostic.roles.connectivity_test!.max_output_tokens = 2000;
+  check(() => assert.deepEqual(diagnosticManifest, expectedDiagnostic));
+  check(() => assert.equal(globalManifest.roles.connectivity_test!.max_output_tokens, 200));
+  check(() => assert.equal(diagnosticManifest.runtime_policy.initial_feedback_max_output_tokens, 30000));
+  check(() => assert.notEqual(diagnostic.evidence.runtime_candidate_hash, diagnosticParent.record.runtime_candidate_hash));
+  check(() => assert.equal(diagnostic.evidence.human_review.semantic_review_confirmed, false));
+  check(() => assert.throws(() => prepareConnectivityBudgetAmendment({ ...diagnosticArgs, authorizationReference: "", outputDirectory: path.join(root, "no-auth") })));
+  check(() => assert.throws(() => prepareConnectivityBudgetAmendment({ ...diagnosticArgs, expectedParentHash: "f".repeat(64), outputDirectory: path.join(root, "bad-parent") })));
+  const diagnosticBundle = activateOperationalApprovalBundle({ ...diagnosticVerify,
+    expectedSourceProviderRunId: diagnostic.evidence.source_provider_run_id, expectedDerivedEvaluationId: diagnostic.evidence.derived_evaluation_id,
+    confirmation: "activate approved gpt-5.6 operational candidate v2", outputDirectory: path.join(root, "diagnostic-active") });
+  const previousEnv = { ...process.env };
+  const previousCwd = process.cwd();
+  try {
+    for (const key of Object.keys(process.env)) if (/^(OPENAI_|LLM_|OPERATIONAL_|TOPIC_DIALOGUE_|STUDENT_COMMUNICATION_|FORMATIVE_CONVERSATION_)/u.test(key)) delete process.env[key];
+    process.chdir(root);
+    Object.assign(process.env, { DATABASE_URL: "postgresql://test:test@localhost:5432/synthetic",
+      SESSION_SECRET: "synthetic-diagnostic-secret-at-least-32-characters", LLM_PROVIDER: "openai", LLM_LIVE_CALLS_ENABLED: "true",
+      OPENAI_API_KEY: "sk-synthetic-not-a-real-key", OPENAI_MODEL_CONNECTIVITY_TEST: "gpt-5.6-luna",
+      OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST: "none" });
+    check(() => assert.equal(resolveConnectivityModelConfig().max_output_tokens, 2000));
+    check(() => assert.equal(resolveOpenAIModelConfigForRole("connectivity_test").max_output_tokens, 2000));
+    check(() => assert.equal(agentModelReadiness().connectivity_test.max_output_tokens, 2000));
+    Object.assign(process.env, diagnosticBundle.render_variables);
+    check(() => assert.equal(resolveConnectivityModelConfig().max_output_tokens, 2000));
+    check(() => assert.equal(agentModelReadiness().connectivity_test.max_output_tokens, 2000));
+    for (const [role, config] of Object.entries(globalManifest.roles)) {
+      if (role === "connectivity_test") continue;
+      check(() => assert.deepEqual(resolveOpenAIModelConfigForRole(role as Parameters<typeof resolveOpenAIModelConfigForRole>[0]), config));
+    }
+    process.env.OPERATIONAL_APPROVED_CONFIG_HASH = global.evidence.runtime_candidate_hash;
+    check(() => assert.throws(() => resolveConnectivityModelConfig(), /does not match/u));
+    Object.assign(process.env, globalBundle.render_variables);
+    check(() => assert.equal(resolveConnectivityModelConfig().max_output_tokens, 200));
+    process.env.LLM_LIVE_CALLS_ENABLED = "false";
+    check(() => assert.throws(() => resolveConnectivityModelConfig(), /live|enabled/iu));
+  } finally {
+    process.chdir(previousCwd);
+    for (const key of Object.keys(process.env)) if (!(key in previousEnv)) delete process.env[key];
+    Object.assign(process.env, previousEnv);
+  }
+  const invalidDiagnostic = structuredClone(diagnosticManifest);
+  invalidDiagnostic.roles.student_profiling_agent!.max_output_tokens = 30000;
+  writeFileSync(diagnostic.manifestPath, JSON.stringify(invalidDiagnostic));
+  check(() => assert.throws(() => verifyApprovedCandidateArtifacts(diagnosticVerify)));
+  writeFileSync(diagnostic.manifestPath, JSON.stringify(diagnosticManifest));
   check(() => assert.throws(() => prepareGlobalFeedbackBudgetAmendment({ ...globalArgs, authorizationReference: "", outputDirectory: path.join(root, "unauthorized") })));
   const invalidGlobal = structuredClone(globalManifest);
   invalidGlobal.roles.student_profiling_agent!.max_output_tokens = 30000;

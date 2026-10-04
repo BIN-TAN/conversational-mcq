@@ -2,6 +2,7 @@ import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
+import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "./connectivity-budget";
 import {
   type ApprovedCandidateManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
@@ -329,7 +330,7 @@ const roleEnvSources = {
   connectivity_test: [{
     model: "OPENAI_MODEL_CONNECTIVITY_TEST",
     reasoning: "OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST",
-    defaultMaxTokens: 200
+    defaultMaxTokens: CONNECTIVITY_MAX_OUTPUT_TOKENS
   }]
 } as const satisfies Record<LiveModelRole, readonly RoleSource[]>;
 
@@ -701,7 +702,7 @@ export function resolveConnectivityModelConfig(): AgentModelConfig {
   const config: AgentModelConfig = {
     model_name: String(env.OPENAI_MODEL_CONNECTIVITY_TEST),
     reasoning_effort: env.OPENAI_REASONING_EFFORT_CONNECTIVITY_TEST,
-    max_output_tokens: 200
+    max_output_tokens: CONNECTIVITY_MAX_OUTPUT_TOKENS
   };
   assertModelConfigCompatible("connectivity_test", config);
   return config;

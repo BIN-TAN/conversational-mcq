@@ -15,6 +15,7 @@ import {
 } from "./model-upgrade-candidate-identity";
 import { stableHash } from "./stable-hash";
 import { ScopedFeedbackBudgetSchema, type ScopedFeedbackBudget } from "./scoped-feedback-budget";
+import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "../llm/connectivity-budget";
 
 export const ACTIVE_APPROVAL_BUNDLE_VERSION = "operational-active-approval-bundle-v1";
 export const ACTIVE_APPROVAL_RESOLVER_VERSION = "operational-active-approval-resolver-v1";
@@ -22,6 +23,7 @@ export const OPERATIONAL_MODEL_UPGRADE_ACTIVATION_VERSION = "operational-model-u
 export const PLANNING_BUDGET_AMENDMENT_VERSION = "operational-planning-budget-amendment-v1";
 export const PROFILING_REPAIR_AMENDMENT_VERSION = "profiling-v6-scoped-budget-amendment-v1";
 export const GLOBAL_FEEDBACK_BUDGET_AMENDMENT_VERSION = "global-initial-feedback-budget-amendment-v1";
+export const CONNECTIVITY_BUDGET_AMENDMENT_VERSION = "synthetic-connectivity-budget-amendment-v1";
 const PROFILING_V5_HASH = "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626";
 export const PROFILING_V6_HASH = "d9778ba1809c54f84ceb0d91c9f36e22897e8f9a9113768f42a5c728ce1430e8";
 export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
@@ -419,6 +421,8 @@ export function verifyApprovedCandidateArtifacts(input: {
         ? profilingRepairAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
         : evidence.approval_command_version === GLOBAL_FEEDBACK_BUDGET_AMENDMENT_VERSION
           ? globalFeedbackBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
+          : evidence.approval_command_version === CONNECTIVITY_BUDGET_AMENDMENT_VERSION
+            ? connectivityBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
         : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
   if (issues.length > 0) {
@@ -737,6 +741,79 @@ export function prepareGlobalFeedbackBudgetAmendment(input: {
     approved_at: new Date().toISOString(), source_artifact_sha256: amendment.validation_evidence.sha256,
     approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
     rollback_hash: parent.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath, global_feedback_budget_amendment: amendment };
+  const evidencePath = path.join(directory, "approval-evidence.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
+  verifyApprovedCandidateArtifacts({ approvedManifestPath: manifestPath, approvalEvidencePath: evidencePath,
+    expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: evidence.approval_evidence_hash });
+  return { manifestPath, evidencePath, evidence };
+}
+
+function connectivityBudgetAmendmentIssues(manifest: ApprovedCandidateManifest, evidence: OperationalApprovalEvidence, depth: number) {
+  const amendment = z.object({
+    parent_manifest: FileReferenceSchema, parent_evidence: FileReferenceSchema,
+    parent_runtime_hash: z.string().length(64), parent_protocol_hash: z.string().length(64),
+    parent_approval_hash: z.string().length(64)
+  }).strict().parse(evidence.connectivity_budget_amendment);
+  for (const file of [amendment.parent_manifest, amendment.parent_evidence]) {
+    if (!path.isAbsolute(file.path) || sha256File(file.path) !== file.sha256) {
+      throw new Error("Connectivity amendment evidence integrity mismatch.");
+    }
+  }
+  const parent = verifyApprovedCandidateArtifacts({ approvedManifestPath: amendment.parent_manifest.path,
+    approvalEvidencePath: amendment.parent_evidence.path, expectedRuntimeHash: amendment.parent_runtime_hash,
+    expectedEvaluationProtocolHash: amendment.parent_protocol_hash, expectedApprovalEvidenceHash: amendment.parent_approval_hash,
+    approvalDepth: depth + 1 });
+  const expected = structuredClone(parent.manifest);
+  const oldBudget = expected.roles.connectivity_test!.max_output_tokens;
+  expected.roles.connectivity_test!.max_output_tokens = CONNECTIVITY_MAX_OUTPUT_TOKENS;
+  const review = evidence.human_review;
+  return [
+    ...(oldBudget !== 200 ? ["connectivity_amendment_unexpected_parent_budget"] : []),
+    ...(stableHash(expected) !== stableHash(manifest) ? ["connectivity_amendment_changed_other_settings"] : []),
+    ...(review.decision !== "approve" || review.scope !== "synthetic_connectivity_budget_only" ||
+      review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
+      typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
+      ? ["connectivity_amendment_authorization_missing"] : []),
+    ...(evidence.source_artifact_sha256 !== amendment.parent_manifest.sha256 ||
+      evidence.source_evaluation_protocol_hash !== parent.evidence.evaluation_protocol_hash ||
+      evidence.rollback_hash !== parent.evidence.rollback_hash || evidence.evaluation_protocol_hash !== stableHash(amendment)
+      ? ["connectivity_amendment_provenance_mismatch"] : [])
+  ];
+}
+
+export function prepareConnectivityBudgetAmendment(input: {
+  parent: ActiveDerivedOperationalApproval; expectedParentHash: string;
+  outputDirectory: string; authorizationReference: string;
+}) {
+  const { parent } = input;
+  if (parent.record.runtime_candidate_hash !== input.expectedParentHash || !input.authorizationReference.trim() ||
+      parent.manifest.roles.connectivity_test?.max_output_tokens !== 200) {
+    throw new Error("Verified 200-token diagnostic parent and explicit authorization are required.");
+  }
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false, mode: 0o700 });
+  const manifest = structuredClone(parent.manifest);
+  manifest.roles.connectivity_test!.max_output_tokens = CONNECTIVITY_MAX_OUTPUT_TOKENS;
+  const manifestPath = path.join(directory, "approved-candidate-manifest.json");
+  const amendment = {
+    parent_manifest: { path: parent.manifest_path, sha256: sha256File(parent.manifest_path) },
+    parent_evidence: { path: parent.approval_evidence_path, sha256: sha256File(parent.approval_evidence_path) },
+    parent_runtime_hash: parent.record.runtime_candidate_hash, parent_protocol_hash: parent.record.evaluation_protocol_hash,
+    parent_approval_hash: parent.record.approval_evidence_hash
+  };
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
+  const identity = { source_provider_run_id: `connectivity-budget:${amendment.parent_manifest.sha256}`,
+    derived_evaluation_id: `${CONNECTIVITY_BUDGET_AMENDMENT_VERSION}:${runtimeHash}`, runtime_candidate_hash: runtimeHash,
+    source_evaluation_protocol_hash: parent.evidence.evaluation_protocol_hash, evaluation_protocol_hash: stableHash(amendment),
+    human_review: { decision: "approve", scope: "synthetic_connectivity_budget_only", operator_authorized: true,
+      semantic_review_confirmed: false, authorization_reference: input.authorizationReference,
+      limitations: "Operator-authorized synthetic diagnostic capacity increase only. No student budgets, models, prompts, policies or data changed. Live verification is recorded separately; this amendment does not claim a new learning-conversation evaluation." } };
+  const evidence: OperationalApprovalEvidence = { ...identity, approval_command_version: CONNECTIVITY_BUDGET_AMENDMENT_VERSION,
+    approved_at: new Date().toISOString(), source_artifact_sha256: amendment.parent_manifest.sha256,
+    approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
+    rollback_hash: parent.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath, connectivity_budget_amendment: amendment };
   const evidencePath = path.join(directory, "approval-evidence.json");
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });

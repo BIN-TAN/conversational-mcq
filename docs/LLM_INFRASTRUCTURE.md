@@ -295,6 +295,24 @@ It requires:
 
 The script sends a fixed synthetic Response Collection Agent request. It must not be modified to send real classroom data.
 
+The diagnostic default is 2,000 output tokens, because the complete structured
+response does not fit reliably in the former 200-token allowance. This ceiling
+is separate from student budgets, including the unchanged 30,000-token initial
+feedback policy. Output is still validated before success is reported. Token
+exhaustion is reported as diagnostic truncation, not as a student attempt failure.
+The CLI reports the effective ceiling and audit-call ID for verification.
+
+An active approval bundle takes precedence over defaults. For a verified bundle
+with the old 200-token diagnostic role, `prisma/connectivity-budget-amend.ts`
+stages an immutable, operator-authorized amendment. It requires the exact parent
+hash, authorization reference, fresh output directory, and confirmation
+`approve synthetic connectivity 2000`. Only `roles.connectivity_test.max_output_tokens`
+changes. Apply the returned approval paths and hash together, then run
+`npm run llm:connectivity` on the deployed service. Old approval artifacts remain
+intact. Historical evaluation candidates keep their original 200-token budgets.
+Synthetic diagnostics produce unlinked operational AgentCall audit records, not
+student responses, session process events, or evidence of a full learning dialogue.
+
 ## Smoke Tests
 
 ```bash
