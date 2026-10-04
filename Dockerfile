@@ -41,7 +41,7 @@ RUN apt-get update \
 
 COPY --from=builder /app ./
 COPY --from=builder /app/build ./build
-RUN npm prune --omit=dev
+RUN npm prune --omit=dev && node scripts/dependency-security-check.mjs --runtime
 
 EXPOSE 3000
 

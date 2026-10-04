@@ -12,7 +12,7 @@
     "classroom:assessment-quality": "node --import tsx prisma/assessment-quality-canary.ts",
     "classroom:ux-smoke": "node scripts/classroom-ux-smoke.mjs",
     "security:dependencies": "node scripts/dependency-security-check.mjs",
-    "security:dependency-smoke": "node --import tsx prisma/dependency-security-smoke-test.ts",
+    "security:dependency-smoke": "node --test scripts/dependency-security-check.test.mjs && node --import tsx prisma/dependency-security-smoke-test.ts",
     "dev": "node scripts/start-app.mjs dev",
     "build": "npm run app:build-info:write && next build",
     "start": "node scripts/start-app.mjs start",
