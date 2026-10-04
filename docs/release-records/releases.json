@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-02T19:35:20+00:00",
+  "updated_at": "2026-10-04T02:19:05+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1202,6 +1202,78 @@
         "prisma/participation-observations-smoke-test.ts",
         "prisma/participation-ui-smoke-test.ts",
         "prisma/student-research-export-integrity-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261003-01",
+      "date": "2026-10-03",
+      "title": "Approved production memory upgrade and export verification",
+      "application_commit": "da12cc78d0ad0029c4596084ac85d712c4e896f6",
+      "push_status": "Infrastructure-only change to the already-pushed application da12cc78. No application code changed. This ledger and regenerated Word report are the documentation-only follow-up and use [skip render] to avoid another application restart.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db0rbg2d0e5s73csqo2g",
+        "verified_at": "2026-10-04T02:19:05+00:00",
+        "source_commit": "da12cc78d0ad0029c4596084ac85d712c4e896f6",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db0rbg2d0e5s73csqo2g",
+        "evidence": [
+          "The user approved 2 GB / 1 CPU at US$25/month, replacing 512 MB / 0.5 CPU at US$7/month. The increase is US$18/month; database and AI charges are separate. Render Compute shows the selected 1c-2g plan.",
+          "Deployment details show Compute plan updated, exact source da12cc78, Deploy succeeded | Live. Logs show 65 migrations, none pending, and service live at 02:12:11 UTC on October 4 (October 3 MDT).",
+          "SSH confirmed RENDER_GIT_COMMIT and cgroup memory.max = 2147483648 bytes. Existing automatic budgets set web old-space to 768 MiB and worker old-space to 384 MiB, with 8 MiB semi-spaces. Both next-server and initial-preparation-worker were running.",
+          "Public health at 02:12:28.900 UTC reported ok, database_reachable true, database_schema_ready true and migration_readiness ready. Teacher sign-in and the populated Test 6 dashboard loaded after the deployment."
+        ]
+      },
+      "summary": "Relieve recurrent production container memory exhaustion with the explicitly approved capacity upgrade. Verify the actual running limit, teacher access, standard research export and worker recovery. Record a separate AI-provider failure without describing the entire assessment flow as recovered.",
+      "changes": [
+        {
+          "area": "Runtime capacity",
+          "problem": "Render confirmed a 512 MiB container memory-limit incident and restart around 02:05 UTC. Initial feedback preparation was active; no research export job existed in the inspected 01:30-02:05 UTC incident window. This incident therefore was not established as another export-triggered crash.",
+          "fix": "Upgrade the existing production service to 2 GB / 1 CPU. Retain existing separate web/worker heap budgets, bounded preparation concurrency and disk-backed single-export admission. The existing budget calculation automatically adapts to the new container limit.",
+          "impact": "The container has four times the previous memory capacity. This is an infrastructure mitigation, not proof of an identified object-level memory leak or a change to assessment behavior."
+        }
+      ],
+      "data_impact": [
+        "No schema change, rescoring, answer rewrite, attempt reset, prompt change or credential change was made. Production database inspection selected operational metadata rather than student answers.",
+        "A standard all-authorized research export, including incomplete attempts and excluding restricted fields, was generated and downloaded through the teacher workflow. This added an export audit/archive only. Student responses and source logs remain unchanged.",
+        "The interrupted worker job was reclaimed after its configured ten-minute lease and attempted generation again. Generation failed before the student paused at 02:14:38 and explicitly ended the attempt at 02:14:51 UTC. The job was cancelled consistently with that exit; no closed student attempt was reopened."
+      ],
+      "tests": [
+        {
+          "name": "Runtime budgeting and streaming regression",
+          "result": "Passed",
+          "detail": "node --test scripts/runtime-memory-budget.test.mjs passed 4/4. node --max-old-space-size=96 --import tsx prisma/research-export-streaming-smoke-test.ts --stress passed streaming, multiline CSV, exact counts, SHA-256, CRC, coverage, export admission and cleanup. The stress fixture contained 65,536 rows / 81,578,264 uncompressed bytes; peak local RSS was 192,233,472 bytes. No AI call was initiated by these checks."
+        },
+        {
+          "name": "Live memory observation",
+          "result": "Passed for the observed interval",
+          "detail": "Thirty-six samples at five-second intervals ended at 02:16:24 UTC. Observed current-memory range was 287,862,784-586,018,816 bytes. Cgroup peak through 02:19:05 was 594,866,176 bytes (about 567 MiB, 27.7% of 2 GiB), with oom and oom_kill both zero. The interval included export, worker recovery and diagnostic processes; it is not an isolated per-request memory benchmark."
+        },
+        {
+          "name": "Live research archive integrity",
+          "result": "Passed",
+          "detail": "The export completed in 11.3 seconds (02:14:11.821-02:14:23.130 UTC). Downloaded ZIP: 37 files, 9,741,093 uncompressed bytes. CRC, all 36 manifest entry hashes/byte lengths and every CSV row count passed. CSV tables contain 16,512 data rows, including 25 sessions, 106 item responses, 7,548 process events, 1,093 conversation turns and 414 agent activity records. The job UI count 16,517 additionally counts the four text files and manifest as one entry each under the existing spool accounting; it is not a student count."
+        },
+        {
+          "name": "Failure and recovery evidence",
+          "result": "Partly recovered; separate provider issue remains",
+          "detail": "A transient 502 during cutover cleared on reload. Automatic preparation recovery ran, but the formative call failed at 02:14:34 UTC with transport_failure. Later item-administration calls at 02:17:50, 02:18:05 and 02:18:37 returned rate_limit. The first failure's retained audit does not establish the same underlying cause. AI service recovery is not claimed. The initial archive checker incorrectly equated CSV rows with the UI aggregate; source review explained the five metadata entries and the corrected integrity check passed. SSH retained an additional ED25519 proof-signature warning; host verification was not disabled."
+        }
+      ],
+      "limitations": [
+        "This verifies the approved capacity, a bounded observation window and the current standard export, not sustained large-class concurrency or an allocation-level leak diagnosis. No heap dump was captured from the terminated instance.",
+        "Provider rate-limit errors are separate from Render RAM. API-side rate/quota recovery remains to be checked; additional paid AI limits or billing changes were not authorized or applied here.",
+        "The export check verifies packaging, integrity and recorded row counts. It is not a new pedagogical-validity evaluation or a full reinterpretation of student records."
+      ],
+      "references": [
+        "scripts/start-app.mjs",
+        "scripts/runtime-memory-budget.mjs",
+        "scripts/runtime-memory-budget.test.mjs",
+        "prisma/research-export-streaming-smoke-test.ts",
+        "src/lib/services/teacher-research-data/export-spool.ts",
+        "src/lib/workflow/initial-preparation.ts",
+        "docs/RESEARCH_EXPORT_MEMORY_REVIEW_2026-09-26.md"
       ]
     }
   ],
