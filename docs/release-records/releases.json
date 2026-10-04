@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-04T03:22:57+00:00",
+  "updated_at": "2026-10-04T04:14:00+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1431,6 +1431,93 @@
         "docs/DEPENDENCY_SECURITY_EXCEPTION_2026-10-03.md",
         "src/lib/llm/provider-recovery.ts",
         "src/lib/workflow/initial-preparation.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261003-04",
+      "date": "2026-10-03",
+      "title": "Increase synthetic diagnostic capacity without changing student limits",
+      "application_commit": "de5e2472216f95cdae5627cc7e0f2618b2c5d285",
+      "push_status": "Pushed to origin/main and independently verified with git ls-remote. Unrelated outputs and private diagnostic files were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db0t33vavr4c7397j97g",
+        "verified_at": "2026-10-04T04:14:00+00:00",
+        "source_commit": "de5e2472216f95cdae5627cc7e0f2618b2c5d285",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db0t33vavr4c7397j97g",
+        "evidence": [
+          "Application deployment dep-db0st5eq1p3s73emu9r0 succeeded with the exact source revision, zero production dependency findings, 65 existing migrations and none pending. A subsequent Save and deploy applied the four matching approval paths/hash without rebuilding the application. Its detail page shows Deploy succeeded | Live and the same application revision.",
+          "Runtime build metadata independently matches de5e2472216f95cdae5627cc7e0f2618b2c5d285 with artifact hash 930338d030fcf111402b4cada42c984a3fe3a7265124eb388fd19c4f19899bff. The next-server process is PID 14 and the durable preparation worker is PID 15. Startup reported Ready in 992 ms.",
+          "The effective diagnostic configuration is gpt-5.6-luna, reasoning none, max_output_tokens 2000. Both old and amended approvals independently verified as valid with no issues. The new approved runtime hash is f8a53ea0f35103a90ea42743880beb7d07cf5172d2f32983d0372d706a4f7fd0; the initial-feedback ceiling remains 30000.",
+          "Public health at 2026-10-04T04:12:58.658Z reported status ok, database reachable, schema ready and migration readiness ready. Sampled container memory was 286334976 bytes of 2147483648, with zero oom and oom_kill counts. This is a point-in-time check, not a load test."
+        ]
+      },
+      "summary": "Resolve the diagnostic limitation retained in CMCQ-20261003-03. Its full response-collection schema exceeded a 200-token cap even though the provider was reachable. Increase only synthetic diagnostic capacity and verify the standard deployed command, without changing student assessment allowances.",
+      "changes": [
+        {
+          "area": "Synthetic connectivity capacity",
+          "problem": "The diagnostic required a complete structured response but allowed only 200 output tokens. The observed incomplete / max_output_tokens status did not mean the provider was offline.",
+          "fix": "Raise the environment-fallback diagnostic ceiling to 2000. Provide an immutable operator-authorized approval amendment for the active 200-token role, then apply its matching paths and hash together. Reject changes to any other role, runtime policy, model, prompt or student allowance.",
+          "impact": "The dedicated synthetic diagnostic now completes its validated response. Historical approval and evaluation files retain their original settings; existing student budgets, including the 30000-token initial-feedback ceiling, are unchanged."
+        },
+        {
+          "area": "Clear diagnostic reporting",
+          "problem": "The former incomplete result was ambiguous, and blocked usage-policy outcomes shared the invalid-output message.",
+          "fix": "Report diagnostic-only scope, effective model/ceiling and audit-call ID. Distinguish output truncation, provider refusal, usage-policy blocking and invalid output; retain a nonzero exit code for unsuccessful diagnostics.",
+          "impact": "Operators can distinguish diagnostic capacity from student attempt failure. Nothing is added to student conversations or student-facing failure text."
+        }
+      ],
+      "data_impact": [
+        "No student answers, profiles, attempts, research calculations, schema or historical process records were changed. No full learner conversation or live research-dataset export was rerun for this diagnostic-only change.",
+        "Four real synthetic diagnostic AgentCalls were retained: one staged-approval canary and three after persistent configuration deployment. All four have validated outputs, zero retries, a 2000-token ceiling and null assessment, concept-unit, follow-up and formative-conversation session joins. These are operational audit records, not learner evidence."
+      ],
+      "tests": [
+        {
+          "name": "Budget isolation and approval integrity",
+          "result": "Passed",
+          "detail": "node --import tsx prisma/profiling-repair-smoke-test.ts passed 78 checks. Coverage includes fallback/readiness consistency, amended-bundle activation, unchanged student roles and 30000-token policy, parent immutability, exact-hash enforcement, missing authorization, tampering, old-bundle preservation and disabled-live-call rejection."
+        },
+        {
+          "name": "Static build and infrastructure checks",
+          "result": "Passed with recorded exclusions and warnings",
+          "detail": "Typecheck, changed-file ESLint, git diff --check, offline readiness and contract suites passed. Production build generated 83 static pages. Full npm run lint failed on 25 pre-existing errors in ignored private .data scripts; scoped src/prisma/scripts lint had zero errors and five existing warnings. Two existing source warnings and webpack cache warnings remained in the build. Initial local tsx IPC and database access restrictions were resolved by permitted reruns."
+        },
+        {
+          "name": "Legacy approval test coverage",
+          "result": "Not passed; retained separately",
+          "detail": "operational-model-upgrade-activation-smoke-test.ts rejected its historical profiling prompt/schema fixture. operational-per-agent-reasoning-config-smoke-test.ts failed its legacy baseline-preservation assertion. These suites were not relabelled as passing; the current amendment received the dedicated 78-check regression and independent live approval validation instead."
+        },
+        {
+          "name": "Real deployed synthetic AI diagnostics",
+          "result": "Four of four passed",
+          "detail": "The actual npm run llm:connectivity command passed first with the staged approval and again without overrides after configuration deployment. Two further calls through the same function passed. Output token counts were 304 for the canary, then 328, 324 and 319 after deployment, all above the old 200-token cap. Latencies were 4701, 5052, 4204 and 4395 ms, respectively. Every stored output validated, with zero retries and no student-session associations."
+        },
+        {
+          "name": "Deployment configuration verification",
+          "result": "Passed",
+          "detail": "Render configuration edits were verified before save, and the effective server configuration was re-read after restart. The management-page mouse Edit action did not open its form; keyboard activation succeeded. SSH retained the existing additional ED25519 proof-signature warning without disabling host verification."
+        },
+        {
+          "name": "Release record verification",
+          "result": "Passed after documentation correction",
+          "detail": "An external documentation URL initially failed the repository-file reference test. It was removed from that file-only inventory; the ledger and Word artifact were rebuilt and all six record tests passed. The final artifact was rendered for complete page-by-page visual inspection."
+        }
+      ],
+      "limitations": [
+        "This release verifies diagnostic connectivity and structured output, not complete student learning dialogues, learning gains or classroom-scale concurrency. Raising a ceiling does not remove provider outages or guarantee every future output.",
+        "The two legacy regression suites and unrelated private-script lint failures remain recorded above. No unrelated teaching logic or historical evaluation fixtures were rewritten to make them pass.",
+        "The separate seven-day build advisory exception remains unchanged. This diagnostic change neither fixes nor extends that exception. Its separately scheduled follow-up remains independent of this release."
+      ],
+      "references": [
+        "src/lib/llm/connectivity-budget.ts",
+        "src/lib/llm/config.ts",
+        "src/lib/operational/active-approval-bundle.ts",
+        "prisma/connectivity-budget-amend.ts",
+        "prisma/llm-connectivity.ts",
+        "prisma/profiling-repair-smoke-test.ts",
+        "docs/LLM_INFRASTRUCTURE.md"
       ]
     }
   ],
