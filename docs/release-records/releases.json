@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T06:30:00+00:00",
+  "updated_at": "2026-10-05T08:00:18+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1630,6 +1630,114 @@
         "prisma/student-english-mixed-intent-smoke-test.ts",
         "prisma/student-formative-live-validation-smoke-test.ts",
         "prisma/session-review-live-probe.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-02",
+      "date": "2026-10-05",
+      "title": "Synthetic student journeys and learning evidence validation",
+      "application_commit": "9c3482094b1b68f50a10bf9ac81c260f90ac40e9",
+      "push_status": "Pushed to origin/main; GitHub accepted 10679676 to 9c348209. Documentation is a separate follow-up.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1lfjmq1p3s73fe97tg",
+        "source_commit": "9c3482094b1b68f50a10bf9ac81c260f90ac40e9",
+        "verified_at": "2026-10-05T08:00:18+00:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1lfjmq1p3s73fe97tg",
+        "evidence": [
+          "Render detail showed Deploy succeeded | Live for exact source 9c3482094b1b68f50a10bf9ac81c260f90ac40e9. Runtime dependency audit reported zero vulnerabilities. Logs showed 65 migrations, none pending, and service Live at 07:59:57Z.",
+          "Read-only SSH at 08:00:16.993Z independently confirmed the full new commit, web PID 14 and preparation-worker PID 15. Container memory was 224796672 of 2147483648 bytes with zero oom and oom_kill counters. This is a startup sample, not a load test.",
+          "Public health at 08:00:18.276Z returned status ok, database reachable, schema ready and migration readiness ready. The API credential matched the quota-blocked test credential. Web health does not establish AI billing availability. Host-key checking was not disabled; the previously recorded additional ED25519 proof-signature warning remained."
+        ]
+      },
+      "summary": "Synthetic student journeys exposed invalid generated item identities, misleading zero activity, overly conservative understanding summaries, and evidence-validation conflicts during cumulative learning recaps. Shared schemas, validators and projections were corrected. Five additional live cases completed; three were blocked by an external API quota error. No classroom student records or limits were changed.",
+      "changes": [
+        {
+          "area": "Initial profile item identity",
+          "problem": "A generated profile combined parts of two item identifiers and could not be accepted.",
+          "fix": "Profile output schema v4 constrains identifiers to the exact submitted set and requires the exact item count. Full unique coverage, source quotations and semantic validation remain mandatory.",
+          "impact": "Prevents structurally invalid identities at generation without guessing an intended item or reassigning evidence."
+        },
+        {
+          "area": "Historical context and current learning evidence",
+          "problem": "Required original-question and before/after recap references conflicted with a validator requiring every reference to be new transition evidence. Retained engagement text was also unnecessarily paraphrased.",
+          "fix": "Evidence validator v3 permits six explicit contextual observation types to cite historical student evidence, while checking identity, scope and source role. Changed profile fields still require current student evidence. Tutor host v7.13 requires exact retained values and answers the student's immediate question before optional recap.",
+          "impact": "Cumulative summaries remain traceable without promoting old evidence into new progress. Concise and detailed requests receive different reply depth; necessary conceptual assumptions remain visible."
+        },
+        {
+          "area": "Teacher understanding and process summaries",
+          "problem": "Unavailable browser measurements appeared as zeros. Correct substantive reasoning could be downgraded solely because independent transfer had not been tested.",
+          "fix": "Process summary v6 preserves null for unavailable editing and page-opening measurements and reports telemetry coverage. Server presentation is labeled Item made available. Understanding summary v2 separates understanding from the independent-transfer caution.",
+          "impact": "Teacher and research projections distinguish missingness from observed inactivity and do not fabricate transfer evidence. Calculation definitions are updated."
+        },
+        {
+          "area": "Repeatable evaluation and release workflow",
+          "problem": "Isolated provider probes did not exercise complete saved journeys or export links; repeated quota failures wasted test dispatches.",
+          "fix": "Add eight synthetic personas using real services, fresh local databases, preparation jobs, live tutors and adaptive AI learners. Add a read-only manifest and evidence-link auditor. Stop later test cases on provider quota failure. Record standing user authorization for tested changes to be pushed, deployed and documented during active tasks.",
+          "impact": "Tests remain separate from classroom data. Blocked cases are reported explicitly. The workflow is not an unattended deployment or billing monitor."
+        }
+      ],
+      "data_impact": [
+        "No production student writes, migrations, attempt resets, token-limit changes or historical profile rewrites. New generation and derived projections use explicit versions; raw products, events and provider responses are preserved.",
+        "The five completed follow-up sessions passed 37 manifest checksums each, session isolation, exact text/actor matching for 31 conversation turns, 15 item records, two profile transitions and seven historical contextual references outside the transition set. Confidence carry-forward and supporting turn links were checked. Incomplete cases were excluded explicitly.",
+        "Pauses remain recorded behavior, not evidence of dislike. Service-level simulations do not establish browser display, reading, classroom effectiveness or population-level measurement validity."
+      ],
+      "tests": [
+        {
+          "name": "Earlier complete synthetic run",
+          "result": "Six of six passed after item-identity fix",
+          "detail": "Run f3d63abf0322 used 75 provider dispatches and exposed five semantic regenerations, which motivated the subsequent validator and prompt corrections. Its results are not fresh passes for the final prompt revision."
+        },
+        {
+          "name": "Additional live scenarios",
+          "result": "Five passed and three quota blocked",
+          "detail": "Run aee4057798c1 finished 07:48:57Z: 66 dispatches, 13 learner generations and 53 application calls including three quota errors. Eighteen tutor generations needed zero semantic retries. Five asynchronous submissions returned in 46-287 ms locally. Tutor latency ranged 5.851-54.402 seconds, median 13.571 seconds. Cases covered cumulative correction/recap, brief then detailed explanations, mixed reasoning/questions, partial correction and pause. Revision/replay, qualified challenge and language/internal-detail cases were blocked during administration; their old passes are not counted as new passes."
+        },
+        {
+          "name": "Pedagogical and research review",
+          "result": "Passed for five completed cases",
+          "detail": "Reviewed all 18 replies for accurate reliability, validity and SEM distinctions, stated interval assumptions, remaining misconceptions and pause handling. Generated replies stayed English and did not expose serialized system details. The short explanation was 76 words without a compulsory quiz. Export audit passed; original audit actor mismatch was corrected to map stored agent to displayed tutor, not by editing source data."
+        },
+        {
+          "name": "Regression and static checks",
+          "result": "Passed with existing warnings",
+          "detail": "Typecheck; lint with zero errors and five existing warnings; 21 navigation suites; persisted transitions, pipeline, lifecycle, teacher dashboard, profile/export parity, 87 understanding-summary checks, 46 collection/summary checks, 13 English/mixed-intent checks, item identity, interpretation, transcript and current UX tests passed. Contract evaluation passed 30 cases plus seven historical replays without AI. Test-only version pins and structured-input serialization were corrected. A fixture-contaminated parity test failed and passed in a fresh database; sandbox-blocked DB checks passed in the approved isolated harness."
+        },
+        {
+          "name": "Build and dependency checks",
+          "result": "Passed after clean build",
+          "detail": "Initial sandbox IPC failed, then the default 4 GB build heap exhausted. An 8 GB warm-cache retry was stopped after excessive cache warnings. A clean source snapshot built successfully using the existing 12 GB build-only heap. Production runtime budgets were not increased. Security tests passed 17 checks; dependency gate retained only the previously approved build-only braces exception, with zero reported runtime vulnerabilities."
+        },
+        {
+          "name": "Provider quota scope",
+          "result": "External blocker confirmed",
+          "detail": "The provider returned insufficient quota. Private fingerprint comparisons before and after deployment confirmed test and production credentials match without revealing credentials or issuing another AI call. The application health endpoint does not prove AI billing availability. Further paid calls stopped; no billing or project limit was changed."
+        },
+        {
+          "name": "Deployment and release ledger",
+          "result": "Passed",
+          "detail": "Exact source Live, migration readiness, independent runtime revision, web and worker processes, and public health were verified. The six release-ledger tests passed, including source identity, duplicate rejection and deterministic Word generation. The documentation-only follow-up remains separate from the application release."
+        }
+      ],
+      "limitations": [
+        "Three final-version live scenarios need rerunning after API billing or project access is restored. Shared credentials mean classroom feedback may also be affected. Saved progress and retry remain available; no false completion was recorded.",
+        "The evaluation is bounded and uses synthetic students, not a 30-turn endurance, browser usability or classroom load test. Zero validation retries in this sample does not guarantee every future response or prove a latency improvement.",
+        "The existing seven-day build-only advisory exception is unchanged. Historical missing telemetry remains unavailable; it is not backfilled with zero or inferred behavior."
+      ],
+      "references": [
+        "docs/AI_STUDENT_EVALUATION_2026-10-05.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/UNDERSTANDING_SUMMARIES.md",
+        "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+        "src/lib/services/student-assessment/formative-profile.ts",
+        "src/lib/services/student-assessment/learning-profile-summary.ts",
+        "src/lib/services/teacher-review/process-data-summary.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "scripts/audit-ai-student-research.mjs",
+        "AGENTS.md"
       ]
     }
   ],
