@@ -16,6 +16,7 @@ import {
 import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
+import { AGENT_INPUT_ENCODING } from "@/lib/llm/lossless-profiling-input";
 import { toPrismaJson } from "@/lib/services/json";
 import { logProcessEvent } from "@/lib/services/process-events";
 import {
@@ -1359,6 +1360,7 @@ async function executeProfileIntegrationRepairAttempt(input: {
       agent_name: PROFILE_INTEGRATION_AGENT_NAME as unknown as AgentName,
       model_config: input.model_config,
       instructions: PROFILE_INTEGRATION_REPAIR_PROMPT_INSTRUCTIONS,
+      input_encoding: AGENT_INPUT_ENCODING,
       input: repairInput,
       output_schema: ProfileIntegrationInterpretationPacketV1Schema,
       schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
@@ -1577,6 +1579,7 @@ async function executeProfileIntegrationAgentWithProvider(input: {
       model_config: input.model_config,
       instructions: PROFILE_INTEGRATION_PROMPT_INSTRUCTIONS,
       cache_static_instructions: true,
+      input_encoding: AGENT_INPUT_ENCODING,
       input: input.agent_input,
       output_schema: ProfileIntegrationInterpretationPacketV1Schema,
       schema_name: PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),

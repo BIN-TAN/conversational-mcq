@@ -2104,3 +2104,19 @@ This change constrains generation before acceptance; it does not fabricate
 reasoning, alter scoring, change student AI limits, or rewrite past failed calls.
 Original provider output and effective validated output retain their established
 audit paths. The schema version on each new AgentCall identifies this contract.
+
+### Lossless AI request projection (2026-10-05)
+
+The four interpretation/feedback/conversation roles can send
+`lossless-agent-json-v1` at the provider boundary. Expanded input payloads,
+student responses, process records, and evidence identities stay unchanged.
+`raw_output.input_projection` records encoding, source/wire SHA-256 hashes,
+UTF-8 byte lengths, definition/reference/table counts, and round-trip validation.
+Central agent execution also records `agent_input_projection_prepared`; direct
+provider paths retain the raw-output audit. Source text is not added to these
+audit fields. Earlier records and pre-response transport failures may lack them.
+
+See [AI input deduplication](AI_INPUT_DEDUPLICATION.md) for exact definitions,
+fallback behavior, request-body reduction formulas, token-accounting caveats,
+and the narrowly approved Sol low-reasoning configuration. Compression metrics
+are implementation measures, not student behavior or learning outcomes.

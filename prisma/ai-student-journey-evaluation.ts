@@ -81,6 +81,8 @@ async function main() {
       "src/lib/services/teacher-review/process-data-summary.ts",
       "src/lib/services/student-assessment/learning-profile-summary.ts",
       "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+      "src/lib/llm/lossless-profiling-input.ts", "src/lib/llm/providers/openai-responses-provider.ts",
+      "src/lib/agents/provider-request.ts", "src/lib/operational/active-approval-bundle.ts",
       "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts"
     ].map(file => [file, createHash("sha256").update(readFileSync(file)).digest("hex")])),
     runtime_hash: process.env.OPERATIONAL_APPROVED_CONFIG_HASH, student_model: studentModel,
@@ -288,7 +290,8 @@ async function main() {
               })).count;
             }
             const records = await db.agentCall.findMany({ where: { assessment_session: { session_public_id: result.session_public_id } }, select: {
-              agent_name: true, model_name: true, output_validated: true, validation_error: true, error_category: true,
+              agent_name: true, model_name: true, reasoning_effort: true, max_output_tokens: true, token_usage: true,
+              output_validated: true, validation_error: true, error_category: true,
               call_status: true, input_tokens: true, output_tokens: true, latency_ms: true,
               input_payload: true, output_payload: true, raw_output: true
             } });

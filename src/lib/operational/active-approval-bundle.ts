@@ -24,6 +24,8 @@ export const PLANNING_BUDGET_AMENDMENT_VERSION = "operational-planning-budget-am
 export const PROFILING_REPAIR_AMENDMENT_VERSION = "profiling-v6-scoped-budget-amendment-v1";
 export const GLOBAL_FEEDBACK_BUDGET_AMENDMENT_VERSION = "global-initial-feedback-budget-amendment-v1";
 export const CONNECTIVITY_BUDGET_AMENDMENT_VERSION = "synthetic-connectivity-budget-amendment-v1";
+export const SOL_LOW_REASONING_AMENDMENT_VERSION = "sol-low-feedback-conversation-amendment-v1";
+export const SOL_LOW_REASONING_ROLES = ["formative_value_and_planning_agent", "formative_conversation_agent"] as const;
 const PROFILING_V5_HASH = "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626";
 export const PROFILING_V6_HASH = "d9778ba1809c54f84ceb0d91c9f36e22897e8f9a9113768f42a5c728ce1430e8";
 export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
@@ -423,6 +425,8 @@ export function verifyApprovedCandidateArtifacts(input: {
           ? globalFeedbackBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
           : evidence.approval_command_version === CONNECTIVITY_BUDGET_AMENDMENT_VERSION
             ? connectivityBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
+            : evidence.approval_command_version === SOL_LOW_REASONING_AMENDMENT_VERSION
+              ? solLowReasoningAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
         : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
   if (issues.length > 0) {
@@ -741,6 +745,84 @@ export function prepareGlobalFeedbackBudgetAmendment(input: {
     approved_at: new Date().toISOString(), source_artifact_sha256: amendment.validation_evidence.sha256,
     approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
     rollback_hash: parent.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath, global_feedback_budget_amendment: amendment };
+  const evidencePath = path.join(directory, "approval-evidence.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
+  verifyApprovedCandidateArtifacts({ approvedManifestPath: manifestPath, approvalEvidencePath: evidencePath,
+    expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: evidence.approval_evidence_hash });
+  return { manifestPath, evidencePath, evidence };
+}
+
+function solLowReasoningAmendmentIssues(manifest: ApprovedCandidateManifest, evidence: OperationalApprovalEvidence, depth: number) {
+  const amendment = z.object({
+    parent_manifest: FileReferenceSchema, parent_evidence: FileReferenceSchema, validation_evidence: FileReferenceSchema,
+    parent_runtime_hash: z.string().length(64), parent_protocol_hash: z.string().length(64), parent_approval_hash: z.string().length(64)
+  }).strict().parse(evidence.sol_low_reasoning_amendment);
+  for (const file of [amendment.parent_manifest, amendment.parent_evidence, amendment.validation_evidence]) {
+    if (!path.isAbsolute(file.path) || sha256File(file.path) !== file.sha256) throw new Error("Sol-low amendment evidence integrity mismatch.");
+  }
+  const parent = verifyApprovedCandidateArtifacts({ approvedManifestPath: amendment.parent_manifest.path,
+    approvalEvidencePath: amendment.parent_evidence.path, expectedRuntimeHash: amendment.parent_runtime_hash,
+    expectedEvaluationProtocolHash: amendment.parent_protocol_hash, expectedApprovalEvidenceHash: amendment.parent_approval_hash,
+    approvalDepth: depth + 1 });
+  const expected = structuredClone(parent.manifest);
+  const parentMatches = SOL_LOW_REASONING_ROLES.every(role =>
+    expected.roles[role]?.model_name === "gpt-5.6-sol" && expected.roles[role]?.reasoning_effort === "medium");
+  for (const role of SOL_LOW_REASONING_ROLES) expected.roles[role]!.reasoning_effort = "low";
+  z.object({ version: z.literal("sol-low-input-dedup-validation-v1"), synthetic_only: z.literal(true),
+    real_student_data_used: z.literal(false), lossless_roundtrip_passed: z.literal(true), regression_passed: z.literal(true),
+    live_evaluation_required_before_deployment: z.literal(true)
+  }).parse(JSON.parse(readFileSync(amendment.validation_evidence.path, "utf8")));
+  const review = evidence.human_review;
+  return [
+    ...(!parentMatches ? ["sol_low_unexpected_parent"] : []),
+    ...(stableHash(expected) !== stableHash(manifest) ? ["sol_low_changed_other_settings"] : []),
+    ...(review.decision !== "approve" || review.scope !== "feedback_and_conversation_reasoning_only" ||
+      review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
+      typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
+      ? ["sol_low_authorization_missing"] : []),
+    ...(evidence.source_artifact_sha256 !== amendment.validation_evidence.sha256 ||
+      evidence.source_evaluation_protocol_hash !== parent.evidence.evaluation_protocol_hash ||
+      evidence.rollback_hash !== parent.evidence.rollback_hash || evidence.evaluation_protocol_hash !== stableHash(amendment)
+      ? ["sol_low_provenance_mismatch"] : [])
+  ];
+}
+
+export function prepareSolLowReasoningAmendment(input: {
+  parent: ActiveDerivedOperationalApproval; expectedParentHash: string; validationEvidencePath: string;
+  outputDirectory: string; authorizationReference: string;
+}) {
+  const { parent } = input;
+  if (parent.record.runtime_candidate_hash !== input.expectedParentHash || !input.authorizationReference.trim() ||
+      !SOL_LOW_REASONING_ROLES.every(role => parent.manifest.roles[role]?.model_name === "gpt-5.6-sol" &&
+        parent.manifest.roles[role]?.reasoning_effort === "medium")) {
+    throw new Error("Verified Sol-medium parent and explicit authorization are required.");
+  }
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false, mode: 0o700 });
+  const manifest = structuredClone(parent.manifest);
+  for (const role of SOL_LOW_REASONING_ROLES) manifest.roles[role]!.reasoning_effort = "low";
+  const manifestPath = path.join(directory, "approved-candidate-manifest.json");
+  const validationPath = path.resolve(input.validationEvidencePath);
+  const amendment = {
+    parent_manifest: { path: parent.manifest_path, sha256: sha256File(parent.manifest_path) },
+    parent_evidence: { path: parent.approval_evidence_path, sha256: sha256File(parent.approval_evidence_path) },
+    validation_evidence: { path: validationPath, sha256: sha256File(validationPath) },
+    parent_runtime_hash: parent.record.runtime_candidate_hash, parent_protocol_hash: parent.record.evaluation_protocol_hash,
+    parent_approval_hash: parent.record.approval_evidence_hash
+  };
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
+  const identity = { source_provider_run_id: `sol-low:${amendment.validation_evidence.sha256}`,
+    derived_evaluation_id: `${SOL_LOW_REASONING_AMENDMENT_VERSION}:${runtimeHash}`, runtime_candidate_hash: runtimeHash,
+    source_evaluation_protocol_hash: parent.evidence.evaluation_protocol_hash, evaluation_protocol_hash: stableHash(amendment),
+    human_review: { decision: "approve", scope: "feedback_and_conversation_reasoning_only", operator_authorized: true,
+      semantic_review_confirmed: false, authorization_reference: input.authorizationReference,
+      limitations: "Operator-authorized Sol medium-to-low change for initial feedback and ongoing conversation only. Local engineering checks are recorded. A first live synthetic round and review are required before deployment and recorded separately. This is not independent human validation of educational equivalence. All other roles and token limits retain parent approval." } };
+  const evidence: OperationalApprovalEvidence = { ...identity, approval_command_version: SOL_LOW_REASONING_AMENDMENT_VERSION,
+    approved_at: new Date().toISOString(), source_artifact_sha256: amendment.validation_evidence.sha256,
+    approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
+    rollback_hash: parent.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath, sol_low_reasoning_amendment: amendment };
   const evidencePath = path.join(directory, "approval-evidence.json");
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
   writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });

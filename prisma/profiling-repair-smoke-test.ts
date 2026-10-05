@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import { ApprovedCandidateManifestSchema, LEGACY_GPT54_APPROVED_RUNTIME_HASH, PROFILING_V6_HASH,
   approvedOperationalRoleNamesForManifest, activateOperationalApprovalBundle, prepareProfilingRepairAmendment,
   resolveActiveOperationalApproval, verifyApprovedCandidateArtifacts, prepareGlobalFeedbackBudgetAmendment,
-  prepareConnectivityBudgetAmendment } from "../src/lib/operational/active-approval-bundle";
+  prepareConnectivityBudgetAmendment, prepareSolLowReasoningAmendment } from "../src/lib/operational/active-approval-bundle";
 import { agentModelReadiness, resolveConnectivityModelConfig, resolveOpenAIModelConfigForRole } from "../src/lib/llm/config";
 import { modelUpgradeCandidateRuntimeHash } from "../src/lib/operational/model-upgrade-candidate-identity";
 import { ScopedFeedbackBudgetSchema, selectInitialFeedbackBudget } from "../src/lib/operational/scoped-feedback-budget";
@@ -19,6 +19,10 @@ let checks = 0;
 const check = (fn: () => void) => { fn(); checks++; };
 try {
   const manifest = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync("config/candidate-operational-agent-config.gpt-5.6-full-v2.json", "utf8")));
+  manifest.roles.formative_conversation_agent = { ...manifest.roles.topic_dialogue_agent!, max_output_tokens: 7000 };
+  manifest.runtime_policy.role_live_toggles.formative_conversation_agent = true;
+  manifest.configuration_fingerprint.role_version_metadata.formative_conversation_agent =
+    { ...manifest.configuration_fingerprint.role_version_metadata.topic_dialogue_agent };
   Object.assign(manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent,
     { prompt_version: "student-profiling-v5", prompt_hash: "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626", schema_version: "student-profile-output-v4" });
   const parentHash = modelUpgradeCandidateRuntimeHash(manifest, approvedOperationalRoleNamesForManifest(manifest));
@@ -121,6 +125,37 @@ try {
     expectedSourceProviderRunId: diagnostic.evidence.source_provider_run_id, expectedDerivedEvaluationId: diagnostic.evidence.derived_evaluation_id,
     confirmation: "activate approved gpt-5.6 operational candidate v2", outputDirectory: path.join(root, "diagnostic-active") });
   const previousEnv = { ...process.env };
+  const lowParent = resolveActiveOperationalApproval({ bundlePath: diagnosticBundle.bundle_path, env: {} });
+  assert(lowParent?.kind === "derived_approval");
+  const lowValidationPath = save("low-validation.json", { version: "sol-low-input-dedup-validation-v1",
+    synthetic_only: true, real_student_data_used: false, lossless_roundtrip_passed: true, regression_passed: true,
+    live_evaluation_required_before_deployment: true });
+  const lowArgs = { parent: lowParent, expectedParentHash: diagnostic.evidence.runtime_candidate_hash,
+    validationEvidencePath: lowValidationPath, authorizationReference: "SYNTHETIC FIXTURE ONLY" };
+  const low = prepareSolLowReasoningAmendment({ ...lowArgs, outputDirectory: path.join(root, "low") });
+  const lowVerify = { approvedManifestPath: low.manifestPath, approvalEvidencePath: low.evidencePath,
+    expectedRuntimeHash: low.evidence.runtime_candidate_hash, expectedEvaluationProtocolHash: low.evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: low.evidence.approval_evidence_hash };
+  const lowManifest = verifyApprovedCandidateArtifacts(lowVerify).manifest;
+  const expectedLow = structuredClone(diagnosticManifest);
+  expectedLow.roles.formative_value_and_planning_agent!.reasoning_effort = "low";
+  expectedLow.roles.formative_conversation_agent!.reasoning_effort = "low";
+  check(() => assert.deepEqual(lowManifest, expectedLow));
+  check(() => assert.equal(low.evidence.human_review.semantic_review_confirmed, false));
+  check(() => assert.throws(() => prepareSolLowReasoningAmendment({ ...lowArgs, authorizationReference: "", outputDirectory: path.join(root, "low-no-auth") })));
+  check(() => assert.throws(() => prepareSolLowReasoningAmendment({ ...lowArgs, expectedParentHash: "0".repeat(64), outputDirectory: path.join(root, "low-wrong-parent") })));
+  const invalidLow = structuredClone(lowManifest);
+  invalidLow.roles.student_profiling_agent!.reasoning_effort = "low";
+  writeFileSync(low.manifestPath, JSON.stringify(invalidLow));
+  check(() => assert.throws(() => verifyApprovedCandidateArtifacts(lowVerify)));
+  writeFileSync(low.manifestPath, JSON.stringify(lowManifest));
+  const validationBefore = readFileSync(lowValidationPath, "utf8");
+  writeFileSync(lowValidationPath, validationBefore.replace('"regression_passed":true', '"regression_passed":false'));
+  check(() => assert.throws(() => verifyApprovedCandidateArtifacts(lowVerify)));
+  writeFileSync(lowValidationPath, validationBefore);
+  const lowBundle = activateOperationalApprovalBundle({ ...lowVerify, expectedSourceProviderRunId: low.evidence.source_provider_run_id,
+    expectedDerivedEvaluationId: low.evidence.derived_evaluation_id, confirmation: "activate approved gpt-5.6 operational candidate v2",
+    outputDirectory: path.join(root, "low-active") });
   const previousCwd = process.cwd();
   try {
     for (const key of Object.keys(process.env)) if (/^(OPENAI_|LLM_|OPERATIONAL_|TOPIC_DIALOGUE_|STUDENT_COMMUNICATION_|FORMATIVE_CONVERSATION_)/u.test(key)) delete process.env[key];
@@ -143,6 +178,10 @@ try {
     check(() => assert.throws(() => resolveConnectivityModelConfig(), /does not match/u));
     Object.assign(process.env, globalBundle.render_variables);
     check(() => assert.equal(resolveConnectivityModelConfig().max_output_tokens, 200));
+    Object.assign(process.env, lowBundle.render_variables);
+    check(() => assert.equal(resolveOpenAIModelConfigForRole("formative_conversation_agent").reasoning_effort, "low"));
+    check(() => assert.equal(resolveOpenAIModelConfigForRole("formative_value_and_planning_agent").reasoning_effort, "low"));
+    check(() => assert.equal(resolveOpenAIModelConfigForRole("student_profiling_agent").reasoning_effort, "medium"));
     process.env.LLM_LIVE_CALLS_ENABLED = "false";
     check(() => assert.throws(() => resolveConnectivityModelConfig(), /live|enabled/iu));
   } finally {

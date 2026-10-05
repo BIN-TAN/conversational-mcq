@@ -29,6 +29,7 @@ import {
   buildAssessmentInterpretationContextFromResponsePackage
 } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import { compactRepeatedDiagnosticContext } from "./compact-provider-context";
+import { AGENT_INPUT_ENCODING } from "@/lib/llm/lossless-profiling-input";
 import {
   evaluateResponseQuality,
   responseQualityAllowsAdvance,
@@ -2611,6 +2612,7 @@ async function callProviderOrMock(input: {
     model_config: modelConfig,
     instructions: CHAT_NATIVE_PROFILE_INSTRUCTIONS,
     cache_static_instructions: true,
+    input_encoding: AGENT_INPUT_ENCODING,
     input: input.provider_input,
     output_schema: liveOutputSchema,
     schema_name: CHAT_NATIVE_PROFILE_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),

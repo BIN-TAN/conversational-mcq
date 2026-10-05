@@ -17,7 +17,8 @@ import {
   resolveOpenAIBaseUrl
 } from "@/lib/llm/openai-transport-diagnostics";
 import { normalizeOpenAIResponsesResult } from "@/lib/llm/openai-responses-normalizer";
-import { prepareLosslessProfilingInput, PROFILING_INPUT_ENCODING } from "@/lib/llm/lossless-profiling-input";
+import { prepareLosslessProfilingInput, PROFILING_INPUT_ENCODING, prepareLosslessAgentInput,
+  AGENT_INPUT_ENCODING, usesLosslessAgentInput } from "@/lib/llm/lossless-profiling-input";
 import type {
   LlmProvider,
   OpenAITransportMilestone,
@@ -239,11 +240,17 @@ function initialMilestones(): OpenAITransportMilestone {
   };
 }
 
+function projectRequestInput<TInput, TOutput>(request: StructuredAgentRequest<TInput, TOutput>) {
+  return request.input_encoding === AGENT_INPUT_ENCODING && usesLosslessAgentInput(request.agent_name)
+    ? prepareLosslessAgentInput(request.input)
+    : request.input_encoding === PROFILING_INPUT_ENCODING && request.agent_name === "student_profiling_agent"
+      ? prepareLosslessProfilingInput(request.input) : null;
+}
+
 export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
-  request: StructuredAgentRequest<TInput, TOutput>
+  request: StructuredAgentRequest<TInput, TOutput>,
+  projection = projectRequestInput(request)
 ) {
-  const projection = request.input_encoding === PROFILING_INPUT_ENCODING && request.agent_name === "student_profiling_agent"
-    ? prepareLosslessProfilingInput(request.input) : null;
   const instructions = projection?.instructions
     ? `${request.instructions}\n\n${projection.instructions}` : request.instructions;
   const inputText = projection?.text ?? JSON.stringify(request.input);
@@ -395,7 +402,8 @@ export class OpenAIResponsesProvider implements LlmProvider {
     try {
       milestones.transport_adapter_entered = true;
       await emit("transport_adapter_entered");
-      const body = compileOpenAIResponsesRequestBody(request);
+      const projection = projectRequestInput(request);
+      const body = compileOpenAIResponsesRequestBody(request, projection);
       milestones.request_serialization_completed = true;
       await emit("request_serialization_completed");
       if (process.env.OPERATIONAL_LIVE_CANARY_TEST_ABORT_AT_TRANSPORT_BOUNDARY === "true") {
@@ -419,6 +427,9 @@ export class OpenAIResponsesProvider implements LlmProvider {
       milestones.response_body_received = true;
       await emit("response_body_received", { provider_request_id: requestId ?? null });
       const response = data as unknown as Record<string, unknown>;
+      // Preserve original provider output and a reproducible, text-free wire audit.
+      const auditResponse = () => ({ ...rawAuditResponse(response),
+        ...(projection ? { input_projection: projection.audit } : {}) });
       const normalized = normalizeOpenAIResponsesResult({
         sdkResponse: response,
         providerRequestId: requestId ?? null,
@@ -467,7 +478,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
           provider_response_id: typeof response.id === "string" ? response.id : undefined,
           status: "refused",
           refusal,
-          raw_output: rawAuditResponse(response),
+          raw_output: auditResponse(),
           usage: normalized.usage.status === "usage_verified"
             ? {
                 input_tokens: normalized.usage.inputTokens ?? undefined,
@@ -494,7 +505,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
           provider_response_id: typeof response.id === "string" ? response.id : undefined,
           status: "incomplete",
           incomplete_reason: incompleteReason ?? "incomplete",
-          raw_output: rawAuditResponse(response),
+          raw_output: auditResponse(),
           usage: normalized.usage.status === "usage_verified"
             ? {
                 input_tokens: normalized.usage.inputTokens ?? undefined,
@@ -520,7 +531,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
           provider_request_id: requestId ?? undefined,
           provider_response_id: typeof response.id === "string" ? response.id : undefined,
           status: "failed",
-          raw_output: rawAuditResponse(response),
+          raw_output: auditResponse(),
           usage: normalized.usage.status === "usage_verified"
             ? {
                 input_tokens: normalized.usage.inputTokens ?? undefined,
@@ -552,7 +563,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
           provider_response_id:
             typeof response.id === "string" ? response.id : undefined,
           status: "failed",
-          raw_output: rawAuditResponse(response),
+          raw_output: auditResponse(),
           usage:
             normalized.usage.status === "usage_verified"
               ? {
@@ -590,7 +601,7 @@ export class OpenAIResponsesProvider implements LlmProvider {
         provider_response_id: typeof response.id === "string" ? response.id : undefined,
         status: "completed",
         parsed_output: structuredOutput.data,
-        raw_output: rawAuditResponse(response),
+        raw_output: auditResponse(),
         usage: normalized.usage.status === "usage_verified"
           ? {
               input_tokens: normalized.usage.inputTokens ?? undefined,
