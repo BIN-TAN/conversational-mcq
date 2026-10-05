@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T16:49:20.172Z",
+  "updated_at": "2026-10-05T18:54:07.879Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2180,6 +2180,92 @@
         "docs/ASSESSMENT_FLOW.md",
         "docs/DATA_LOGGING_SPEC.md"
       ]
+    },
+    {
+      "id": "CMCQ-20261005-08",
+      "date": "2026-10-05",
+      "title": "Research export semantics and external validation preparation",
+      "application_commit": "a75791cf63103cfd7cc836a04c56602d2e679871",
+      "push_status": "Committed and pushed to origin/main; documentation follows separately with [skip render].",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1utgu7bikc73dc7pfg",
+        "source_commit": "a75791cf63103cfd7cc836a04c56602d2e679871",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1utgu7bikc73dc7pfg",
+        "verified_at": "2026-10-05T18:45:56.957Z",
+        "evidence": [
+          "Canonical deployment detail showed Deploy succeeded | Live for the exact source commit; duration 5m10s. Service-live log was 18:44:09Z; 65 migrations were found and none pending.",
+          "Read-only runtime check returned the exact commit, web PID 14 and preparation-worker PID 15. Memory was 555655168 of 2147483648 bytes with zero oom/oom_kill counters. Public health reported ok, database reachable, schema ready and migration readiness ready. Existing additional SSH host-proof signature warning remained; host checking was not disabled.",
+          "A related dashboard timing-label error found during production review is recorded separately in CMCQ-20261005-09. The final production dataset audit is recorded with that follow-up."
+        ]
+      },
+      "summary": "Correct ambiguous export encoding, distinguish technical provenance from scientific validation, preserve sealed alternative responses, and provide clearly unfilled study worksheets without manufacturing observations or changing students' conversations.",
+      "changes": [
+        {"area": "Boolean encoding and sealed evidence", "problem": "Supplemental CSV defaults conflated false with missing. Sealed item exports omitted alternative-option evidence, encouraging joins to later mutable responses.", "fix": "Centralize true/false/empty serialization under research-csv-v2 and include the three tempting-option fields from the first sealed package. Preserve missing historical fields rather than backfilling them.", "impact": "Researchers can distinguish rejection from missingness and code the baseline using its own saved evidence. Raw records and historical packages are unchanged."},
+        {"area": "Availability and repeated comparisons", "problem": "Uninstrumented fields and a validity-sounding profile flag could overstate the measurements. Overlapping comparison views could be counted as independent observations.", "fix": "Add coverage collection status and guidance, move unsupported fields out of the core dictionary, add profile_provenance_eligible with the old name retained as an exact deprecated alias, and add stable item_pair_id values across overlapping views.", "impact": "Missing intervals remain missing; profile rules and comparison calculations are unchanged. Researchers can select a view or deduplicate actual item pairs."},
+        {"area": "Independent study evidence", "problem": "The export lacked convenient joinable worksheets for cohort review, human coding and external outcomes.", "fix": "Provide pseudonymous cohort and sealed-item review worksheets with blank research fields, a header-only external-outcomes worksheet, explicit definitions and protocol guidance. Exclude worksheets from measurement coverage counts.", "impact": "Supports independent validation preparation without claiming consent, diagnoses, randomization or outcomes. No student text or AI labels are copied into the templates."}
+      ],
+      "data_impact": [
+        "No database migration, account update, attempt reset, AI call, source-response rewrite or change to student assessment state. Re-export changes serialization and projections only.",
+        "Profile projection is versioned as profile-record-projection-v3; CSV, measurement-availability and study-template contracts are declared in the manifest. Timing remains governed by per-row methods and versions.",
+        "Old supplemental blanks cannot be disambiguated from an old CSV alone; regenerate the export from retained sources. Active typing and independent learning evidence are not reconstructed."
+      ],
+      "tests": [
+        {"name": "Export and student-flow database regressions", "result": "Passed", "detail": "Six suites passed in a newly created disposable local database: student-analysis-ready-export, student-research-export-integrity, profile-record-projection, student-data-dictionary-timing, student-conversational-flow and feedback-display-completion. Mock provider only; external provider calls blocked. Initial sandbox database denial was resolved by the authorized retry; the disposable database was removed."},
+        {"name": "Pure research contract checks", "result": "Passed", "detail": "npm run student:research-suitability-smoke passed tri-state encoding, formula escaping, stable review identity, blank consent/ratings, privacy boundaries, dictionary coverage, provenance aliases and streaming coverage parity. Attempt comparison suite passed 23 checks, including absent historical alternatives and overlapping pair IDs. Research-process-coverage checked 128 explicit definitions and timing fixtures."},
+        {"name": "Export stress and integrity", "result": "Passed", "detail": "Research-export-streaming smoke with --stress passed SHA-256, CRC, row counts, coverage equivalence, admission control and cleanup. Stress archive contained 65536 rows and 81578264 uncompressed bytes; observed test-process peak RSS was 243941376 bytes. This is a local synthetic stress result, not a production concurrency guarantee."},
+        {"name": "Build and static checks", "result": "Passed with existing warnings", "detail": "Typecheck, diff whitespace check and clean-snapshot production build passed. Build initially hit sandbox IPC denial and passed on authorized retry. Full lint encountered 34 existing errors in ignored .data scratch files; excluding .data and outputs passed with five existing unused-variable warnings."}
+      ],
+      "limitations": [
+        "Independent human labels, outcomes, actual consent and research allocation remain external study tasks. Templates do not collect those measurements or turn system-use records into a consented cohort.",
+        "No new live AI dialogue was run: this release changes exports and metadata, not models, prompts or pedagogy. Small repeated classroom samples and prior item exposure still constrain inference.",
+        "Current collectors do not measure active attention/typing intervals. Historical gaps remain explicit rather than being filled with elapsed-time proxies or zeros."
+      ],
+      "references": ["src/lib/services/teacher-research-data/csv-contract.ts", "src/lib/services/teacher-research-data/study-templates.ts", "src/lib/services/teacher-research-data/measurement-availability.ts", "src/lib/services/teacher-research-data/analysis-ready-export.ts", "src/lib/services/student-assessment/profile-record.ts", "prisma/research-suitability-contract-smoke-test.ts", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md", "docs/DATA_LOGGING_SPEC.md"]
+    },
+    {
+      "id": "CMCQ-20261005-09",
+      "date": "2026-10-05",
+      "title": "Correct dashboard timing meaning and verify production research exports",
+      "application_commit": "e2a3835dcb752d48338fc22314cee3fa33e584b1",
+      "push_status": "Committed and pushed to origin/main after the research export release. Both entries and the Word record follow in a documentation-only [skip render] commit.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1v09s9v7es73ft5hcg",
+        "source_commit": "e2a3835dcb752d48338fc22314cee3fa33e584b1",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1v09s9v7es73ft5hcg",
+        "verified_at": "2026-10-05T18:54:07.879Z",
+        "evidence": [
+          "Canonical deployment detail showed Deploy succeeded | Live for the exact source commit; duration 4m42s. Service-live log was 18:49:37Z; 65 migrations were found, none pending.",
+          "Read-only runtime verification returned the same commit, web PID 34 and preparation-worker PID 35. After the production export, container memory was 439803904 of 2147483648 bytes with zero oom/oom_kill counters. Health reported ok, database reachable, schema ready and migration readiness ready. Existing additional SSH host-proof signature warning remained without disabling host checks.",
+          "A newly generated authorized production research ZIP declared this application commit and snapshot 2026-10-05T18:51:03.808Z. Production dashboard showed the corrected metric and unchanged 4.9-minute example values."
+        ]
+      },
+      "summary": "Production review found that recorded item response durations were mislabeled as active interaction time. Correct the shared dashboard/CSV meaning without changing values, and verify the preceding export improvements against a fresh production archive.",
+      "changes": [
+        {"area": "Teacher timing display and CSV", "problem": "The dashboard called the sum of recorded item durations active interaction time and used broad time-spent labels, despite pauses, missing intervals and separate conversation time.", "fix": "Rename the metric to recorded_item_response_ms, use Average/Median item-time total, and display its scope. Keep elapsed start-to-completion fallback separately labeled. Preserve the existing calculation and included attempts.", "impact": "Teachers and researchers see what the observed duration represents; values are not converted into uncollected active attention or learning time."}
+      ],
+      "data_impact": [
+        "No source-record changes, migration, attempt reset, AI setting change or new student task. Dashboard CSV consumers should accept recorded_item_response_ms instead of the former active_interaction_ms label.",
+        "Research ZIP generation creates an export job and download artifact only. All 225 sealed baseline records remained identical on eight compared response/timestamp fields, totaling 1800 comparisons.",
+        "One behavior row without a product corresponds to a single observed stage visit with zero submissions and partial timing, not a fabricated answer or missing submitted response. It remains explicitly available as process evidence."
+      ],
+      "tests": [
+        {"name": "Dashboard and regression suites", "result": "Passed after test expectation correction", "detail": "Seven disposable-database suites passed, adding teacher-dashboard-smoke-test to the six release-08 suites. The first dashboard run failed an obsolete expected label, Average time spent; expectations were updated to assert the corrected labels, unchanged 50000-ms fixture mean and CSV type. Typecheck, clean-snapshot production build and diff checks passed; lint excluding ignored scratch/output directories passed with the same five pre-existing warnings."},
+        {"name": "Production research archive integrity and source preservation", "result": "Passed", "detail": "Fresh restricted ZIP contained 56 sessions, 231 products and 225 sealed items. All 41 manifest entries passed byte-size, SHA-256, row-count and ZIP CRC checks. No orphan session joins, duplicate sessions/products/visits, missing sealed-item products or content-key mismatches were found. All 229 scored correctness checks, 4743 timing formula checks and 1429 coverage rows passed."},
+        {"name": "Production measurement contract", "result": "Passed", "detail": "Accepted stage outcomes were 965 true, 36 false and 6190 missing; rejection flags were complementary where recorded. All 30 comparison rows reproduced their pair hash and represented 15 unique item pairs. There were 225 blank human-review cases, nine blank cohort-review rows and zero external outcomes. Templates were excluded from measurement coverage; profile aliases matched exactly."},
+        {"name": "Production teacher layout", "result": "Passed", "detail": "Inspected the dashboard at normal 1470-pixel width and a 390-by-1000 mobile viewport. Labels and the timing scope note fit without horizontal overflow. Restored the normal viewport. No student record was changed. Browser automation blocked the automatic ZIP navigation; the same completed job was successfully downloaded through its visible Download link without weakening browser protections."}
+      ],
+      "limitations": [
+        "Recorded item totals can omit intervals with no saved positive duration and can include pauses. This release fixes their interpretation; it does not reconstruct active interaction or total learning time.",
+        "No new live AI dialogue was necessary for these export and display changes; student flow was checked with mock-provider regressions. Model diagnostic validity, causal effectiveness and independent transfer require the study evidence described in release 08.",
+        "Production verification is a time-specific snapshot, not a guarantee of future availability, browser event delivery or all-cohort completeness. Templates remain external worksheets rather than an in-app study-management workflow."
+      ],
+      "references": ["src/lib/services/teacher-dashboard/assessment-dashboard.ts", "src/components/teacher-dashboard/assessment-dashboard-client.tsx", "prisma/teacher-dashboard-smoke-test.ts", "docs/DATA_LOGGING_SPEC.md", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md"]
     }
   ],
   "historical_index": [
