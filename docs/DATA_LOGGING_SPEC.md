@@ -2210,3 +2210,12 @@ See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for interpretation and joining rules.
 The manifest declares serialization, measurement-availability, template and
 profile projection versions. Timing formulas continue to use each row's actual
 method/version; top-level legacy timing versions are fallback descriptions only.
+
+The teacher dashboard and its CSV label the existing sum of positive recorded
+item durations as `recorded_item_response_ms`, replacing the misleading
+`active_interaction_ms` label. Values and included attempts are unchanged.
+Missing item intervals are omitted; pauses may be included and the separate
+learning conversation is excluded. If no recorded item totals are available,
+the existing start-to-completion wall-clock fallback remains separately labeled.
+Neither metric measures active attention; no value is copied into uncollected
+research active-time fields.

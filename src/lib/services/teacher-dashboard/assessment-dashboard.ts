@@ -219,7 +219,7 @@ export type ChartDatum = {
 };
 
 export type TimeIndicator = {
-  time_metric_type: "active_interaction_ms" | "elapsed_wall_clock_ms" | "unavailable";
+  time_metric_type: "recorded_item_response_ms" | "elapsed_wall_clock_ms" | "unavailable";
   average_time_ms: number | null;
   median_time_ms: number | null;
   average_minutes: number | null;
@@ -937,7 +937,7 @@ async function eligibleStudentKeys(teacherUserDbId: string, sessions: DashboardS
   };
 }
 
-function activeInteractionDurationMs(session: DashboardSession) {
+function recordedItemResponseDurationMs(session: DashboardSession) {
   if (session.status !== "completed" && session.current_phase !== "session_completed") return null;
   const responseDurations = allResponses(session)
     .map((response) => response.item_response_time_ms)
@@ -953,26 +953,27 @@ function elapsedWallClockDurationMs(session: DashboardSession) {
 }
 
 function buildTimeIndicator(completedSessions: DashboardSession[]): TimeIndicator {
-  const activeDurations = completedSessions
-    .map(activeInteractionDurationMs)
+  const itemDurations = completedSessions
+    .map(recordedItemResponseDurationMs)
     .filter((value): value is number => value !== null && Number.isFinite(value));
 
-  if (activeDurations.length > 0) {
-    const averageMs = average(activeDurations);
-    const medianMs = median(activeDurations);
-    const unavailableCount = completedSessions.length - activeDurations.length;
+  if (itemDurations.length > 0) {
+    const averageMs = average(itemDurations);
+    const medianMs = median(itemDurations);
+    const unavailableCount = completedSessions.length - itemDurations.length;
     return {
-      time_metric_type: "active_interaction_ms",
+      time_metric_type: "recorded_item_response_ms",
       average_time_ms: averageMs,
       median_time_ms: medianMs,
       average_minutes: averageMs === null ? null : minutes(averageMs),
       median_minutes: medianMs === null ? null : minutes(medianMs),
-      sample_size: activeDurations.length,
+      sample_size: itemDurations.length,
       unavailable_count: unavailableCount,
       limitations: [
-        "Uses summed item response durations from latest completed attempts.",
+        "Uses summed positive recorded item response durations from latest completed attempts; missing intervals are omitted, not estimated.",
+        "Recorded item durations may include pauses or idle time. They are not active interaction time and exclude the separate learning conversation.",
         ...(unavailableCount > 0
-          ? ["Some latest completed attempts lacked active item-duration data and are excluded from the time metric."]
+          ? ["Some latest completed attempts lacked recorded item-duration data and are excluded from the time metric."]
           : [])
       ]
     };
@@ -994,7 +995,7 @@ function buildTimeIndicator(completedSessions: DashboardSession[]): TimeIndicato
       sample_size: elapsedDurations.length,
       unavailable_count: completedSessions.length - elapsedDurations.length,
       limitations: [
-        "Active interaction timing was unavailable, so this uses elapsed wall-clock time from session start to completion.",
+        "Recorded item durations were unavailable, so this uses elapsed wall-clock time from session start to completion, including the learning conversation.",
         "Elapsed wall-clock time can include pauses or idle time."
       ]
     };
@@ -1008,7 +1009,7 @@ function buildTimeIndicator(completedSessions: DashboardSession[]): TimeIndicato
     median_minutes: null,
     sample_size: 0,
     unavailable_count: completedSessions.length,
-    limitations: ["No completed latest attempts had usable active or elapsed timing data."]
+    limitations: ["No completed latest attempts had usable recorded item or elapsed timing data."]
   };
 }
 

@@ -25,7 +25,7 @@ function formatMinutes(value: number | null) {
 }
 
 function timeMetricLabel(value: TeacherAssessmentDashboard["time_indicator"]["time_metric_type"]) {
-  if (value === "active_interaction_ms") return "Active interaction time";
+  if (value === "recorded_item_response_ms") return "Recorded item-time totals; may include pauses and omit unrecorded intervals. Conversation time is separate";
   if (value === "elapsed_wall_clock_ms") return "Elapsed wall-clock time";
   return "Unavailable";
 }
@@ -127,11 +127,11 @@ function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDa
             <dd className="mt-1 text-lg font-semibold text-ink">{formatCount(dashboard.eligible_student_count)}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-muted">Average time spent</dt>
+            <dt className="font-semibold text-muted">{timeIndicator.time_metric_type === "recorded_item_response_ms" ? "Average item-time total" : "Average elapsed time"}</dt>
             <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.average_minutes)}</dd>
           </div>
           <div>
-            <dt className="font-semibold text-muted">Median time spent</dt>
+            <dt className="font-semibold text-muted">{timeIndicator.time_metric_type === "recorded_item_response_ms" ? "Median item-time total" : "Median elapsed time"}</dt>
             <dd className="mt-1 text-lg font-semibold text-ink">{formatMinutes(timeIndicator.median_minutes)}</dd>
           </div>
         </dl>
@@ -146,7 +146,7 @@ function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDa
         <p className="mt-3 text-xs leading-5 text-muted">{responseTimeNote}</p>
       ) : null}
       {timeIndicator.time_metric_type !== "unavailable" ? (
-        <p className="sr-only">Response-time metric: {timeMetricLabel(timeIndicator.time_metric_type)}.</p>
+        <p className="mt-2 text-xs leading-5 text-muted">{timeMetricLabel(timeIndicator.time_metric_type)}{timeIndicator.time_metric_type === "elapsed_wall_clock_ms" ? "; includes pauses and the learning conversation" : ""}.</p>
       ) : null}
     </section>
   );

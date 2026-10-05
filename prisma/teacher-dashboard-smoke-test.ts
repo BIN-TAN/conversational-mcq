@@ -52,8 +52,10 @@ function assertDashboardSurface() {
     "ParticipationStatusCard",
     "Participation status",
     "Total students",
-    "Average time spent",
-    "Median time spent",
+    "Average item-time total",
+    "Median item-time total",
+    "Average elapsed time",
+    "Median elapsed time",
     "Response-time data available for",
     "Engagement overview",
     "Understanding overview",
@@ -74,6 +76,7 @@ function assertDashboardSurface() {
   }
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
+  assertExcludes(client, "Active interaction time", "Teacher assessment dashboard client");
   assertExcludes(
     client,
     "Persisted engagement evidence and review signals.",
@@ -89,7 +92,7 @@ function assertDashboardSurface() {
     "CANDIDATE_PATTERN_THRESHOLD = 3",
     "ATTEMPT_POLICY_LATEST_PER_STUDENT",
     "all_active_students_created_by_teacher_no_assessment_assignment_model",
-    "active_interaction_ms",
+    "recorded_item_response_ms",
     "latest_attempt_per_student",
     "deterministic exact normalized reasoning after removing common opening phrases",
     "anonymizedReasoningSnippet",
@@ -708,10 +711,11 @@ async function assertDashboardAggregationService() {
       "Detailed status distribution should preserve exited/incomplete evidence for export/audit."
     );
     assert(
-      dashboard.time_indicator.time_metric_type === "active_interaction_ms",
-      "Dashboard should use active interaction timing when available."
+      dashboard.time_indicator.time_metric_type === "recorded_item_response_ms",
+      "Dashboard should identify recorded item time rather than claiming active interaction."
     );
-    assert(dashboard.time_indicator.average_time_ms === 50_000, "Dashboard should average latest completed active time.");
+    assert(dashboard.time_indicator.average_time_ms === 50_000, "Dashboard should preserve the average of latest completed recorded item time.");
+    assert(dashboard.time_indicator.limitations.some(note => note.includes("not active interaction time")), "Dashboard must distinguish item elapsed durations from active interaction.");
     assert(dashboard.time_indicator.sample_size === 3, "Time metric should use latest completed attempts only.");
     assert(dashboard.time_indicator.unavailable_count === 0, "Time metric should report unavailable count.");
     assert(
@@ -781,7 +785,8 @@ async function assertDashboardAggregationService() {
     });
     assert(csv.content.includes("dashboard_metadata"), "Dashboard CSV should include metadata rows.");
     assert(csv.content.includes("latest_attempt_per_student"), "Dashboard CSV should include attempt policy.");
-    assert(csv.content.includes("active_interaction_ms"), "Dashboard CSV should include time metric type.");
+    assert(csv.content.includes("recorded_item_response_ms"), "Dashboard CSV should include the corrected time metric type.");
+    assert(!csv.content.includes("active_interaction_ms"), "Dashboard CSV must not mislabel recorded item time as active interaction.");
     assert(csv.content.includes("engagement_review_signals"), "Dashboard CSV should include engagement review categories.");
     assert(csv.content.includes("engagement_review_reason"), "Dashboard CSV should include engagement review reasons.");
     assert(csv.content.includes("candidate_misconception_pattern"), "Dashboard CSV should include candidate patterns.");
