@@ -15,6 +15,7 @@ function source(student: string, attempt: number, answer: string, options: { sub
           item_snapshot: { item_stem: "Which option?", options: [{ label: "A", text: "First" }, { label: "B", text: "Second" }] },
           selected_answer_initial: "B", selected_answer_final: answer, correctness: answer === "A" ? "correct" : "incorrect",
           correct_option_snapshot: "A", confidence_rating: options.confidence === undefined ? "high" : options.confidence,
+          no_tempting_option: false, tempting_option: "B", tempting_option_reason: "An alternative explanation",
           reasoning_text_final: "=Synthetic reasoning", reasoning_text_initial: "Original reason"
         }] }
     }] }] };
@@ -78,6 +79,20 @@ check("duplicate later packages cannot rewrite initial evidence", () => {
   input.concept_unit_sessions[0].response_packages.push(later);
   assert.equal(observeAttempts([input])[0].items[0].selected_option, "B");
 });
+check("missing sealed alternatives are not replaced by later package evidence", () => {
+  const input = source("s1", 1, "A");
+  const response = (input.concept_unit_sessions[0].response_packages[0].payload as { item_responses: Array<Record<string, unknown>> }).item_responses[0];
+  delete response.no_tempting_option;
+  delete response.tempting_option;
+  delete response.tempting_option_reason;
+  input.concept_unit_sessions[0].response_packages.push(source("s1", 2, "A").concept_unit_sessions[0].response_packages[0]);
+  const observed = observeAttempts([input]);
+  assert.equal(observed[0].items[0].no_tempting_option, null);
+  assert.equal(observed[0].items[0].tempting_option, null);
+  assert.equal(observed[0].items[0].tempting_option_reason, null);
+  const file = attemptComparisonExportFiles({ attempts: observed, snapshot_at: snapshot, pseudonym: () => "anon", include_restricted: false, scope: "selected_session" }).find(f => f.path === "attempt_submission_items.csv")!;
+  assert.equal((parse(file.data, { columns: true }) as Record<string, string>[])[0].no_tempting_option, "");
+});
 check("incomplete package cannot count as submitted", () => {
   const input = source("s1", 1, "B");
   (input.concept_unit_sessions[0].response_packages[0].payload as Record<string, unknown>).initial_item_count = 3;
@@ -114,9 +129,19 @@ for (const restricted of [false, true]) check(`research export restricted=${rest
   const rows = parse(itemFile.data, { columns: true }) as Array<Record<string, string>>;
   assert.equal(rows.length, 6); assert.equal(rows[0].research_student_id, "anon-s1");
   assert.equal(rows[0].reasoning, "'=Synthetic reasoning");
+  assert.equal(rows[0].no_tempting_option, "false");
+  assert.equal(rows[0].tempting_option, "B");
+  assert.equal(rows[0].tempting_option_reason, "An alternative explanation");
   assert.equal(Object.hasOwn(rows[0], "correctness"), restricted);
   const pairs = parse(files.find(file => file.path === "attempt_paired_changes.csv")!.data, { columns: true }) as Array<Record<string, string>>;
   assert.equal(Object.hasOwn(pairs[0], "correctness_change"), restricted);
+  const overlap = pairs.filter(row => row.from_session_public_id === "test-s2-1" && row.to_session_public_id === "test-s2-2");
+  assert.equal(overlap.length, 2);
+  assert.equal(new Set(overlap.map(row => row.item_pair_id)).size, 1, "Overlapping views share an actual comparison identity.");
+  assert(pairs.every(row => /^pair_[a-f0-9]{64}$/.test(row.item_pair_id)));
+  const records = parse(files.find(file => file.path === "attempt_records.csv")!.data, { columns: true }) as Array<Record<string, string>>;
+  assert.equal(records.find(row => row.session_public_id === "test-s2-3")?.comparison_eligible, "false");
+  assert.equal(records[0].comparison_eligible, "true");
   const summaries = parse(files.find(file => file.path === "attempt_class_summaries.csv")!.data, { columns: true }) as Array<Record<string, string>>;
   assert.equal(Object.hasOwn(summaries[0], "correct_percentage"), restricted);
   assert.equal(summaries[0].snapshot_at, snapshot);

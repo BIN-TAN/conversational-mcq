@@ -6,13 +6,15 @@ import { learningProfileInclude, latestLearningProfile, learningProfileSummary, 
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
+import { researchCsv, RESEARCH_CSV_CONTRACT_VERSION } from "./csv-contract";
+import { researchStudyTemplateFiles, STUDY_TEMPLATE_VERSION } from "./study-templates";
+import { MEASUREMENT_AVAILABILITY_VERSION } from "./measurement-availability";
 import { conversationActivityDates, conversationParticipation, derivePauseEpisodes, PAUSE_EPISODE_DEFINITIONS } from "../teacher-review/participation-observations";
 import { presentedItemPositions } from "../teacher-review/presented-item-positions";
 import { acceptedTemptingEvidence, RESPONSE_EVIDENCE_VERSION } from "../student-assessment/response-evidence";
 import { ResearchExportSpool, withResearchExportSlot } from "./export-spool";
 import { exportStorageDirectory, pathForStorageKey } from "../master-export/storage";
 import { parse } from "csv-parse/sync";
-import { stringify } from "csv-stringify/sync";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
@@ -653,9 +655,9 @@ function csvSafe(value: unknown) {
 }
 
 function csv(columns: readonly string[], rows: CsvRow[]) {
-  return stringify(
+  return researchCsv(
     rows.map((row) => Object.fromEntries(columns.map((column) => [column, csvSafe(row[column])]))),
-    { header: true, columns: [...columns] }
+    columns
   );
 }
 
@@ -2563,6 +2565,17 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "formative_conversation_events.csv",
         "pause_episodes.csv",
         "pause_episode_data_dictionary.csv",
+        "attempt_submission_items.csv",
+        "attempt_records.csv",
+        "attempt_paired_changes.csv",
+        "attempt_class_summaries.csv",
+        "attempt_data_dictionary.csv",
+        "attempt_comparison_notes.txt",
+        "research_cohort_template.csv",
+        "human_review_template.csv",
+        "external_outcomes_template.csv",
+        "study_template_dictionary.csv",
+        "research_study_notes.txt",
         "formative_conversation_llm_calls.csv",
         "formative_conversation_profile_transitions.csv",
         "formative_conversation_interventions.csv",
@@ -2863,16 +2876,20 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
   // Comparisons retain compact sealed-attempt evidence, not all process logs.
   for (const file of attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
     pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope })) await emit(file);
+  for (const file of researchStudyTemplateFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
+    pseudonym: researchStudentId })) await emit(file);
   await spool.finishCoverage();
   await emit({ path: "README.txt", data: [
     "Research dataset v2",
     "Start with data_coverage.csv and its notes to inspect actual populated/blank/zero values by dataset, actor and stage; population is not proof of measurement validity.",
-    "Profile projection v1: filter profile_valid_for_learning_analysis before interpreting profile results. Intermediate processing artifacts and fallback records are retained but are not validated learning measurements.",
+    "Profile projection v3: profile_provenance_eligible is the preferred technical provenance filter; profile_valid_for_learning_analysis is its compatibility alias. Neither is independent scientific validation. Intermediate processing artifacts and fallback records are retained, not counted as repeated learning measurements.",
     "profile_item_evidence.csv preserves per-item model judgments from canonical and legacy schemas with profile_record_id and provenance. It does not repeat raw student reasoning. Legacy aggregate categories remain on their original agent_activity_records profile rows; blank current aggregate categories are not inferred or copied from earlier profiles.",
     "profile_reassessment_status distinguishes a validated reassessment from not reassessed or incomplete reassessment. A paused/ended conversation alone is not a learning outcome. See profile_data_dictionary.csv.",
     "Join session_public_id to sessions.csv. Join item snapshots using both assessment_snapshot_public_id and item_snapshot_public_id.",
     "event_public_id is stable across exports; event_sequence_index is export ordering, not a permanent identity.",
     "Empty CSV cells denote unavailable or inapplicable values, not measured zero or false. Formula-leading text is prefixed with an apostrophe for spreadsheet safety.",
+    "CSV contract research-csv-v2: Boolean values are true/false in every data table; null/undefined are empty. Historical supplementary archives encoded false as empty: re-export rather than converting every old blank to false.",
+    "data_coverage.csv distinguishes current collection_status from observed population; retained uncollected interval fields stay blank. Consult research_study_notes.txt for unfilled cohort, independent human review and external outcome worksheets. Templates are not observed research data.",
     "Session timing v4 ends open attempts at the latest server-recorded process or conversation activity; completion remains the cutoff for closed attempts. Paused lifecycle windows are excluded from resumable time. Visible time is not attention or active learning. Item timing retains its own contract version.",
     "pause_episodes.csv separates explicit assessment and conversation-only pauses, links matching resumes and available display/message context. Missing returns are censored at export, not withdrawal. Pauses do not measure dissatisfaction. See pause_episode_data_dictionary.csv.",
     "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
@@ -2885,6 +2902,10 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     schema_version: "research-dataset-manifest-v1",
     generation_policy_version: "session-spooled-export-v1",
     export_schema_version: ANALYSIS_READY_EXPORT_VERSION,
+    csv_contract_version: RESEARCH_CSV_CONTRACT_VERSION,
+    boolean_encoding: "true_false_empty_for_missing",
+    measurement_availability_version: MEASUREMENT_AVAILABILITY_VERSION,
+    study_template_version: STUDY_TEMPLATE_VERSION,
     response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     profile_projection_version: PROFILE_PROJECTION_VERSION,
     export_run_public_id: source.export_run_public_id,
@@ -2902,6 +2923,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     },
     timing_contract_version: TIMING_CONTRACT_VERSION,
     timing_source_version: TIMING_SOURCE_VERSION,
+    timing_version_scope: "Legacy fallback constants only; use each row's timing_contract_version/timing_source_version. Browser item rows use timing-contract-v4 and response-stage-observation-v1; stage tables carry calculation_version.",
     session_timing_contract_version: SESSION_TIMING_CONTRACT_VERSION,
     omitted_fields: includeRestricted ? ["raw_provider_payloads", "raw_process_payloads"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
     entries: spool.manifestEntries()

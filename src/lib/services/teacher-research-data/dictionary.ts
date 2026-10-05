@@ -1,6 +1,7 @@
 import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
 import { PROFILE_PROVENANCE_COLUMNS, PROFILE_EVIDENCE_COLUMNS, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
+import { measurementAvailability } from "./measurement-availability";
 import { UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
@@ -955,6 +956,7 @@ function researchCategoryIdFor(table: string, variable: string): ResearchCategor
 }
 
 function documentationTierFor(table: string, variable: string): DocumentationTier {
+  if (measurementAvailability(table, variable).collection_status === "not_collected_by_current_browser" || variable === "profile_valid_for_learning_analysis") return "supplementary_research";
   if (variable === "student_id" || variable === "student_public_id") return "supplementary_research";
   if (table === "assessment_summary") return "supplementary_research";
   if (table === "agent_activity_records" && PROVIDER_AUDIT_VARIABLES.has(variable)) return "supplementary_research";
@@ -964,6 +966,7 @@ function documentationTierFor(table: string, variable: string): DocumentationTie
 }
 
 function duplicateRelationshipFor(table: string, variable: string): string {
+  if (variable === "profile_valid_for_learning_analysis") return "deprecated_alias";
   if (variable === "student_id" || variable === "student_public_id") return "deprecated_alias";
   if (table === "assessment_summary") return "derived_convenience_copy";
   if (JOIN_KEY_VARIABLES.has(variable) || variable === "attempt_number") return "required_join_key_repetition";
@@ -971,6 +974,7 @@ function duplicateRelationshipFor(table: string, variable: string): string {
 }
 
 function canonicalQualifiedNameFor(table: string, variable: string) {
+  if (variable === "profile_valid_for_learning_analysis") return `${table}.profile_provenance_eligible`;
   if (variable === "student_id" || variable === "student_public_id") return `${table}.research_student_id`;
   if (table === "assessment_summary" && SESSIONS_COLUMNS.includes(variable as (typeof SESSIONS_COLUMNS)[number])) {
     return `sessions.${variable}`;
@@ -1196,6 +1200,7 @@ function guessDataType(variable: string) {
   if (variable.endsWith("_pct") || variable.endsWith("_ratio") || variable.endsWith("_proportion")) return "decimal";
   if (
     variable === "profile_valid_for_learning_analysis" ||
+    variable === "profile_provenance_eligible" ||
     variable === "no_tempting_option" ||
     variable.startsWith("is_") ||
     variable.startsWith("has_") ||
@@ -2314,6 +2319,7 @@ export function analysisReadyColumnsByTable() {
 }
 
 function replacementVariable(table: string, variable: string) {
+  if (variable === "profile_valid_for_learning_analysis") return "profile_provenance_eligible";
   if (variable === "student_id" || variable === "student_public_id") return "research_student_id";
   const replacements: Record<string, string> = {
     "item_responses.item_response_time_ms": "item_elapsed_response_time_ms",

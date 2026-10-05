@@ -2,10 +2,10 @@ import { createHash } from "node:crypto";
 import { parseCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 
-export const PROFILE_PROJECTION_VERSION = "profile-record-projection-v2";
+export const PROFILE_PROJECTION_VERSION = "profile-record-projection-v3";
 export const PROFILE_PROVENANCE_COLUMNS = [
   "profile_projection_version", "profile_record_id", "profile_record_role",
-  "profile_validation_status", "profile_valid_for_learning_analysis",
+  "profile_validation_status", "profile_provenance_eligible", "profile_valid_for_learning_analysis",
   "profile_source_agent_call_public_id", "profile_source_agent_name",
   "profile_source_call_status", "profile_source_output_validated",
   "profile_source_prompt_version", "profile_source_schema_version", "profile_unavailable_reason",
@@ -64,6 +64,7 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_record_id: profileRecordIdentity(profile.id),
     profile_record_role: role,
     profile_validation_status: status,
+    profile_provenance_eligible: validated,
     profile_valid_for_learning_analysis: validated,
     profile_source_agent_call_public_id: call?.agent_call_public_id ?? null,
     profile_source_agent_name: call?.agent_name ?? null,
@@ -128,7 +129,8 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   updated_profile_record_id: "Stable profile_record_id of the updated profile referenced by this canonical transition.",
   profile_record_role: "baseline, updated, or intermediate. Integration/planning artifacts are intermediate, not repeated learning measurements.",
   profile_validation_status: "validated, fallback, intermediate, or unverified. Success requires a successful validated profiling or conversation source call; fallback cautions override it.",
-  profile_valid_for_learning_analysis: "True only for validated non-intermediate, non-fallback profile records. This is provenance eligibility, not proof of diagnostic validity or student mastery.",
+  profile_provenance_eligible: "Preferred technical eligibility flag: true only for non-intermediate, non-fallback records backed by a successful validated profiling/conversation call. Not independent scientific validation, diagnostic accuracy, student mastery, or learning gain.",
+  profile_valid_for_learning_analysis: "Compatibility alias of profile_provenance_eligible. Same technical provenance filter, not a separate measurement or proof of diagnostic validity or student mastery.",
   profile_source_agent_call_public_id: "Public source AgentCall join key; blank when no source call was retained.",
   profile_source_agent_name: "Stored source agent role, kept separate from the profile's processing role.",
   profile_source_call_status: "Stored source call status; no status is inferred when the call is absent.",

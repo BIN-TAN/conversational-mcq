@@ -1,14 +1,15 @@
 import { parse } from "csv-parse/sync";
 import { stringify } from "csv-stringify/sync";
+import { measurementAvailability, MEASUREMENT_AVAILABILITY_VERSION } from "./measurement-availability";
 
-const COLUMNS = ["dataset", "group_by", "group_value", "variable_name", "row_count", "populated_count", "blank_count", "zero_count", "false_count", "populated_percent", "coverage_status"];
+const COLUMNS = ["dataset", "group_by", "group_value", "variable_name", "row_count", "populated_count", "blank_count", "zero_count", "false_count", "populated_percent", "coverage_status", "collection_status", "analysis_guidance", "measurement_availability_version"];
 
 // Inspect the actual serialized exports, not schemas or assumed instrumentation.
 // Never copy student text, IDs or example values into this aggregate report.
 export function researchCoverageFiles(files: { path: string; data: string }[]) {
   const report: Record<string, string | number | null>[] = [];
   for (const file of files) {
-    if (!file.path.endsWith(".csv") || /dictionary|codebook|coverage/.test(file.path)) continue;
+    if (!file.path.endsWith(".csv") || /dictionary|codebook|coverage|_template\.csv$/.test(file.path)) continue;
     const matrix = parse(file.data) as string[][];
     const [columns, ...rows] = matrix;
     if (!columns) continue;
@@ -26,6 +27,7 @@ export function researchCoverageFiles(files: { path: string; data: string }[]) {
       const values = group.rows.map(row => row[index] ?? "");
       const populated = values.filter(value => value !== "").length;
       report.push({ dataset: file.path, group_by: group.name, group_value: group.value, variable_name,
+        ...measurementAvailability(file.path, variable_name), measurement_availability_version: MEASUREMENT_AVAILABILITY_VERSION,
         row_count: values.length, populated_count: populated, blank_count: values.length - populated,
         zero_count: values.filter(value => value === "0").length,
         false_count: values.filter(value => value === "false").length,
@@ -44,6 +46,8 @@ export function researchCoverageFiles(files: { path: string; data: string }[]) {
       "coverage_status: no_rows if row_count=0; all_blank if populated_count=0; populated if all cells nonempty; partly_populated otherwise.",
       "Conditional fields (text input on chip-only stages, errors on successful turns, tutor token counts on student rows, optional transfer) may legitimately be blank. Empty timing_limitations means no listed flags, not missing telemetry.",
       "An all_blank/no_rows field warrants source/applicability review; do not fill it with zeros. Populated does not prove validity, correct clock use, or complete real-world event capture.",
+      "collection_status describes the current collection mechanism, separately from observed coverage_status. not_collected_by_current_browser is intentional unavailability, not a measured zero; historical nonempty cells retain their original source contract. analysis_guidance records interpretation boundaries.",
+      "Research templates are unfilled external study worksheets, not collected observations. They are excluded from this coverage report. No consent, human rating, study assignment or outcome is inferred.",
       "Use dictionaries, timing_quality_status, timing_limitations, actor_type, versions and phase with this report. Legacy records cannot acquire new browser timing retroactively.",
       "Reports contain aggregate counts only; they exclude dictionaries/codebooks and themselves. Synthetic demos remain separate from the approved classroom research cohort."
     ].join("\n") + "\n" }

@@ -7,6 +7,7 @@
     "classroom:ai-students": "node --import tsx prisma/ai-student-journey-evaluation.ts",
     "classroom:ai-students:audit": "node scripts/audit-ai-student-research.mjs",
     "student:profile-item-identity-smoke": "node --import tsx prisma/profile-item-identity-schema-smoke-test.ts",
+    "student:research-suitability-smoke": "node --import tsx prisma/research-suitability-contract-smoke-test.ts",
     "classroom:acceptance": "node scripts/classroom-acceptance.mjs",
     "classroom:acceptance:check": "node --import tsx scripts/check-classroom-acceptance.ts",
     "classroom:acceptance:smoke": "node --import tsx prisma/classroom-acceptance-smoke-test.ts",

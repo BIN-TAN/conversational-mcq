@@ -1,4 +1,4 @@
-import { stringify } from "csv-stringify/sync";
+import { researchCsv } from "./csv-contract";
 import { RESPONSE_STAGE_CALCULATION_VERSION, responseStageDictionaryRows } from "./response-stage-dictionary";
 import { deriveResponseStageVisits, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, type ResponseStageEvent } from "../student-assessment/response-stage-data";
 
@@ -69,7 +69,7 @@ export function responseStageExportFiles(sources: Source[]) {
     table.columns.push("calculation_version");
     table.rows.forEach(row => { row.calculation_version = RESPONSE_STAGE_CALCULATION_VERSION; });
   }
-  const csv = (rows: Row[], columns?: readonly string[]) => stringify(rows, { header: true, columns: columns ? [...columns] : undefined, cast: { date: d => d.toISOString() }, escape_formulas: true });
+  const csv = researchCsv;
   return [...tables.map(t => ({ path: t.path, data: csv(t.rows, t.columns) })),
     { path: "response_stage_data_dictionary.csv", data: csv(responseStageDictionaryRows(tables)) },
     { path: "response_stage_notes.txt", data: "Stage observations use response-stage-observation-v1. Browser data are observations, not authoritative response acceptance.\nDurations use monotonic time within one browser document. Backend outcome timestamps use a separate clock.\nFirst-observed visit summaries must be interpreted with all visit rows; a resumed visit is not necessarily first exposure.\nWaiting, hidden time and elapsed time overlap and must not be added. Abrupt closure/offline delivery may lose events.\nExplicit pause/end requests are recorded as visit close reasons; time between visits is not imputed as thinking or absence.\nRevisions reuse existing accepted transcript records; initial immutable packages and all prior exports remain available.\nFeedback acknowledgements show display, not reading. Before/after values are available only for newly recorded edits.\n" }

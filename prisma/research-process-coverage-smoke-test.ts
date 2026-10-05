@@ -51,6 +51,9 @@ assert.equal(damaged.request_wait_ms, null, "Sequence gaps cannot prove cumulati
 const files = responseStageExportFiles([{ session_public_id: "session-1", assessment_public_id: "assessment-1", research_student_id: "research-1", attempt_number: 2,
   events, items: [{ item_public_id: "item-1", item_snapshot_public_id: "snapshot-1", item_version: 1 }], turns: [] }]);
 const dictionary = rows(files, "response_stage_data_dictionary.csv");
+const exportedOutcomes = rows(files, "response_stage_events.csv").filter(row => row.event_source === "backend");
+assert(exportedOutcomes.every(row => row.accepted === "true" && row.validation_rejected === "false"));
+assert(rows(files, "response_stage_events.csv").filter(row => row.event_source === "frontend").every(row => row.accepted === ""));
 for (const file of files.filter(f => f.path.endsWith(".csv") && !f.path.includes("dictionary"))) {
   const header = (parse(file.data) as string[][])[0];
   for (const variable of header) {

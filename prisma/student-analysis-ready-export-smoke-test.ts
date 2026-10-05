@@ -130,6 +130,11 @@ async function main() {
       "attempt_data_dictionary.csv",
       "attempt_comparison_notes.txt",
       "research_manifest.json",
+      "research_cohort_template.csv",
+      "human_review_template.csv",
+      "external_outcomes_template.csv",
+      "study_template_dictionary.csv",
+      "research_study_notes.txt",
       "sessions.csv",
       "item_responses.csv",
       "process_events.csv",
@@ -315,6 +320,11 @@ async function main() {
       const archive = await JSZip.loadAsync(bytes, { checkCRC32: true });
       const manifest = JSON.parse(await archive.file("research_manifest.json")!.async("string"));
       assert(manifest.isolation_level === "RepeatableRead", "Batching must retain one consistent database snapshot.");
+      assert(manifest.csv_contract_version === "research-csv-v2", "CSV encoding must be versioned.");
+      assert(manifest.profile_projection_version === "profile-record-projection-v3", "Profile provenance alias must be versioned.");
+      const cohort = parseCsv<Record<string, string>>(await archive.file("research_cohort_template.csv")!.async("string"));
+      assert(cohort.every(row => row.include_in_analysis === "" && row.consent_status === ""), "No cohort or consent decision may be inferred.");
+      assert(parseCsv(await archive.file("external_outcomes_template.csv")!.async("string")).length === 0, "No external outcomes may be fabricated.");
       for (const entry of manifest.entries) {
         const data = await archive.file(entry.path)!.async("nodebuffer");
         assert(data.length === entry.bytes && createHash("sha256").update(data).digest("hex") === entry.sha256,

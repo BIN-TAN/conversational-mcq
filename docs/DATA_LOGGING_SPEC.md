@@ -2174,3 +2174,39 @@ requests leaves completion retryable, rather than inferring completion from the
 button click. Pause-and-leave retains its existing assessment pause event. Raw
 event counts, attempt limits, profiling rules and research export schemas are
 unchanged by this presentation update.
+
+### Research suitability contract (2026-10-05)
+
+This export-only revision preserves raw observations and historical packages.
+There is no new student task, research-consent decision, automated diagnosis,
+human rating, experimental allocation or production record migration.
+
+- `research-csv-v2`: true/false serialize as the literal strings `true`/`false`;
+  null/undefined serialize as empty. Formula-like spreadsheet cells remain escaped.
+  Old supplemental CSVs conflated false and missing; re-export from retained
+  sources instead of guessing how to replace historical blanks.
+- `profile-record-projection-v3`: `profile_provenance_eligible` is the preferred alias
+  for `profile_valid_for_learning_analysis`. Both have the identical existing
+  provenance rule (source validation, success, fallback and stage exclusions).
+  The old name is deprecated, not deleted. Eligibility is not diagnostic validity.
+- Sealed baseline exports include the three tempting-option fields from the
+  first submitted package. Missing old fields remain blank and are never filled
+  from a later mutable response.
+- `item_pair_id = "pair_" + SHA256(JSON.stringify([research_student_id,
+  assessment_public_id, from_session_public_id, to_session_public_id, item_key]))`.
+  View labels are omitted intentionally so overlapping comparison views share an
+  ID. Matching rules and scores are unchanged; analysts choose the intended view
+  or deduplicate item pairs before pooling. Latest means latest observed.
+- Coverage adds collection status/guidance without changing observed counts.
+  Uninstrumented active-time/idle fields remain blank; compatibility columns move
+  to the supplementary dictionary. Population is not evidence of validity.
+- `research-study-templates-v1` supplies optional external cohort-review,
+  human-coding and outcome worksheets plus a dedicated dictionary. Blank research
+  fields are never populated from AI claims. Worksheets are excluded from
+  coverage and contain no added student response text. Human-review case IDs use
+  SHA-256 of JSON `[session_public_id, item_snapshot_key]` for stable linkage.
+
+See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for interpretation and joining rules.
+The manifest declares serialization, measurement-availability, template and
+profile projection versions. Timing formulas continue to use each row's actual
+method/version; top-level legacy timing versions are fallback descriptions only.

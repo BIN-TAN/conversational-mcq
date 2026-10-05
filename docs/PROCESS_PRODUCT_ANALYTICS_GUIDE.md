@@ -203,10 +203,20 @@ their baseline fields may require a transcript audit before analysis. The
 research manifest's projection version does not change a historical package's
 version. See `DATA_LOGGING_SPEC.md`, Accepted Response Evidence.
 
-CSV booleans require explicit parsing: the stage-event export serializes
-`accepted` and `validation_rejected` as `1`/`0`, whereas the main product export
-uses `true`/`false`. Blank is missing, not false. Retain that distinction when
-joining these files; do not test nonempty strings as truth values.
+CSV booleans require explicit parsing. With `research-csv-v2`, Boolean values
+are consistently `true`/`false`; blank is missing, not false. Earlier supplemental
+files used the serializer's default `1`/blank representation, which conflated
+false with missing. Re-export retained source records to recover that distinction;
+do not reinterpret every old blank as false. Do not test nonempty strings as truth
+values. The manifest records the CSV contract version.
+
+`attempt_submission_items.csv` now includes `no_tempting_option`,
+`tempting_option`, and `tempting_option_reason` from the first sealed package.
+Absent historical package fields remain blank, even if a later current response
+contains an alternative. `item_pair_id` in `attempt_paired_changes.csv` identifies
+the same underlying item/session pair across comparison views (for example,
+1-to-2 and first-to-latest). Select a comparison view or deduplicate by this ID;
+stacking all views does not create additional observations.
 
 Join attempts by `session_public_id` and students by stable
 `research_student_id`; scope both to the export manifest/pseudonym version.
@@ -220,6 +230,44 @@ Tutor messages, failures and provider retries must not inflate student turns.
 Retain export snapshot time, application commit, calculation/instrument versions,
 quality flags, inclusion criteria, denominator definitions, and a copy of the
 original export manifest with each analysis.
+
+## Measurement Availability and Study Preparation
+
+`data_coverage.csv` combines actual population counts with `collection_status`
+and `analysis_guidance` (`research-measurement-availability-v1`). Current browser
+collectors do not populate active-interaction/active-typing/idle interval fields
+or the legacy formative-event `observed_interval_duration_ms`. These stay in the
+supplementary dictionary for compatibility, not in the core variable list. Do
+not substitute elapsed time, pauses, or zeros. Historical nonmissing values must
+be interpreted using their own collection method. Student chat typing duration
+and response time currently duplicate an elapsed interval including pauses;
+tutor response time is provider latency. Keep actor and method explicit.
+
+`profile-record-projection-v3` adds `profile_provenance_eligible`, meaning the source
+profile passed the recorded technical provenance rules. It is the preferred name
+for the unchanged Boolean also exported as `profile_valid_for_learning_analysis`
+(deprecated compatibility alias). It does not constitute human validation of the
+diagnosis, a mastery score or a learning outcome. Neither alias changes scoring.
+
+The export includes three optional **offline worksheets**, not collected data:
+
+- `research_cohort_template.csv`: pseudonymous account keys with blank consent,
+  eligibility, inclusion and cohort-role fields for authorized review. System use
+  is not consent, and accounts are not automatically research participants.
+- `human_review_template.csv`: one stable case ID per sealed initial item, join
+  keys and blank ratings. No copied student text, answer keys or AI labels. Provide
+  reviewers the protocol-approved source evidence separately; use independent
+  raters and record rubric versions, actual blinding and adjudication separately.
+- `external_outcomes_template.csv`: header-only worksheet for genuinely collected
+  independent tasks, timepoints, assistance conditions and external study design.
+  The application does not assign experimental conditions or administer outcomes.
+
+Definitions are in `study_template_dictionary.csv` and handling instructions in
+`research_study_notes.txt`. These templates are excluded from coverage counts.
+Use stable case IDs to join human judgments without overwriting original records.
+Agreement on the same response evidence supports coding reliability; use an
+independent task to investigate learning/transfer. Do not treat worksheet rows as
+ratings, worksheet creation as consent, or repeated exposures as new-item transfer.
 
 ## Verification
 

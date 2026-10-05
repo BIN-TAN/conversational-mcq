@@ -22,6 +22,7 @@ export type SubmittedItem = {
   correctness: string | null; reasoning: string | null;
   first_option: string | null; first_confidence: string | null; first_reasoning: string | null;
   scoring_key: string | null;
+  no_tempting_option?: boolean | null; tempting_option?: string | null; tempting_option_reason?: string | null;
   submitted_at: string; evidence_source: "sealed_initial_package";
 };
 export type AttemptObservation = {
@@ -64,6 +65,8 @@ function packageItems(pkg: Package, sessionId: string): SubmittedItem[] {
       reasoning: text(item.reasoning_text_final) ?? text(item.reasoning_text),
       first_option: text(item.selected_answer_initial), first_confidence: text(item.confidence_initial),
       first_reasoning: text(item.reasoning_text_initial), submitted_at: pkg.created_at.toISOString(),
+      no_tempting_option: typeof item.no_tempting_option === "boolean" ? item.no_tempting_option : null,
+      tempting_option: text(item.tempting_option), tempting_option_reason: text(item.tempting_option_reason),
       scoring_key: text(item.correct_option_snapshot),
       evidence_source: "sealed_initial_package" as const }];
   });
