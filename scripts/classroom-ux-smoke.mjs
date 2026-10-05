@@ -246,7 +246,7 @@ try {
     await student.getByTestId("formative-conversation-input").fill("I think reliability is consistency.");
     await student.getByTestId("formative-conversation-input").dispatchEvent("keydown", { key: "Enter", keyCode: 229, isComposing: true });
     assert.equal(sends, 0);
-    await student.getByRole("button", { name: "End conversation", exact: true }).click();
+    await student.getByRole("button", { name: /Finish (assessment|this conversation)/ }).click();
     await student.getByRole("dialog").waitFor();
     await student.keyboard.press("Escape");
     assert.equal(await student.getByRole("dialog").count(), 0);

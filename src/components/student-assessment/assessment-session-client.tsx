@@ -59,6 +59,9 @@ import {
   updatePackageReviewItem
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
+import { useStudentDraft } from "./use-student-draft";
+import { clearStudentDrafts } from "./session-drafts";
+import { useChatNavigation } from "./use-chat-navigation";
 import { ObservedFeedback } from "./observed-feedback";
 import { feedbackContentId } from "@/lib/student-assessment-ui/feedback-display";
 import type { FrontendProcessEvent } from "./api";
@@ -437,9 +440,9 @@ function FormativeConversationControls(input: {
   onBackspace: () => void;
   onChange: (value: string) => void;
   onEnd: () => void;
+  finishLabel: string;
   onFinish: () => void;
   onPaste: (pastedCharacterCount: number) => void;
-  onPause: () => void;
   onRetryOpening: () => void;
   onRetryResponse: () => void;
   onReviewAnswers?: () => void;
@@ -485,16 +488,6 @@ function FormativeConversationControls(input: {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {conversation.can_pause ? (
-            <button
-              className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
-              disabled={input.isBusy}
-              onClick={input.onPause}
-              type="button"
-            >
-              Pause conversation
-            </button>
-          ) : null}
           {conversation.can_resume ? (
             <button
               className="rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
@@ -512,7 +505,7 @@ function FormativeConversationControls(input: {
               onClick={input.onEnd}
               type="button"
             >
-              End conversation
+              {input.finishLabel}
             </button>
           ) : null}
         </div>
@@ -524,6 +517,7 @@ function FormativeConversationControls(input: {
           >
             <p className="text-sm text-amber-950">
               Your message is saved. The tutor could not respond just now.
+              {!response.can_retry ? " Resume the conversation to retry, or contact your teacher for help." : ""}
             </p>
             {response.can_retry ? (
               <button
@@ -902,15 +896,18 @@ function TemptingOptionMessage({
   return (
     <AgentMessage>
       <p className="font-medium text-ink">{temptingPrompt.prompt_text}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+      <div className="mt-3 grid gap-2">
         {temptingOptionsFor(item, item.existing_selected_option).map((option) => (
-          <OptionChip
+          <button
+            type="button"
+            className="rounded-lg border border-line bg-white px-3 py-2.5 text-left text-sm leading-6 text-ink hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent disabled:opacity-60 [overflow-wrap:anywhere]"
             disabled={disabled}
             key={option.label}
-            label={option.label}
-            onSelect={() => onSelect(option.label)}
-            testId={`chat-tempting-option-${item.item_public_id}-${option.label}`}
-          />
+            onClick={() => onSelect(option.label)}
+            data-testid={`chat-tempting-option-${item.item_public_id}-${option.label}`}
+          ><span className="font-semibold">{option.label}.</span> {option.text}
+            <StudentMediaList linksInteractive={false} mediaAssets={item.media_assets.filter((asset) => asset.placement === "option" && asset.option_label === option.label)} />
+          </button>
         ))}
         <button
           className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
@@ -962,7 +959,7 @@ function TextComposer({
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey) {
+          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
             event.preventDefault();
             onSend();
           }
@@ -2036,7 +2033,7 @@ function StudentAssessmentChatShell({
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 Pause and leave
               </button>
-              {state.preparation?.status !== "failed" && !state.formative_conversation?.can_finish_assessment ? (
+              {state.preparation?.status !== "failed" && !state.formative_conversation ? (
                 <button
                   className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   data-testid="end-attempt"
@@ -2459,20 +2456,12 @@ export function AssessmentSessionClient({
     useState(false);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
   const [failedAction, setFailedAction] = useState<FailedAction | null>(null);
-  const [reasoningDraft, setReasoningDraft] = useState("");
-  const [temptingReasonDraft, setTemptingReasonDraft] = useState("");
-  const [followupDraft, setFollowupDraft] = useState("");
-  const [formativeActivityDraft, setFormativeActivityDraft] = useState("");
-  const [formativeConversationDraft, setFormativeConversationDraft] =
-    useState("");
-  const [revisionDraft, setRevisionDraft] = useState("");
   const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
   const [endConversationDialogOpen, setEndConversationDialogOpen] =
     useState(false);
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
-  const scrollRef = useRef<HTMLDivElement | null>(null);
   const packageResultsRef = useRef<HTMLDivElement | null>(null);
   const formativeMessageIdRef = useRef<string | null>(null);
   const formativeTypingStartedAtRef = useRef<Date | null>(null);
@@ -2485,6 +2474,30 @@ export function AssessmentSessionClient({
     state?.formative_conversation?.conversation_public_id ?? null;
   const activeSessionPublicId =
     state?.session_public_id ?? resolvedInitialSessionPublicId ?? null;
+  const draftKey = (field: string, identity: string | null | undefined) =>
+    state && !readOnlyReview && identity ? `${state.session_public_id}:${identity}:${field}` : null;
+  const itemIdentity = state?.current_item ? `${state.current_item.item_public_id}:${state.current_item.existing_selected_option ?? ""}` : null;
+  const lastConversationStudentTurn = state?.formative_conversation?.transcript.filter((turn) => turn.actor === "student").at(-1)?.turn_id ?? "opening";
+  const [reasoningDraft, setReasoningDraft, reasonUnsafe] = useStudentDraft(draftKey("reasoning", itemIdentity));
+  const [temptingReasonDraft, setTemptingReasonDraft, temptingUnsafe] = useStudentDraft(draftKey("tempting", itemIdentity && `${itemIdentity}:${state?.current_item?.tempting_option ?? ""}`));
+  const [followupDraft, setFollowupDraft, followupUnsafe] = useStudentDraft(draftKey("followup", state?.current_concept_unit && `${state.current_concept_unit.concept_unit_public_id}:${state.followup?.round_index}`));
+  const [formativeActivityDraft, setFormativeActivityDraft, activityUnsafe] = useStudentDraft(draftKey("activity", state?.current_concept_unit && `${state.current_concept_unit.concept_unit_public_id}:${state.formative_activity?.round_index}`));
+  const [revisionDraft, setRevisionDraft, revisionUnsafe] = useStudentDraft(draftKey("revision", itemIdentity));
+  const [formativeConversationDraft, setFormativeConversationDraft, conversationUnsafe] = useStudentDraft(draftKey("message", formativeConversationPublicId && `${formativeConversationPublicId}:${lastConversationStudentTurn}`));
+  const unprotectedDraft = reasonUnsafe || temptingUnsafe || followupUnsafe || activityUnsafe || revisionUnsafe || conversationUnsafe || Boolean(inFlowEditDraft || reviewEditDraft);
+  const finalTopic = Boolean(state && state.progress.concept_unit_index === state.progress.concept_unit_count);
+  const finishLabel = finalTopic ? "Finish assessment" : "Finish this conversation";
+  useEffect(() => {
+    if (readOnlyReview && activeSessionPublicId) {
+      try { clearStudentDrafts(sessionStorage, activeSessionPublicId); } catch { /* Optional storage. */ }
+    }
+  }, [readOnlyReview, activeSessionPublicId]);
+  useEffect(() => {
+    if (!unprotectedDraft) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unprotectedDraft]);
   const preparationPending = Boolean(state?.preparation && ["queued", "preparing", "retrying"].includes(state.preparation.status));
 
   useEffect(() => {
@@ -2810,9 +2823,13 @@ export function AssessmentSessionClient({
           ? { ...current, formative_conversation: nextConversation }
           : current
       );
-      if (action === "finish") setState(await fetchSessionState(state.session_public_id));
+      // One student confirmation; keep the two authoritative lifecycle events.
+      if (action === "end" && nextConversation?.can_finish_assessment) {
+        await updateFormativeConversationLifecycle({ sessionPublicId: state.session_public_id, action: "finish" });
+        setState(await fetchSessionState(state.session_public_id));
+      } else if (action === "finish") setState(await fetchSessionState(state.session_public_id));
     } catch (errorValue) {
-      handleError(errorValue, action, () => {
+      handleError(errorValue, action === "end" || action === "finish" ? "finish assessment" : action, () => {
         void handleFormativeConversationLifecycle(action);
       });
     } finally {
@@ -2919,41 +2936,18 @@ export function AssessmentSessionClient({
     };
   }, [assessmentPublicId, readOnlyReview, resolvedInitialSessionPublicId]);
 
-  useEffect(() => {
-    if (readOnlyReview) {
-      return;
-    }
-    scrollRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [
-    isCompletingPackage,
-    isAwaitingFormativeTutorResponse,
-    readOnlyReview,
-    transcript.length,
-    state?.assessment_state,
-    state?.current_item?.item_public_id
-  ]);
+  const navigation = useChatNavigation({ sessionId: activeSessionPublicId, ready: !isLoading && Boolean(state) && !readOnlyReview,
+    stageKey: state?.formative_conversation ? `conversation:${state.formative_conversation.status}` : `${state?.assessment_state}:${state?.current_item?.item_public_id}`,
+    tutorTurnId: state?.formative_conversation?.transcript.filter((turn) => turn.actor === "tutor").at(-1)?.turn_id ?? null,
+    root: stageObservation.root, busy: isBusy });
 
   useEffect(() => {
-    setReasoningDraft("");
-    setTemptingReasonDraft("");
     setInFlowEditDraft(null);
   }, [state?.assessment_state, state?.current_item?.item_public_id]);
 
   useEffect(() => {
-    if (state?.next_step !== "formative_activity") {
-      setFormativeActivityDraft("");
-    }
-  }, [state?.next_step]);
-
-  useEffect(() => {
     setActivityRuntime(state?.activity_runtime ?? null);
   }, [state?.activity_runtime]);
-
-  useEffect(() => {
-    if (state?.assessment_state !== "REVISION") {
-      setRevisionDraft("");
-    }
-  }, [state?.assessment_state]);
 
   useEffect(() => {
     if (state?.assessment_state !== "PACKAGE_REVIEW") {
@@ -2997,15 +2991,17 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record reason", (observation, clientActionId) =>
-      saveReasoning({
+    void runAction("Record reason", async (observation, clientActionId) => {
+      const next = await saveReasoning({
         clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         reasoningText: trimmed
-      })
-    );
+      });
+      if (next.assessment_state !== "AWAIT_REASON") setReasoningDraft("");
+      return next;
+    });
   }
 
   function handleConfidence(confidence: ConfidenceRating) {
@@ -3063,15 +3059,17 @@ export function AssessmentSessionClient({
       return;
     }
 
-    void runAction("Record tempting reason", (observation, clientActionId) =>
-      saveTemptingOption({
+    void runAction("Record tempting reason", async (observation, clientActionId) => {
+      const next = await saveTemptingOption({
         clientActionId,
         observation,
         sessionPublicId: state.session_public_id,
         itemPublicId: state.current_item?.item_public_id ?? "",
         temptingOptionReason: trimmed
-      })
-    );
+      });
+      if (next.assessment_state !== "AWAIT_TEMPTING_REASON") setTemptingReasonDraft("");
+      return next;
+    });
   }
 
   function handleStartInFlowEdit(field: InFlowEditField) {
@@ -3247,6 +3245,7 @@ export function AssessmentSessionClient({
       return;
     }
 
+    if (unprotectedDraft && !window.confirm("Leave with unsent changes? These changes could not be kept on this device. Cancel to send or finish editing them first.")) return;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
@@ -3285,6 +3284,7 @@ export function AssessmentSessionClient({
 
     try {
       await endAssessmentAttempt(activeSessionPublicId);
+      try { clearStudentDrafts(sessionStorage, activeSessionPublicId); } catch { /* Optional storage. */ }
       stageObservation.recorder.close("end_requested");
       router.push("/student/assessment");
     } catch (errorValue) {
@@ -3700,12 +3700,12 @@ export function AssessmentSessionClient({
       }}
       onChange={handleFormativeConversationDraft}
       onEnd={() => setEndConversationDialogOpen(true)}
+      finishLabel={finishLabel}
       onPaste={(pastedCharacterCount) => {
         formativePasteCountRef.current += 1;
         formativePasteCharacterCountRef.current +=
           pastedCharacterCount;
       }}
-      onPause={() => void handleFormativeConversationLifecycle("pause")}
       onFinish={() => void handleFormativeConversationLifecycle("finish")}
       onRetryOpening={() => void handleRetryFormativeConversationOpening()}
       onRetryResponse={() => void handleRetryFormativeConversationResponse()}
@@ -3838,14 +3838,14 @@ export function AssessmentSessionClient({
             <ChatBubble entry={entry} key={entry.turn_id} />
           ))}
           {state.formative_conversation?.transcript.map((turn) => (
-            <ObservedFeedback key={turn.turn_id} enabled={!readOnlyReview && turn.actor === "tutor"}
+            <div key={turn.turn_id} data-tutor-turn={turn.actor === "tutor" ? turn.turn_id : undefined} className="scroll-mt-4"><ObservedFeedback enabled={!readOnlyReview && turn.actor === "tutor"}
               send={sendObservation} event={{ event_type: "formative_feedback_shown", event_category: "feedback_display",
                 concept_unit_public_id: state.current_concept_unit?.concept_unit_public_id,
                 payload: { content_id: feedbackContentId(state.session_public_id, state.current_concept_unit?.concept_unit_public_id ?? "", `turn:${turn.turn_id}`),
                   content_kind: "formative_tutor_message", turn_id: turn.turn_id, source_turn_sequence_index: turn.sequence_index,
                   conversation_public_id: state.formative_conversation?.conversation_public_id } }}>
               <FormativeConversationBubble turn={turn} />
-            </ObservedFeedback>
+            </ObservedFeedback></div>
           ))}
           <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
             if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recordInput(event.target.value.length);
@@ -3862,9 +3862,9 @@ export function AssessmentSessionClient({
               </div>
             </div>
           ) : null}
-          <div ref={scrollRef} />
         </ChatTranscript>
       </div>
+      {navigation.newReply ? <button type="button" className="sticky bottom-4 mx-auto rounded-md border border-accent bg-white px-4 py-2 text-sm font-semibold text-accent shadow-sm" onClick={navigation.showReply}>New tutor reply</button> : null}
       {!readOnlyReview && endConversationDialogOpen ? (
         <ModalDialog
           labelledBy="end-conversation-dialog-title"
@@ -3877,11 +3877,11 @@ export function AssessmentSessionClient({
               className="text-lg font-semibold text-ink"
               id="end-conversation-dialog-title"
             >
-              End the learning conversation?
+              {finishLabel}?
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted">
-              You will not be able to send more messages here. This does not
-              end the assessment attempt.
+              {finalTopic ? "Your submitted answers and conversation will remain available for review. You will not be able to send more messages in this attempt." : "Your submitted answers and conversation will remain saved. You will not be able to send more messages in this conversation."}
+              {formativeConversationDraft.trim() ? " Your unsent message will not be submitted." : ""}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button
@@ -3902,7 +3902,7 @@ export function AssessmentSessionClient({
                 }}
                 type="button"
               >
-                End conversation
+                {finishLabel}
               </button>
             </div>
           </div>
@@ -3946,7 +3946,7 @@ export function AssessmentSessionClient({
       ) : null}
       {!readOnlyReview && currentItem ? (
         <p className="sr-only" aria-live="polite">
-          Current question {currentItem.item_order}
+          Current question {currentItem.item_order}. {observedStage === "reasoning" ? "Explain your answer." : observedStage === "confidence" ? "Choose your confidence." : observedStage === "tempting_option" ? "Was another option tempting?" : observedStage === "tempting_reason" ? "Explain the alternative you considered." : ""}
         </p>
       ) : null}
     </StudentAssessmentChatShell>

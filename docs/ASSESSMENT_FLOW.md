@@ -562,3 +562,26 @@ responses or modify historical transcripts. It is a defense in depth, not a
 guarantee that arbitrary model prose cannot leak information. Provider inputs
 must still exclude secrets and unrelated student data. Requests for internal
 information receive a brief neutral refusal and appropriate instructional help.
+
+## Student continuity and completion (October 2026)
+
+Unsent text in the main conversation composers is retained in session storage
+for up to 12 hours, scoped to the attempt and response context. This supports
+refresh and return in the same browser tab; it is not cross-device storage and
+does not submit an answer. Accepted text is cleared. Logout and read-only review
+clear retained response drafts. If storage is unavailable, or an answer-edit
+panel has unfinished changes, leaving prompts a warning instead of silently
+discarding those changes.
+
+Alternative-option choices include their wording and associated media. Keyboard
+navigation moves to the next response control. Long tutor replies open at their
+beginning, while returning to the same reply restores the reading position.
+An arriving reply offers a navigation action when the student is reading above
+the end of the conversation, rather than forcing the page to scroll.
+
+During a learning conversation, the header has one reversible `Pause and leave`
+action. Finishing the final conversation uses one `Finish assessment`
+confirmation. The client requests conversation end, then assessment completion
+only when the server authorizes it; these remain separate persisted events.
+Interrupted completion can be retried. Non-final topics finish only their own
+conversation. Any unsent message is explicitly excluded from submission.

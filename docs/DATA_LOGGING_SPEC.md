@@ -2156,3 +2156,21 @@ a matching saved tutor turn, and a receipt at or after both conversation and tur
 creation. The same receipt validation drives conversation participation and pause
 context. Historical source events are preserved; regenerated projections carry
 their versions. See `PROCESS_PARTICIPATION_OBSERVATIONS.md` for formulas.
+
+### Local draft continuity and completion (2026-10-05)
+
+Unsent composer text is a browser-tab convenience, not submitted product data.
+It is not uploaded to the research dataset. Restoring text or a reading position
+does not synthesize keystrokes, paste events, submissions, or conversation turns.
+Response-stage timing and input counters retain their existing visit scope;
+counts after refresh do not reconstruct typing from a previous visit. Feedback
+exposure still requires the existing visible-content observation, not draft or
+scroll restoration alone. These changes do not backfill historical events.
+
+The final `Finish assessment` confirmation can issue two server requests:
+conversation end followed by authorized assessment completion. The existing
+distinct lifecycle events and timestamps remain intact. A failure between these
+requests leaves completion retryable, rather than inferring completion from the
+button click. Pause-and-leave retains its existing assessment pause event. Raw
+event counts, attempt limits, profiling rules and research export schemas are
+unchanged by this presentation update.

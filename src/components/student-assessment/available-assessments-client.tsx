@@ -1,5 +1,7 @@
 "use client";
 
+import { clearStudentDrafts } from "./session-drafts";
+
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -233,6 +235,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
 
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
+    try { clearStudentDrafts(sessionStorage); } catch { /* Optional browser storage. */ }
     router.push("/student/login");
   }
 
