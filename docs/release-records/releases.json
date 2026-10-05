@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T15:53:05.964Z",
+  "updated_at": "2026-10-05T16:49:20.172Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2093,6 +2093,92 @@
         "prisma/participation-ui-smoke-test.ts",
         "prisma/ai-student-journey-evaluation.ts",
         "scripts/audit-ai-student-research.mjs"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-07",
+      "date": "2026-10-05",
+      "title": "Student draft continuity, readable navigation and simpler completion",
+      "application_commit": "c9c182951bf902f9df257f09491aee4674b6ab83",
+      "push_status": "Application committed and pushed to origin/main. The ledger and Word record use a separate documentation-only follow-up with [skip render].",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1t7v2vcj2c73amlp9g",
+        "source_commit": "c9c182951bf902f9df257f09491aee4674b6ab83",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1t7v2vcj2c73amlp9g",
+        "verified_at": "2026-10-05T16:49:20.172Z",
+        "evidence": [
+          "Canonical Render deployment detail showed Deploy succeeded | Live for source c9c182951bf902f9df257f09491aee4674b6ab83. Deployment duration was 4m14s; service-live log was 16:48:59Z. Sixty-five migrations were found, with none pending.",
+          "Read-only runtime verification at 16:49:04.331Z returned the exact application commit, web PID 14 and preparation-worker PID 15. Container memory was 246157312 of 2147483648 bytes, with zero oom and oom_kill counters at that point. An existing additional SSH host-proof signature warning remained; host checking was not disabled.",
+          "Public health at 16:49:20.172Z returned status ok, database reachable, database schema ready and migration readiness ready. This confirms release health, not new live-model quality evaluation."
+        ]
+      },
+      "summary": "Address five student usability problems through shared client behavior: lost unsent text, letter-only alternative choices, disruptive scroll and keyboard navigation, overlapping pause/end controls, and an unnecessary extra completion step. Preserve server-owned transitions and distinct research lifecycle events.",
+      "changes": [
+        {
+          "area": "Unsent response continuity",
+          "problem": "Refreshing or leaving could discard unfinished reasoning or a chat message. Immediate state-change clearing also prevented reliable restoration.",
+          "fix": "Retain bounded drafts in browser-tab session storage for 12 hours, scoped to attempt and response context. Clear accepted drafts and clear on logout or read-only review. Warn before leaving when storage fails or an edit panel has unprotected changes.",
+          "impact": "Refresh and same-tab return preserve main-composer text without submitting it. Cross-device recovery and persistence of unfinished edit-panel objects are not promised."
+        },
+        {
+          "area": "Option comprehension and accessible navigation",
+          "problem": "Tempting-option choices required students to remember letters. Long replies could scroll directly to their end; keyboard users lost their place between steps.",
+          "fix": "Show complete alternative wording and media. Restore reading position, begin new long replies at the top and offer a new-reply action when reading earlier content. Move keyboard focus to the next response control. Ignore Enter during IME composition.",
+          "impact": "Less recall and navigation burden with the same answer options and protected assessment content. The chat-native workflow remains unchanged."
+        },
+        {
+          "area": "Pause and final completion",
+          "problem": "Pause conversation, pause-and-leave, end attempt and end conversation overlapped. Ending the final conversation required another completion action and could leave the attempt incomplete.",
+          "fix": "Keep one pause-and-leave control during conversation. Use one final completion confirmation, then request conversation end and server-authorized assessment finish separately. Retain a recovery action if the second request fails; warn that unsent text is not submitted.",
+          "impact": "Student intent is clearer, while authoritative lifecycle guards, distinct timestamps and retry behavior are preserved. Non-final topics end only their own conversation."
+        }
+      ],
+      "data_impact": [
+        "No database migration, historical response rewrite, attempt reset, profiling change or AI setting change. Draft text stays in browser-tab storage and is not added to research response data.",
+        "Draft and scroll restoration do not synthesize input events, submissions or conversation turns. Timing and input telemetry retain existing visit scope; typing before refresh is not reconstructed as new-visit typing.",
+        "Pause, conversation end and assessment completion remain distinct server events. Existing display observation rules and teacher/research completion projections are retained. Documentation clarifies these boundaries."
+      ],
+      "tests": [
+        {
+          "name": "Draft unit regression",
+          "result": "Passed",
+          "detail": "node --import tsx scripts/student-drafts-test.ts: attempt isolation, expiration, corrupt storage, accepted clearing, bounded entries, logout clearing and unavailable storage."
+        },
+        {
+          "name": "Student browser usability regression",
+          "result": "Passed",
+          "detail": "STUDENT_UX_BUILD_DIR=/private/tmp/cmcq-release-build-HBaF2c node scripts/student-usability-smoke.mjs. Disposable local database and synthetic account; external network blocked. Verified refresh/return without auto-submission, accepted draft clearing, keyboard focus, IME Enter, full alternative wording, long-reply position, reading restoration, chat drafts, consolidated controls and an interrupted finish retry. Layout checks at 320, 390, 768 and 1440 pixels found no horizontal overflow, tested WCAG violations or browser errors. Representative screenshots were inspected. Tutor replies and failure responses were mocked."
+        },
+        {
+          "name": "Database completion and display regression",
+          "result": "Passed",
+          "detail": "prisma/feedback-display-completion-smoke-test.ts ran in the same disposable database. Display ownership, references, deduplication and CSV joins passed. Completion, pause, failed-feedback, incomplete and ownership guards, concurrent retry and persisted lifecycle passed. Teacher dashboard/list and research export agreed with the completed attempt."
+        },
+        {
+          "name": "Type checks, lint and production build",
+          "result": "Passed with documented environment and existing warnings",
+          "detail": "npm run typecheck and git diff --check passed. Full npm run lint initially encountered 34 errors in pre-existing ignored .data scratch scripts; lint excluding .data and outputs passed with five pre-existing unused-variable warnings. The first build hit sandbox IPC permission denial; the authorized retry produced a successful clean-snapshot production build. New application source matched the snapshot tested in the browser."
+        }
+      ],
+      "limitations": [
+        "This UI-focused release did not run new live AI calls or a complete 30-turn dialogue. The AI prompts, approval configuration and models were unchanged. Browser automation does not replace observation of real students using assistive technologies.",
+        "The tests verified focused research joins and completion consistency, not every production research ZIP. No real student account or response was modified.",
+        "A defensive message for a failed reply without an available retry now directs students to resume or seek teacher help. Investigation found normal active failures already offer retry; this is not presented as a reproduced production outage.",
+        "Pauses and absence of chat replies remain behavioral observations, not automatic evidence of dislike or disengagement. Learning-effect claims require independent outcome measures and an appropriate comparison design."
+      ],
+      "references": [
+        "src/components/student-assessment/assessment-session-client.tsx",
+        "src/components/student-assessment/session-drafts.ts",
+        "src/components/student-assessment/use-student-draft.ts",
+        "src/components/student-assessment/use-chat-navigation.ts",
+        "scripts/student-drafts-test.ts",
+        "scripts/student-usability-smoke.mjs",
+        "prisma/feedback-display-completion-smoke-test.ts",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md"
       ]
     }
   ],
