@@ -335,10 +335,11 @@ function dataDictionary() {
       created_at: "Record creation timestamp.",
       structured_payload_redacted: "Structured conversation payload after internal ID, secret, prompt, and restricted metadata redaction.",
       prompt_turn_index: "Prompt turn index used for latency calculation.",
+      calculation_version: "Derived calculation contract. turn-response-latency-v2 selects only explicit student-action events or subsequent student turns, excluding system classifications/deferrals and completion reactions.",
       prompt_actor: "Actor type for the prompt turn.",
       prompt_phase: "Phase for the prompt turn.",
       prompt_type: "Safe prompt type inferred from structured labels or text context.",
-      prompt_shown_at: "Timestamp when the prompt was shown.",
+      prompt_shown_at: "Legacy column name: server prompt-record timestamp, not a verified client-display timestamp.",
       next_student_turn_index: "Next student conversation turn index when available.",
       next_student_event_type: "Next safe student process event or conversation-turn marker.",
       next_student_response_at: "Timestamp for the next student response/action when available.",
@@ -1086,6 +1087,7 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
     makeEntry(
       "turn_response_latencies.csv",
       csv([
+        "calculation_version",
         "session_public_id",
         "student_user_id",
         "assessment_public_id",

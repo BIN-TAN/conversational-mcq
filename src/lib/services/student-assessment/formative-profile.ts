@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-content-policy";
-import { containsInternalSystemInformation } from "@/lib/student-visible-safety";
+import { containsChineseText, containsInternalSystemInformation, STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS } from "@/lib/student-visible-safety";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, validateSemanticItemReviews } from "./semantic-item-review";
+import { CHOICE_ANNOTATION_NORMALIZATION_VERSION, CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, normalizeChoiceOnlyAnnotations, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
 import { resolveActiveOperationalApproval } from "@/lib/operational/active-approval-bundle";
 import { selectInitialFeedbackBudget } from "@/lib/operational/scoped-feedback-budget";
@@ -190,12 +190,14 @@ const CHAT_NATIVE_PROFILE_AGENT_NAME = "formative_value_and_planning_agent";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_NAME = "followup_agent";
 const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
-const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v5";
-const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v1";
+const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v6";
+const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v2";
 const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v3";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
 export const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after a protected initial item package.
+
+${STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS}
 
 Use the response package to produce exactly one short structured formative profile and one matched formative activity.
 The application owns state transitions and persistence.
@@ -233,6 +235,11 @@ assume the stance from the field name. Record rejected false propositions withou
 Use basis=supplied_explanation when the student explicitly adopts or discusses reasoning supplied in an option,
 with option_reference containing its exact label and quote from this item's sealed included_items options.
 The student_quote must remain the student's actual words, even if only "I agree with B"; never substitute option text.
+The selected_answer_final field is a choice, NOT a reasoning source. Never quote its letter as reasoning unless
+that letter actually occurs in reasoning_text_final. For absent, punctuation-only, or uninterpretable explanations,
+use reasoning_judgment=insufficient and interpretations=[] unless another allowed source contains a substantive
+proposition. Do not invent an answer-only interpretation just to fill the array. A selected correct answer alone
+never satisfies the supported reasoning requirement.
 Use basis=student_explanation for a student-provided inference/application, fact_restatement for givens alone, and
 answer_only for a letter/choice without an expressed explanation or explicit adoption. Other bases may reference
 an option when relevant; otherwise option_reference=null. Wording overlap does not establish copying or misconduct.
@@ -281,6 +288,8 @@ Use the required JSON schema only.
 `;
 const CHAT_NATIVE_TARGETED_FEEDBACK_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after the student has answered one matched formative activity.
+
+${STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS}
 
 Evaluate the student's formative response, update a provisional learning and engagement profile, and decide the next action.
 The application owns all state transitions and persistence.
@@ -1300,6 +1309,11 @@ function addCommonStudentFacingTextIssues(input: {
   max_length?: number;
 }) {
   const lower = input.text.toLowerCase();
+
+  if (containsChineseText(input.text)) {
+    input.issues.push(safeValidationIssue({ field_path: input.field_path,
+      rule_code: "student_output_language", message: "Write student-facing text entirely in English, without copying Chinese metadata or quotations." }));
+  }
 
   if (containsInternalSystemInformation(input.text)) {
     input.issues.push(safeValidationIssue({ field_path: input.field_path,
@@ -2612,7 +2626,12 @@ async function callProviderOrMock(input: {
   let validationCategory: "schema_validation" | "student_facing_validation" = "schema_validation";
 
   if (providerResult.status === "completed") {
-    const normalizedOutput = canonicalizeFormativeProfileOutput(providerResult.parsed_output);
+    const canonicalOutput = canonicalizeFormativeProfileOutput(providerResult.parsed_output);
+    const choiceNormalization = normalizeChoiceOnlyAnnotations(
+      jsonRecord(input.provider_input).response_package, jsonRecord(canonicalOutput).semantic_item_reviews
+    );
+    const normalizedOutput = choiceNormalization.removed.length
+      ? { ...jsonRecord(canonicalOutput), semantic_item_reviews: choiceNormalization.reviews } : canonicalOutput;
     const parsed = ChatNativeLiveFormativeProfileOutputSchema.safeParse(normalizedOutput);
     const validation: { ok: boolean; issues: SafeValidationIssue[] } = parsed.success
       ? validateChatNativeProfileStudentOutput({ output: parsed.data, correct_options: input.correct_options })
@@ -2632,6 +2651,11 @@ async function callProviderOrMock(input: {
         where: { id: agentCall.id },
         data: {
           ...chatNativeProviderAuditUpdate(providerResult),
+          ...(choiceNormalization.removed.length ? { raw_output: prismaJson({
+            ...jsonRecord(redactForAudit(providerResult.raw_output)),
+            application_normalization: { version: CHOICE_ANNOTATION_NORMALIZATION_VERSION,
+              removed_choice_only_annotations: choiceNormalization.removed }
+          }) } : {}),
           output_payload: prismaJson(parsed.data),
           output_validated: true,
           call_status: "succeeded",

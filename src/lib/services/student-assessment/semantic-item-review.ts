@@ -45,6 +45,34 @@ const record = (value: unknown): Record<string, unknown> =>
 const text = (value: unknown) => typeof value === "string" ? value : "";
 const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, " ").trim();
 
+export const CHOICE_ANNOTATION_NORMALIZATION_VERSION = "choice-annotation-normalization-v1";
+
+// A selected letter is already recorded as a choice, not a quotation of reasoning.
+// Drop only unlinked answer-only annotations; substantive claims still fail closed.
+export function normalizeChoiceOnlyAnnotations(payload: unknown, value: unknown) {
+  const parsed = z.array(CurrentSemanticItemReviewSchema).max(12).safeParse(value);
+  const responses = record(payload).item_responses;
+  const removed: Array<{ item_public_id: string; interpretation_id: string }> = [];
+  if (!parsed.success || !Array.isArray(responses)) return { reviews: value, removed };
+  const reviews = parsed.data.map(review => {
+    const matches = responses.map(record).filter(response => response.item_public_id === review.item_public_id);
+    if (matches.length !== 1) return review;
+    const response = matches[0];
+    const choice = normalize(text(response.selected_answer_final));
+    const interpretations = review.interpretations.filter(entry => {
+      const quote = normalize(entry.student_quote);
+      const source = normalize(text(entry.source_field === "reasoning"
+        ? response.reasoning_text_final ?? response.reasoning_text : response.tempting_option_reason));
+      const misplacedChoice = entry.basis === "answer_only" && choice !== "" && quote === choice &&
+        !source.includes(quote) && !review.misconceptions.some(claim => claim.interpretation_id === entry.interpretation_id);
+      if (misplacedChoice) removed.push({ item_public_id: review.item_public_id, interpretation_id: entry.interpretation_id });
+      return !misplacedChoice;
+    });
+    return { ...review, interpretations };
+  });
+  return { reviews, removed };
+}
+
 // Validate provenance against the sealed package, not the model's retelling of it.
 export function validateSemanticItemReviews(payload: unknown, value: unknown, requireCurrent = false) {
   const parsed = z.array(SemanticItemReviewSchema).max(12).safeParse(value);

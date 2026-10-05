@@ -1,6 +1,8 @@
 import { asRecord } from "./serializers";
 import { conversationVisibility } from "../student-assessment/conversation-visibility";
 
+export const TURN_RESPONSE_LATENCY_VERSION = "turn-response-latency-v2";
+
 export type LatencyConversationTurn = {
   session_public_id: string;
   student_user_id: string;
@@ -30,6 +32,7 @@ export type LatencyProcessEvent = {
 };
 
 export type TurnResponseLatencyRow = {
+  calculation_version: typeof TURN_RESPONSE_LATENCY_VERSION;
   session_public_id: string;
   student_user_id: string;
   assessment_public_id: string;
@@ -78,10 +81,6 @@ const STUDENT_ACTION_EVENT_TYPES = new Set([
   "package_review_opened",
   "package_submitted",
   "idk_selected",
-  "invalid_help_request",
-  "procedural_clarification_request",
-  "content_question_deferred",
-  "clarification_answered",
   "formative_activity_response_submitted",
   "activity_response_submitted",
   "activity_choice_submitted",
@@ -89,8 +88,7 @@ const STUDENT_ACTION_EVENT_TYPES = new Set([
   "next_choice_submitted",
   "move_next_requested",
   "transfer_item_submitted",
-  "revision_submitted",
-  "followup_turn_completed"
+  "revision_submitted"
 ]);
 
 function iso(value: Date | string | null | undefined) {
@@ -147,12 +145,9 @@ function contextMatches(
 }
 
 function isSafeStudentActionEvent(event: LatencyProcessEvent) {
-  if (STUDENT_ACTION_EVENT_TYPES.has(event.event_type)) return true;
-  return (
-    event.event_category === "student_response" &&
-    !event.event_type.includes("presented") &&
-    !event.event_type.includes("shown")
-  );
+  // Classification/deferral events can share the repair prompt's timestamp.
+  // They describe the previous submission, not a new student response to that prompt.
+  return STUDENT_ACTION_EVENT_TYPES.has(event.event_type);
 }
 
 function inferLatencyScope(turn: LatencyConversationTurn, promptType: string | null): TurnResponseLatencyRow["latency_scope"] {
@@ -283,6 +278,7 @@ export function buildTurnResponseLatencyRows(input: {
     const safePromptType = promptType(prompt);
 
     return {
+      calculation_version: TURN_RESPONSE_LATENCY_VERSION,
       session_public_id: prompt.session_public_id,
       student_user_id: prompt.student_user_id,
       assessment_public_id: prompt.assessment_public_id,

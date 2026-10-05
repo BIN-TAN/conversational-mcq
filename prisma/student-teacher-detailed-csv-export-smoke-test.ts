@@ -418,6 +418,7 @@ async function main() {
     assert(analysisRows.length >= 3, "Detailed analysis rows should include item-level rows.");
     assert(processRows.length > 0, "Detailed process event CSV should include events.");
     assert(latencyRows.length > 0, "Detailed latency CSV should include prompt-to-response rows.");
+    assert(latencyRows.every(row => row.calculation_version === "turn-response-latency-v2"), "Latency CSV must identify its corrected action-selection contract.");
     assert(conversationRows.length > 0, "Detailed conversation CSV should include readable turns.");
     assert(
       processRows.every((row) => !("payload" in row) && !("raw_payload" in row)),

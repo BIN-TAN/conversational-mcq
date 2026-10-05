@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { parse } from "csv-parse/sync";
 import { processDataTimelineCsv } from "../src/lib/services/teacher-review/process-data-csv";
 import { buildProcessDataSummary, processEventLabel } from "../src/lib/services/teacher-review/process-data-summary";
+import { buildEngagementProcessFeatureRows } from "../src/lib/services/teacher-review/engagement-process-features";
 import { formativeConversationTurnLimit, formativeConversationV18R2LifecycleForTurnCount, FormativeConversationV18R2FormativeLifecycleSchema } from "../src/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { formativeConversationV18R2LifecycleFromTranscript } from "../src/lib/services/student-assessment/formative-conversation/context-v18r2";
 
@@ -46,7 +47,7 @@ const exposure = buildProcessDataSummary({ ...base, events: [
   event("package_results_shown", 11, { payload: { display_event_contract_version: "display-ack-v1" } }),
   event("workflow_job_enqueued", 1), event("workflow_job_failed", 2)
 ] });
-assert.equal(exposure.version, "process-data-summary-v4");
+assert.equal(exposure.version, "process-data-summary-v5");
 assert.equal(exposure.export_scope, "teacher_process_summary_not_full_research_dataset");
 assert(exposure.definitions.display_observation.includes("legacy component mount"));
 const display = exposure.timeline.find(entry => entry.event_type === "formative_feedback_shown")!;
@@ -69,6 +70,26 @@ const mixedRevisions = buildProcessDataSummary({ ...base, events: [
   event("option_selected", 6, { item_public_id: "legacy-item", payload: { revision: true } })
 ] });
 assert.equal(mixedRevisions.core.revision_fields.answers, 2, "Count legacy items without duplicating canonical revision aliases");
+const reviewRevisions = buildProcessDataSummary({ ...base, events: [
+  event("confidence_clicked", 5, { event_category: "initial_administration" }),
+  event("tempting_option_submitted", 6, { event_category: "initial_administration" }),
+  event("confidence_clicked", 7, { event_category: "package_review" }),
+  event("tempting_option_submitted", 7, { event_category: "package_review" }),
+  event("tempting_option_reason_submitted", 7, { event_category: "package_review" }),
+  event("confidence_changed", 8, { event_category: "package_review" }),
+  event("tempting_option_changed", 8, { event_category: "package_review" })
+] });
+assert.deepEqual(reviewRevisions.core.revision_fields, { answers: 0, explanations: 0, confidence: 2, alternatives: 2 });
+assert.equal(reviewRevisions.timeline.filter(entry => entry.action === "Confidence revised").length, 2);
+assert.equal(reviewRevisions.timeline.filter(entry => entry.action === "Alternative answer revised").length, 2);
+assert.equal(reviewRevisions.timeline.filter(entry => entry.category === "Revisions").length, 4);
+const featureRows = buildEngagementProcessFeatureRows({ itemResponses: [{ session_public_id: "synthetic", student_user_id: "synthetic", assessment_public_id: "synthetic",
+  concept_unit_public_id: "synthetic", item_public_id: "synthetic", item_order: 1, item_started_at: at(0), item_submitted_at: at(60), item_response_time_ms: 60000, revision_count: 5 }],
+  processEvents: ["confidence_clicked", "reasoning_revised"].map(event_type => ({ session_public_id: "synthetic", concept_unit_public_id: "synthetic", item_public_id: "synthetic",
+    item_order: 1, event_type, event_category: "package_review", event_source: "frontend", occurred_at: at(50), created_at: at(50),
+    visibility_duration_ms: null, pause_duration_ms: null, payload: {} })) });
+assert.equal(featureRows[0].confidence_revision_count, 1, "Legacy package-review confidence changes also appear in research features");
+assert.equal(featureRows[0].reasoning_revision_count, 1, "Generic response revisions must not inflate explanation revisions");
 const lifecycle = buildProcessDataSummary({ ...base, events: [
   event("attempt_paused", 10), event("session_paused", 10),
   event("attempt_resumed", 20), event("session_resumed", 20),

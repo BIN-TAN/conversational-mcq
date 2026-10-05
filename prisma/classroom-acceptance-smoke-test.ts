@@ -76,6 +76,9 @@ const profile: ChatNativeFormativeProfileOutput = {
 };
 const visible = validateChatNativeProfileStudentOutput({ output: profile, correct_options: [] });
 assert.equal(visible.ok, true);
+const nonEnglish = validateChatNativeProfileStudentOutput({ output: { ...profile, student_facing_pattern_statement: "Let us review \u4fe1\u5ea6." }, correct_options: [] });
+assert.equal(nonEnglish.ok, false);
+assert(nonEnglish.issues.some(issue => issue.rule_code === "student_output_language"));
 assert.equal(visible.student_facing_text, `${profile.student_facing_pattern_statement}\n\n${profile.student_facing_followup_prompt}`,
   "Do not clip a complete explanation or prompt, replace pronouns, or append unsupported praise");
 for (const ending of ["an unfinished inference", "An unfinished inference...", "An unfinished inference\u2026"]) {

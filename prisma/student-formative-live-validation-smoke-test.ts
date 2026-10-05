@@ -316,7 +316,7 @@ class SyntheticFormativeProvider implements LlmProvider {
     })();
 
     if (isProfile && mode !== "invalid") {
-      const input = request.input as { response_package: { item_responses: Array<{ item_public_id: string; reasoning_text_final: string }> } };
+      const input = request.input as { response_package: { item_responses: Array<{ item_public_id: string; reasoning_text_final: string; selected_answer_final: string }> } };
       Object.assign(parsedOutput, { semantic_item_reviews: input.response_package.item_responses.map(item => ({
         item_public_id: item.item_public_id,
         reasoning_judgment: "partial",
@@ -329,7 +329,11 @@ class SyntheticFormativeProvider implements LlmProvider {
           proposition: "Synthetic limited-evidence fixture, not an educational judgment.", stance: "uncertain",
           basis: "student_explanation", correctness: "undetermined", scope: "specific_proposition",
           option_reference: null, rationale: "Exercises persisted source attribution; a mock is not a semantic reference standard."
-        }]
+        }, ...(mode === "canonicalizable" ? [{
+          interpretation_id: "misplaced-choice", source_field: "reasoning", student_quote: item.selected_answer_final,
+          proposition: "Selected an option.", stance: "endorsed", basis: "answer_only", correctness: "undetermined",
+          scope: "specific_proposition", option_reference: null, rationale: "Choice, not explanatory evidence."
+        }] : [])]
       })) });
     }
 
@@ -668,11 +672,16 @@ async function assertCanonicalizableProfileLabelsValidate() {
       select: {
         call_status: true,
         output_validated: true,
-        output_payload: true
+        output_payload: true,
+        raw_output: true
       }
     });
     assert(profileCall.call_status === "succeeded", "Canonicalizable profile should be audited as succeeded.");
     assert(profileCall.output_validated === true, "Canonicalizable profile should validate.");
+    const raw = profileCall.raw_output as Record<string, unknown>;
+    assert(raw.application_normalization, "Removed answer-only annotations must be audited.");
+    assert(JSON.stringify(raw.output_parsed).includes("misplaced-choice"), "Original provider output must remain available.");
+    assert(!JSON.stringify(profileCall.output_payload).includes("misplaced-choice"), "Effective output excludes misplaced choice annotations.");
     const payload = profileCall.output_payload as Record<string, unknown>;
     assert(payload.provisional_learning_state !== undefined, "Profile alias should map to provisional_learning_state.");
     assert(payload.formative_need === "diagnosis_and_feedback", "Diagnostic feedback should canonicalize.");

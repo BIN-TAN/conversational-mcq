@@ -91,6 +91,14 @@ assert.equal(rows[0].next_student_event_type, "student_conversation_turn");
 assert.equal(rows[0].latency_source, "conversation_turns");
 const isolated = buildTurnResponseLatencyRows({ turns: [base, { ...base, session_public_id: "different_student_session", turn_index: 2, actor_type: "student", created_at: "2026-01-01T00:00:02Z" }], processEvents: [] });
 assert.equal(isolated[0].response_latency_ms, null, "Never link events from another student's session");
+for (const eventType of ["content_question_deferred", "clarification_answered", "invalid_help_request", "procedural_clarification_request", "followup_turn_completed", "unknown_system_reaction"]) {
+  const reactions = buildTurnResponseLatencyRows({ turns: [base, { ...base, turn_index: 2, actor_type: "student", created_at: "2026-01-01T00:00:09Z" }],
+    processEvents: [{ session_public_id: "synthetic", concept_unit_public_id: null, item_public_id: null, item_order: null,
+      event_type: eventType, event_category: "student_response", event_source: "backend", occurred_at: base.created_at, created_at: base.created_at }] });
+  assert.equal(reactions[0].response_latency_ms, 9000, `${eventType} must not produce a zero-second student latency`);
+  assert.equal(reactions[0].latency_source, "conversation_turns");
+  assert.equal(reactions[0].calculation_version, "turn-response-latency-v2");
+}
 const interrupted = buildTurnResponseLatencyRows({ turns: [base, { ...base, turn_index: 2, actor_type: "student", created_at: "2026-01-01T00:00:10Z" }], processEvents: [{ session_public_id: "synthetic", concept_unit_public_id: null, item_public_id: null, item_order: null, event_type: "page_hidden", event_category: "navigation", event_source: "frontend", occurred_at: "2026-01-01T00:00:03Z", created_at: "2026-01-01T00:00:03Z" }] });
 assert.ok(interrupted[0].limitations.includes("interval_contains_navigation_or_pause"));
 console.log("Transcript quality regression passed: semantic evidence, neutral confidence, action replay, practice disclosure, provenance, latency. No live calls or data writes.");

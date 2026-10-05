@@ -1660,7 +1660,7 @@ function collectionMethod(table: string, variable: string) {
       "Copied from frontend typing summary elapsed-time fields when available and labeled as elapsed input time, not active typing.",
     option_revision_count: "Calculated in itemResponseRows() from item-scoped answer_changed process events after the first option selection.",
     reasoning_revision_count: "Calculated in itemResponseRows() from item-scoped reasoning_revised and reasoning_edited process events.",
-    confidence_revision_count: "Calculated in itemResponseRows() from item-scoped confidence_changed process events.",
+    confidence_revision_count: "Count item-scoped confidence_changed events, confidence_selected with payload.revised=true, and legacy confidence_clicked in event_category=package_review (emitted only on a changed value). New package-review edits emit confidence_changed instead of the legacy alias, not both. Raw event names remain unchanged in historical exports.",
     page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden and page_visibility_hidden events; window_blur is not treated as a page-hidden interval.",
     long_pause_count: "Calculated in sessionRows() by counting session-scoped long_pause process events.",
     idle_ratio: "Calculated in sessionRows() as total_idle_time_ms divided by elapsed_session_time_ms; null when the denominator is missing or zero.",

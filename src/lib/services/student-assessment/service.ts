@@ -5521,13 +5521,10 @@ export async function updatePackageReviewItemResponse(input: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
-          event_type: "confidence_clicked",
+          event_type: "confidence_changed",
           event_category: "package_review",
           event_source: "frontend",
-          payload: {
-            item_public_id: context.item.item_public_id,
-            confidence_rating: data.confidence_rating
-          },
+          payload: structuredPayload,
           occurred_at: now
         });
       }
@@ -5537,14 +5534,10 @@ export async function updatePackageReviewItemResponse(input: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
-          event_type: "tempting_option_submitted",
+          event_type: "tempting_option_changed",
           event_category: "package_review",
           event_source: "frontend",
-          payload: {
-            item_public_id: context.item.item_public_id,
-            no_tempting_option: noTemptingOption,
-            tempting_option: temptingOption
-          },
+          payload: structuredPayload,
           occurred_at: now
         });
 

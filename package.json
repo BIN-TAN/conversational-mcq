@@ -26,6 +26,7 @@
     "student:transcript-quality-regression": "node --import tsx prisma/student-transcript-quality-regression.ts",
     "student:conversation-visibility-smoke": "node --import tsx prisma/conversation-visibility-smoke-test.ts",
     "student:collection-learning-summary-smoke": "node --import tsx prisma/student-collection-learning-summary-smoke-test.ts",
+    "student:english-mixed-intent-smoke": "node --import tsx prisma/student-english-mixed-intent-smoke-test.ts",
     "student:semantic-profile-runtime-smoke": "node --import tsx prisma/student-formative-live-validation-smoke-test.ts --initial-profile-only",
     "student:latency-smoke": "node --import tsx prisma/latency-optimization-smoke-test.ts",
     "student:profiling-compaction-smoke": "node --import tsx prisma/profiling-input-compaction-smoke-test.ts",

@@ -8,6 +8,7 @@ import type {
   ItemResponse,
   SessionStatus
 } from "@prisma/client";
+import { containsChineseText, studentDisplayText } from "@/lib/student-visible-safety";
 
 type SafeOptions = Array<{ label: string; text: string }>;
 
@@ -180,8 +181,9 @@ export function serializeStudentAssessment(
 ) {
   return {
     assessment_public_id: assessment.assessment_public_id,
-    title: assessment.title,
-    description: assessment.description
+    title: studentDisplayText(assessment.title, "Assessment"),
+    description: assessment.description && containsChineseText(assessment.description)
+      ? null : assessment.description
   };
 }
 
@@ -190,8 +192,8 @@ export function serializeStudentConceptUnit(
 ) {
   return {
     concept_unit_public_id: conceptUnit.concept_unit_public_id,
-    title: conceptUnit.title,
-    learning_objective: conceptUnit.learning_objective
+    title: studentDisplayText(conceptUnit.title, "Assessment topic"),
+    learning_objective: studentDisplayText(conceptUnit.learning_objective, "")
   };
 }
 

@@ -1,3 +1,19 @@
+export const STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS = `
+Write all student-facing messages, headings, and teaching material in English, even when source
+metadata or student input uses another language. Do not copy Chinese topic titles or Chinese
+quotations into your reply; explain their meaning in English when relevant. Preserve mathematical
+symbols. This is an output-language rule, not a reason to reject or downgrade a student's response.
+`;
+
+// Screen generated/display text only. Never rewrite original student evidence or research records.
+export function containsChineseText(value: string): boolean {
+  return /\p{Script=Han}/u.test(value.normalize("NFKC"));
+}
+
+export function studentDisplayText(value: string, fallback: string): string {
+  return containsChineseText(value) ? fallback : value;
+}
+
 // A narrow leak screen, not a substitute for prompt boundaries or semantic review.
 export function containsInternalSystemInformation(value: string): boolean {
   const normalized = value.normalize("NFKC").replace(/[\u200B-\u200D\uFEFF]/g, "");

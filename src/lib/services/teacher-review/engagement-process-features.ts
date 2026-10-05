@@ -1,4 +1,5 @@
 import { asRecord } from "./serializers";
+import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
 
 export type EngagementProcessItemResponse = {
   session_public_id: string;
@@ -317,10 +318,9 @@ function buildItemRow(input: {
             const time = eventTime(event);
             return time !== null && time > reasoningFirstTime;
           }),
-    reasoning_revision_count:
-      safeCount(events, ["reasoning_revised", "reasoning_edited"]) +
-      Math.max(0, (input.response.revision_count ?? 0) - 1),
-    confidence_revision_count: safeCount(events, ["confidence_changed"]),
+    // The response-level counter includes answer/confidence/alternative changes.
+    reasoning_revision_count: safeCount(events, ["reasoning_revised", "reasoning_edited"]),
+    confidence_revision_count: events.filter(isConfidenceRevisionEvent).length,
     copy_paste_event_count: pasteCount,
     typed_vs_paste_indicator: typedVsPaste({ typingCount, pasteCount }),
     limitations
@@ -379,7 +379,7 @@ function buildActivityRows(input: {
     option_revision_count: 0,
     option_changed_after_reasoning: null,
     reasoning_revision_count: safeCount(activityEvents, ["reasoning_revised", "reasoning_edited"]),
-    confidence_revision_count: safeCount(activityEvents, ["confidence_changed"]),
+    confidence_revision_count: activityEvents.filter(isConfidenceRevisionEvent).length,
     copy_paste_event_count: pasteCount,
     typed_vs_paste_indicator: typedVsPaste({ typingCount, pasteCount }),
     limitations: [

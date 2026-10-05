@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-content-policy";
+import { STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS } from "@/lib/student-visible-safety";
 import { buildProductionStructuredAgentRequest } from "@/lib/agents/provider-request";
 import {
   getLlmRuntimeConfig,
@@ -40,10 +41,12 @@ import type {
 } from "./runtime";
 
 export const FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION =
-  "formative-conversation-host-v7.11" as const;
+  "formative-conversation-host-v7.12" as const;
 
 export const FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
+
+${STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS}
 
 You own the pedagogy. You may explain concepts directly, reveal and discuss administered answers,
 work examples, give hints, answer follow-up questions, change strategy, use analogies, ask questions,
@@ -90,6 +93,11 @@ student asks to pause or needs teacher assistance. Student exit and the turn lim
 
 Speak to this student, not to a reviewer of their data. Anchor feedback in a specific idea they
 actually expressed: acknowledge its accurate part before exploring a particular ambiguity or error.
+Keep attribution exact: an option selection is not a student-written explanation. If the reason is
+missing, punctuation-only, vague, or uncertainty, say "You chose..." rather than "You explained..."
+or "You indicated that..." followed by reasoning copied from the option. State the distinction you
+will explore without claiming the student already supplied it. Do not infer understanding from a
+correct answer, confidence rating, a compliment about the system, or agreement with tutor text.
 Do not replace that acknowledgment with generic praise or phrases such as "reasoning evidence needs
 additional review", "before making a stronger claim", "this first package", or "transfer not yet
 observed". Those are internal evidence qualifications, not instructions or student shortcomings.

@@ -1967,3 +1967,76 @@ projection audit and rejected candidates remain preserved under policy v3 as
 under v1/v2. Historical responses, scores, profiles and missing observations are
 not rewritten. More complete semantic coverage still requires reviewer audit;
 schema and citation validation cannot establish educational validity alone.
+
+### English presentation and mixed-intent collection (2026-10-04 review)
+
+Student metadata projections use an English fallback when an assessment/topic
+title contains Han text; descriptions and objectives with Han text are omitted
+from that projection. Stored content, student-authored text, item snapshots,
+provider originals, and teacher/research exports remain unchanged. This is a
+presentation policy, not translation of historical research evidence. Generated
+student-facing conversation text and teaching artifacts are checked before
+acceptance; a language violation uses the existing bounded validation/retry path.
+Mathematical symbols remain permitted. Student input language is not a reason to
+downgrade understanding.
+
+Item-administration tutor v3 distinguishes a question-only request from a mixed
+reason-plus-question response. For the latter, the model classifies the reason
+and records `deferred_concern_summary`; the app retains the complete response and
+moves to the next collection step without answering the question or confirming
+correctness. These existing structured fields remain available in accepted-turn
+and process-event payloads. Collection acceptance is not evidence of mastery.
+Question-only requests still receive content-neutral deferral.
+
+### Revision counts and prompt latency corrections (2026-10-04 review)
+
+`process-data-summary-v5` recognizes both current and legacy package-review
+revision events. New package-review edits emit `confidence_changed` and
+`tempting_option_changed` only when the corresponding value changes, with the
+before/after response payload. They replace, rather than duplicate, the older
+`confidence_clicked` and `tempting_option_submitted` events in that route.
+
+- Confidence revisions = `confidence_changed` + `confidence_selected` with
+  `payload.revised=true` + legacy `confidence_clicked` whose
+  `event_category=package_review` (that route emitted it only on a change).
+- Alternative revisions = `tempting_option_changed` + legacy
+  `tempting_option_submitted` whose `event_category=package_review`. The separate
+  alternative-reason submission is not counted again as an alternative revision.
+- Explanation revisions = `reasoning_revised` + `reasoning_edited`. The generic
+  response-level `revision_count` is never added: it also includes edits to other
+  fields. Whole-response revision counts and field counts have different grains.
+
+Historical raw events are not renamed or backfilled. Updated derived exports
+recognize the legacy event/category combinations; old downloaded summaries are
+not silently rewritten. Confidence revision rules are shared by the teacher
+summary, analysis-ready item rows, and legacy engagement feature exports.
+
+`turn-response-latency-v2` adds `calculation_version` to latency JSONL/CSV rows.
+For each visible prompt, select the earliest subsequent same-session/item/topic
+student turn or explicitly allowlisted student-action event. Exclude system
+deferrals, clarification responses, classifier decisions, follow-up completion,
+and unknown `student_response` category events. Such system reactions can share
+the prompt timestamp and previously produced a spurious zero-second latency.
+
+`response_latency_ms = next_student_response_at - prompt_shown_at`;
+`response_latency_seconds = round(response_latency_ms / 1000, 3)`. Missing next
+actions remain null. `prompt_shown_at` is a legacy column name for the server
+prompt-record timestamp, not measured browser exposure. These are elapsed
+intervals, not pure reading, typing, or thinking time. Raw timestamps remain
+unchanged; latency and session/item-stage timing use distinct contracts.
+
+### Choice annotation provenance repair (2026-10-05)
+
+`choice-annotation-normalization-v1` removes an interpretation only when its
+`basis=answer_only`, its complete quote equals `selected_answer_final`, the quote
+is absent from its claimed reasoning source, and no misconception links to its
+interpretation ID. Selection remains in the sealed response package. This is not
+a repair of substantive reasoning, a reassignment of correctness, or permission
+to infer understanding from a choice. Full schema, quote, stance, coverage, and
+supported-reasoning validation runs after normalization and can still reject it.
+
+For accepted normalized calls, `raw_output` retains the original provider fields
+and adds `application_normalization.version` and
+`application_normalization.removed_choice_only_annotations` (item and
+interpretation IDs). `output_payload` holds the validated effective result.
+Earlier failed calls, student responses, and original exports remain unchanged.

@@ -190,6 +190,7 @@ const processEventColumns = [
 
 const latencyColumns = [
   ...EXPORT_SOURCE_COLUMNS,
+  "calculation_version",
   "session_public_id",
   "student_id",
   "assessment_public_id",

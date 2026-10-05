@@ -163,8 +163,10 @@ async function main() {
     const counts = eventCounts(events);
     assert((counts.answer_changed ?? 0) > 0, "Package review answer change event missing.");
     assert((counts.reasoning_revised ?? 0) > 0, "Package review reasoning revision event missing.");
-    assert((counts.confidence_clicked ?? 0) > 0, "Package review confidence event missing.");
-    assert((counts.tempting_option_submitted ?? 0) > 0, "Package review tempting-option event missing.");
+    assert((counts.confidence_changed ?? 0) === 1, "Package review confidence revision event missing or duplicated.");
+    assert((counts.tempting_option_changed ?? 0) === 1, "Package review tempting-option revision event missing or duplicated.");
+    assert((counts.confidence_clicked ?? 0) === 0, "Do not duplicate the legacy confidence alias.");
+    assert((counts.tempting_option_submitted ?? 0) === 0, "Do not duplicate the legacy tempting-option alias.");
     assert(
       (counts.tempting_option_reason_submitted ?? 0) > 0,
       "Package review tempting-option reason event missing."

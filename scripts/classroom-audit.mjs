@@ -14,6 +14,7 @@ const files = [
   "stance-evidence-smoke-test.ts",
   "formative-interpretation-policy-smoke-test.ts",
   "student-collection-learning-summary-smoke-test.ts",
+  "student-english-mixed-intent-smoke-test.ts",
   "student-item-admin-audit-smoke-test.ts",
   "student-transcript-quality-regression.ts",
   "profile-record-projection-smoke-test.ts",

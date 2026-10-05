@@ -7,10 +7,10 @@ import {
   type FormativeConversationProfileTransitionValidationIssue
 } from "./profile-transition-validator";
 
-import { containsInternalSystemInformation } from "@/lib/student-visible-safety";
+import { containsChineseText, containsInternalSystemInformation } from "@/lib/student-visible-safety";
 
 export const FORMATIVE_CONVERSATION_STUDENT_OUTPUT_FORMAT_VERSION: string =
-  "formative-conversation-student-output-format-v3";
+  "formative-conversation-student-output-format-v4";
 
 export type FormativeConversationOutputValidationIssue = {
   code:
@@ -21,6 +21,7 @@ export type FormativeConversationOutputValidationIssue = {
     | "student_output_raw_html_unsupported"
     | "student_output_concrete_answer_example"
     | "student_output_internal_information"
+    | "student_output_language"
     | FormativeConversationProfileTransitionValidationIssue["code"];
   field_path: string;
   message: string;
@@ -46,6 +47,10 @@ export function validateFormativeConversationStudentOutputFormat(
   fieldPath = "student_visible_message"
 ): FormativeConversationOutputValidationIssue[] {
   const issues: FormativeConversationOutputValidationIssue[] = [];
+  if (containsChineseText(value)) {
+    issues.push({ code: "student_output_language", field_path: fieldPath,
+      message: "Write student-facing text entirely in English. Explain relevant source text in English instead of copying Chinese metadata or quotations. Preserve mathematical symbols." });
+  }
   if (containsInternalSystemInformation(value)) {
     issues.push({ code: "student_output_internal_information", field_path: fieldPath,
       message: "Remove internal identifiers, diagnostic fields and operational information. Keep only natural instructional dialogue; do not quote the blocked text." });

@@ -3,8 +3,9 @@ import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-
 import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
 import { conversationActivityDates, conversationParticipation, derivePauseEpisodes, type ObservedConversation } from "./participation-observations";
 import { presentedItemPositions } from "./presented-item-positions";
+import { isConfidenceRevisionEvent, isAlternativeRevisionEvent } from "../student-assessment/response-revision-events";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v4";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v5";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -63,7 +64,10 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
-export function processEventLabel(type: string, payload?: unknown) {
+export function processEventLabel(type: string, payload?: unknown, eventCategory?: string | null) {
+  const event = { event_type: type, payload, event_category: eventCategory };
+  if (isConfidenceRevisionEvent(event)) return "Confidence revised";
+  if (isAlternativeRevisionEvent(event)) return "Alternative answer revised";
   if (exposureTypes.includes(type) && record(payload).display_event_contract_version !== "display-ack-v2") {
     return record(payload).display_event_contract_version === "display-ack-v1"
       ? "Feedback component loaded (legacy; visibility unverified)"
@@ -110,7 +114,7 @@ function finiteCount(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
-export function countResponseRevisionEvents(events: Pick<ProcessDataEvent, "event_type" | "payload" | "item_public_id" | "item_db_id">[]) {
+export function countResponseRevisionEvents(events: Pick<ProcessDataEvent, "event_type" | "event_category" | "payload" | "item_public_id" | "item_db_id">[]) {
   const count = (...types: string[]) => events.filter((event) => types.includes(event.event_type)).length;
   const itemKey = (event: typeof events[number]) => event.item_public_id ?? event.item_db_id ?? "unknown";
   const canonicalAnswerItems = new Set(events.filter((event) => event.event_type === "answer_changed").map(itemKey));
@@ -119,8 +123,8 @@ export function countResponseRevisionEvents(events: Pick<ProcessDataEvent, "even
   return {
     answers: count("answer_changed") + legacyOptionRevisions,
     explanations: count("reasoning_revised", "reasoning_edited"),
-    confidence: count("confidence_changed") + events.filter((event) => event.event_type === "confidence_selected" && record(event.payload).revised === true).length,
-    alternatives: count("tempting_option_changed")
+    confidence: events.filter(isConfidenceRevisionEvent).length,
+    alternatives: events.filter(isAlternativeRevisionEvent).length
   };
 }
 
@@ -155,7 +159,7 @@ export function buildProcessDataSummary(input: {
   // matched timestamps in the readable view; retain unmatched historical events.
   const readableEvents = input.events.filter((event) => !aliases[event.event_type] || !canonicalLifecycle.has(lifecycleKey(event, aliases[event.event_type])));
   const timeline: ProcessTimelineEntry[] = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
-    (event.event_type === "confidence_selected" && record(event.payload).revised === true) ||
+    isConfidenceRevisionEvent(event) || isAlternativeRevisionEvent(event) ||
     (event.event_type === "response_stage_observation" && ["ready", "first_input", "offline", "online"].includes(String(record(event.payload).observation_kind))) ||
     (event.event_type === "response_stage_outcome" && record(event.payload).validation_rejected === true)).map((event) => {
     const at = event.occurred_at ?? event.created_at;
@@ -163,7 +167,7 @@ export function buildProcessDataSummary(input: {
     const exposure = exposureTypes.includes(event.event_type);
     return {
       at: at ? new Date(at).toISOString() : null,
-      action: processEventLabel(event.event_type, event.payload),
+      action: processEventLabel(event.event_type, event.payload, event.event_category),
       context: [event.topic_title, event.item_public_id && positions.has(event.item_public_id) ? `Item ${positions.get(event.item_public_id)}` : event.item_order != null ? `Authoring item ${event.item_order}` : null].filter(Boolean).join(" / ") || "Assessment",
       event_type: event.event_type, event_source: event.event_source ?? null,
       recorded_at_field: event.occurred_at ? "occurred_at" : event.created_at ? "created_at_fallback" : "unavailable",
@@ -171,7 +175,7 @@ export function buildProcessDataSummary(input: {
       source_turn_sequence_index: exposure && Number.isInteger(payload.source_turn_sequence_index) && Number(payload.source_turn_sequence_index) > 0 ? Number(payload.source_turn_sequence_index) : null,
       display_event_contract_version: exposure && ["display-ack-v1", "display-ack-v2"].includes(String(payload.display_event_contract_version)) ? String(payload.display_event_contract_version) : null,
       category: exposure ? "Feedback display" : event.event_type.startsWith("workflow_job_") ? "System waiting" : event.event_type === "typing_activity_summary" ? "Typing" : ["window_blur", "window_focus"].includes(event.event_type) ? "Window focus" :
-        browserTypes.includes(event.event_type) ? "Browser activity" : ["answer_changed", "reasoning_revised", "reasoning_edited", "confidence_changed", "confidence_selected", "tempting_option_changed"].includes(event.event_type) ? "Revisions" : "Assessment activity",
+        browserTypes.includes(event.event_type) ? "Browser activity" : isConfidenceRevisionEvent(event) || isAlternativeRevisionEvent(event) || ["answer_changed", "reasoning_revised", "reasoning_edited"].includes(event.event_type) ? "Revisions" : "Assessment activity",
       duration_ms: ["long_pause", "inactivity_detected"].includes(event.event_type) ? event.pause_duration_ms ?? null : null
     };
   });

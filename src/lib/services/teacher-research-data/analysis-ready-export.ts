@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
 import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
 import { learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
@@ -1349,7 +1350,7 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           reasoning_submission_count: countEvents(itemEvents, ["reasoning_submitted", "transfer_reasoning_submitted"]),
           reasoning_revision_count: countEvents(itemEvents, ["reasoning_revised", "reasoning_edited"]),
           confidence_selection_count: canonicalActionCount(itemEvents, ["confidence_selected", "confidence_clicked", "transfer_confidence_clicked"]),
-          confidence_revision_count: countEvents(itemEvents, ["confidence_changed"]),
+          confidence_revision_count: itemEvents.filter(isConfidenceRevisionEvent).length,
           navigation_event_count: countEvents(itemEvents, ["navigation_event"]),
           page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden"]),
           typing_activity_event_count: countEvents(itemEvents, ["typing_activity_summary"]),

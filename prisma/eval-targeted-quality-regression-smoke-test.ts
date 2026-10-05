@@ -420,6 +420,11 @@ async function main() {
     missing_evidence_state: { missing_fields: ["answer", "confidence"] }
   });
   assert(mixedHelp.ok, `Mixed reasoning/correctness refusal should pass: ${mixedHelp.issues.join("; ")}`);
+  const nonEnglishReply = validateResponseCollectionOutputSemantics({
+    output: responseCollectionOutput({ assistant_message: "Please explain \u4fe1\u5ea6." }),
+    student_message: "The pattern adds two.", assistant_message_max_chars: 6000, has_existing_reasoning: false
+  });
+  assert(nonEnglishReply.issues.some(issue => issue.includes("must be in English")), "Chinese response-collection text must not be displayed.");
 
   const unblockedHelp = validateResponseCollectionOutputSemantics({
     output: responseCollectionOutput({
