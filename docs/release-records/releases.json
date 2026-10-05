@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T08:18:14+00:00",
+  "updated_at": "2026-10-05T09:42:21+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1805,6 +1805,109 @@
         "src/lib/evaluation/ai-student-scenarios.ts",
         "scripts/audit-ai-student-research.mjs",
         "prisma/llm-connectivity.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-04",
+      "date": "2026-10-05",
+      "title": "Lossless AI input deduplication and Sol low feedback",
+      "application_commit": "9379e354c875328ee5b215564bd5ea716b8e54c6",
+      "push_status": "Application committed and pushed to origin/main. A documentation-only follow-up uses [skip render] and retains this deployed application identity.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1n16navr4c73cnf380",
+        "source_commit": "9379e354c875328ee5b215564bd5ea716b8e54c6",
+        "verified_at": "2026-10-05T09:42:21+00:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1n16navr4c73cnf380",
+        "evidence": [
+          "Source deployment dep-db1ms30473hc7398ocp0 became Live at 09:34:20Z with the exact application commit. The subsequent dep-db1mv6p42hec73depb9g completed but retained the old environment values: the UI value-setting action did not persist them. Runtime verification caught this. Values were re-entered through normal input events and saved together; final dep-db1n16navr4c73cnf380 shows Deploy succeeded | Live at 09:41:39Z with the same source. The ineffective restart is not counted as Sol-low activation.",
+          "Read-only application resolution at 09:41:52.036Z validated the derived approval chain and active runtime bb157af19e9bc876e077d2c2b6ea58bfaa5aa365f5d8cf7ac37709c970b2f2d4. Initial feedback resolves to gpt-5.6-sol/low with 3000 output tokens; conversation resolves to gpt-5.6-sol/low with 7000. Profiling and integration remain gpt-5.6-terra/medium with 4000 and 3000 respectively. Existing ceilings are unchanged.",
+          "Final migrations reported 65 known migrations and none pending. Public health at 09:42:21.266Z returned status ok, database reachable, schema ready and migration readiness ready. Read-only runtime observation at 09:42:17.691Z confirmed the exact commit, web PID 14, preparation-worker PID 15 and matching test/production credential fingerprints without exposing credentials.",
+          "Memory observation was 230895616 of 2147483648 bytes with zero oom and oom_kill counters. This is a point-in-time health check, not a load test. The existing additional SSH ED25519 proof-signature warning remained; host verification was not disabled. Final deployment screenshot retained locally."
+        ]
+      },
+      "summary": "Remove exact repeated request content through a verified lossless representation and lower reasoning only for initial feedback and ongoing tutoring. A single uninterrupted live round completed all eight synthetic scenarios with intact research records. Descriptive matched-scenario results show about 17% fewer conversation input tokens, median tutor latency of 7.36 instead of 11.34 seconds and average application AI cost of about US$0.47 instead of US$0.61 per attempt.",
+      "changes": [
+        {
+          "area": "Model request input",
+          "problem": "Expanded item, response, profile and conversation records repeated identical text and JSON fields within requests.",
+          "fix": "Use lossless-agent-json-v1 for profiling, profile integration, initial feedback and conversation. Exact repeated values use per-request definitions and references; same-shaped record arrays can share a field header. Reconstruct and compare canonical source JSON before transmission. Reserved markers or insufficient savings fall back to plain JSON.",
+          "impact": "Every distinct student observation, source identity, value and array position remains available. The transport is not a summary and does not remove necessary context across separate stateless calls. Static instruction caching and store:false remain unchanged."
+        },
+        {
+          "area": "Two-role reasoning configuration",
+          "problem": "Sol medium reasoning imposed additional latency and reasoning-token use on initial feedback and ongoing dialogue.",
+          "fix": "Add a narrowly scoped amendment CLI and approval-chain checks for the user-authorized medium-to-low change in formative_value_and_planning_agent and formative_conversation_agent. Activate only after the first live round passes; keep parent evidence and rollback available.",
+          "impact": "No change to other role models, student limits, output ceilings, validation, answer-key protection or authoritative application state transitions. Local evidence is not misrepresented as independent human validation."
+        },
+        {
+          "area": "Research and request auditability",
+          "problem": "Input reduction needed proof that evidence was preserved and that usage comparisons included nested provider details.",
+          "fix": "Save text-free source/wire SHA-256 hashes, byte counts, encoding, reference and table counts, and round-trip status. Document accepted-output wrappers and the feedback record's audit-only runtime_budget field. Compare actual token and cache usage rather than equating byte reduction with cost savings.",
+          "impact": "Original expanded agent inputs, responses, transcripts and research exports remain unchanged. New transport fields describe request construction, not student behavior. Historical records are not rewritten."
+        }
+      ],
+      "data_impact": [
+        "No production student writes, resets, schema migrations or historical profile reclassification. All live journeys used disposable local synthetic databases. Model and reasoning settings remain traceable in agent-call records.",
+        "All eight research audits passed: 24 item records, 46 exact text/actor conversation turns, three profile transitions and 37 checksum-verified manifest entries per attempt. Source roles, evidence identity/cutoffs and confidence carry-forward were checked. Missing browser and input telemetry stayed null.",
+        "All 52 live projection audits matched independently reconstructed hashes, byte counts and encoding statistics. Initial apparent mismatches came from including audit-only runtime_budget and missing the accepted_output.provider_raw_output wrapper; the audit was corrected without changing source research data."
+      ],
+      "tests": [
+        {
+          "name": "Single uninterrupted live AI round",
+          "result": "Eight of eight passed",
+          "detail": "npm run classroom:ai-students -- --allow-live-synthetic --runtime-env .data/sol-low-20261005-environment.json produced run cmcq_ai_students_4f25e37ed64e, completed 09:27:45.437Z. Ninety-nine provider dispatches comprised 80 application calls and 19 adaptive learner generations. All tracked source hashes stayed unchanged. Cases covered cumulative correction, brief/detail requests, mixed questions, partial correction, uncertainty/pause, revisions/replays, qualified challenge and English-only/privacy handling."
+        },
+        {
+          "name": "Instructional review and recovery",
+          "result": "No blocking regression in the reviewed sample",
+          "detail": "All 27 tutor generations passed without semantic regeneration. The coding assistant reviewed conceptual accuracy, evidence-specific progress, unresolved errors, qualified explanations and requested response depth. One unchanged Terra-medium integration draft triggered high_confidence_overclaim; automatic repair succeeded before student-facing release, as in the prior baseline. Generated replies stayed English and withheld hidden serialization. Some requested recaps remain repetitive."
+        },
+        {
+          "name": "Research and dashboard services",
+          "result": "Eight of eight passed",
+          "detail": "node scripts/audit-ai-student-research.mjs on the saved report passed session isolation, manifest checksums and exact evidence links. Scenario assertions checked revised products, idempotent submissions/messages, single completion events and teacher dashboard completion counts. No new browser exposure test was run."
+        },
+        {
+          "name": "Offline and database regression",
+          "result": "Passed with disclosed legacy fixture limitation",
+          "detail": "Deduplication smoke tests passed 75 base assertions and 231 including all saved-input replays; five legacy compaction suites and 88 approval-integrity checks passed. Ten disposable-database suites passed: navigation, feedback recovery, initial preparation/failure, v18r2 pipeline, lifecycle, misconception coverage, research integrity, readable transcripts and auth isolation. A historical July model-activation fixture still expects stale profiling prompt identities; its planning-only subset and current approval checks pass. No production validator was weakened."
+        },
+        {
+          "name": "Static checks build and dependencies",
+          "result": "Passed after clean-snapshot build",
+          "detail": "npm run typecheck passed. Lint excluding ignored output directories reported zero errors and five existing warnings. Sandbox IPC blocked the first build; a direct default-4GB retry exhausted its heap. A clean tracked-source snapshot passed using the existing 12GB build-only setting; Render also built successfully. The dependency gate retained only the already authorized build-only braces exception through October 11; pruned runtime dependencies had zero findings. Production memory limits were not changed."
+        },
+        {
+          "name": "Timing token and cost audit",
+          "result": "Descriptive reductions observed",
+          "detail": "Matching eight prior scenarios and eight new scenarios each used 80 application calls and 27 tutor calls. Mean tutor input fell from 30596 to 25300 tokens and profiling input from 51499 to 40691. Tutor median latency fell from 11.34 to 7.36 seconds; initial-feedback medians remained 19.93 and 19.78 seconds. Mean feedback reasoning tokens fell from 758 to 250; tutor reasoning from 388 to 138. Application AI cost averaged US$0.47 versus US$0.61 including retries, excluding simulated learner generation. Adaptive dialogue, cache state and provider conditions differ, so these are not randomized causal estimates."
+        },
+        {
+          "name": "Current production cost sample",
+          "result": "US$0.71 to US$0.89 per completed attempt before release",
+          "detail": "Read-only usage since September 28 contained 14 completed attempts with complete input/output totals. Cache-detail gaps, not missing totals, define the range. Median tutor calls was two, range one to four; the sample includes synthetic operational checks. Pricing uses official Sol, Terra and Luna token rates, includes reasoning within output once, and bounds unknown cache usage. Hosting, database charges and tax are excluded. Detailed formulas and rates appear in the evaluation report."
+        }
+      ],
+      "limitations": [
+        "This is first-round engineering and content review on eight three-item synthetic journeys, not independent human educational validation or proof of equal classroom learning outcomes. No new 12-item, 30-turn endurance, browser usability or concurrent classroom load test was run.",
+        "The new average of US$0.47 describes these short synthetic attempts, not all future sessions. More questions, longer conversations, retries and cache behavior change cost. Actual billing remains authoritative.",
+        "Exact repetition is removed within requests; necessary history is still sent to independent calls. Structured output schemas and fixed instructions remain, so total token reductions are smaller than input-body byte reductions. The existing scoped security exception and its expiry are unchanged."
+      ],
+      "references": [
+        "docs/SOL_LOW_EVALUATION_2026-10-05.md",
+        "docs/AI_INPUT_DEDUPLICATION.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "docs/release-records/evidence/sol-low-input-dedup-20261005.json",
+        "src/lib/llm/lossless-profiling-input.ts",
+        "src/lib/agents/provider-request.ts",
+        "src/lib/llm/providers/openai-responses-provider.ts",
+        "src/lib/operational/active-approval-bundle.ts",
+        "prisma/sol-low-reasoning-amend.ts",
+        "prisma/agent-input-deduplication-smoke-test.ts",
+        "prisma/ai-student-journey-evaluation.ts"
       ]
     }
   ],

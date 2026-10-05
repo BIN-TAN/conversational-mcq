@@ -42,6 +42,13 @@ may retain it inside its provider-output field. Central agent execution also
 emits `agent_input_projection_prepared`; direct provider paths retain the raw
 output audit instead. A transport failure before a response may lack that audit.
 
+Accepted-output wrappers can place it at
+`raw_output.accepted_output.provider_raw_output.input_projection`. The canonical
+source hash covers the provider input, not later audit-only additions to a saved
+record. In particular, initial feedback adds `runtime_budget` to `input_payload`
+after constructing the request; exclude that field when reconstructing its
+provider-input hash. The original instructional evidence remains unchanged.
+
 | Variable | Definition |
 | --- | --- |
 | `encoding` | `lossless-agent-json-v1`, legacy `lossless-profiling-json-v1`, or `plain-json`. |

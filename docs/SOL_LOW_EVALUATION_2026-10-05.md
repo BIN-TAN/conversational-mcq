@@ -63,7 +63,7 @@ comparisons, not randomized A/B estimates.
 | Mean profiling input tokens | 51,499 | 40,691 |
 | Mean initial-feedback input tokens | 8,279 | 8,088 |
 | Mean initial-feedback reasoning tokens | 758 | 250 |
-| Mean tutor reasoning tokens, recorded cases | 358 (26 calls) | 113 (25 calls) |
+| Mean tutor reasoning tokens | 388 (27 calls) | 138 (27 calls) |
 | Median initial-feedback call latency | 19.93 s | 19.78 s |
 
 Tutor latency ranged from 3.25 to 26.84 seconds in the new round. Local submission
@@ -80,12 +80,15 @@ AI cost before this release was **US$0.71-0.89 per completed mini-test attempt**
 The typical completed attempt had two recorded tutor calls (range 1-4). Some
 production records are synthetic checks, so this is not a classroom-only sample.
 
-The eight new synthetic attempts cost **US$0.45-0.48 each on average**, compared
-with **US$0.59-0.62** for the matching prior scenarios. These totals include
+The eight new synthetic attempts cost **US$0.47 each on average**, compared
+with **US$0.61** for the matching prior scenarios, a descriptive reduction of
+about 23%. These totals include
 preparation, application retries and conversation calls, but exclude synthetic
 learner generation, hosting, database charges and tax. They are not a forecast
-for long conversations or larger item packages. Cache-detail gaps produce the
-ranges, not missing input/output totals.
+for long conversations or larger item packages. The production estimate's range
+reflects cache-detail gaps, not missing input/output totals. The synthetic
+comparison includes usage nested in accepted-output provider wrappers; omitting
+those wrappers would undercount recorded cache and reasoning details.
 
 Prices used per million tokens (USD), checked against official model pages:
 
@@ -106,11 +109,18 @@ The estimate is not an invoice or a guarantee of future cost.
 
 ## Verification and limits
 
-75 offline deduplication assertions, five legacy compaction suites, 88 approval
+75 base offline deduplication assertions (231 including all eight saved-input
+replays), five legacy compaction suites, 88 approval
 integrity checks, ten focused database suites, typecheck and the clean-snapshot
 production build passed. Lint retained five existing warnings and zero errors.
 The dependency gate retained the previously authorized build-only exception;
 production dependencies had zero findings.
+
+All 52 live input-projection audits were independently reconstructed and matched
+their saved source/wire hashes, byte sizes and encoding statistics. Reconstruction
+excludes the initial-feedback record's audit-only `runtime_budget` addition and
+follows `accepted_output.provider_raw_output` when present. Neither difference
+represents omitted model evidence or lost research data.
 
 The first build attempt was blocked by sandbox IPC restrictions, and the direct
 local retry reached its default 4 GB heap ceiling. The clean snapshot passed
