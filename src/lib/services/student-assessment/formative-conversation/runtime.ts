@@ -321,6 +321,7 @@ export type FormativeConversationObservableInputTelemetry = {
   typing_duration_method?:
     | "active_intervals"
     | "elapsed_first_input_to_submit"
+    | "elapsed_monotonic_first_input_to_submit"
     | null;
   edit_count: number;
   backspace_count: number;

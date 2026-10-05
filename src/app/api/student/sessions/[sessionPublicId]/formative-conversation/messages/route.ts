@@ -30,7 +30,7 @@ const messageSchema = z
         typing_ended_at: z.string().datetime().nullable().optional(),
         typing_duration_ms: z.number().int().nonnegative().nullable().optional(),
         typing_duration_method: z
-          .enum(["active_intervals", "elapsed_first_input_to_submit"])
+          .enum(["active_intervals", "elapsed_first_input_to_submit", "elapsed_monotonic_first_input_to_submit"])
           .nullable()
           .optional(),
         edit_count: z.number().int().nonnegative(),

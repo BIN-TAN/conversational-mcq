@@ -161,6 +161,15 @@ try {
   const zip = await JSZip.loadAsync(await exported.body());
   const find = name => zip.file(Object.keys(zip.files).find(path => path.endsWith(name)));
   const exportedVisits = parse(await find("response_stage_visits.csv").async("string"), { columns: true });
+  const submissions = parse(await find("response_submission_timing.csv").async("string"), { columns: true });
+  assert(submissions.length > 0);
+  assert(submissions.some(row => row.validation_rejected === "true"));
+  assert(submissions.some(row => row.submission_index === "2" && row.student_interval_start_kind === "controls_ready" && row.student_response_elapsed_ms !== ""));
+  for (const row of submissions.filter(row => row.timing_quality_status === "valid")) {
+    assert.equal(Number(row.student_response_elapsed_ms), Math.round(Number(row.submitted_monotonic_ms) - Number(row.student_interval_start_monotonic_ms)));
+    assert.equal(Number(row.submission_request_wait_ms), Math.round(Number(row.request_finished_monotonic_ms) - Number(row.submitted_monotonic_ms)));
+    assert.equal(Number(row.submission_system_wait_ms), Math.round(Number(row.controls_ready_monotonic_ms) - Number(row.submitted_monotonic_ms)));
+  }
   captured = await visits();
   assert.equal(exportedVisits.length, captured.length);
   assert(exportedVisits.some(v => v.validation_rejection_count === "1"));

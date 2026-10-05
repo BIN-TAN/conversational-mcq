@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { createFormativeInputTiming } from "./formative-input-timing";
 import { ModalDialog } from "@/components/ui/modal-dialog";
 import {
   AlertTriangle,
@@ -2464,7 +2465,8 @@ export function AssessmentSessionClient({
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const packageResultsRef = useRef<HTMLDivElement | null>(null);
   const formativeMessageIdRef = useRef<string | null>(null);
-  const formativeTypingStartedAtRef = useRef<Date | null>(null);
+  const formativeInputTimingRef = useRef<ReturnType<typeof createFormativeInputTiming> | null>(null);
+  if (!formativeInputTimingRef.current) formativeInputTimingRef.current = createFormativeInputTiming(() => performance.now(), () => new Date().toISOString());
   const formativeEditCountRef = useRef(0);
   const formativeBackspaceCountRef = useRef(0);
   const formativePasteCountRef = useRef(0);
@@ -2472,6 +2474,14 @@ export function AssessmentSessionClient({
   const formativeClientInstanceIdRef = useRef<string | null>(null);
   const formativeConversationPublicId =
     state?.formative_conversation?.conversation_public_id ?? null;
+  useEffect(() => {
+    formativeInputTimingRef.current!.reset();
+    formativeMessageIdRef.current = null;
+    formativeEditCountRef.current = 0;
+    formativeBackspaceCountRef.current = 0;
+    formativePasteCountRef.current = 0;
+    formativePasteCharacterCountRef.current = 0;
+  }, [formativeConversationPublicId]);
   const activeSessionPublicId =
     state?.session_public_id ?? resolvedInitialSessionPublicId ?? null;
   const draftKey = (field: string, identity: string | null | undefined) =>
@@ -2658,9 +2668,7 @@ export function AssessmentSessionClient({
   }
 
   function handleFormativeConversationDraft(value: string) {
-    if (!formativeTypingStartedAtRef.current && value.length > 0) {
-      formativeTypingStartedAtRef.current = new Date();
-    }
+    formativeInputTimingRef.current!.input(value.length);
     if (formativeConversationDraft.length > 0) {
       formativeEditCountRef.current += 1;
     }
@@ -2668,7 +2676,7 @@ export function AssessmentSessionClient({
   }
 
   function resetFormativeInputTelemetry() {
-    formativeTypingStartedAtRef.current = null;
+    formativeInputTimingRef.current!.reset();
     formativeEditCountRef.current = 0;
     formativeBackspaceCountRef.current = 0;
     formativePasteCountRef.current = 0;
@@ -2685,8 +2693,7 @@ export function AssessmentSessionClient({
       formativeMessageIdRef.current ??
       newClientActionId("formative-conversation-message");
     formativeMessageIdRef.current = clientMessageId;
-    const submittedAt = new Date();
-    const typingStartedAt = formativeTypingStartedAtRef.current;
+    const inputTiming = formativeInputTimingRef.current!.submit(clientMessageId);
     setIsBusy(true);
     setIsAwaitingFormativeTutorResponse(true);
     setError(null);
@@ -2698,19 +2705,7 @@ export function AssessmentSessionClient({
         messageText: message,
         clientMessageId,
         observableInputTelemetry: {
-          turn_started_at: typingStartedAt?.toISOString() ?? null,
-          submitted_at: submittedAt.toISOString(),
-          response_time_ms: typingStartedAt
-            ? Math.max(0, submittedAt.getTime() - typingStartedAt.getTime())
-            : null,
-          typing_started_at: typingStartedAt?.toISOString() ?? null,
-          typing_ended_at: submittedAt.toISOString(),
-          typing_duration_ms: typingStartedAt
-            ? Math.max(0, submittedAt.getTime() - typingStartedAt.getTime())
-            : null,
-          typing_duration_method: typingStartedAt
-            ? "elapsed_first_input_to_submit"
-            : null,
+          ...inputTiming,
           edit_count: formativeEditCountRef.current,
           backspace_count: formativeBackspaceCountRef.current,
           paste_event_count: formativePasteCountRef.current,

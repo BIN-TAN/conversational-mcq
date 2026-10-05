@@ -1,6 +1,6 @@
 import { researchCsv } from "./csv-contract";
 import { RESPONSE_STAGE_CALCULATION_VERSION, responseStageDictionaryRows } from "./response-stage-dictionary";
-import { deriveResponseStageVisits, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, type ResponseStageEvent } from "../student-assessment/response-stage-data";
+import { deriveResponseStageVisits, deriveResponseSubmissions, RESPONSE_SUBMISSION_COLUMNS, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, type ResponseStageEvent } from "../student-assessment/response-stage-data";
 
 type Source = { session_public_id: string; research_student_id: string; assessment_public_id: string; attempt_number: number;
   events: ResponseStageEvent[]; items: { item_public_id: string; item_snapshot_public_id: string; item_version: number }[];
@@ -13,13 +13,14 @@ const observedColumns = ["stage_visit_id", "browser_tab_id", "response_stage", "
   "result", "input_length", "input_change_count", "reason", "client_event_id", "client_occurred_at", "server_received_at", "observation_version"];
 
 export function responseStageExportFiles(sources: Source[]) {
-  const stages: Row[] = [], itemRows: Row[] = [], eventRows: Row[] = [], revisions: Row[] = [], exposures: Row[] = [];
+  const stages: Row[] = [], submissions: Row[] = [], itemRows: Row[] = [], eventRows: Row[] = [], revisions: Row[] = [], exposures: Row[] = [];
   for (const source of sources) {
     const ids = { research_student_id: source.research_student_id, assessment_public_id: source.assessment_public_id,
       session_public_id: source.session_public_id, attempt_number: source.attempt_number };
     const visits = deriveResponseStageVisits(source.events);
     const item = (id?: string | null) => source.items.find(i => i.item_public_id === id) ?? { item_public_id: id ?? null, item_snapshot_public_id: null, item_version: null };
     for (const visit of visits) stages.push({ ...ids, ...item(visit.item_public_id), ...visit });
+    for (const submission of deriveResponseSubmissions(source.events)) submissions.push({ ...ids, ...item(submission.item_public_id), ...submission });
     for (const i of source.items) itemRows.push({ ...ids, ...i, ...summarizeItemStageVisits(visits.filter(v => v.item_public_id === i.item_public_id)) });
     for (const id of new Set(visits.map(v => v.item_public_id).filter(Boolean))) {
       if (source.items.some(i => i.item_public_id === id)) continue;
@@ -59,13 +60,14 @@ export function responseStageExportFiles(sources: Source[]) {
     }
   }
   const tables = [
+    { path: "response_submission_timing.csv", columns: [...identity, ...itemIdentity.filter(k => k !== "item_public_id"), ...RESPONSE_SUBMISSION_COLUMNS], rows: submissions },
     { path: "response_stage_visits.csv", columns: [...identity, ...itemIdentity.filter(k => k !== "item_public_id"), ...RESPONSE_STAGE_COLUMNS], rows: stages },
     { path: "item_behavior_summary.csv", columns: [...identity, ...itemIdentity, "observed_stage_visit_count", "answer_time_ms", "first_action_ms", "reasoning_start_latency_ms", "reasoning_time_ms", "reasoning_input_elapsed_ms", "confidence_time_ms", "system_wait_ms", "hidden_duration_ms", "submission_count", "validation_rejection_count", "timing_quality_status"], rows: itemRows },
     { path: "response_stage_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", ...observedColumns, "action_status", "accepted", "validation_rejected", "server_phase", "client_action_id"], rows: eventRows },
     { path: "response_revision_history.csv", columns: [...identity, ...itemIdentity, "source_turn_sequence_index", "changed_at", "changed_field", "previous_value", "new_value", "revision_phase", "coverage"], rows: revisions },
     { path: "feedback_exposure_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", "client_occurred_at", "content_id", "observation_meaning", "server_received_at", "client_event_id", "display_event_contract_version", "content_kind", "observation_method", "minimum_visible_ms", "source_turn_sequence_index"], rows: exposures }
   ];
-  for (const table of tables.filter(t => ["response_stage_visits.csv", "item_behavior_summary.csv"].includes(t.path))) {
+  for (const table of tables.filter(t => ["response_submission_timing.csv", "response_stage_visits.csv", "item_behavior_summary.csv"].includes(t.path))) {
     table.columns.push("calculation_version");
     table.rows.forEach(row => { row.calculation_version = RESPONSE_STAGE_CALCULATION_VERSION; });
   }

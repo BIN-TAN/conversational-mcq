@@ -66,7 +66,7 @@ for (const file of files.filter(f => f.path.endsWith(".csv") && !f.path.includes
 }
 assert.throws(() => responseStageDictionaryRows([{ path: "test.csv", columns: ["undocumented_variable"] }]), /Undocumented/);
 assert(dictionary.find(d => d.dataset === "item_behavior_summary.csv" && d.variable_name === "system_wait_ms")?.calculation.includes("initial/transfer"));
-assert(rows(files, "response_stage_visits.csv").every(row => row.calculation_version === "response-stage-derivation-v2"));
+assert(rows(files, "response_stage_visits.csv").every(row => row.calculation_version === "response-stage-derivation-v3"));
 const report = rows(researchCoverageFiles([...files,
   { path: "formative_conversation_turns.csv", data: 'actor_type,response_time_ms,message_text,flag\nstudent,0,"Multiline\nanswer",false\nagent,20,tutor,true\nstudent,,"=Private content",\n' },
   { path: "empty.csv", data: "conditional\n" }

@@ -182,10 +182,10 @@ async function main() {
       conversation_public_id: created.session.conversation_public_id,
       conversation_turn_db_id: studentTurn.id,
       client_message_id: clientMessageId,
-      typing_started_at: at(1_000),
+      typing_started_at: at(7_000),
       typing_ended_at: at(5_000),
       typing_duration_ms: 2_600,
-      typing_duration_method: "active_intervals",
+      typing_duration_method: "elapsed_monotonic_first_input_to_submit",
       edit_count: 3,
       backspace_count: 2,
       paste_event_count: 1,
@@ -193,15 +193,17 @@ async function main() {
       submitted_at: at(6_000)
     });
     assert.equal(inputTelemetry.replayed, false);
+    assert.equal(inputTelemetry.telemetry.typing_duration_method, "elapsed_monotonic_first_input_to_submit");
+    assert.equal(inputTelemetry.telemetry.typing_duration_ms, 2600, "Monotonic duration survives a backwards UTC adjustment.");
     const replayedInputTelemetry =
       await recordFormativeConversationInputTelemetry({
         conversation_public_id: created.session.conversation_public_id,
         conversation_turn_db_id: studentTurn.id,
         client_message_id: clientMessageId,
-        typing_started_at: at(1_000),
+        typing_started_at: at(7_000),
         typing_ended_at: at(5_000),
         typing_duration_ms: 2_600,
-        typing_duration_method: "active_intervals",
+        typing_duration_method: "elapsed_monotonic_first_input_to_submit",
         edit_count: 3,
         backspace_count: 2,
         paste_event_count: 1,
@@ -209,6 +211,7 @@ async function main() {
         submitted_at: at(6_000)
       });
     assert.equal(replayedInputTelemetry.replayed, true);
+    assert.equal(replayedInputTelemetry.telemetry.typing_duration_method, "elapsed_monotonic_first_input_to_submit", "Replay cannot relabel original timing.");
 
     const studentTurnTelemetry =
       await recordFormativeConversationTurnTelemetry({

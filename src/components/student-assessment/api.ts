@@ -116,7 +116,7 @@ export function sendFormativeConversationMessage(input: {
     typing_started_at?: string | null;
     typing_ended_at?: string | null;
     typing_duration_ms?: number | null;
-    typing_duration_method?: "active_intervals" | "elapsed_first_input_to_submit" | null;
+    typing_duration_method?: "active_intervals" | "elapsed_first_input_to_submit" | "elapsed_monotonic_first_input_to_submit" | null;
     edit_count: number;
     backspace_count: number;
     paste_event_count: number;

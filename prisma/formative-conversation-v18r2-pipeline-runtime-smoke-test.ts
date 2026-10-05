@@ -459,6 +459,11 @@ async function main() {
         teacher_user_db_id: conversation.assessment_session.assessment.created_by_user_db_id,
         scope: "selected_session", session_public_id: conversation.assessment_session.session_public_id
       });
+      const timingRows = parse(String(researchBundle.files.find(file => file.path === "formative_conversation_turns.csv")!.data), { columns: true }) as Record<string, string>[];
+      assert(timingRows.some(row => row.actor_type === "agent" && row.model_call_latency_ms !== ""));
+      assert(timingRows.filter(row => row.actor_type === "student").every(row => row.model_call_latency_ms === ""));
+      assert(timingRows.filter(row => row.actor_type === "agent").every(row => row.student_input_elapsed_ms === ""));
+      assert(timingRows.some(row => row.student_timing_method === "active_intervals" && row.student_timing_status === "unavailable_or_different_method" && row.student_input_elapsed_ms === ""), "Legacy active-interval fixtures must not be relabeled as elapsed student time.");
       const transitionFile = researchBundle.files.find(file => file.path === "formative_conversation_profile_transitions.csv");
       assert(transitionFile);
       const exportedTransitions = parse(String(transitionFile.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];

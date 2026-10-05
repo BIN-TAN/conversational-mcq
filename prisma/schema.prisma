@@ -181,6 +181,7 @@ enum FormativeConversationLifecycleEventType {
 enum FormativeConversationTypingDurationMethod {
   active_intervals
   elapsed_first_input_to_submit
+  elapsed_monotonic_first_input_to_submit
 }
 
 enum ResponseCorrectness {

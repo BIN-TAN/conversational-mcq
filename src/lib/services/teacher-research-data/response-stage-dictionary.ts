@@ -1,4 +1,4 @@
-export const RESPONSE_STAGE_CALCULATION_VERSION = "response-stage-derivation-v2";
+export const RESPONSE_STAGE_CALCULATION_VERSION = "response-stage-derivation-v3";
 
 type Definition = {
   definition: string;
@@ -18,6 +18,13 @@ const count = (definition: string, calculation: string, source = "response_stage
   field(definition, source, calculation, "count", observed, "Zero means no matching event among the captured records, not verified absence of behavior. Check timing_limitations.");
 
 const definitions: Record<string, Definition> = {
+  submission_index: field("One-based observed submission order within this visit, not an assessment attempt number.", "Ordered browser submission observations", "Number submitted events by observation_sequence after delivery-ID deduplication.", "integer"),
+  student_interval_start_kind: field("ready for the first submission, controls_ready from the preceding submission for subsequent ones.", "Browser observations", "Use exactly one matching endpoint; missing/ambiguous endpoints remain blank.", "category"),
+  student_response_elapsed_ms: timing("Student elapsed response opportunity for this submission, excluding the preceding request/UI wait. Includes pauses/hidden time; not active thinking time.", "submitted.monotonic_ms minus ready.monotonic_ms (first submission), otherwise minus preceding submission's controls_ready.monotonic_ms. Require contiguous, ordered, same-document/context capture, unique submission identity and start before submit without visit closure."),
+  submission_request_wait_ms: timing("This submission's request wait, including server/model processing and transport when applicable; not pure network delay.", "request_finished.monotonic_ms - submitted.monotonic_ms matched by submission_id. Require contiguous, ordered, same-document/context capture, unique endpoints and no overlapping submission windows."),
+  post_request_controls_wait_ms: timing("Observed interval after request finishes until controls are visible and usable. Can include refresh, rendering, scheduling or a hidden page; not pure CPU rendering time.", "controls_ready.monotonic_ms - request_finished.monotonic_ms matched by submission_id under the same strict pairing checks."),
+  submission_system_wait_ms: timing("Total submit-to-usable-controls waiting; request and post-request intervals partition this interval, so never add the total to its components.", "controls_ready.monotonic_ms - submitted.monotonic_ms only when both request and post-request components are available. Independently rounded components may differ from rounded total by 1 ms."),
+  request_result: field("Observed response_received or request_failed, independent of backend acceptance.", "Unique linked request_finished.result", "Directly recorded; failed client delivery can coexist with an accepted backend outcome.", "category"),
   research_student_id: field("Stable pseudonymous student join key; not the login name.", "Research pseudonymization service", "Derived using the configured research pseudonymization key; join only within compatible pseudonym versions."),
   assessment_public_id: field("Administered assessment version identifier; corrected versions have different IDs.", "AssessmentSession.assessment"),
   session_public_id: field("One assessment attempt; the primary join to sessions.csv and attempt_records.csv.", "AssessmentSession.session_public_id"),
@@ -84,6 +91,10 @@ const definitions: Record<string, Definition> = {
 };
 
 const timestamps: Record<string, [string, string]> = {
+  student_interval_started_at: ["Client UTC label for the student interval start; durations use the monotonic endpoint, not this wall clock.", "Unique ready or previous submission controls_ready"],
+  submitted_at: ["Client UTC label for this submission.", "submitted observation"],
+  request_finished_at: ["Client UTC label when this request resolved or failed.", "Unique linked request_finished observation"],
+  controls_ready_at: ["Client UTC label when usable controls were next observed after this request.", "Unique linked controls_ready observation"],
   occurred_at: ["Event occurrence time on the event's source clock; frontend and backend rows use different clocks.", "ProcessEvent.occurred_at"],
   client_occurred_at: ["Client-reported UTC occurrence time; may be affected by device clock adjustment.", "Frontend event envelope"],
   server_received_at: ["Backend ingestion time for a browser event, not the time the student acted.", "Frontend ingestion envelope"],
@@ -97,6 +108,7 @@ const timestamps: Record<string, [string, string]> = {
   changed_at: ["Server persistence time of the accepted revision transcript record.", "ConversationTurn.created_at"]
 };
 for (const [name, [description, source]] of Object.entries(timestamps)) definitions[name] = field(description, source, "Select the named event and serialize as ISO 8601 UTC; never subtract a client timestamp from a server timestamp.", "UTC timestamp");
+for (const name of ["student_interval_start", "submitted", "request_finished", "controls_ready"]) definitions[`${name}_monotonic_ms`] = field(`Raw monotonic endpoint for ${name}; retained for auditing even when a duration is unavailable.`, "Browser performance.now() observation", "Copy the uniquely selected endpoint. Use only within the same browser document and check timing_limitations before subtracting.", "milliseconds");
 definitions.close_reason = { ...definitions.reason, source: "First closed observation.reason" };
 
 const itemAliases: Record<string, string> = {
@@ -113,6 +125,9 @@ export function responseStageDictionaryRows(tables: { path: string; columns: rea
     const base = definitions[variable_name];
     if (!base) throw new Error(`Undocumented response-stage variable: ${table.path}.${variable_name}`);
     let entry = base;
+    if (table.path === "response_submission_timing.csv" && variable_name === "timing_quality_status") entry = { ...base, calculation: "partial when a context/order/sequence, endpoint, overlapping-window, identity or backend outcome check fails; valid otherwise. Individual durations may remain available when only an unrelated endpoint is missing." };
+    if (table.path === "response_submission_timing.csv" && variable_name === "accepted") entry = { ...base, calculation: "Copy the boolean only when all linked backend outcomes agree on acceptance and validation status; missing or conflicting outcomes remain blank. Never infer acceptance from browser request_result." };
+    if (table.path === "response_submission_timing.csv" && variable_name === "validation_rejected") entry = { ...base, calculation: "Copy the boolean only when all linked backend outcomes agree on acceptance and validation status; missing, nonboolean or conflicting outcomes remain blank." };
     if (table.path === "item_behavior_summary.csv" && ["system_wait_ms", "hidden_duration_ms", "submission_count", "validation_rejection_count"].includes(variable_name)) {
       entry = { ...base, source: "Derived response_stage_visits.csv", calculation: variable_name.endsWith("_ms")
         ? `SUM(${variable_name}) across initial/transfer visits for this item, only if at least one visit exists and all values are nonblank; otherwise blank. Review/revision visits are excluded.`

@@ -15,6 +15,7 @@ import { acceptedTemptingEvidence, RESPONSE_EVIDENCE_VERSION } from "../student-
 import { ResearchExportSpool, withResearchExportSlot } from "./export-spool";
 import { exportStorageDirectory, pathForStorageKey } from "../master-export/storage";
 import { parse } from "csv-parse/sync";
+import { separateConversationTiming } from "./conversation-timing";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
@@ -296,7 +297,8 @@ const analysisSessionSelect = {
             include: {
               agent_call: {
                 select: {
-                  agent_call_public_id: true
+                  agent_call_public_id: true,
+                  latency_ms: true
                 }
               }
             }
@@ -513,6 +515,10 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "turn_started_at",
   "turn_submitted_at",
   "response_time_ms",
+  "student_input_elapsed_ms",
+  "model_call_latency_ms",
+  "student_timing_method",
+  "student_timing_status",
   "message_length_chars",
   "input_token_count",
   "output_token_count",
@@ -2015,6 +2021,7 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
           turn_started_at: iso(telemetry?.turn_started_at),
           turn_submitted_at: iso(telemetry?.turn_submitted_at),
           response_time_ms: telemetry?.response_time_ms ?? null,
+          ...separateConversationTiming(turn.actor_type, inputTelemetry, telemetry?.agent_call?.latency_ms),
           message_length_chars:
             telemetry?.message_length_chars ?? turn.message_text?.length ?? 0,
           input_token_count: telemetry?.input_token_count ?? null,
@@ -2290,11 +2297,15 @@ function formativeConversationDataDictionaryRows() {
       return "Exact visible student or tutor message persisted in chronological order.";
     }
     if (variable === "typing_duration_ms") {
-      return "Current browser: elapsed first nonempty input to submit, including pauses, equal to student response_time_ms; not active typing. Historical records must be interpreted with typing_duration_method.";
+      return "Elapsed first nonempty input to the first submission, including pauses; not active typing. Current monotonic measurement is frozen on retries. Interpret historical records by typing_duration_method. Compatibility alias of student_input_elapsed_ms for elapsed methods.";
     }
     if (variable === "response_time_ms") {
-      return "Actor-dependent: for current browser student turns, elapsed first nonempty input to submit; for generated tutor turns, provider call latency. Never pool student and tutor rows or add student response_time_ms to typing_duration_ms.";
+      return "Legacy actor-dependent field. Prefer student_input_elapsed_ms and model_call_latency_ms. Student elapsed input and tutor provider latency measure different intervals; never pool actors or sum duplicate aliases.";
     }
+    if (variable === "student_input_elapsed_ms") return "Student-only elapsed first nonempty input to submission; excludes subsequent system/AI waiting for new monotonic records. Includes pauses, not active typing or time reading before first input. Legacy wall-clock rows may include pre-persistence retries; use student_timing_status.";
+    if (variable === "model_call_latency_ms") return "Tutor-only latency from the linked AgentCall. Provider operation latency, not pure model inference or total student-visible wait. Failed/retried calls remain in formative_conversation_llm_calls.csv; never add to an enclosing request wait.";
+    if (variable === "student_timing_method") return "Student input measurement method retained from the source record. New browser records use elapsed_monotonic_first_input_to_submit; historical methods remain unchanged.";
+    if (variable === "student_timing_status") return "monotonic_first_submission, legacy_wall_clock_retry_unverified, unavailable_or_different_method, or not_applicable. Describes instrumentation, not engagement or data authenticity.";
     if (variable === "observed_interval_duration_ms") {
       return "Optional explicitly supplied lifecycle interval; current browser navigation emits null. Do not interpret an empty field as zero or infer exact off-page time from server receipt timestamps.";
     }
@@ -2459,9 +2470,13 @@ function formativeConversationDataDictionaryRows() {
             : "directly_recorded_observable_or_operational",
       analysis_phase: table.phase,
       calculation: ({
-        response_time_ms: "Student browser: max(0, submit client time - first nonempty input client time); null without first input. Tutor: copy linked AgentCall.latency_ms. Platform-only tutor messages can be null.",
-        typing_duration_ms: "Current browser: max(0, typing_ended_at - typing_started_at), client wall clock in milliseconds, method=elapsed_first_input_to_submit. Includes pauses; historical active_intervals records use their original method, not this formula.",
-        typing_duration_method: "Current browser emits elapsed_first_input_to_submit only when a first nonempty input timestamp exists; otherwise null.",
+        response_time_ms: "Legacy alias. New student browser: rounded performance.now at first Send minus at first nonempty input, frozen per client_message_id. Tutor: provider latency. Read typing_duration_method for historical student formulas.",
+        typing_duration_ms: "New monotonic method: rounded performance.now(first Send) - performance.now(first nonempty input), same document, frozen on retries. Wall-clock elapsed_first_input_to_submit: max(0, typing_ended_at - typing_started_at). Includes pauses; historical active_intervals is a different method. Null without input or for invalid/out-of-range duration.",
+        typing_duration_method: "Current browser emits elapsed_monotonic_first_input_to_submit with valid duration, otherwise null; historical methods are preserved. On backwards wall-clock adjustment, raw typing UTC labels remain recorded but turn_started_at is null; monotonic duration is unchanged.",
+        student_input_elapsed_ms: "Copy typing_duration_ms only for actor_type=student and one of the two elapsed first-input methods. Other methods/actors/missing telemetry remain null; no reconstruction from server timestamps.",
+        model_call_latency_ms: "Copy linked AgentCall.latency_ms only for actor_type=agent. No inferred latency from transcript timestamps; absent linked call yields null.",
+        student_timing_method: "Copy student's typing_duration_method; blank on other actors.",
+        student_timing_status: "Agent/other actor => not_applicable; absent elapsed value or non-elapsed method => unavailable_or_different_method; monotonic method => monotonic_first_submission; legacy wall-clock method => legacy_wall_clock_retry_unverified.",
         edit_count: "Increment on input change if the previous draft length > 0; reset after successful submission. Not a keystroke or semantic revision count.",
         backspace_count: "Count observed Backspace/Delete keydown events before submission; reset after success. Touch/IME deletions may not emit these keys.",
         paste_event_count: "Count paste events before submission; reset after success. No clipboard contents recorded in this field.",
@@ -2548,6 +2563,7 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "data_coverage_notes.txt",
         "response_stage_events.csv",
         "response_stage_visits.csv",
+        "response_submission_timing.csv",
         "item_behavior_summary.csv",
         "response_revision_history.csv",
         "feedback_exposure_events.csv",

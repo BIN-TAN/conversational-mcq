@@ -1767,6 +1767,9 @@ or connection observations are flagged. Unknown durations remain null.
 
 The research ZIP adds these additive tables:
 
+- `response_submission_timing.csv`: separately paired student elapsed response,
+  request wait, post-request controls wait and total system wait per submission.
+  Derivation v3 exposes endpoint clocks, submission joins and quality flags.
 - `response_stage_events.csv`: allow-listed observations and linked outcomes.
 - `response_stage_visits.csv`: first-action/input/submission timing, accepted
   submission timing, request/UI waiting, visibility, connectivity, and counts.
@@ -1792,6 +1795,37 @@ log and also close the active visit. Returns create new visits. Gaps between
 visits are not imputed as absence or thinking time. Browser close, device
 shutdown, and offline delivery remain best effort. Detailed timing is not
 backfilled for historical attempts; their existing V3 evidence is retained.
+
+### Student/system timing separation (2026-10-05)
+
+`response-stage-derivation-v3` adds submission-level separation without changing
+raw observations or earlier visit/item formulas. First submission student time
+starts at ready; later submissions start at the preceding controls-ready event.
+Request wait runs from submit to request-finished; post-request controls wait
+runs to controls-ready; their enclosing total is not an additional duration.
+Pauses/hidden intervals overlap elapsed intervals and are not additive. Missing
+endpoints, sequence gaps, mixed documents, unordered/overlapping submissions or
+ambiguous identity yield null affected durations. Backend outcomes remain the
+authority for acceptance. Dictionary formulas and raw monotonic endpoints are
+included in every export. No duration is derived across browser documents.
+
+New formative chat input uses `elapsed_monotonic_first_input_to_submit`, an
+additive database enum value. The browser records the same-document monotonic
+interval from first nonempty input to first Send and freezes it for transport
+retries of that client message. Student UTC labels remain separate; a backwards
+UTC adjustment leaves the compatibility turn-start label blank, retaining the
+raw typing labels and monotonic duration. No existing rows are rewritten.
+`student_input_elapsed_ms` and `model_call_latency_ms` in conversation exports
+separate actors explicitly. The latter uses the linked provider call, including
+provider transport overhead, not pure inference or total user-visible waiting.
+Historic wall-clock student timing is flagged `legacy_wall_clock_retry_unverified`.
+Unknown, restored-draft origin and unsupported method intervals stay blank;
+current input may cover only the newly observed portion of a restored draft.
+Full display-to-reply timing is not reconstructed. Compatibility fields stay
+available and must not be summed with their new preferred aliases.
+
+See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for endpoint definitions, retry/pause
+semantics and formulas. These changes collect timing, not engagement judgments.
 
 Teacher Process data shows compact item timing, an expandable stage table,
 and a readable timeline. Raw keystroke text, unsent draft content, other-site

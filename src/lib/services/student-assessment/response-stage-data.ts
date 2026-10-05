@@ -16,7 +16,7 @@ export const RESPONSE_STAGE_COLUMNS = ["stage_visit_id", "item_public_id", "brow
   "submission_count", "accepted_submission_count", "validation_rejection_count", "request_failure_count", "input_change_count",
   "timing_quality_status", "timing_limitations", "observation_version"] as const;
 
-export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
+function observationGroups(events: ResponseStageEvent[]) {
   const groups = new Map<string, Observation[]>();
   const seen = new Set<string>();
   for (const event of events) {
@@ -34,7 +34,77 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
       at: iso(typeof client_occurred_at === "string" ? client_occurred_at : event.occurred_at) });
     groups.set(parsed.data.stage_visit_id, list);
   }
-  return [...groups.entries()].map(([id, list]) => {
+  for (const list of groups.values()) list.sort((a, b) => a.observation_sequence - b.observation_sequence);
+  return groups;
+}
+
+export const RESPONSE_SUBMISSION_COLUMNS = ["stage_visit_id", "item_public_id", "browser_tab_id", "response_stage", "response_phase",
+  "submission_id", "submission_index", "student_interval_start_kind", "student_interval_started_at", "submitted_at", "request_finished_at", "controls_ready_at",
+  "student_interval_start_monotonic_ms", "submitted_monotonic_ms", "request_finished_monotonic_ms", "controls_ready_monotonic_ms",
+  "student_response_elapsed_ms", "submission_request_wait_ms", "post_request_controls_wait_ms", "submission_system_wait_ms",
+  "request_result", "accepted", "validation_rejected", "timing_quality_status", "timing_limitations"] as const;
+
+export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
+  return [...observationGroups(events)].flatMap(([id, list]) => {
+    const base = list[0];
+    const contextValid = list.every(e => e.browser_tab_id === base.browser_tab_id && e.item_public_id === base.item_public_id && e.response_stage === base.response_stage && e.response_phase === base.response_phase);
+    const contiguous = list.every((e, i) => e.observation_sequence === (list[i - 1]?.observation_sequence ?? 0) + 1);
+    const ordered = list.every((e, i) => i === 0 || e.monotonic_ms >= list[i - 1].monotonic_ms);
+    const ready = list.filter(e => e.observation_kind === "ready");
+    const submitted = list.filter(e => e.observation_kind === "submitted");
+    const outcomes = events.filter(e => e.event_type === "response_stage_outcome" && e.event_source === "backend" && record(e.payload).stage_visit_id === id && (!e.item_public_id || e.item_public_id === base.item_public_id));
+    const endpoint = (kind: string, submission?: Observation) => {
+      const matches = submission?.submission_id ? list.filter(e => e.observation_kind === kind && e.submission_id === submission.submission_id) : [];
+      return matches.length === 1 ? matches[0] : undefined;
+    };
+    return submitted.map((s, i) => {
+      const flags: string[] = [];
+      if (!contextValid) flags.push("visit_context_conflict");
+      if (!contiguous) flags.push("observation_sequence_gap");
+      if (!ordered) flags.push("invalid_monotonic_order");
+      const unique = !!s.submission_id && submitted.filter(e => e.submission_id === s.submission_id).length === 1;
+      if (!unique) flags.push("submission_identity_missing_or_ambiguous");
+      const start = i === 0 ? ready.length === 1 ? ready[0] : undefined : endpoint("controls_ready", submitted[i - 1]);
+      const finished = endpoint("request_finished", s), controls = endpoint("controls_ready", s);
+      const overlap = !!submitted[i + 1] && !!controls && controls.observation_sequence >= submitted[i + 1].observation_sequence;
+      if (overlap) flags.push("overlapping_submission_windows");
+      const valid = contextValid && contiguous && ordered && unique && !overlap;
+      const span = (a: Observation | undefined, b: Observation | undefined, flag: string, student = false) => {
+        // Closed visits can still receive request acknowledgements, but never more student work.
+        const crossedClose = student && a && b && list.some(e => e.observation_kind === "closed" && e.observation_sequence <= b.observation_sequence);
+        if (!a || !b || a.observation_sequence >= b.observation_sequence || crossedClose) { flags.push(flag); return null; }
+        return valid ? delta(a, b) : null;
+      };
+      const studentTime = span(start, s, "student_interval_endpoint_missing_or_invalid", true);
+      const requestTime = span(s, finished, "request_endpoint_missing_or_invalid");
+      const controlsTime = span(finished, controls, "controls_endpoint_missing_or_invalid");
+      const totalTime = requestTime !== null && controlsTime !== null ? delta(s, controls) : null;
+      const matching = outcomes.filter(e => record(e.payload).submission_id === s.submission_id);
+      const acceptedValues = new Set(matching.map(e => record(e.payload).accepted));
+      const rejectedValues = new Set(matching.map(e => record(e.payload).validation_rejected));
+      const outcomeValid = unique && matching.length > 0 && acceptedValues.size === 1 && rejectedValues.size === 1 &&
+        typeof record(matching[0].payload).accepted === "boolean" && typeof record(matching[0].payload).validation_rejected === "boolean";
+      if (!outcomeValid) flags.push(matching.length ? "server_outcome_conflict" : "server_outcome_missing");
+      return { stage_visit_id: id, item_public_id: base.item_public_id, browser_tab_id: base.browser_tab_id,
+        response_stage: base.response_stage, response_phase: base.response_phase,
+        submission_id: s.submission_id ?? null, submission_index: i + 1,
+        student_interval_start_kind: start?.observation_kind ?? null,
+        student_interval_started_at: start?.at ?? null, submitted_at: s.at,
+        request_finished_at: finished?.at ?? null, controls_ready_at: controls?.at ?? null,
+        student_interval_start_monotonic_ms: start?.monotonic_ms ?? null, submitted_monotonic_ms: s.monotonic_ms,
+        request_finished_monotonic_ms: finished?.monotonic_ms ?? null, controls_ready_monotonic_ms: controls?.monotonic_ms ?? null,
+        student_response_elapsed_ms: studentTime, submission_request_wait_ms: requestTime,
+        post_request_controls_wait_ms: controlsTime, submission_system_wait_ms: totalTime,
+        request_result: finished?.result ?? null,
+        accepted: outcomeValid && typeof record(matching[0].payload).accepted === "boolean" ? record(matching[0].payload).accepted : null,
+        validation_rejected: outcomeValid && typeof record(matching[0].payload).validation_rejected === "boolean" ? record(matching[0].payload).validation_rejected : null,
+        timing_quality_status: flags.length ? "partial" : "valid", timing_limitations: flags.join("|") };
+    });
+  });
+}
+
+export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
+  return [...observationGroups(events).entries()].map(([id, list]) => {
     list.sort((a, b) => a.observation_sequence - b.observation_sequence);
     const base = list[0];
     const limitations: string[] = [];

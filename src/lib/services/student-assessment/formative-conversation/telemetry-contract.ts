@@ -107,7 +107,7 @@ export const FormativeConversationInputTelemetryInputSchema = z
     typing_ended_at: z.coerce.date().nullable().optional(),
     typing_duration_ms: z.number().int().nonnegative().nullable().optional(),
     typing_duration_method: z
-      .enum(["active_intervals", "elapsed_first_input_to_submit"])
+      .enum(["active_intervals", "elapsed_first_input_to_submit", "elapsed_monotonic_first_input_to_submit"])
       .nullable()
       .optional(),
     edit_count: z.number().int().nonnegative(),
@@ -122,6 +122,7 @@ export const FormativeConversationInputTelemetryInputSchema = z
     if (
       value.typing_started_at &&
       value.typing_ended_at &&
+      value.typing_duration_method !== "elapsed_monotonic_first_input_to_submit" &&
       value.typing_ended_at < value.typing_started_at
     ) {
       context.addIssue({

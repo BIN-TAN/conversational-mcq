@@ -14,8 +14,10 @@ export function measurementAvailability(dataset: string, variable: string) {
   }
   if (table === "formative_conversation_turns" && ["typing_duration_ms", "response_time_ms"].includes(variable)) {
     return { collection_status: "actor_and_method_dependent_elapsed_time",
-      analysis_guidance: "Current student rows: first nonempty input to submission, including pauses; both fields duplicate this interval. Tutor response_time_ms is provider latency. Separate actors and methods; do not add the fields." };
+      analysis_guidance: "Compatibility fields. Prefer student_input_elapsed_ms and model_call_latency_ms with student_timing_method/status. Input elapsed includes pauses, not active typing. Never add aliases or provider latency to an enclosing request wait." };
   }
+  if (table === "formative_conversation_turns" && variable === "student_input_elapsed_ms") return { collection_status: "student_elapsed_input_by_recorded_method", analysis_guidance: "New monotonic records end at the first Send and retain that timing on retries. Earlier wall-clock records are flagged, not relabeled. Restored drafts lack original input start; blank is not zero." };
+  if (table === "formative_conversation_turns" && variable === "model_call_latency_ms") return { collection_status: "linked_provider_call_latency", analysis_guidance: "Agent rows only, not student response time or pure inference. Full call/retry history is in formative_conversation_llm_calls.csv." };
   if (table === "feedback_exposure_events") return { collection_status: "browser_display_observation",
     analysis_guidance: "Display-ack-v2 observes partial viewport visibility for at least 500 ms. Generated, displayed, read and understood are distinct; absence of a receipt does not prove non-exposure." };
   if (table === "pause_episodes") return { collection_status: "explicit_lifecycle_observation",

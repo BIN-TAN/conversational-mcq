@@ -70,7 +70,7 @@ consent, eligibility, or withdrawal decisions.
 `response_stage_data_dictionary.csv` defines every exported field's source,
 calculation, unit, applicability, missing-value rule and calculation version.
 Unknown new columns fail the dictionary contract test instead of receiving a
-placeholder definition. Current derivation: `response-stage-derivation-v2`;
+placeholder definition. Current derivation: `response-stage-derivation-v3`;
 raw collector: `response-stage-observation-v1`.
 
 Let `m(e)` be the monotonic clock of an observed event in the **same browser
@@ -120,16 +120,75 @@ initial/transfer timing totals but included in `observed_stage_visit_count`.
 
 ## Formative Conversation Calculations
 
+### Separate Student Time and Waiting (2026-10-05)
+
+Use `response_submission_timing.csv` for submission-level separation, rather
+than treating a whole-item total as student working time. Each row retains
+session/item/snapshot/visit/document/submission join keys, UTC labels, raw
+monotonic endpoints, backend acceptance and quality flags. For submission n:
+
+| Variable | Formula and scope |
+| --- | --- |
+| `student_response_elapsed_ms` | Submit minus ready for the first submission; subsequent submit minus the preceding submission's controls-ready endpoint |
+| `submission_request_wait_ms` | Request-finished minus submit; includes transport and any server/AI processing |
+| `post_request_controls_wait_ms` | Controls-ready minus request-finished; includes refresh/render/scheduling and potentially hidden-page waiting |
+| `submission_system_wait_ms` | Controls-ready minus submit; contains both waiting components |
+
+These are rounded same-document monotonic differences. The two wait components
+partition total system waiting, so do not add the total again. Independent
+rounding can differ by 1 ms. Require contiguous sequence, consistent context,
+unique linked endpoints and nonoverlapping ordered submissions. Missing or
+ambiguous endpoints give blank values, not zero. A missing later UI receipt
+need not erase a complete earlier student interval. Backend acceptance is
+independent of client request success. Failed delivery can accompany a saved
+answer. Replayed event IDs do not add response rows.
+
+A validation rejection creates another submission interval once controls are
+usable again. A transport retry reuses the existing submission identity; it
+does not become another student response. Pauses and hidden time during a
+student interval remain elapsed time, not active work. Cross-visit/document
+gaps are not imputed. Whole-item totals and `time_to_accepted_submission_ms`
+retain their historical elapsed meaning, including intermediate system waits.
+
+For `formative_conversation_turns.csv`, prefer the explicit columns:
+
+- `student_input_elapsed_ms`: student-only first nonempty input to first Send.
+  New records use `elapsed_monotonic_first_input_to_submit`; retries retain
+  the original timing. Includes pauses, excludes subsequent request/model wait.
+- `model_call_latency_ms`: tutor-only latency from the linked AgentCall. It
+  is provider-operation latency, not pure inference or end-to-end UI waiting.
+  Failed and retried calls remain in `formative_conversation_llm_calls.csv`.
+- `student_timing_method` and `student_timing_status`: preserve the collection
+  method and flag historical wall-clock records as
+  `legacy_wall_clock_retry_unverified`. Historical `active_intervals` is not
+  relabeled as elapsed input. Unknown values remain blank.
+
+The browser freezes the duration at first Send per `client_message_id` and
+resets after success or a conversation change. It uses `performance.now()`;
+UTC labels are retained separately. On a backwards wall-clock adjustment,
+raw typing UTC labels remain available, while the compatibility
+`turn_started_at` is blank; monotonic elapsed time is unchanged. Invalid,
+nonfinite or greater-than-32-bit-millisecond spans are blank. A restored draft
+has no original first-input observation: sending it unchanged yields blank;
+editing it records only the newly observed period. New clocks do not recover
+earlier browser activity. Full tutor-display-to-next-reply reading time and
+end-to-end chat UI wait are not inferred from transcript/server timestamps.
+
+`response_time_ms` and `typing_duration_ms` remain compatibility fields, not
+additional independent measures. None of these elapsed times directly measures
+attention, thinking effort, comprehension or dissatisfaction.
+
 Use `actor_type` before interpreting any conversation timing:
 
 - On current browser **student** rows, `response_time_ms` and
-  `typing_duration_ms` are the same `max(0, submitted client time - first
-  nonempty input client time)`. They include pauses and are not two independent
+  `typing_duration_ms` are the same rounded monotonic first-Send minus first
+  nonempty-input interval. They include pauses and are not two independent
   measures. They do not include reading time before the first input.
 - On generated **tutor** rows, `response_time_ms` is the linked provider latency.
   It is not student response time. Platform-only messages may leave it blank.
-- Current browser input timing uses the client wall clock; clock changes are a
-  limitation. Check `typing_duration_method`; do not relabel historical
+- Earlier browser input timing used the client wall clock; clock changes and
+  pre-persistence retries remain limitations of those historical rows.
+  Check `typing_duration_method`; do not relabel historical
   `active_intervals` records as elapsed timing.
 - `edit_count` increments on input changes when the previous draft was nonempty.
   `backspace_count` counts observed Backspace/Delete keys, not every deletion
