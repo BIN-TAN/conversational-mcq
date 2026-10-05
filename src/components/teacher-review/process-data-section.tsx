@@ -22,7 +22,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
     { title: "Page hidden / returns", value: `${number(data.core.page_hidden_count)} / ${number(data.core.matched_return_count)}`, detail: "Returns are paired with a recorded page-hidden event. Window focus changes are not counted as page exits." },
     { title: "Idle intervals", value: number(data.core.idle_interval_count), detail: `${number(data.core.extended_idle_interval_count)} extended idle observations. The thresholds overlap; do not add these counts. Reading and waiting can produce idle intervals.` },
     { title: "Response revisions", value: number(data.core.recorded_response_revision_count), detail: "Recorded response updates, not keystrokes. One update can change several response fields." },
-    { title: "Assessment pauses / resumes", value: `${data.core.assessment_pause_count} / ${data.core.assessment_resume_count}`, detail: "Explicit assessment lifecycle actions, separate from inferred idle time and conversation-only pauses." },
+    { title: "Assessment pauses / resumes", value: `${data.core.assessment_pause_count} / ${data.core.assessment_resume_count}`, detail: "Pause episodes and matched returns, excluding duplicate records. Separate from idle time and conversation-only pauses." },
     { title: "Page reloads", value: number(data.core.page_reload_count), detail: "Observed browser reloads, not item navigation." }
   ];
   function download(format: "json" | "csv") {

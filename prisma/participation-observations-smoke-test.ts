@@ -116,4 +116,32 @@ const closed = buildProcessDataSummary({ started_at: at(0), completed_at: at(300
 assert.equal(closed.conversations[0].conversation_ended_at, at(290).toISOString());
 assert.equal(closed.conversations[0].student_turn_count, 0, "Closing an attempt does not invent student dialogue");
 assert.equal(closed.conversations[0].edits, null);
+const skewedSummary = buildProcessDataSummary({ started_at: at(0), completed_at: null, last_activity_at: at(80),
+  events: [], items: [], conversations: [{ observation: clientLifecycle, topic_title: "Synthetic clock case",
+    student_turn_count: 1, lifecycle_events: clientLifecycle.lifecycle_events as { event_type: string; occurred_at: Date; event_source: string }[], input_telemetry: [] }] });
+assert.equal(skewedSummary.timing.elapsed_ms, 260000, "Summary must not reintroduce the raw browser clock after deriving server activity");
+
+const secondTopic = { ...historical, conversation_public_id: "second-conversation", concept_unit_public_id: "second-topic" };
+const aliasPause = event("session_paused", 80, { preserved_phase: "planning_completed" });
+const canonicalPause = event("attempt_paused", 80, { preserved_phase: "planning_completed", current_concept_unit_public_id: "topic-demo" });
+for (const ordered of [[aliasPause, canonicalPause], [canonicalPause, aliasPause]]) {
+  assert.equal(derivePauseEpisodes(ordered, [historical, secondTopic], null)[0].conversation_public_id, "conversation-demo",
+    "Equal-time legacy aliases must not discard canonical topic context depending on database row order");
+}
+const duplicatedLifecycle = [canonicalPause, event("session_paused", 81), event("attempt_resumed", 100),
+  event("session_resumed", 101), event("attempt_ended_by_student", 110), event("attempt_paused", 120)];
+const duplicateSummary = buildProcessDataSummary({ started_at: at(0), completed_at: null, last_activity_at: at(120),
+  events: duplicatedLifecycle, items: [], conversations: [] });
+assert.equal(duplicateSummary.core.assessment_pause_count, 1, "Core counts must match episodes despite delayed aliases and post-end records");
+assert.equal(duplicateSummary.core.assessment_resume_count, 1);
+const firstTurnConversation = { ...historical, conversation_turns: [{ actor_type: "agent", sequence_index: 1, created_at: at(60) }] };
+const receipt = (index: unknown, seconds = 70) => event("formative_feedback_shown", seconds, {
+  conversation_public_id: historical.conversation_public_id, display_event_contract_version: "display-ack-v2", source_turn_sequence_index: index
+});
+assert.equal(conversationParticipation(firstTurnConversation, [receipt(true), receipt([1]), receipt("1e0"), receipt(1, 59)])
+  .displayed_tutor_reply_count, 0, "Malformed references and receipts preceding the saved tutor message are not display evidence");
+assert.equal(conversationParticipation(firstTurnConversation, [receipt("1"), receipt(1)]).displayed_tutor_reply_count, 1);
+const numericStringSummary = buildProcessDataSummary({ started_at: at(0), completed_at: null, last_activity_at: at(80),
+  events: [receipt("1")], items: [], conversations: [] });
+assert.equal(numericStringSummary.timeline[0].source_turn_sequence_index, 1, "Legacy numeric strings retain the same join key in the timeline");
 console.log("Participation, timing, pause/resume/termination, numbering, clock and privacy regression checks passed. No AI or database calls.");

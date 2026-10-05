@@ -1,11 +1,11 @@
-import { deriveItemTiming, deriveSessionTiming, type TimingEventLike } from "../student-assessment/timing-contract";
+import { deriveItemTiming, deriveSessionTiming, recordedEventTimestamp, type TimingEventLike } from "../student-assessment/timing-contract";
 import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
 import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
-import { conversationActivityDates, conversationParticipation, derivePauseEpisodes, type ObservedConversation } from "./participation-observations";
+import { canonicalAssessmentLifecycleEvents, conversationActivityDates, conversationParticipation, derivePauseEpisodes, displaySourceTurnIndex, type ObservedConversation } from "./participation-observations";
 import { presentedItemPositions } from "./presented-item-positions";
 import { isConfidenceRevisionEvent, isAlternativeRevisionEvent } from "../student-assessment/response-revision-events";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v7";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v8";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -106,7 +106,7 @@ type ConversationObservation = {
   observation?: ObservedConversation;
   topic_title: string;
   student_turn_count: number;
-  lifecycle_events: { event_type: string; occurred_at: Date; event_source: string }[];
+  lifecycle_events: (TimingEventLike & { occurred_at: Date; event_source: string })[];
   input_telemetry: { edit_count: number; backspace_count: number; paste_event_count: number; final_message_length_chars: number }[];
 };
 
@@ -142,7 +142,7 @@ export function buildProcessDataSummary(input: {
   const positions = presentedItemPositions(input.events);
   const timing = deriveSessionTiming({ session_started_at: input.started_at,
     session_completed_at: input.completed_at, last_activity_at: input.last_activity_at, events: input.events,
-    additional_activity_at: [...conversationActivityDates(conversations), ...input.conversations.flatMap(c => c.lifecycle_events.map(e => e.occurred_at))] });
+    additional_activity_at: [...conversationActivityDates(conversations), ...input.conversations.flatMap(c => c.lifecycle_events.map(recordedEventTimestamp))] });
   const browserTypes = ["navigation_event", "page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible",
     "window_blur", "window_focus", "long_pause", "inactivity_detected", "typing_activity_summary", "paste_detected", "refresh_recovery"];
   const browserEvents = input.events.filter((event) => browserTypes.includes(event.event_type) && event.event_source === "frontend");
@@ -150,15 +150,9 @@ export function buildProcessDataSummary(input: {
   const typingEvents = input.events.filter((event) => event.event_type === "typing_activity_summary");
   const entries = input.events.filter((event) => event.event_type === "navigation_event" && record(event.payload).reason === "assessment_view_entered").length;
   const changes = countResponseRevisionEvents(input.events);
-  const aliases: Record<string, string> = { session_paused: "attempt_paused", session_resumed: "attempt_resumed" };
-  const lifecycleKey = (event: ProcessDataEvent, type = event.event_type) => {
-    const at = event.occurred_at ?? event.created_at;
-    return at ? `${type}:${new Date(at).getTime()}` : null;
-  };
-  const canonicalLifecycle = new Set(input.events.filter((event) => ["attempt_paused", "attempt_resumed"].includes(event.event_type)).map((event) => lifecycleKey(event)).filter(Boolean));
   // Legacy and canonical records can describe the same operation. Collapse only
   // matched timestamps in the readable view; retain unmatched historical events.
-  const readableEvents = input.events.filter((event) => !aliases[event.event_type] || !canonicalLifecycle.has(lifecycleKey(event, aliases[event.event_type])));
+  const readableEvents = canonicalAssessmentLifecycleEvents(input.events);
   const timeline: ProcessTimelineEntry[] = readableEvents.filter((event) => eventLabels[event.event_type] || event.event_type === "navigation_event" ||
     isConfidenceRevisionEvent(event) || isAlternativeRevisionEvent(event) ||
     (event.event_type === "response_stage_observation" && ["ready", "first_input", "offline", "online"].includes(String(record(event.payload).observation_kind))) ||
@@ -173,7 +167,7 @@ export function buildProcessDataSummary(input: {
       event_type: event.event_type, event_source: event.event_source ?? null,
       recorded_at_field: event.occurred_at ? "occurred_at" : event.created_at ? "created_at_fallback" : "unavailable",
       client_occurred_at: iso(payload.client_occurred_at), server_received_at: iso(payload.server_received_at),
-      source_turn_sequence_index: exposure && Number.isInteger(payload.source_turn_sequence_index) && Number(payload.source_turn_sequence_index) > 0 ? Number(payload.source_turn_sequence_index) : null,
+      source_turn_sequence_index: exposure ? displaySourceTurnIndex(payload.source_turn_sequence_index) : null,
       display_event_contract_version: exposure && ["display-ack-v1", "display-ack-v2"].includes(String(payload.display_event_contract_version)) ? String(payload.display_event_contract_version) : null,
       category: exposure ? "Feedback display" : event.event_type.startsWith("workflow_job_") ? "System waiting" : event.event_type === "typing_activity_summary" ? "Typing" : ["window_blur", "window_focus"].includes(event.event_type) ? "Window focus" :
         browserTypes.includes(event.event_type) ? "Browser activity" : isConfidenceRevisionEvent(event) || isAlternativeRevisionEvent(event) || ["answer_changed", "reasoning_revised", "reasoning_edited"].includes(event.event_type) ? "Revisions" : "Assessment activity",
@@ -218,6 +212,7 @@ export function buildProcessDataSummary(input: {
       pause_episodes: "Explicit pauses paired with the next same-scope resume before termination; duplicates collapse. pause_duration_ms = resumed_at - paused_at on server timestamps. Unmatched durations are null; no_resume_recorded is censored at export, not abandonment. Overlapping assessment/conversation scopes are not additive.",
       display_receipt_to_pause_ms: "Only when the receipt belongs to the current participation window: pause server time minus latest matching display-ack-v2 tutor receipt. Window starts at the latest conversation start, assessment resume/view-open, or linked conversation resume/reentry. Prior-visit receipts remain available but the interval is null. Not reading time or satisfaction. Student messages before pause are cumulative in the linked conversation, not this visit only.",
       conversation_pause_counts: "pause_count/resume_count retain conversation-only lifecycle event counts. assessment_pause_count/assessment_resume_count count matched assessment-scope episodes linked to this conversation. The scopes can overlap; do not sum them. Missing conversation linkage is null, not zero.",
+      assessment_pause_counts: "Core assessment_pause_count counts assessment-scope pause episodes; assessment_resume_count counts those with a matched resume before termination. Duplicate aliases, repeated pauses, unmatched resumes and post-termination actions do not inflate these counts. Raw events remain in the assessment log and research archive.",
       conversation_ended_at: "Recorded conversation completion/end timestamp, not assessment completion or evidence of learning. A closed conversation with zero student messages has no submitted chat response; reading, satisfaction and improvement are not inferred.",
       presented_item_position: "Student-facing initial position from persisted item_presented metadata. Null when unknown/conflicting; item_order remains authoring order.",
       display_observation: "display-ack-v2: partial viewport display for at least 500 ms, not proof of reading, full exposure or understanding. display-ack-v1: legacy component mount, not verified visibility. Missing version is unknown. No event means unobserved, not necessarily unseen.",
@@ -240,8 +235,8 @@ export function buildProcessDataSummary(input: {
       matched_return_count: observed ? timing.page_hidden_interval_count : null,
       idle_interval_count: observed ? count("long_pause") : null,
       extended_idle_interval_count: observed ? count("inactivity_detected") : null,
-      assessment_pause_count: readableEvents.filter((event) => ["attempt_paused", "session_paused"].includes(event.event_type)).length,
-      assessment_resume_count: readableEvents.filter((event) => ["attempt_resumed", "session_resumed"].includes(event.event_type)).length,
+      assessment_pause_count: pauseEpisodes.filter(episode => episode.pause_scope === "assessment").length,
+      assessment_resume_count: pauseEpisodes.filter(episode => episode.pause_scope === "assessment" && episode.return_status === "resumed").length,
       recorded_response_revision_count: input.items.reduce((sum, item) => sum + item.revision_count, 0),
       revision_fields: changes,
       page_reload_count: observed ? count("refresh_recovery") : null,

@@ -1,7 +1,7 @@
 # Pause, participation and session timing
 
-Implemented contracts: `process-data-summary-v7`, `session-timing-v4`,
-`participation-observation-v2`. These are deterministic projections of persisted
+Implemented contracts: `process-data-summary-v8`, `session-timing-v4`,
+`participation-observation-v3`. These are deterministic projections of persisted
 records, not new learning scores. No migration or historical transcript rewrite
 is required. Item timing retains its own separately exported contract.
 
@@ -85,6 +85,32 @@ missing current-visit display is not evidence that the student did not read.
 
 Raw process events, lifecycle events and conversation turns remain available.
 These summary tables are reproducible convenience views, not replacement data.
+
+### Boundary regression corrections
+
+Version 3 chooses the canonical assessment pause/resume record over its legacy
+alias when their server timestamps match, before resolving topic context. This
+keeps a multi-topic pause linked to the same conversation regardless of database
+row order. Unmatched aliases remain in the readable timeline. Repeated pauses
+without a resume form one episode, including aliases delivered later.
+
+In process summary v8, the core assessment pause count equals the number of
+assessment-scope episodes, and its resume count equals the number with a matched
+return. Orphan resumes and post-termination events are not counted as matched
+returns. The timeline and raw archive retain their source records. Historical
+conversation-only raw counters retain their separately documented meaning.
+
+Display references accept positive safe integers or digit-only numeric strings;
+booleans, arrays, decimals and exponent strings are not turn IDs. A receipt must
+match a tutor turn in the same conversation and cannot precede its creation or
+the conversation start on the server clock. The timeline preserves valid legacy
+numeric-string joins. Missing or rejected receipt evidence is not unseen text.
+
+The teacher summary now consistently uses recorded server timestamps for its
+additional conversation activity, including its compatibility input without a
+full observation object. It no longer reintroduces raw browser-clock dates into
+the session endpoint after the shared timing function has normalized them.
+Raw event timestamps and student records remain unchanged.
 
 ## Corrected session endpoint
 

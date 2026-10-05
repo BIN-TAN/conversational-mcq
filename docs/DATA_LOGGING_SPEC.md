@@ -2138,3 +2138,21 @@ persisted messages; closing with no reply creates neither participation nor a
 learning claim. The scopes overlap and are not additive. The shared pause CSV
 dictionary contains the same formulas as the teacher download. Raw events,
 products, profiles, old downloads and conversation content are unchanged.
+
+### Participation boundary corrections (2026-10-05 follow-up)
+
+`process-data-summary-v8` derives core assessment pause/resume totals from the
+shared episode projection rather than counting raw lifecycle rows. Pauses count
+assessment-scope episodes; resumes count episodes with a matched same-scope return
+before termination. Duplicate aliases and unmatched returns remain available as
+raw events but do not inflate these totals. Conversation-only raw counters retain
+their original definition. All summary endpoint activity uses server-receipt
+timestamp priority, including compatibility conversation inputs.
+
+`participation-observation-v3` resolves equal-time canonical lifecycle records
+before aliases, preserving the canonical topic context independently of row order.
+Tutor-display joins require a positive safe integer or digit-only string index,
+a matching saved tutor turn, and a receipt at or after both conversation and turn
+creation. The same receipt validation drives conversation participation and pause
+context. Historical source events are preserved; regenerated projections carry
+their versions. See `PROCESS_PARTICIPATION_OBSERVATIONS.md` for formulas.

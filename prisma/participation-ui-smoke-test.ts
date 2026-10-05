@@ -20,7 +20,9 @@ async function main() {
       { event_type: "formative_feedback_shown", occurred_at: at(72), payload: { display_event_contract_version: "display-ack-v2",
         conversation_public_id: "conversation-demo", source_turn_sequence_index: 155, server_received_at: at(72).toISOString() } },
       { event_type: "attempt_paused", occurred_at: at(80), payload: { preserved_phase: "planning_completed", reason: "student_requested_pause" } },
+      { event_type: "session_paused", occurred_at: at(81) },
       { event_type: "attempt_resumed", occurred_at: at(120) },
+      { event_type: "session_resumed", occurred_at: at(121) },
       { event_type: "attempt_paused", occurred_at: at(160), payload: { preserved_phase: "planning_completed" } }
     ],
     conversations: [{ topic_title: "Reliability and score interpretation", student_turn_count: 0, input_telemetry: [], lifecycle_events: [], observation }]
@@ -58,6 +60,9 @@ async function main() {
       const download = await downloadPromise;
       const content = JSON.parse(await readFile((await download.path())!, "utf8"));
       assert.equal(content.pause_episodes.length, 2);
+      assert.equal(content.version, "process-data-summary-v8");
+      assert.equal(content.core.assessment_pause_count, 2);
+      assert.equal(content.core.assessment_resume_count, 1);
       assert.equal(content.pause_episodes[0].pause_duration_ms, 40000);
       assert.equal(content.pause_episodes[1].display_receipt_to_pause_ms, null);
       assert.equal(content.conversations[0].assessment_pause_count, 2);
