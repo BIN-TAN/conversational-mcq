@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T15:21:00+00:00",
+  "updated_at": "2026-10-05T15:53:05.964Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1998,6 +1998,101 @@
         "src/components/teacher-review/process-data-section.tsx",
         "prisma/participation-observations-smoke-test.ts",
         "prisma/participation-ui-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-06",
+      "date": "2026-10-05",
+      "title": "Participation boundary regressions and live AI student verification",
+      "application_commit": "7dac86b8d665af6e46bb05cadfc33a9df365c6ae",
+      "push_status": "Application committed and pushed to origin/main. Documentation is a separate record-only follow-up using [skip render].",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1sc9avcj2c73al84j0",
+        "source_commit": "7dac86b8d665af6e46bb05cadfc33a9df365c6ae",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1sc9avcj2c73al84j0",
+        "verified_at": "2026-10-05T15:53:20+00:00",
+        "evidence": [
+          "Render deployment detail shows Deploy succeeded | Live for source 7dac86b8d665af6e46bb05cadfc33a9df365c6ae; service-live log is 15:50:19Z. The deployment took 4m38s. Sixty-five migrations were found and none were pending. Screenshot retained locally.",
+          "Read-only runtime check at 15:50:50.376Z returned the exact release commit, web PID 14 and preparation-worker PID 15. Container memory was 223698944 of 2147483648 bytes, with zero oom/oom_kill counters at that moment. Test and production API credential fingerprints matched without exposing their values. The existing additional SSH proof-signature warning remained; host checking was not disabled.",
+          "Public health at 15:50:54.100Z returned status ok, database reachable, schema ready and migration readiness ready. Render's pruned-runtime dependency check reported zero vulnerabilities and confirmed that excepted build-only nodes were absent.",
+          "The live teacher process page rendered the new pause-count definition. A fresh production JSON download passed version checks for process-data-summary-v8 and participation-observation-v3, four item rows, and equality between headline pause/return totals and assessment-scope episodes. The native Save dialog was completed before verifying the new file; an earlier existing download was not treated as current evidence."
+        ]
+      },
+      "summary": "Expand testing around pause reporting, event identity and server timestamps; correct four shared reporting defects and verify three new synthetic student journeys using live AI calls and research exports.",
+      "changes": [
+        {
+          "area": "Summary clock boundaries",
+          "problem": "The teacher summary supplied normalized conversation activity and raw frontend lifecycle timestamps to the same duration calculation. A skewed browser clock could override the correct server boundary.",
+          "fix": "Use the shared server-recorded timestamp helper for both input paths and retain receipt metadata in the compatibility type.",
+          "impact": "Fresh teacher process summaries use version v8. The regression's inflated 9000000 ms becomes the expected 260000 ms; raw event timestamps remain preserved."
+        },
+        {
+          "area": "Pause context and counts",
+          "problem": "Equal-time legacy aliases could discard canonical topic context depending on row order. Delayed aliases, repeated pauses, orphan resumes or post-end actions could inflate headline counters relative to the episode table.",
+          "fix": "Select equal-time canonical lifecycle records independently of source order. Derive headline assessment pause and return totals from the same paired episodes used by the table.",
+          "impact": "Participation observation v3 preserves the topic relationship and makes teacher totals consistent with research pause episodes. Distinct raw records remain available in the assessment log and archive."
+        },
+        {
+          "area": "Feedback display evidence",
+          "problem": "JavaScript numeric coercion could interpret booleans, arrays or exponent strings as tutor-turn references. A receipt preceding the saved message could be counted as display evidence.",
+          "fix": "Share strict positive-integer parsing and tutor-receipt validation across conversation participation and pause context. Require the saved tutor turn and server chronology to match; keep valid historical digit strings compatible with timeline joins.",
+          "impact": "Invalid observations no longer increase derived display counts. Valid duplicate receipts count one tutor reply; missing evidence remains missing rather than being reconstructed."
+        }
+      ],
+      "data_impact": [
+        "Read-only projection changes. No schema migration, student response edits, attempt resets, model setting changes or production research-record rewrites. Shared pause definitions are included in the research dictionary.",
+        "Three synthetic journeys generated nine item response rows and fifteen conversation turns. Each complete research bundle had 37 manifest entries verified by byte length and SHA-256; transcript text, actor identity, session joins and item-evidence references matched the saved exports.",
+        "Synthetic service-level journeys do not produce browser display exposure, and that absence remained null. All three had zero profile-transition rows, so they do not establish live transition-update coverage; separate regression suites cover associated export structures."
+      ],
+      "tests": [
+        {
+          "name": "New reporting regressions",
+          "result": "Passed after reproducing and fixing defects",
+          "detail": "Participation and process-summary smoke tests verify skewed clocks, both alias orders with multiple topics, delayed duplicate records, post-end records, invalid display references, receipts before tutor creation, valid legacy strings and existing pause/return boundaries. Initial assertions reproduced 9000000 versus 260000 ms, missing topic context and false display counts. The version assertion was updated from v7 to v8 after the intentional version change."
+        },
+        {
+          "name": "Database research and student flow regression",
+          "result": "Eight of eight passed",
+          "detail": "Disposable local database: research export integrity, teacher readable transcript, analysis-ready export, timing dictionary, resumed-session timing, visibility timing, item timing contract and conversational flow. Migration and seed succeeded; only the harness-created database was dropped afterward."
+        },
+        {
+          "name": "Live AI student journeys",
+          "result": "Three of three passed with manual dialogue review",
+          "detail": "Thirty-eight real provider calls including simulated learner calls: little_reasoning_then_pause (12), several_errors_partial_correction (11), revisions_temptation_and_replay (15). Each completed preparation, two adaptive learner replies, validated tutor responses, explicit closure, dashboard read and export checks. In the revisions case, one internal profile failed high_confidence_overclaim validation; the automatic retry passed, and both call records were retained. Duplicate submissions created one job; reply replays made no extra AI calls. Answer, confidence and tempting-option revisions remained distinct. No student-facing Chinese or serialized internal fields were found."
+        },
+        {
+          "name": "Pedagogical review of synthetic replies",
+          "result": "No new blocking issue in the inspected replies",
+          "detail": "The tutor honored a pause request without claiming learning gain, distinguished a corrected idea from two remaining misconceptions, detected contradictory SEM reasoning, and continued to SEM and population-specific reliability after a correct transfer response. Illustrative intervals were qualified by model assumptions. This is a short diagnostic sample, not a claim that all misconceptions were resolved or classroom learning effectiveness was established."
+        },
+        {
+          "name": "Research bundle source checks",
+          "result": "Three of three passed",
+          "detail": "scripts/audit-ai-student-research.mjs independently checked each new report and exported bundle, including manifest hashes and sizes, transcript equality, session joins, three items per case and profile item identity. Zero transitions were observed and explicitly retained as a coverage limitation."
+        },
+        {
+          "name": "Browser static and production build checks",
+          "result": "Passed",
+          "detail": "Participation UI smoke passed at 1440 and 390 pixels: render, no document overflow, filtering, downloaded v8 JSON, episode-based counts and no browser errors. Screenshots were inspected. npm run typecheck, changed-file ESLint and git diff --check passed. An isolated clean-snapshot production build passed with two pre-existing unused-import warnings. The UI and lint checks were repeated to recover complete results after earlier command sessions had closed."
+        }
+      ],
+      "limitations": [
+        "The live scenarios used isolated local databases and current approved runtime settings, not classroom accounts. There was no full 30-turn endurance run, new concurrent classroom load test or full production research ZIP audit.",
+        "A partial display receipt is not evidence of reading or understanding. Pausing does not reveal dislike, disengagement or the reason for stopping. Current-visit boundaries and missing historical observations remain explicit.",
+        "Student-facing prompts, token limits and models are unchanged. Three short successful dialogues do not guarantee every future AI response; focused regressions prevent recurrence of the reproduced reporting defects."
+      ],
+      "references": [
+        "docs/PROCESS_PARTICIPATION_OBSERVATIONS.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/teacher-review/participation-observations.ts",
+        "src/lib/services/teacher-review/process-data-summary.ts",
+        "prisma/participation-observations-smoke-test.ts",
+        "prisma/participation-ui-smoke-test.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "scripts/audit-ai-student-research.mjs"
       ]
     }
   ],
