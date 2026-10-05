@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T18:54:07.879Z",
+  "updated_at": "2026-10-05T20:02:58.909Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2266,6 +2266,55 @@
         "Production verification is a time-specific snapshot, not a guarantee of future availability, browser event delivery or all-cohort completeness. Templates remain external worksheets rather than an in-app study-management workflow."
       ],
       "references": ["src/lib/services/teacher-dashboard/assessment-dashboard.ts", "src/components/teacher-dashboard/assessment-dashboard-client.tsx", "prisma/teacher-dashboard-smoke-test.ts", "docs/DATA_LOGGING_SPEC.md", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md"]
+    },
+    {
+      "id": "CMCQ-20261005-10",
+      "date": "2026-10-05",
+      "title": "Separate student response intervals from system and provider waiting",
+      "application_commit": "63dd68e024d6dd9de43bffd13a2f50ce9e25a16f",
+      "push_status": "Committed and pushed to origin/main. This ledger and regenerated Word record follow in a documentation-only [skip render] commit.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1vusfavr4c73a3chn0",
+        "source_commit": "63dd68e024d6dd9de43bffd13a2f50ce9e25a16f",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1vusfavr4c73a3chn0",
+        "verified_at": "2026-10-05T20:02:58.909Z",
+        "evidence": [
+          "Canonical deployment detail showed Deploy succeeded | Live for the exact source commit; duration 5m05s. Service-live log was 19:55:15Z. All 66 migrations were ready after applying the additive formative_monotonic_input_timing enum migration.",
+          "Read-only runtime check at 19:57:02Z returned the exact application commit, web PID 14 and preparation-worker PID 15. Container memory was 245063680 of 2147483648 bytes, with zero oom/oom_kill counters. Health reported ok, database reachable, schema ready and migration readiness ready. Existing additional SSH host-proof signature warning remained; host checking was not disabled.",
+          "Fresh authorized restricted export export_20261005_sddragg completed on this revision and passed timing, manifest and baseline-preservation audits. Browser download waiting initially timed out because a native Save dialog was pending; saving completed the download without weakening browser protections."
+        ]
+      },
+      "summary": "Make student response timing, request waiting, post-request controls waiting and linked model-call latency explicitly distinguishable, preserving original observations and historical measurement methods.",
+      "changes": [
+        {"area": "Submission-level research export", "problem": "Whole-item and last-accepted-response elapsed totals can contain rejected submissions and intermediate system waits. Stage-level totals did not expose each student opportunity separately.", "fix": "Add response_submission_timing.csv under response-stage-derivation-v3. First response starts at ready; subsequent responses start at the previous controls-ready endpoint. Export request, post-request and total wait separately with same-document monotonic endpoints, submission identity, backend acceptance, quality flags and complete dictionary formulas.", "impact": "Request/AI waiting is excluded from the paired student interval. Missing, conflicting or ambiguous sequences remain blank. Total system wait contains its two components and must not be added to them."},
+        {"area": "Formative conversation input timing", "problem": "Client wall-clock timing could change after device-clock adjustment. A transport retry before persistence could include the failed request's waiting in the student interval.", "fix": "Use elapsed_monotonic_first_input_to_submit for new browser input and freeze the first Send timing per client message identity. Reset timing on successful submission or conversation change. Add the measurement method to schema, API and telemetry validation while retaining historical methods.", "impact": "A retry preserves the original measured student interval. Raw UTC typing labels are kept separately; backwards UTC adjustment leaves the compatibility turn-start label blank rather than inventing a time. Student assessment decisions and dialogue content are unchanged."},
+        {"area": "Actor-specific timing variables", "problem": "The legacy response_time_ms field meant student elapsed input on student rows and provider latency on tutor rows, inviting accidental pooling.", "fix": "Add student_input_elapsed_ms, model_call_latency_ms, student_timing_method and student_timing_status. Provider timing comes from the linked AgentCall. Historical wall-clock rows are flagged; historical active-interval records are not relabeled as elapsed input. Keep old compatibility fields and raw evidence.", "impact": "Researchers can distinguish student and system measures explicitly and audit formulas without inferring attention or imputing missing observations."}
+      ],
+      "data_impact": [
+        "An additive enum migration introduces the new chat measurement method. No student response, sealed package, profile, attempt, credential or historical timing row is rewritten. No AI settings or prompt content changed.",
+        "Submission timing derives only from retained observations with matching IDs and contiguous same-document capture. This does not invent historical browser events. Backend acceptance remains separate from client delivery success.",
+        "Research formulas, units, clock sources, overlapping intervals, retry semantics and missing-value rules are documented in both the CSV dictionaries and PROCESS_PRODUCT_ANALYTICS_GUIDE.md. Existing whole-item and visit calculations retain their elapsed-time meanings."
+      ],
+      "tests": [
+        {"name": "Timing and current-pipeline database regressions", "result": "Passed", "detail": "13 suites passed in a disposable migrated PostgreSQL database, including research archive integrity, analysis-ready exports, profile projection, data dictionaries, conversational flow, feedback display, dashboard, telemetry foundation, separated timing, stage observations, process coverage, current v18r2 pipeline and suitability contracts. Provider calls were blocked; the database was removed. The new enum persisted and replay preserved its original method across backwards UTC labels."},
+        {"name": "Controlled timing scenarios", "result": "Passed", "detail": "Increasing request waiting from 100 ms to 60000 ms left the two student intervals unchanged at 1000 and 2000 ms. Tested failed delivery with accepted backend evidence, rejection/resubmission, duplicate events, missing endpoints, sequence gaps, reversed clocks, document conflicts, ambiguous endpoints, conflicting outcomes, independent visits, restored drafts and frozen chat retries. Dictionary definitions cover every new column."},
+        {"name": "Browser through database to research ZIP", "result": "Passed", "detail": "Isolated production-build Playwright run captured nine visits, a rejected explanation and accepted replacement, confidence, alternative reasoning, revision, reload and pause. Actual exported student/request/UI durations matched raw monotonic endpoints. Desktop/mobile process pages, ownership isolation, read-only history, event deduplication and forged-outcome rejection passed. Detailed process data remained excluded from model inputs; no live AI calls."},
+        {"name": "Build and static checks", "result": "Passed with existing warnings", "detail": "Typecheck, scoped lint, diff checks and clean-snapshot production build passed. Source lint reported zero errors and two pre-existing unused-type/import warnings. Initial local database and build IPC sandbox restrictions were resolved using authorized local execution; a restricted PATH failure was corrected without changing application dependencies."},
+        {"name": "Test fixture corrections and residual legacy gap", "result": "Current tests passed; legacy fixture remains stale", "detail": "An old host-v5 runtime suite stopped first at its stale v5.3 expectation and then at a missing legacy misconception catalog. Its temporary edits were reverted, not used to weaken application guards. Current v18r2 pipeline and telemetry foundation provide the relevant passing coverage. A provider-boundary test initially used the wrong disposable-database prefix; it passed in its required UX database. A new export assertion initially assumed wall-clock input, but the fixture supplies active_intervals; corrected it to require blank elapsed input and preserved historical method."},
+        {"name": "Streaming export stress", "result": "Passed", "detail": "Streaming ZIP checks passed multiline CSV, exact row counts, SHA-256, CRC, coverage equivalence, admission control and failure cleanup. Local synthetic stress exported 65536 rows and 81578264 uncompressed bytes in 2771 ms, with observed peak RSS 227016704 bytes and RSS increase 128647168 bytes. This is not a production concurrency guarantee."},
+        {"name": "Production release and export verification", "result": "Passed", "detail": "The fresh archive declared the exact deployed revision. All 42 manifest entries passed byte counts, SHA-256, CSV row counts and ZIP CRC. There were 56 sessions, 231 products and 225 sealed baseline items; all 1800 compared baseline values were unchanged. The new table contained 1010 student intervals and 1010 system waits, with all 4040 populated duration formulas exactly matching raw endpoints. Quality was valid for 1001 rows and partial for nine rows solely because backend outcome was missing; their recorded durations remained valid and acceptance remained blank."},
+        {"name": "Production conversation timing and research contracts", "result": "Passed", "detail": "All 166 formative turns had correct actor separation: 107 tutor rows had linked call latency and no student duration; 59 student rows retained legacy wall-clock timing and explicit retry-unverified status. No historical row was relabeled as newly collected monotonic timing. New-method persistence and retry freezing were exercised in disposable browser/database tests, not by modifying real students' histories. Tri-state outcomes, dictionary coverage, stable comparison pairs, provenance aliases and intentionally blank study templates passed."}
+      ],
+      "limitations": [
+        "Student intervals remain elapsed opportunities including pauses or hidden-page time; they are not active thinking, typing or attention measurements. Whole-item elapsed values can include intermediate waiting.",
+        "Provider-call latency includes provider/transport overhead and is not pure inference time. It can be nested in request wait and must not be added again. Full chat display-to-next-reply reading time and end-to-end chat UI waiting are not reconstructed from server timestamps.",
+        "Restored drafts have no original input-start observation; unchanged submission remains blank, while editing records only the newly observed portion. Historical wall-clock timing is preserved and flagged, not silently converted. Browser event delivery and client observations are not guaranteed complete or trustworthy.",
+        "No new live AI dialogue was run for this instrumentation/export release. The current deterministic runtime and browser checks validate timing and persistence, not educational effectiveness or universal future reliability."
+      ],
+      "references": ["src/components/student-assessment/formative-input-timing.ts", "src/lib/services/student-assessment/response-stage-data.ts", "src/lib/services/teacher-research-data/response-stage-export.ts", "src/lib/services/teacher-research-data/conversation-timing.ts", "prisma/research-timing-separation-smoke-test.ts", "scripts/response-stage-browser-smoke.mjs", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md", "docs/DATA_LOGGING_SPEC.md"]
     }
   ],
   "historical_index": [
