@@ -2120,3 +2120,21 @@ See [AI input deduplication](AI_INPUT_DEDUPLICATION.md) for exact definitions,
 fallback behavior, request-body reduction formulas, token-accounting caveats,
 and the narrowly approved Sol low-reasoning configuration. Compression metrics
 are implementation measures, not student behavior or learning outcomes.
+
+### Return-visit pause context (2026-10-05 review)
+
+`participation-observation-v2` records `participation_window_started_at` and
+`display_receipt_scope` in the shared teacher/research pause projection. Only a
+matching tutor receipt in the current window produces `display_receipt_to_pause_ms`.
+The window begins at the latest conversation start, assessment resume/view-open,
+or this conversation's resume/reentry at or before the pause. An older receipt
+remains stored in the projection for provenance; its interval is null rather than
+counting days away as current-visit time. Both receipt and pause use server clocks.
+
+`process-data-summary-v7` separates conversation-only pause/resume counts from
+assessment pause episodes linked to that conversation, adds the public join IDs,
+and exposes the recorded conversation end time. Student messages remain actual
+persisted messages; closing with no reply creates neither participation nor a
+learning claim. The scopes overlap and are not additive. The shared pause CSV
+dictionary contains the same formulas as the teacher download. Raw events,
+products, profiles, old downloads and conversation content are unchanged.

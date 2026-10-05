@@ -39,6 +39,9 @@ assert.equal(episodes.length, 3, "Legacy alias must not duplicate an episode; sc
 assert.equal(episodes[0].student_messages_before_pause, 0);
 assert.equal(episodes[0].pause_duration_ms, 40_000);
 assert.equal(episodes[0].display_receipt_to_pause_ms, 8000, "Use server receipt, not mixed browser/server clocks");
+assert.equal(episodes[0].display_receipt_scope, "current_participation_window");
+assert.equal(episodes[1].display_receipt_scope, "earlier_participation_window");
+assert.equal(episodes[1].display_receipt_to_pause_ms, null, "An earlier visit's receipt is not current-visit latency");
 assert.equal(episodes[1].pause_duration_ms, 10_000);
 assert.equal(episodes[2].student_messages_before_pause, 1);
 assert.equal(episodes[2].return_status, "no_resume_recorded");
@@ -84,5 +87,33 @@ const summary = buildProcessDataSummary({ started_at: at(0), completed_at: null,
 assert.equal(summary.timing.elapsed_ms, 250_000, "Latest conversation lifecycle must extend the open observation window");
 assert.equal(summary.timing.observed_hidden_ms, 30_000);
 assert.deepEqual(summary.pause_episodes, episodes, "Teacher and research share the same pause projection");
+assert.equal(summary.conversations[0].assessment_pause_count, 1);
+assert.equal(summary.conversations[0].assessment_resume_count, 1);
+assert.equal(summary.conversations[0].pause_count, 2, "Conversation-only counts remain separate");
+assert.equal(summary.conversations[0].conversation_public_id, conversation.conversation_public_id);
 assert(!JSON.stringify(summary.pause_episodes).includes("dislike"), "No inferred affect in pause rows");
+
+const resumedDaysLater = [display, event("attempt_paused", 80, { preserved_phase: "planning_completed" }),
+  event("attempt_resumed", 300000), event("attempt_paused", 300180, { preserved_phase: "planning_completed" })];
+const historical = { ...conversation, conversation_turns: conversation.conversation_turns.slice(0, 1), lifecycle_events: [] };
+const repeatedVisit = derivePauseEpisodes(resumedDaysLater, [historical], null)[1];
+assert.equal(repeatedVisit.last_tutor_display_received_at, at(72).toISOString(), "Keep earlier display provenance");
+assert.equal(repeatedVisit.participation_window_started_at, at(300000).toISOString());
+assert.equal(repeatedVisit.display_receipt_to_pause_ms, null, "Do not report days away as this visit's interval");
+const reopened = derivePauseEpisodes([...resumedDaysLater,
+  event("navigation_event", 300010, { reason: "assessment_view_entered" }),
+  event("formative_feedback_shown", 300020, { ...display.payload as object, server_received_at: at(300020).toISOString() })
+], [historical], null)[1];
+assert.equal(reopened.participation_window_started_at, at(300010).toISOString());
+assert.equal(reopened.display_receipt_to_pause_ms, 160000, "Use the current visit's display even for an old tutor reply");
+assert.equal(reopened.display_receipt_scope, "current_participation_window");
+const unrelated = { ...historical, conversation_public_id: "another", started_at: at(300030), lifecycle_events: [event("resumed", 300100)] };
+assert.equal(derivePauseEpisodes([...resumedDaysLater, event("formative_feedback_shown", 300020,
+  { ...display.payload as object, server_received_at: at(300020).toISOString() })], [historical, unrelated], null)[1].conversation_public_id, null,
+  "An ambiguous assessment pause must not invent a topic link");
+const closed = buildProcessDataSummary({ started_at: at(0), completed_at: at(300), last_activity_at: at(300), events: [], items: [],
+  conversations: [{ topic_title: "Synthetic", observation: { ...historical, ended_at: at(290) }, student_turn_count: 0, lifecycle_events: [], input_telemetry: [] }] });
+assert.equal(closed.conversations[0].conversation_ended_at, at(290).toISOString());
+assert.equal(closed.conversations[0].student_turn_count, 0, "Closing an attempt does not invent student dialogue");
+assert.equal(closed.conversations[0].edits, null);
 console.log("Participation, timing, pause/resume/termination, numbering, clock and privacy regression checks passed. No AI or database calls.");

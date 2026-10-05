@@ -5,7 +5,7 @@ import { conversationActivityDates, conversationParticipation, derivePauseEpisod
 import { presentedItemPositions } from "./presented-item-positions";
 import { isConfidenceRevisionEvent, isAlternativeRevisionEvent } from "../student-assessment/response-revision-events";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v6";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v7";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -138,6 +138,7 @@ export function buildProcessDataSummary(input: {
 }) {
   const count = (...types: string[]) => input.events.filter((event) => types.includes(event.event_type)).length;
   const conversations = input.conversations.flatMap(c => c.observation ? [c.observation] : []);
+  const pauseEpisodes = derivePauseEpisodes(input.events, conversations, input.completed_at);
   const positions = presentedItemPositions(input.events);
   const timing = deriveSessionTiming({ session_started_at: input.started_at,
     session_completed_at: input.completed_at, last_activity_at: input.last_activity_at, events: input.events,
@@ -215,7 +216,9 @@ export function buildProcessDataSummary(input: {
       conversation_edits: "Counts sum the recorded input telemetry for submitted messages, not answer revisions or changes of belief. Edits, backspaces and pastes are null when no messages have input telemetry; recorded zeros remain zero. Partial coverage totals describe only observed messages. These overlap whole-page typing observations.",
       item_presentation: "Item made available is a server presentation event, not proof of browser display, reading or understanding.",
       pause_episodes: "Explicit pauses paired with the next same-scope resume before termination; duplicates collapse. pause_duration_ms = resumed_at - paused_at on server timestamps. Unmatched durations are null; no_resume_recorded is censored at export, not abandonment. Overlapping assessment/conversation scopes are not additive.",
-      display_receipt_to_pause_ms: "Pause server timestamp minus latest matching display-ack-v2 tutor receipt timestamp. Includes network effects; not reading time or satisfaction. Student messages before pause count only persisted turns in the uniquely linked conversation; unknown context is null.",
+      display_receipt_to_pause_ms: "Only when the receipt belongs to the current participation window: pause server time minus latest matching display-ack-v2 tutor receipt. Window starts at the latest conversation start, assessment resume/view-open, or linked conversation resume/reentry. Prior-visit receipts remain available but the interval is null. Not reading time or satisfaction. Student messages before pause are cumulative in the linked conversation, not this visit only.",
+      conversation_pause_counts: "pause_count/resume_count retain conversation-only lifecycle event counts. assessment_pause_count/assessment_resume_count count matched assessment-scope episodes linked to this conversation. The scopes can overlap; do not sum them. Missing conversation linkage is null, not zero.",
+      conversation_ended_at: "Recorded conversation completion/end timestamp, not assessment completion or evidence of learning. A closed conversation with zero student messages has no submitted chat response; reading, satisfaction and improvement are not inferred.",
       presented_item_position: "Student-facing initial position from persisted item_presented metadata. Null when unknown/conflicting; item_order remains authoring order.",
       display_observation: "display-ack-v2: partial viewport display for at least 500 ms, not proof of reading, full exposure or understanding. display-ack-v1: legacy component mount, not verified visibility. Missing version is unknown. No event means unobserved, not necessarily unseen.",
       timeline_clocks: "at uses the named recorded_at_field. Client occurrence and server receipt are separate clocks; missing provenance is unknown. Saved/generated replies do not establish display."
@@ -265,7 +268,11 @@ export function buildProcessDataSummary(input: {
         timing_quality: itemTiming.timing_quality_status };
     }),
     conversations: input.conversations.map((conversation) => ({
+      conversation_public_id: conversation.observation?.conversation_public_id ?? null,
+      concept_unit_public_id: conversation.observation?.concept_unit_public_id ?? null,
       topic_title: conversation.topic_title,
+      conversation_ended_at: [conversation.observation?.completed_at, conversation.observation?.ended_at]
+        .filter((at): at is Date => !!at && Number.isFinite(at.getTime())).sort((a, b) => a.getTime() - b.getTime())[0]?.toISOString() ?? null,
       participation: conversation.observation ? conversationParticipation(conversation.observation, input.events) : null,
       student_turn_count: conversation.student_turn_count,
       messages_with_input_telemetry: conversation.input_telemetry.length,
@@ -274,10 +281,14 @@ export function buildProcessDataSummary(input: {
       edits: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.edit_count, 0) : null,
       backspaces: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.backspace_count, 0) : null,
       paste_actions: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.paste_event_count, 0) : null,
+      assessment_pause_count: conversation.observation ? pauseEpisodes.filter(episode => episode.pause_scope === "assessment" &&
+        episode.conversation_public_id === conversation.observation!.conversation_public_id).length : null,
+      assessment_resume_count: conversation.observation ? pauseEpisodes.filter(episode => episode.pause_scope === "assessment" &&
+        episode.conversation_public_id === conversation.observation!.conversation_public_id && episode.return_status === "resumed").length : null,
       pause_count: conversation.lifecycle_events.filter((event) => event.event_type === "paused").length,
       resume_count: conversation.lifecycle_events.filter((event) => event.event_type === "resumed").length
     })),
-    pause_episodes: derivePauseEpisodes(input.events, conversations, input.completed_at),
+    pause_episodes: pauseEpisodes,
     timeline,
     limitations: [
       "Page visibility and idle intervals do not establish attention, learning, or misconduct. The system cannot see what happens on other pages.",

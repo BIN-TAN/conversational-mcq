@@ -1,7 +1,7 @@
 # Pause, participation and session timing
 
-Implemented contracts: `process-data-summary-v4`, `session-timing-v4`,
-`participation-observation-v1`. These are deterministic projections of persisted
+Implemented contracts: `process-data-summary-v7`, `session-timing-v4`,
+`participation-observation-v2`. These are deterministic projections of persisted
 records, not new learning scores. No migration or historical transcript rewrite
 is required. Item timing retains its own separately exported contract.
 
@@ -50,7 +50,14 @@ AI waiting, browser-hidden periods and unobserved inactivity can remain in it.
    pause in the linked conversation. Unknown/ambiguous conversation context is
    empty, not zero. A historical assessment pause links only to a unique eligible
    conversation in a recorded learning-conversation phase.
-4. `display_receipt_to_pause_ms = paused_at - last_tutor_display_received_at`.
+4. `display_receipt_to_pause_ms = paused_at - last_tutor_display_received_at`
+   only when the receipt belongs to the current participation window.
+   `participation_window_started_at` is the latest conversation start, assessment
+   resume, assessment view-open, or linked conversation resume/reentry at or
+   before the pause, using server timestamps. A previous visit's receipt remains
+   in `last_tutor_display_received_at`, but the interval is null and
+   `display_receipt_scope=earlier_participation_window`. A matching current receipt
+   has scope `current_participation_window`; absent receipts use `not_recorded`.
    Both use server-clock observations. Network delivery affects the interval.
    Display acknowledgements must match the conversation and a persisted tutor
    sequence index. Legacy acknowledgements are not upgraded to verified display.
@@ -59,6 +66,22 @@ AI waiting, browser-hidden periods and unobserved inactivity can remain in it.
    display receipt and first student reply. Counts of displayed replies are
    distinct source tutor turns. Missing acknowledgements do not mean unseen text.
    Numeric and historical numeric-string sequence indexes identify the same turn.
+
+The teacher conversation summary retains `pause_count` and `resume_count` as
+conversation-only lifecycle counts. Its separately named `assessment_pause_count`
+and `assessment_resume_count` count assessment-scope episodes linked to that
+conversation, with the latter restricted to matched returns. Unknown conversation
+linkage is null. These scopes can overlap and must not be added together. Public
+conversation/topic IDs are included for joins. `conversation_ended_at` is the
+earliest recorded conversation completion/end timestamp, not a learning outcome.
+Zero student messages remains zero when a student closes the conversation.
+
+Version 1 could report a multi-day display-to-pause interval after a return even
+when no display was acknowledged on that visit. Version 2 preserves the earlier
+receipt but leaves that interval empty. Older downloads are unchanged; re-exports
+identify the new projection. No source timestamps or historical behavior are
+backfilled. A new partial-display receipt is not guaranteed on a return, and
+missing current-visit display is not evidence that the student did not read.
 
 Raw process events, lifecycle events and conversation turns remain available.
 These summary tables are reproducible convenience views, not replacement data.

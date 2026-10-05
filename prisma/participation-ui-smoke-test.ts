@@ -59,6 +59,12 @@ async function main() {
       const content = JSON.parse(await readFile((await download.path())!, "utf8"));
       assert.equal(content.pause_episodes.length, 2);
       assert.equal(content.pause_episodes[0].pause_duration_ms, 40000);
+      assert.equal(content.pause_episodes[1].display_receipt_to_pause_ms, null);
+      assert.equal(content.conversations[0].assessment_pause_count, 2);
+      assert.equal(content.conversations[0].assessment_resume_count, 1);
+      assert.equal(content.conversations[0].pause_count, 0);
+      assert(await page.getByText("Assessment: 2 / 1", { exact: true }).isVisible());
+      assert(await page.getByText("Display recorded on an earlier visit", { exact: true }).isVisible());
       await page.getByRole("combobox").selectOption("Feedback display");
       assert.equal(await page.locator("ol > li").count(), 1);
       await page.getByRole("combobox").selectOption("key_activity");

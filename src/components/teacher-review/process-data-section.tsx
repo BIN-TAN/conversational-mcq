@@ -90,18 +90,18 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
           <td className="px-3 py-3">{conversation.messages_with_input_telemetry ? conversation.edits : "Not recorded"}</td>
           <td className="px-3 py-3">{conversation.messages_with_input_telemetry ? conversation.backspaces : "Not recorded"}</td>
           <td className="px-3 py-3">{conversation.messages_with_input_telemetry ? conversation.paste_actions : "Not recorded"}</td>
-          <td className="px-3 py-3">{conversation.pause_count} / {conversation.resume_count}</td>
+          <td className="px-3 py-3"><span className="block">Assessment: {number(conversation.assessment_pause_count)} / {number(conversation.assessment_resume_count)}</span><span className="block text-muted">Conversation-only: {conversation.pause_count} / {conversation.resume_count}</span>{conversation.conversation_ended_at ? <span className="mt-1 block text-muted">Conversation ended{conversation.student_turn_count === 0 ? " without a student reply" : ""}</span> : null}</td>
         </tr>)}</tbody>
       </table></div>
     </section> : null}
     <section>
       <h3 className="mb-3 text-lg font-semibold">Pauses and returns</h3>
       {data.pause_episodes.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm">
-        <thead className="border-b border-line text-muted"><tr>{["Paused / context", "Student replies before pause", "Last tutor display to pause", "Return", "Pause interval"].map(label => <th className="px-3 py-3 font-semibold" key={label}>{label}</th>)}</tr></thead>
+        <thead className="border-b border-line text-muted"><tr>{["Paused / context", "Student replies before pause", "This visit: last display to pause", "Return", "Pause interval"].map(label => <th className="px-3 py-3 font-semibold" key={label}>{label}</th>)}</tr></thead>
         <tbody>{data.pause_episodes.map((episode, index) => <tr key={index} className="border-b border-line">
           <th className="px-3 py-3 font-medium">{formatDate(episode.paused_at, true)}<span className="block font-normal text-muted">{episode.pause_scope === "assessment" ? "Assessment" : "Learning conversation"}{episode.pause_scope === "assessment" && episode.phase_at_pause ? ` / ${episode.phase_at_pause === "planning_completed" ? "Learning conversation" : episode.phase_at_pause.replaceAll("_", " ")}` : ""}</span></th>
           <td className="px-3 py-3">{number(episode.student_messages_before_pause)}</td>
-          <td className="px-3 py-3">{formatDuration(episode.display_receipt_to_pause_ms)}</td>
+          <td className="px-3 py-3">{formatDuration(episode.display_receipt_to_pause_ms)}{episode.display_receipt_scope === "earlier_participation_window" ? <span className="block text-muted">Display recorded on an earlier visit</span> : null}</td>
           <td className="px-3 py-3">{episode.resumed_at ? formatDate(episode.resumed_at, true) : episode.return_status === "ended_without_recorded_resume" ? "Attempt ended; no resume recorded" : "No resume recorded yet"}</td>
           <td className="px-3 py-3">{formatDuration(episode.pause_duration_ms)}</td>
         </tr>)}</tbody>

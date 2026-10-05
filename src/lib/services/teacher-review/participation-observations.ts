@@ -1,6 +1,6 @@
 import { recordedEventTimestamp, type TimingEventLike } from "../student-assessment/timing-contract";
 
-export const PARTICIPATION_OBSERVATION_VERSION = "participation-observation-v1";
+export const PARTICIPATION_OBSERVATION_VERSION = "participation-observation-v2";
 export type ObservedConversation = {
   conversation_public_id: string;
   concept_unit_public_id?: string | null;
@@ -44,6 +44,19 @@ export function conversationParticipation(conversation: ObservedConversation, ev
   };
 }
 
+function participationWindowStart(conversation: ObservedConversation, events: TimingEventLike[], before: Date) {
+  // A receipt from a previous visit is still evidence of display, but cannot
+  // measure this visit's display-to-pause interval.
+  const boundaries = [conversation.started_at,
+    ...events.filter(event => ["attempt_resumed", "session_resumed"].includes(event.event_type) ||
+      event.event_type === "navigation_event" && record(event.payload).reason === "assessment_view_entered")
+      .map(recordedEventTimestamp),
+    ...conversation.lifecycle_events.filter(event => ["resumed", "reentered"].includes(event.event_type))
+      .map(recordedEventTimestamp)
+  ].filter((date): date is Date => !!date && date >= conversation.started_at && date <= before);
+  return new Date(Math.max(...boundaries.map(date => date.getTime())));
+}
+
 export function derivePauseEpisodes(events: TimingEventLike[], conversations: ObservedConversation[], completedAt: Date | null) {
   const terminalTypes = ["assessment_completed", "session_completed", "attempt_ended_by_student", "attempt_ended_by_teacher"];
   const cutoff = completedAt ?? events.filter(event => terminalTypes.includes(event.event_type)).map(recordedEventTimestamp)
@@ -67,6 +80,8 @@ export function derivePauseEpisodes(events: TimingEventLike[], conversations: Ob
     return_status: "resumed" | "ended_without_recorded_resume" | "no_resume_recorded";
     student_messages_before_pause: number | null;
     last_tutor_display_received_at: string | null;
+    participation_window_started_at: string | null;
+    display_receipt_scope: "current_participation_window" | "earlier_participation_window" | "not_recorded";
     display_receipt_to_pause_ms: number | null;
     pause_reason: string;
     participation_observation_version: string;
@@ -93,6 +108,8 @@ export function derivePauseEpisodes(events: TimingEventLike[], conversations: Ob
         return e.event_type === "formative_feedback_shown" && p.display_event_contract_version === "display-ack-v2"
           && p.conversation_public_id === conversation.conversation_public_id && tutorIndexes.has(Number(p.source_turn_sequence_index)) && time && time <= at;
       }).map(recordedEventTimestamp).filter((date): date is Date => date !== null).sort((a, b) => b.getTime() - a.getTime())[0] : null;
+      const windowStart = conversation ? participationWindowStart(conversation, events, at) : null;
+      const displayInWindow = !!display && !!windowStart && display >= windowStart;
       const episode: typeof episodes[number] = {
         pause_scope: scope, conversation_public_id: conversation?.conversation_public_id ?? null,
         concept_unit_public_id: conversation?.concept_unit_public_id ?? text(payload.current_concept_unit_public_id),
@@ -100,7 +117,9 @@ export function derivePauseEpisodes(events: TimingEventLike[], conversations: Ob
         return_status: "no_resume_recorded",
         student_messages_before_pause: conversation ? conversation.conversation_turns.filter(turn => turn.actor_type === "student" && turn.created_at <= at).length : null,
         last_tutor_display_received_at: display?.toISOString() ?? null,
-        display_receipt_to_pause_ms: display ? at.getTime() - display.getTime() : null,
+        participation_window_started_at: windowStart?.toISOString() ?? null,
+        display_receipt_scope: !display ? "not_recorded" : displayInWindow ? "current_participation_window" : "earlier_participation_window",
+        display_receipt_to_pause_ms: displayInWindow ? at.getTime() - display!.getTime() : null,
         pause_reason: payload.reason === "student_requested_pause" || scope === "learning_conversation" && event.event_source === "backend" ? "student_requested_pause" : "not_recorded",
         participation_observation_version: PARTICIPATION_OBSERVATION_VERSION
       };
@@ -140,7 +159,9 @@ export const PAUSE_EPISODE_DEFINITIONS: Record<string, string> = {
   return_status: "resumed, ended_without_recorded_resume, or no_resume_recorded at export. The latter is right-censored, not permanent abandonment.",
   student_messages_before_pause: "Number of persisted student turns in the linked conversation with created_at <= paused_at. Blank if no unique conversation; zero is observed no messages.",
   last_tutor_display_received_at: "Latest server receipt of display-ack-v2 for a tutor turn in the linked conversation before pause. Partial viewport display only, not reading/comprehension. Missing is unobserved, not unseen.",
-  display_receipt_to_pause_ms: "paused_at minus last_tutor_display_received_at, server clock milliseconds. Network delay affects this interval; not reading time or a measure of dislike.",
+  participation_window_started_at: "Latest conversation start, assessment resume/view-open, or this conversation's resume/reentry at or before pause, using server-recorded timestamps. Blank if no uniquely linked conversation. A recorded visit boundary, not active study time.",
+  display_receipt_scope: "current_participation_window if the last matching display receipt is at or after participation_window_started_at; earlier_participation_window if older; not_recorded if absent. No inference of reading or satisfaction.",
+  display_receipt_to_pause_ms: "Only for current_participation_window: paused_at minus last_tutor_display_received_at, server clock milliseconds. Otherwise blank, not zero. Prior-visit receipts are preserved but do not yield multi-day display-to-pause intervals. Network effects remain; not reading time or dislike.",
   pause_reason: "student_requested_pause identifies the recorded action only; not_recorded otherwise. Motivation, satisfaction and reasons for pausing are not inferred.",
   participation_observation_version: "Version of deterministic participation/pause projection; raw source records are preserved."
 };
