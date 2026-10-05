@@ -109,11 +109,11 @@ function main() {
   try {
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
-      "formative-conversation-host-v7.2"
+      "formative-conversation-host-v7.13"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
-      "formative-conversation-v18r2-candidate-acceptance-v3"
+      "formative-conversation-v18r2-candidate-acceptance-v4"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION,
@@ -358,7 +358,7 @@ function main() {
     assert.equal(compiled.model, "gpt-5.6-sol");
     assert.equal(compiled.max_output_tokens, 7_000);
     assert.equal(compiled.store, false);
-    assert.match(String(compiled.input), /formative_lifecycle/u);
+    assert.match(JSON.stringify(compiled.input), /formative_lifecycle/u);
     assert.match(
       JSON.stringify(compiled.text),
       /profile_transition_recommendation/u

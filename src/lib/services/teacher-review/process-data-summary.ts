@@ -5,7 +5,7 @@ import { conversationActivityDates, conversationParticipation, derivePauseEpisod
 import { presentedItemPositions } from "./presented-item-positions";
 import { isConfidenceRevisionEvent, isAlternativeRevisionEvent } from "../student-assessment/response-revision-events";
 
-export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v5";
+export const PROCESS_DATA_SUMMARY_VERSION = "process-data-summary-v6";
 
 const eventLabels: Record<string, string> = {
   page_visibility_hidden: "Assessment page hidden",
@@ -36,7 +36,7 @@ const eventLabels: Record<string, string> = {
   attempt_ended_by_teacher: "Teacher ended the assessment",
   session_exited: "Assessment exited",
   session_completed: "Assessment completed",
-  item_presented: "Item displayed",
+  item_presented: "Item made available",
   option_clicked: "Answer selected",
   reasoning_submitted: "Explanation submitted",
   confidence_clicked: "Confidence selected",
@@ -212,7 +212,8 @@ export function buildProcessDataSummary(input: {
       time_to_first_action_ms: "Answer-stage ready to first input or submission, not pointer movement or focus.",
       explanation_elapsed_ms: "Reasoning-stage ready to last accepted submission; includes pre-input time and pauses, not pure typing.",
       system_wait_ms: "Sum of observed submission-to-usable-controls intervals. Overlaps stage/item elapsed time; do not add to it. Initial AI preparation and free-text generation are separate timeline events.",
-      conversation_edits: "Input-change events for submitted messages, not answer revisions or changes of belief. These overlap whole-page typing observations.",
+      conversation_edits: "Counts sum the recorded input telemetry for submitted messages, not answer revisions or changes of belief. Edits, backspaces and pastes are null when no messages have input telemetry; recorded zeros remain zero. Partial coverage totals describe only observed messages. These overlap whole-page typing observations.",
+      item_presentation: "Item made available is a server presentation event, not proof of browser display, reading or understanding.",
       pause_episodes: "Explicit pauses paired with the next same-scope resume before termination; duplicates collapse. pause_duration_ms = resumed_at - paused_at on server timestamps. Unmatched durations are null; no_resume_recorded is censored at export, not abandonment. Overlapping assessment/conversation scopes are not additive.",
       display_receipt_to_pause_ms: "Pause server timestamp minus latest matching display-ack-v2 tutor receipt timestamp. Includes network effects; not reading time or satisfaction. Student messages before pause count only persisted turns in the uniquely linked conversation; unknown context is null.",
       presented_item_position: "Student-facing initial position from persisted item_presented metadata. Null when unknown/conflicting; item_order remains authoring order.",
@@ -241,7 +242,7 @@ export function buildProcessDataSummary(input: {
       recorded_response_revision_count: input.items.reduce((sum, item) => sum + item.revision_count, 0),
       revision_fields: changes,
       page_reload_count: observed ? count("refresh_recovery") : null,
-      assessment_view_open_count: entries,
+      assessment_view_open_count: observed ? entries : null,
       paste_action_count: observed ? count("paste_detected") : null
     },
     typing: {
@@ -268,9 +269,11 @@ export function buildProcessDataSummary(input: {
       participation: conversation.observation ? conversationParticipation(conversation.observation, input.events) : null,
       student_turn_count: conversation.student_turn_count,
       messages_with_input_telemetry: conversation.input_telemetry.length,
-      edits: conversation.input_telemetry.reduce((sum, entry) => sum + entry.edit_count, 0),
-      backspaces: conversation.input_telemetry.reduce((sum, entry) => sum + entry.backspace_count, 0),
-      paste_actions: conversation.input_telemetry.reduce((sum, entry) => sum + entry.paste_event_count, 0),
+      input_telemetry_coverage: conversation.input_telemetry.length === 0 ? "not_recorded" :
+        conversation.input_telemetry.length < conversation.student_turn_count ? "partial" : "complete",
+      edits: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.edit_count, 0) : null,
+      backspaces: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.backspace_count, 0) : null,
+      paste_actions: conversation.input_telemetry.length ? conversation.input_telemetry.reduce((sum, entry) => sum + entry.paste_event_count, 0) : null,
       pause_count: conversation.lifecycle_events.filter((event) => event.event_type === "paused").length,
       resume_count: conversation.lifecycle_events.filter((event) => event.event_type === "resumed").length
     })),

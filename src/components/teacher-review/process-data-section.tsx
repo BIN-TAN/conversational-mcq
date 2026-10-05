@@ -139,7 +139,7 @@ export function ProcessDataSection({ data, sessionPublicId }: { data?: ProcessDa
         <div><dt className="text-muted">Whole-page typing summaries / keys / backspaces</dt><dd>{data.typing.summary_count} / {number(data.typing.key_count)} / {number(data.typing.backspace_count)}</dd></div>
         <div><dt className="text-muted">Whole-page paste actions</dt><dd>{number(data.core.paste_action_count)}</dd></div>
         <div><dt className="text-muted">Changed fields: answers / explanations / confidence / alternatives</dt><dd>{Object.values(data.core.revision_fields).join(" / ")}</dd></div>
-        <div><dt className="text-muted">Assessment view openings</dt><dd>{data.core.assessment_view_open_count}</dd></div>
+        <div><dt className="text-muted">Assessment view openings</dt><dd>{number(data.core.assessment_view_open_count)}</dd></div>
       </dl>
       <p className="mb-3 text-muted">Whole-page observations include the learning conversation; do not add them to conversation input counts.</p>
       <ul className="list-disc space-y-2 pl-5 text-muted">{data.limitations.map((limitation) => <li key={limitation}>{limitation}</li>)}</ul>

@@ -6,7 +6,7 @@ import {
   latestPersistedFormativeConversationProfileTransition
 } from "./formative-conversation/profile-projection";
 
-export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v1" as const;
+export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v2" as const;
 export const learningProfileInclude = { based_on_agent_call: { select: profileSourceCallSelect } } as const;
 
 // Reuse the transition validator without loading student messages or provider payloads.
@@ -79,8 +79,7 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
       ["minimal_or_no_demonstrated_understanding", "fragmented_or_limited_understanding", "misconception_based_understanding"].includes(profile.ability_profile)) {
       label = "Need more work";
       reason = "supported_difficulty_or_misconception";
-    } else if (diagnostic === "correct_but_independence_uncertain" ||
-      ["partial_understanding", "fragile_correct_understanding", "procedural_or_application_error"].includes(profile.ability_profile)) {
+    } else if (["partial_understanding", "fragile_correct_understanding", "procedural_or_application_error"].includes(profile.ability_profile)) {
       label = "Still developing";
       reason = "partial_fragile_or_uncertain_understanding";
     } else if (["mostly_correct_understanding", "robust_transfer_ready_understanding"].includes(profile.ability_profile)) {
@@ -107,7 +106,7 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
 
 export const UNDERSTANDING_SUMMARY_DEFINITIONS = {
   understanding_summary_version: "Read-only classification version. Does not rewrite stored profiles, answers or historical AI messages.",
-  understanding_label: "Shared dashboard/export label from the current canonical profile. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability or uncertain independence to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade or proof of transfer.",
+  understanding_label: "Shared dashboard/export label from the current canonical profile. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade or proof of independent transfer.",
   understanding_reason: "Deterministic mapping reason, not a new AI judgment; see understanding_label and the linked original profile.",
   understanding_caution: "reasoning_refinement_needed for the stored correct-but-fragile integrated diagnosis; independent_understanding_uncertain for that stored integrated diagnosis; profile_unavailable without eligible provenance; none_added otherwise. This is a retained diagnostic qualifier, not proof that no other limitations exist. Native mostly-correct understanding may coexist with a need to refine some reasoning.",
   understanding_profile_record_id: "Profile used for this summary; join profile_record_id. Current means the latest validated conversation transition or its initial profile, otherwise the topic's current profile pointer. Multiple topics use the most recently created current profile, not an average across topics.",

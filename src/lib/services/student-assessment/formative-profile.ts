@@ -3,7 +3,7 @@ import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-conte
 import { containsChineseText, containsInternalSystemInformation, STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS } from "@/lib/student-visible-safety";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { CHOICE_ANNOTATION_NORMALIZATION_VERSION, CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, normalizeChoiceOnlyAnnotations, validateSemanticItemReviews } from "./semantic-item-review";
+import { CHOICE_ANNOTATION_NORMALIZATION_VERSION, CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, normalizeChoiceOnlyAnnotations, semanticItemReviewSchemaForPackage, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
 import { resolveActiveOperationalApproval } from "@/lib/operational/active-approval-bundle";
 import { selectInitialFeedbackBudget } from "@/lib/operational/scoped-feedback-budget";
@@ -141,6 +141,12 @@ export const ChatNativeLiveFormativeProfileOutputSchema = ChatNativeFormativePro
   semantic_item_reviews: z.array(CurrentSemanticItemReviewSchema).min(1).max(12)
 });
 
+export function chatNativeProfileSchemaForPackage(payload: unknown) {
+  return ChatNativeLiveFormativeProfileOutputSchema.extend({
+    semantic_item_reviews: semanticItemReviewSchemaForPackage(payload)
+  });
+}
+
 export type ChatNativeFormativeProfileOutput = z.infer<
   typeof ChatNativeFormativeProfileOutputSchema
 >;
@@ -192,7 +198,7 @@ const CHAT_NATIVE_PROFILE_AGENT_VERSION = "chat-native-phase5-v1";
 const CHAT_NATIVE_TARGETED_FEEDBACK_AGENT_VERSION = "chat-native-phase6-v1";
 const CHAT_NATIVE_PROFILE_PROMPT_VERSION = "chat-native-formative-profile-v6";
 const CHAT_NATIVE_TARGETED_FEEDBACK_PROMPT_VERSION = "chat-native-formative-activity-evaluation-v2";
-const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v3";
+const CHAT_NATIVE_PROFILE_SCHEMA_VERSION = "chat-native-formative-profile-output-v4";
 const CHAT_NATIVE_TARGETED_FEEDBACK_SCHEMA_VERSION = "chat-native-formative-activity-evaluation-output-v1";
 export const CHAT_NATIVE_PROFILE_INSTRUCTIONS = `
 You are supporting a chat-native formative MCQ assessment after a protected initial item package.
@@ -2518,6 +2524,9 @@ async function callProviderOrMock(input: {
     }
   }
 
+  const liveOutputSchema = liveCallAllowed
+    ? chatNativeProfileSchemaForPackage(jsonRecord(input.provider_input).response_package)
+    : ChatNativeLiveFormativeProfileOutputSchema;
   const reservation = await reserveFormativeCallAttempt({
     id: randomUUID(),
     assessment_session_db_id: input.assessment_session_db_id,
@@ -2603,7 +2612,7 @@ async function callProviderOrMock(input: {
     instructions: CHAT_NATIVE_PROFILE_INSTRUCTIONS,
     cache_static_instructions: true,
     input: input.provider_input,
-    output_schema: ChatNativeLiveFormativeProfileOutputSchema,
+    output_schema: liveOutputSchema,
     schema_name: CHAT_NATIVE_PROFILE_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
     client_request_id: agentCall.client_request_id ?? `chat_native_profile_${randomUUID()}`,
     timeout_ms: getLlmRuntimeConfig().request_timeout_ms,
@@ -2632,7 +2641,7 @@ async function callProviderOrMock(input: {
     );
     const normalizedOutput = choiceNormalization.removed.length
       ? { ...jsonRecord(canonicalOutput), semantic_item_reviews: choiceNormalization.reviews } : canonicalOutput;
-    const parsed = ChatNativeLiveFormativeProfileOutputSchema.safeParse(normalizedOutput);
+    const parsed = liveOutputSchema.safeParse(normalizedOutput);
     const validation: { ok: boolean; issues: SafeValidationIssue[] } = parsed.success
       ? validateChatNativeProfileStudentOutput({ output: parsed.data, correct_options: input.correct_options })
       : { ok: false, issues: validationIssueSummaries(parsed.error.issues) };

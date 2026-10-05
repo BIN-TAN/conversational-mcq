@@ -26,7 +26,14 @@ for (const ability_profile of ["minimal_or_no_demonstrated_understanding", "frag
 expect({ integrated_diagnostic_profile: "misconception_with_sufficient_engagement" }, "Need more work");
 expect({ integrated_diagnostic_profile: "correct_but_fragile_understanding" }, "Mostly understood");
 expect({ ability_profile: "fragile_correct_understanding", integrated_diagnostic_profile: "correct_but_fragile_understanding" }, "Still developing");
-expect({ integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Still developing");
+expect({ integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Mostly understood");
+expect({ ability_profile: "fragile_correct_understanding", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Still developing");
+expect({ ability_profile: "partial_understanding", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Still developing");
+expect({ ability_profile: "misconception_based_understanding", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Need more work");
+expect({ evidence_sufficiency: "insufficient", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Unavailable / insufficient evidence");
+const independentCaution = learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_independence_uncertain" });
+assert.equal(independentCaution.understanding_caution, "independent_understanding_uncertain");
+assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v2");
 for (const integrated_diagnostic_profile of ["insufficient_evidence_for_formative_decision", "low_engagement_limits_interpretability", "conflicting_evidence_needs_clarification"]) expect({ integrated_diagnostic_profile }, "Unavailable / insufficient evidence");
 expect({ ability_profile: "insufficient_evidence" }, "Unavailable / insufficient evidence");
 expect({ evidence_sufficiency: "insufficient" }, "Unavailable / insufficient evidence");
@@ -41,4 +48,4 @@ assert.equal(learningProfileSummary({ ...profile, process_interpretation_caution
 assert.equal(learningProfileSummary(profile).understanding_profile_stage, "baseline");
 assert.equal(learningProfileSummary({ ...profile, profile_type: "updated" }).understanding_profile_stage, "updated");
 assert.equal(learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_fragile_understanding" }).understanding_caution, "reasoning_refinement_needed");
-console.log(`Learning-profile summary checks passed: ${checks + 7}.`);
+console.log(`Learning-profile summary checks passed: ${checks + 9}.`);

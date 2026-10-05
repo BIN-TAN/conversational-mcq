@@ -45,6 +45,19 @@ const record = (value: unknown): Record<string, unknown> =>
 const text = (value: unknown) => typeof value === "string" ? value : "";
 const normalize = (value: string) => value.normalize("NFKC").replace(/\s+/g, " ").trim();
 
+export function semanticItemReviewSchemaForPackage(payload: unknown) {
+  const responses = z.array(z.object({ item_public_id: z.string().min(1) })).min(1).max(12)
+    .parse(record(payload).item_responses);
+  const ids = responses.map(response => response.item_public_id);
+  if (ids.some(id => !id.trim()) || new Set(ids).size !== ids.length) {
+    throw new Error("semantic_item_review_source_identity_invalid");
+  }
+  // Constrain generation, not just acceptance. Never guess or repair an item ID.
+  return z.array(CurrentSemanticItemReviewSchema.extend({
+    item_public_id: z.enum(ids as [string, ...string[]])
+  })).length(ids.length);
+}
+
 export const CHOICE_ANNOTATION_NORMALIZATION_VERSION = "choice-annotation-normalization-v1";
 
 // A selected letter is already recorded as a choice, not a quotation of reasoning.

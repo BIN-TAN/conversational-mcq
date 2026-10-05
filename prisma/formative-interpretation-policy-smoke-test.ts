@@ -41,6 +41,51 @@ assert(validateFormativeInterpretation({ candidate: supported, context }).valid,
 
 const reasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
   entry.source_role === "student" && entry.evidence_kind === "formative_student_turn")!.evidence_id;
+const baselineReasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
+  entry.evidence_kind === "assessment_reasoning")!.evidence_id;
+const historicalContext = structuredClone(supported);
+historicalContext.evidence_observations.push(
+  { evidence_type: "student_question_addressed", observation: "The earlier question is answered.", evidence_ids: [baselineReasoningId] },
+  { evidence_type: "learning_summary_progress", observation: "Earlier and later reasoning are contrasted.", evidence_ids: [baselineReasoningId, reasoningId] }
+);
+assert(validateFormativeInterpretation({ candidate: historicalContext, context }).valid,
+  "Historical context is not required to become current transition evidence");
+assert(!historicalContext.profile_transition_recommendation!.canonical_evidence_ids.includes(baselineReasoningId));
+for (const badId of ["ev_" + "f".repeat(24), context.allowed_evidence_catalog.evidence.find(entry => entry.source_role !== "student")!.evidence_id]) {
+  const invalid = structuredClone(historicalContext);
+  invalid.evidence_observations.at(-1)!.evidence_ids = [badId, reasoningId];
+  assert(!validateFormativeInterpretation({ candidate: invalid, context }).valid, "Historical context still requires valid student provenance");
+}
+const noBeforeAfter = structuredClone(historicalContext);
+noBeforeAfter.evidence_observations.at(-1)!.evidence_ids = [reasoningId];
+assert(!validateFormativeInterpretation({ candidate: noBeforeAfter, context }).valid);
+const staleField = structuredClone(historicalContext);
+staleField.profile_transition_recommendation!.canonical_evidence_ids.push(baselineReasoningId);
+staleField.profile_transition_recommendation!.field_evidence.find(entry => entry.profile_fields.includes("ability_profile"))!.evidence_ids = [baselineReasoningId];
+assert(!validateFormativeInterpretation({ candidate: staleField, context }).valid,
+  "A historical summary does not authorize historical evidence for a new profile change");
+const crossConversation = structuredClone(context);
+crossConversation.allowed_evidence_catalog.evidence.find(entry => entry.evidence_id === reasoningId)!.conversation_public_id = "another-conversation";
+assert(!validateFormativeInterpretation({ candidate: historicalContext, context: crossConversation }).valid);
+const laterContext = v18r2TestContext({ student_turn_count: 2, current_profile_evidence_cutoff_sequence_index: 2 });
+const later = structuredClone(historicalContext);
+const laterId = laterContext.allowed_evidence_catalog.evidence.find(entry =>
+  entry.evidence_kind === "formative_student_turn" && entry.source_sequence_index === 4)!.evidence_id;
+const priorTurnId = laterContext.allowed_evidence_catalog.evidence.find(entry =>
+  entry.evidence_kind === "formative_student_turn" && entry.source_sequence_index === 2)!.evidence_id;
+const laterRecommendation = later.profile_transition_recommendation!;
+laterRecommendation.canonical_evidence_ids = [laterId];
+laterRecommendation.field_evidence.forEach(entry => { entry.evidence_ids = [laterId]; });
+laterRecommendation.misconception_claim_dispositions.forEach(entry => { entry.evidence_ids = [laterId]; });
+later.evidence_observations[0].evidence_ids = [laterId];
+later.evidence_observations[1].evidence_ids = [priorTurnId];
+later.evidence_observations[2].evidence_ids = [priorTurnId, laterId];
+assert(validateFormativeInterpretation({ candidate: later, context: laterContext }).valid,
+  "A subsequent profile can preserve a question and cumulative before/after summary across its cutoff");
+const staleLearning = structuredClone(later);
+staleLearning.evidence_observations[1].evidence_type = "independent_transfer_application";
+assert(!validateFormativeInterpretation({ candidate: staleLearning, context: laterContext }).valid,
+  "The exception does not admit old learning-change or transfer evidence");
 const pending = structuredClone(supported);
 pending.lifecycle_recommendation = "complete";
 pending.evidence_observations.push({ evidence_type: "student_question_pending",

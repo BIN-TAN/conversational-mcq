@@ -22,7 +22,7 @@ import type {
 import { FormativeConversationV18PersistedProfileSnapshotSchema } from "./agent-contract-v18";
 
 export const FORMATIVE_CONVERSATION_EVIDENCE_ID_VALIDATOR_VERSION =
-  "formative-conversation-evidence-id-validator-v2" as const;
+  "formative-conversation-evidence-id-validator-v3" as const;
 
 export const FORMATIVE_CONVERSATION_EVIDENCE_ID_ISSUE_CODES = {
   catalogInvalid: "profile_transition_evidence_catalog_invalid",
@@ -133,10 +133,17 @@ function evidenceGroups(input: {
     ...input.observations.map((entry, index) => ({
       path: `evidence_observations.${index}.evidence_ids`,
       evidence_ids: entry.evidence_ids,
-      closure_required: true
+      closure_required: !historicalContextObservationTypes.has(entry.evidence_type)
     }))
   ];
 }
+
+// Question coverage and cumulative summaries preserve historical provenance;
+// they do not supply evidence for a new profile change.
+const historicalContextObservationTypes = new Set([
+  "student_question_pending", "student_question_addressed", "assessment_content_ambiguity",
+  "learning_summary_understanding", "learning_summary_progress", "learning_summary_remaining"
+]);
 
 export function validateFormativeConversationV18Transition(input: {
   conversation_public_id: string;
@@ -300,6 +307,25 @@ export function validateFormativeConversationV18Transition(input: {
     );
   }
   input.evidence_observations.forEach((observation, index) => {
+    if (historicalContextObservationTypes.has(observation.evidence_type)) {
+      const evidence = observation.evidence_ids.map(id => evidenceById.get(id));
+      const coverage = !observation.evidence_type.startsWith("learning_summary_");
+      if (!evidence.length || evidence.some(entry => !entry || entry.source_role !== "student" ||
+          !(entry.eligibility === "student_understanding" || (coverage && entry.eligibility === "evidence_quality_context")) ||
+          !["assessment_reasoning", "assessment_distractor_reasoning", "formative_student_turn"].includes(entry.evidence_kind))) {
+        issues.push(issue(FORMATIVE_CONVERSATION_EVIDENCE_ID_ISSUE_CODES.ineligible,
+          `evidence_observations.${index}.evidence_ids`, "Historical context requires student-authored reasoning or question references."));
+      }
+      if (observation.evidence_type === "learning_summary_progress" && !evidence.some(later =>
+        later?.evidence_kind === "formative_student_turn" && evidence.some(earlier => earlier &&
+          earlier.evidence_id !== later.evidence_id && (earlier.evidence_stage === "baseline_assessment" ||
+            (earlier.source_sequence_index !== null && later.source_sequence_index !== null &&
+              earlier.source_sequence_index < later.source_sequence_index))))) {
+        issues.push(issue(FORMATIVE_CONVERSATION_EVIDENCE_ID_ISSUE_CODES.temporal,
+          `evidence_observations.${index}.evidence_ids`, "A cumulative progress summary requires earlier and later student reasoning."));
+      }
+      return;
+    }
     if (
       observation.evidence_ids.some(
         (evidenceId) =>

@@ -33,6 +33,24 @@ assert(!JSON.stringify(result).includes("browser_tab_id"));
 assert.equal(result.timeline.filter((entry) => entry.action === "Assessment page hidden").length, 1, "No duplicate conversation visibility observation");
 assert.equal(buildProcessDataSummary({ ...base, events: [] }).core.page_hidden_count, null);
 assert.equal(buildProcessDataSummary({ ...base, events: [] }).typing.key_count, null);
+assert.equal(buildProcessDataSummary({ ...base, events: [] }).core.assessment_view_open_count, null);
+assert.equal(processEventLabel("item_presented"), "Item made available");
+const noInput = { topic_title: "Synthetic topic", student_turn_count: 2, input_telemetry: [], lifecycle_events: [] };
+const missingInput = buildProcessDataSummary({ ...base, events: [], conversations: [noInput] }).conversations[0];
+assert.equal(missingInput.input_telemetry_coverage, "not_recorded");
+assert.equal(missingInput.messages_with_input_telemetry, 0);
+assert.equal(missingInput.edits, null);
+assert.equal(missingInput.backspaces, null);
+assert.equal(missingInput.paste_actions, null);
+const zeroInput = { edit_count: 0, backspace_count: 0, paste_event_count: 0, final_message_length_chars: 20 };
+const partialInput = buildProcessDataSummary({ ...base, events: [], conversations: [{ ...noInput, input_telemetry: [zeroInput] }] }).conversations[0];
+assert.equal(partialInput.input_telemetry_coverage, "partial");
+assert.equal(partialInput.edits, 0, "A recorded zero differs from unobserved behavior");
+const completeInput = buildProcessDataSummary({ ...base, events: [], conversations: [{ ...noInput, input_telemetry: [zeroInput, { ...zeroInput, edit_count: 3, backspace_count: 2, paste_event_count: 1 }] }] }).conversations[0];
+assert.equal(completeInput.input_telemetry_coverage, "complete");
+assert.equal(completeInput.edits, 3);
+assert.equal(completeInput.backspaces, 2);
+assert.equal(completeInput.paste_actions, 1);
 const unpaired = buildProcessDataSummary({ ...base, events: [event("page_visibility_hidden", 50)] });
 assert.equal(unpaired.timing.observed_hidden_ms, null);
 assert(unpaired.limitations.some((entry) => entry.includes("lack a reliable")));
@@ -47,7 +65,7 @@ const exposure = buildProcessDataSummary({ ...base, events: [
   event("package_results_shown", 11, { payload: { display_event_contract_version: "display-ack-v1" } }),
   event("workflow_job_enqueued", 1), event("workflow_job_failed", 2)
 ] });
-assert.equal(exposure.version, "process-data-summary-v5");
+assert.equal(exposure.version, "process-data-summary-v6");
 assert.equal(exposure.export_scope, "teacher_process_summary_not_full_research_dataset");
 assert(exposure.definitions.display_observation.includes("legacy component mount"));
 const display = exposure.timeline.find(entry => entry.event_type === "formative_feedback_shown")!;

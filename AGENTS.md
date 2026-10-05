@@ -20,6 +20,13 @@ After each task, summarize changed files, verification commands, and any limitat
 
 ## Required Change and Deployment Record
 
+The user has authorized push and Render deployment after future application
+changes in this project. Finish relevant checks, commit and push scoped changes,
+then verify the exact application commit is Live on the canonical Render service.
+Do not deploy known failing changes or unrelated work. Report blocked checks or
+deployment failures honestly. This is a release workflow during active tasks,
+not authorization for an unattended monitor or changes to student records.
+
 After every application change followed by a user-requested push or Render
 deployment, update the existing Word record without waiting for another reminder:
 

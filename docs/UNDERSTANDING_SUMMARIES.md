@@ -2,7 +2,7 @@
 
 ## Scope
 
-`understanding-summary-v1` is a read-only teacher/research projection of retained
+`understanding-summary-v2` is a read-only teacher/research projection of retained
 profiles. It is not a new AI diagnosis, grade, learning-gain estimate, or claim
 of psychometric validity. It does not rewrite profiles, messages, responses,
 answer keys, timestamps, attempts, or original research records. Historical
@@ -42,8 +42,8 @@ rows describe their own attempt; comparisons must align the session IDs.
    evidence is not a demonstrated knowledge deficit.
 3. A supported misconception diagnosis, or native ability classified as minimal,
    fragmented/limited, or misconception-based, is **Need more work**.
-4. Native partial, fragile-correct, or procedural/application-error understanding,
-   or an integrated diagnosis of uncertain independence, is **Still developing**.
+4. Native partial, fragile-correct, or procedural/application-error understanding
+   is **Still developing**.
 5. Native `mostly_correct_understanding` or
    `robust_transfer_ready_understanding`, without the preceding conditions, is
    **Mostly understood**. A transfer test is not required to recognize supported
@@ -55,6 +55,16 @@ while still needing to strengthen part of their reasoning. The qualifier is
 retained as `understanding_caution=reasoning_refinement_needed`. Native
 `fragile_correct_understanding` still maps to Still developing. This separation
 does not remove limitations or assert complete mastery.
+
+Version 2 applies the same separation to `correct_but_independence_uncertain`:
+native mostly-correct understanding maps to Mostly understood, while
+`understanding_caution=independent_understanding_uncertain` remains available.
+Native partial or fragile ability still maps to Still developing. This corrects
+a synthetic live case where accurate open-response applications across the
+assessed objectives were downgraded solely because broad independence was not
+established. It does not promote scores, change AI profiles or establish transfer.
+The older v1 mapping did allow that qualifier to override native ability; older
+exports retain v1 and must not be silently pooled as if the mappings were identical.
 
 These are categorical rules, not a calculated score or percentage-correct cutoff.
 No label is promoted from correctness alone, confidence alone, time spent,

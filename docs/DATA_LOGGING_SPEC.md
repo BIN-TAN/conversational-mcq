@@ -1,5 +1,30 @@
 # Data Logging Specification
 
+## Historical context versus new learning evidence
+
+`formative-conversation-evidence-id-validator-v3` separates six context-only
+observation types from the evidence of a new profile transition:
+`student_question_pending`, `student_question_addressed`,
+`assessment_content_ambiguity`, `learning_summary_understanding`,
+`learning_summary_progress`, and `learning_summary_remaining`.
+They retain the original student reference, including initial reasoning or an
+earlier conversation turn. Their IDs need not occur in the current transition's
+`canonical_evidence_ids`. Scope, identity, student role, eligibility, and
+conversation checks still apply. Progress requires earlier and later reasoning;
+a tutor explanation or request alone does not establish learning.
+
+Updated profile fields and resolved misconception claims still require eligible
+student evidence after the prior profile cutoff. Retained field values must
+match the prior value exactly; paraphrasing is not silently accepted. Historical
+context references never become transition source-turn references merely by
+appearing in a summary. The same provenance validation runs when persisted
+snapshots are reviewed. Existing source events and profiles are not rewritten.
+
+Tutor prompt `formative-conversation-host-v7.13` documents these distinct uses
+and exact retained-field copying, and makes reply depth responsive to the
+student's request while retaining necessary conceptual assumptions. Initial
+confidence alignment remains carried forward, not reassessed from chat.
+
 ## Pause and session observation projection (2026-10-02)
 
 `process-data-summary-v4` and `session-timing-v4` include later conversation
@@ -1814,11 +1839,19 @@ a retroactive upgrade of every historical package inside it.
 
 ## Profile Tracking Projection
 
-The additive `understanding-summary-v1` teacher/research projection is documented
+The additive `understanding-summary-v2` teacher/research projection is documented
 in `UNDERSTANDING_SUMMARIES.md`. It unifies summary labels and canonical profile
 selection, retains original dimensions and provenance, and records its version,
 reason, source profile, baseline/updated stage, original timestamp and separate
 transfer status. No raw learning evidence is changed or backfilled.
+
+Version 2 separates uncertain independence from the demonstrated-understanding
+label, just as version 1 separates a fragile-reasoning focus. Eligible native
+mostly-correct understanding remains "Mostly understood" even if independence is
+uncertain; `understanding_caution=independent_understanding_uncertain` is retained
+and transfer remains separately classified. Native partial/fragile reasoning,
+supported misconceptions, insufficient evidence and invalid provenance keep their
+existing precedence. Historical v1 exports remain unchanged; re-exports identify v2.
 
 `profile-record-projection-v1` is an additive, read-only export and review
 projection. It never changes stored answers, source calls, profile timestamps,
@@ -2040,3 +2073,34 @@ and adds `application_normalization.version` and
 `application_normalization.removed_choice_only_annotations` (item and
 interpretation IDs). `output_payload` holds the validated effective result.
 Earlier failed calls, student responses, and original exports remain unchanged.
+
+### Missing process observations (2026-10-05 synthetic journeys)
+
+`process-data-summary-v6` distinguishes missing conversation input telemetry from
+observed zero actions. `conversations[].edits`, `backspaces`, and `paste_actions`
+are null when `messages_with_input_telemetry=0`. Otherwise each is the sum of its
+recorded per-message count. A recorded zero stays zero. `input_telemetry_coverage`
+is `not_recorded` with no input rows, `partial` with fewer rows than student turns,
+and `complete` when all student turns have rows. Partial sums cover observed
+messages only, not an estimate for missing messages. Browser-unobserved attempts
+also have null `assessment_view_open_count`, rather than a fabricated zero.
+
+The readable label for `item_presented` is "Item made available": this server
+event is not a browser-display receipt. Raw events, student responses and
+historical downloads are unchanged. The teacher page already distinguishes
+missing input telemetry; this version aligns the JSON summary with that display.
+
+### Initial profile item identities (2026-10-05 synthetic journeys)
+
+`chat-native-formative-profile-output-v4` specializes the generation schema for
+each sealed response package: `semantic_item_reviews[].item_public_id` is an enum
+of its actual response IDs, and the number of reviews equals the number of
+submitted items. Source packages require 1-12 distinct, nonblank IDs. Subsequent
+coverage validation still rejects duplicates, and quote/stance validation still
+requires evidence belonging to the corresponding item. An invalid generated ID
+is never reassigned using position, similar spelling, or inferred meaning.
+
+This change constrains generation before acceptance; it does not fabricate
+reasoning, alter scoring, change student AI limits, or rewrite past failed calls.
+Original provider output and effective validated output retain their established
+audit paths. The schema version on each new AgentCall identifies this contract.
