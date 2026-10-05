@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T08:00:18+00:00",
+  "updated_at": "2026-10-05T08:18:14+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1738,6 +1738,73 @@
         "prisma/ai-student-journey-evaluation.ts",
         "scripts/audit-ai-student-research.mjs",
         "AGENTS.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-03",
+      "date": "2026-10-05",
+      "title": "Credit restoration and completion of blocked AI student checks",
+      "application_commit": "9c3482094b1b68f50a10bf9ac81c260f90ac40e9",
+      "push_status": "Verification-only follow-up to the already pushed application release. The documentation commit uses [skip render]; no application change or new deployment is required.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1lfjmq1p3s73fe97tg",
+        "source_commit": "9c3482094b1b68f50a10bf9ac81c260f90ac40e9",
+        "verified_at": "2026-10-05T08:13:35+00:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1lfjmq1p3s73fe97tg",
+        "evidence": [
+          "This is the existing Live deployment verified in CMCQ-20261005-02, not another release. Read-only SSH at 08:12:23Z confirmed the same full application commit, web PID 14 and preparation-worker PID 15. The privately compared test and production credentials matched.",
+          "Public health at 08:13:35.838Z returned status ok, database reachable, schema ready and migration readiness ready. Container observation was 245055488 of 2147483648 bytes with zero oom and oom_kill counters; this is not a load test.",
+          "The deployed npm run llm:connectivity command succeeded with zero retries after credit restoration. Synthetic diagnostic AgentCall b23b2033-783a-4cce-9547-372ff7c9e5bb used the configured 2000-token diagnostic ceiling. No classroom attempt was opened."
+        ]
+      },
+      "summary": "The owner replenished API credits. All three formerly quota-blocked synthetic scenarios now pass, completing live coverage of the eight scenarios on the deployed application source. Production AI connectivity also succeeds. Prior blocked results remain preserved; this entry records recovery rather than a new code release.",
+      "changes": [
+        {
+          "area": "Verification after provider credit restoration",
+          "problem": "Three scenarios in CMCQ-20261005-02 could not finish because the shared provider credential returned insufficient quota.",
+          "fix": "After the owner's credit purchase, rerun only those scenarios in isolated local databases and independently check production connectivity. Append the results to the evaluation report and this record without changing application code.",
+          "impact": "The observed quota blocker is cleared. Saved classroom attempts are untouched; students whose earlier feedback failed can return to the same attempt and explicitly retry."
+        }
+      ],
+      "data_impact": [
+        "Three synthetic sessions retained nine item records, 15 conversation turns, two profile transitions and 37 checksum-verified manifest entries per session. Exact text/actor matching, source identity, supporting evidence and confidence carry-forward passed. Missing browser observations remained missing.",
+        "The revision case retained three answer, three confidence and three alternative-change events. Each isolated teacher dashboard reported one completed attempt. No classroom responses, profiles, attempt limits, passwords or billing settings were modified; production gained only one synthetic operational diagnostic record."
+      ],
+      "tests": [
+        {
+          "name": "Previously blocked live scenarios",
+          "result": "Three of three passed",
+          "detail": "Runs 3e8197bee404, e4071409f802 and 1f5b269a0c4c finished at 08:14:06Z, 08:16:13Z and 08:18:14Z. They used 15, 11 and 11 provider dispatches respectively: 31 application calls and six adaptive learner generations in total. Application-source hashes matched deployed 9c348209. Submission returned in 53-144 ms locally; nine tutor turns validated with no semantic regeneration and latencies of 5.847-33.702 seconds."
+        },
+        {
+          "name": "Pedagogical and privacy review",
+          "result": "Passed with a retained recovery event",
+          "detail": "Revised responses guided the conversation and replays produced no duplicate calls. Qualified reasoning received appropriate recognition and explicit interval/reliability assumptions. Tutor messages stayed English, withheld hidden instructions/labels and answered the subsequent conceptual question. Chinese appeared only in deliberate synthetic student input. One initial profile-integration draft failed high_confidence_overclaim validation; automatic recovery succeeded and the invalid draft was not shown. Some accurate concept summaries remain repetitive, a pacing observation rather than a blocking defect."
+        },
+        {
+          "name": "Research audit and dashboard",
+          "result": "Three of three passed",
+          "detail": "npm run classroom:ai-students:audit passed separately for each saved report, including manifest bytes/hashes, session isolation, source roles, profile evidence and exact transcript text. The scenario harness verified the final response values, revision events, duplicate-action protection, single completion event and teacher completion count. This is service-level verification, not a browser interaction test."
+        },
+        {
+          "name": "Production provider recovery",
+          "result": "Passed",
+          "detail": "The real Render diagnostic returned succeeded with zero retries. An initial command stopped before making an AI call because SSH opened in /root; npm --prefix /app used the verified app directory and succeeded. The pre-existing additional SSH ED25519 proof-signature warning remained; host verification was not disabled. No redeployment, API key replacement or limit increase was performed."
+        }
+      ],
+      "limitations": [
+        "This follow-up closes the three quota-blocked cases reported in CMCQ-20261005-02; it does not erase their original failure records. Across the two final-version runs, all eight scenarios have passing results. It is not a single uninterrupted eight-case run.",
+        "Credit availability is verified for this period, not monitored continuously. Existing failed student attempts were not resumed or reset automatically. No new browser, 30-turn endurance or classroom-concurrency test was performed. The previously approved build-only dependency exception remains unchanged."
+      ],
+      "references": [
+        "docs/AI_STUDENT_EVALUATION_2026-10-05.md",
+        "prisma/ai-student-journey-evaluation.ts",
+        "src/lib/evaluation/ai-student-scenarios.ts",
+        "scripts/audit-ai-student-research.mjs",
+        "prisma/llm-connectivity.ts"
       ]
     }
   ],

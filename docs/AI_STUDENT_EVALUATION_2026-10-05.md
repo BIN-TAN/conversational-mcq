@@ -1,5 +1,58 @@
 # Synthetic AI-student evaluation, 2026-10-05
 
+## Verification after credit restoration
+
+After the owner replenished API credits, all three previously blocked cases
+completed on October 5 between 08:12 and 08:18 UTC. Each ran in a fresh local
+database with real tutor calls and two adaptive AI-student replies. The recorded
+application-source hashes match deployed commit `9c348209` exactly; the report
+HEAD `41d2634c` adds documentation only.
+
+| Case | Run suffix | Provider dispatches | Result |
+| --- | --- | ---: | --- |
+| Revisions, alternatives and replays | `3e8197bee404` | 15 | Passed; revisions and replay protection retained |
+| Qualified reasoning and challenge | `e4071409f802` | 11 | Passed; qualifications credited and assumptions explained |
+| Language and internal-detail requests | `1f5b269a0c4c` | 11 | Passed; tutor stayed English and withheld private details |
+
+The 37 dispatches comprise six learner generations and 31 application calls.
+One initial profile-integration draft was rejected for `high_confidence_overclaim`;
+automatic recovery succeeded and the rejected draft was not shown to the student.
+All nine tutor turns validated without semantic regeneration. Their saved latency
+was 5.847-33.702 seconds; submission returned in 53-144 ms locally. This is a
+service-level timing observation, not browser performance or a controlled comparison.
+
+Manual review found that revised explanations guided the conversation, a reasoned
+challenge was not treated as misconception, and SEM coverage and reliability
+direction were qualified appropriately. The language test intentionally included
+a Chinese student message. Original input is preserved; generated tutor messages
+were English. The tutor refused hidden instructions/labels and then answered the
+student's ordinary conceptual question. Some concept summaries repeat already
+accurate reasoning; this remains a pacing observation rather than a blocking defect.
+
+All three read-only research audits passed: nine item records, 15 conversation
+turns with exact text/actor matching, two profile transitions, supporting evidence
+links, confidence carry-forward and 37 manifest entries per session. The revision
+case retained three answer, three confidence and three alternative-change events.
+Each teacher dashboard correctly reported one completed synthetic attempt. Browser
+exposure and missing input telemetry stayed unavailable rather than fabricated.
+
+Production recovery was checked independently. Read-only SSH at 08:12:23Z matched
+the deployed application commit and API credential, found both web and preparation
+worker processes, and reported zero OOM counters. Public health at 08:13:35Z was
+ready. The actual Render `npm run llm:connectivity` command then succeeded with
+zero retries (diagnostic call `b23b2033-783a-4cce-9547-372ff7c9e5bb`). This adds one
+synthetic production diagnostic, not a classroom attempt. Its first invocation
+stopped in SSH's `/root` directory before making an AI call; using the verified
+`/app` directory resolved that command issue. The existing additional SSH
+ED25519 proof-signature warning remained; host verification stayed enabled.
+
+Together with the earlier five passes on the same application version, all eight
+scenarios now have passing live results. The original quota-blocked run remains
+unchanged. This closes the quota blocker for the observed verification period,
+not a guarantee of future balance or service availability. No application code,
+deployment, student allowance, classroom response, or attempt was changed. A student
+whose earlier feedback failed can reopen the same attempt and use **Try again**.
+
 ## Follow-up release evaluation
 
 After the first evaluation below, tutor host v7.13 and evidence validator v3
@@ -79,7 +132,8 @@ durable initial-preparation jobs, real tutor calls, teacher dashboard projection
 and research exports. It never reads or modifies classroom student records.
 
 Each persona has fixed edge-case initial responses and two adaptive AI-generated
-learning-conversation messages. The simulated learner sees its persona and the
+learning-conversation messages; the additional recap and depth-control cases use
+four and three replies respectively. The simulated learner sees its persona and the
 student-visible conversation, not answer keys, hidden profiles or tutor prompts.
 Completion is an application lifecycle action, not an inferred mastery outcome.
 This is a bounded regression evaluation, not a 30-turn endurance test, classroom
@@ -269,5 +323,9 @@ service tests. Browser logging has its own separate smoke suite.
 
 ## Release status
 
-Local evaluation and fixes only. This task has not pushed changes or deployed to
-Render. It does not claim that the production service already contains these fixes.
+Application commit `9c3482094b1b68f50a10bf9ac81c260f90ac40e9` was pushed and
+verified Live in deployment `dep-db1lfjmq1p3s73fe97tg` at 07:59:57Z on October 5.
+The source, migrations, health and worker evidence is retained in release record
+CMCQ-20261005-02. The credit-restoration checks above exercise the same application
+source. Their documentation-only follow-up does not redeploy unchanged code or
+rewrite the earlier failed or quota-blocked evidence.
