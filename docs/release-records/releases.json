@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T09:42:21+00:00",
+  "updated_at": "2026-10-05T15:21:00+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1908,6 +1908,96 @@
         "prisma/sol-low-reasoning-amend.ts",
         "prisma/agent-input-deduplication-smoke-test.ts",
         "prisma/ai-student-journey-evaluation.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-05",
+      "date": "2026-10-05",
+      "title": "Return visit pause reporting and conversation participation review",
+      "application_commit": "6ff93ee191585b217d6eae09db75c7fa5c212d3d",
+      "push_status": "Application committed and pushed to origin/main. The record-only follow-up uses [skip render] and retains the application identity.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1rspeq1p3s73fmjt20",
+        "source_commit": "6ff93ee191585b217d6eae09db75c7fa5c212d3d",
+        "verified_at": "2026-10-05T15:18:09+00:00",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1rspeq1p3s73fmjt20",
+        "evidence": [
+          "Render detail shows Deploy succeeded | Live for the exact application commit; the service-live log is timestamped 15:17:37Z. Sixty-five migrations were found and none were pending. The deployment screenshot is retained locally.",
+          "Read-only runtime verification at 15:17:53.286Z returned source 6ff93ee191585b217d6eae09db75c7fa5c212d3d, web PID 14 and preparation-worker PID 15. Memory was 238010368 of 2147483648 bytes with zero oom/oom_kill counters, a point-in-time observation rather than a load test.",
+          "Public health at 15:18:09.283Z returned status ok, database reachable, schema ready and migration readiness ready. The dependency gate kept only the previously approved build-only advisory exception; production dependencies had zero findings. Build warnings were existing unused imports and webpack large-string cache warnings, not new failures.",
+          "Production teacher pages showed zero-reply conversation closure and separate assessment 2/1 versus conversation-only 0/0 pause counts. Two fresh process JSON downloads verified v7, the recorded end timestamp, preserved prior receipt, earlier-participation-window scope and null current-visit latency. Browser automation's download-event wait timed out once, but the file had downloaded successfully; filesystem inspection verified it without repeating the download."
+        ]
+      },
+      "summary": "Review five supplied transcript and process-summary pairs, distinguishing one new assessment from four older conversations with later return visits. Correct misleading pause counts and cross-visit display intervals without changing student responses, model behavior or historical evidence.",
+      "changes": [
+        {
+          "area": "Teacher participation overview",
+          "problem": "Conversation-only pause counters showed zero despite assessment-level pauses during the learning conversation, and closure without a student reply was difficult to distinguish from submitted dialogue.",
+          "fix": "Show assessment-linked and conversation-only pause/resume counts separately. Include conversation/topic join IDs and recorded conversation end time; explicitly label closure without a student reply.",
+          "impact": "Teacher and research summaries preserve scope distinctions. Zero messages describes observed participation, not dissatisfaction or lack of learning. Unknown linkage remains null."
+        },
+        {
+          "area": "Pause interval derivation",
+          "problem": "An old tutor-display receipt produced a roughly 3.9-day display-to-pause interval when the student returned several days later without a new receipt.",
+          "fix": "Participation observation v2 defines the current window from recorded conversation start, assessment resume/view-open and conversation resume/reentry. Preserve the previous receipt but derive latency only when it falls within the current window. Export the boundary and receipt scope.",
+          "impact": "The shared derivation applies to the teacher page, process-summary v7 and research pause_episodes.csv. Earlier-window latency is null rather than zero; no reading time or motivation is inferred."
+        },
+        {
+          "area": "Instructional and language review",
+          "problem": "Recent downloads included older clarification loops, lengthy requested explanations and Chinese topic metadata, creating a risk of attributing historical behavior to the new model settings.",
+          "fix": "Review source generation dates and content, verify current uncertainty/fragment safeguards and illustrative-number instructions, and rerun English/provenance checks. Record findings without rewriting prior transcripts.",
+          "impact": "The newest opening addresses a specific score-comparability misconception. No new blocking teaching defect was identified in that opening; no student reply was available to evaluate subsequent correction. Student-facing prompts and model settings are unchanged."
+        }
+      ],
+      "data_impact": [
+        "Read-only projections only. No schema migration, production student writes, attempt resets, grade changes or historical reclassification. Existing conversation-only fields retain their meaning; additional fields carry assessment-level scope and join identity.",
+        "All five supplied export pairs passed consistency checks on 194 turns, 18 items, 75 stage visits and eight explicit pause episodes. Student chat counts were zero in three sessions, one in one session and eight in one session. Tutor message bodies contained no Chinese; teacher/research topic metadata is preserved.",
+        "These downloads are process summaries, not complete research bundles. Matching internal IDs, times and totals does not establish independent equivalence to every source database row. Missing historical display/input observations remain missing; a later return receipt does not prove earlier exposure."
+      ],
+      "tests": [
+        {
+          "name": "Supplied file consistency and content review",
+          "result": "Five of five passed within export scope",
+          "detail": "Checked ordered unique transcript sequence IDs, session/item identity, recorded choices and confidence, display-to-tutor references, student chat totals, nonnegative stage durations, monotonic submission arithmetic and pause intervals. Reviewed complete transcript bodies for content and provenance; identifiable material stays outside the repository."
+        },
+        {
+          "name": "Focused projection and conversational safeguards",
+          "result": "Passed",
+          "detail": "node --import tsx prisma/participation-observations-smoke-test.ts and process-data-summary-smoke-test.ts passed. Collection/learning-summary checks passed 46 cases and English/mixed-intent checks passed 13. Coverage includes multiday returns, new receipts for old replies, unknown/ambiguous context, preserved source receipts and zero-reply closure."
+        },
+        {
+          "name": "Research and student flow database regressions",
+          "result": "Eight of eight passed",
+          "detail": "Disposable-database suites covered research-export integrity, readable transcripts, analysis-ready export, timing dictionary, resumed-session timing, visibility timing, item timing contract and conversational flow. The first wrapper stopped before tests because its temporary database name failed the safety guard; the corrected permitted prefix passed migration, seed and all eight suites, then dropped only its disposable database."
+        },
+        {
+          "name": "Browser and static verification",
+          "result": "Passed",
+          "detail": "Participation UI test passed at 1440 and 390 pixels with inspected screenshots, scope labels, timeline filtering, downloaded JSON checks, no document overflow and no browser errors. Initial sandbox listen permission failure was retried with authorization. npm run typecheck, changed-file ESLint and git diff --check passed; a clean-snapshot production build passed using the existing build-only heap setting, with two pre-existing unused-import warnings. Production page and fresh JSON checks also passed for both corrected reporting cases."
+        },
+        {
+          "name": "Supplemental remote source query",
+          "result": "Unavailable and not counted as a pass",
+          "detail": "Four read-only remote query attempts exited without an audit result, although the simpler source-commit command worked. The existing additional SSH proof-signature warning remained; host checking was not disabled. No source-record comparison is claimed from these attempts. Initial sandbox Git writes/network access were blocked; authorized retries committed and pushed successfully."
+        }
+      ],
+      "limitations": [
+        "No new live AI journey, full production research ZIP audit, 30-turn endurance test or concurrent classroom load test was run for these read-only reporting changes. Offline checks verify the implementation paths, not independent educational validity.",
+        "One older transcript's repeated uncertainty clarification and questioned numerical illustration are historical behaviors. Current safeguards were rechecked; old student-facing text was not silently replaced. No claim is made that all misconceptions were resolved in sessions with no subsequent student response.",
+        "A display receipt observes partial viewport display, not reading. Pause/return and zero-message closure do not reveal satisfaction or reasons for stopping. Original downloaded JSON files remain v6; newly generated summaries use v7 and the new pause derivation."
+      ],
+      "references": [
+        "docs/SESSION_REVIEW_2026-10-05.md",
+        "docs/PROCESS_PARTICIPATION_OBSERVATIONS.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/teacher-review/participation-observations.ts",
+        "src/lib/services/teacher-review/process-data-summary.ts",
+        "src/components/teacher-review/process-data-section.tsx",
+        "prisma/participation-observations-smoke-test.ts",
+        "prisma/participation-ui-smoke-test.ts"
       ]
     }
   ],
