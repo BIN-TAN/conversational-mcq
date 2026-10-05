@@ -135,3 +135,34 @@ The isolated test harness initially supplied a feature flag conflicting with
 the approved runtime; removing that test-only override allowed the provider-
 boundary and all four export/edit database regressions to pass. Network access
 remained blocked throughout these tests.
+
+## Deployed verification
+
+Application `3f1d5e113e55be5fd84ba29bcf9f3ed406c91e88` was pushed and verified
+Live in Render deployment `dep-db1k3b7f3r2c73c3n300` on October 5. Health,
+database readiness and the web/preparation-worker processes passed. The sampled
+2 GB container reported zero OOM events. This was not a load test.
+
+- Three historical failed outputs each contained one misplaced answer-only
+  annotation. Read-only replay passed full semantic validation after the narrow
+  normalization, with no changes to the saved student records.
+- Four fresh, synthetic real AI calls passed: mixed reasoning/question,
+  question-only deferral, punctuation-only reasoning and explicit inability to
+  explain. The two profiles retained insufficient reasoning for the weak item
+  and supported reasoning for the other items, without invented misconceptions.
+  No normalization was needed on these fresh outputs. These were provider-path
+  probes, not complete multi-turn browser conversations.
+- All 20 selected-session research bundles passed manifest checksums, duration
+  and pause-row agreement with the teacher summary, and the affected historical
+  confidence-revision check. There were 38 files per bundle, 87 item rows and
+  14 pause episodes in total. Seven dashboard data projections and the affected
+  English topic projection passed. A single whole-course ZIP was not downloaded.
+- The final English/mixed-intent local smoke includes 13 checks. The additional
+  check and database persistence test cover the choice-annotation normalization.
+
+The earlier remaining-work section records the pre-deployment review status;
+the findings above resolve its production-diagnosis and export-verification
+tasks within this stated scope. Students who paused or exited are not silently
+resumed. No original responses, attempt histories or historical exports were
+rewritten. Re-exporting generates the corrected derived summaries. Detailed
+evidence and limitations are recorded in release `CMCQ-20261005-01`.

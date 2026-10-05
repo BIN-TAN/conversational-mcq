@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-04T04:14:00+00:00",
+  "updated_at": "2026-10-05T06:30:00+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -1518,6 +1518,118 @@
         "prisma/llm-connectivity.ts",
         "prisma/profiling-repair-smoke-test.ts",
         "docs/LLM_INFRASTRUCTURE.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261005-01",
+      "date": "2026-10-05",
+      "title": "Repair feedback preparation provenance and student language with corrected process exports",
+      "application_commit": "3f1d5e113e55be5fd84ba29bcf9f3ed406c91e88",
+      "push_status": "Pushed to origin/main and independently verified with git ls-remote. Private review helpers and unrelated outputs were excluded.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db1k3b7f3r2c73c3n300",
+        "verified_at": "2026-10-05T06:29:00+00:00",
+        "source_commit": "3f1d5e113e55be5fd84ba29bcf9f3ed406c91e88",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db1k3b7f3r2c73c3n300",
+        "evidence": [
+          "Render deployment detail showed Deploy succeeded | Live, exact source 3f1d5e113e55be5fd84ba29bcf9f3ed406c91e88 and duration 5m07s. Logs recorded service Live at 06:25:35Z, 65 migrations with none pending, and zero vulnerabilities in pruned runtime dependencies.",
+          "Public health at 06:26:25.435Z returned status ok, database reachable, schema ready and migration readiness ready. SSH independently confirmed RENDER_GIT_COMMIT and running web PID 14 plus preparation-worker PID 15. The image has no ps utility; direct read-only process metadata supplied the successful verification.",
+          "The 2 GB container retained web and worker heap budgets of 768 MB and 384 MB. Sampled memory was 366563328 of 2147483648 bytes, with zero oom and oom_kill counters. This point-in-time check is not a concurrency or load test.",
+          "Four deployed synthetic AI calls passed. Read-only production replay of three prior failures and selected-session research export checks for all 20 supplied sessions passed on the exact deployed revision."
+        ]
+      },
+      "summary": "Review 20 October 4-5 sessions and repair confirmed systemic failures rather than editing individual student cases. The release fixes misplaced answer-only quotations that repeatedly blocked preparation, mixed reasoning-and-question collection, student-facing Chinese metadata and generated output, explanation attribution, and process-data revision and latency calculations.",
+      "changes": [
+        {
+          "area": "Reliable initial feedback with evidence provenance",
+          "problem": "Three production sessions showed the same semantic interpretation quote mismatch: the model quoted a selected answer letter as if it appeared in the student's reasoning. Automatic retries repeated this invalid annotation. The sampled failures were not output-token or memory exhaustion.",
+          "fix": "Clarify the profile prompt and add choice-annotation-normalization-v1. Remove only an unlinked answer_only annotation whose entire quotation matches the separately stored selected choice and is absent from its claimed reasoning source. Run full semantic and student-output validation afterward. Invented substantive quotes, linked misconception claims and unsupported mastery still fail validation.",
+          "impact": "Redundant misplaced annotations no longer block otherwise valid feedback. Original provider output is retained with a versioned normalization audit; effective accepted output remains separate. No student attempt was reset or silently resumed."
+        },
+        {
+          "area": "English student presentation",
+          "problem": "No Chinese dialogue bodies appeared in the supplied exports, but a stored Chinese topic title in two Test 7 sessions also reached the student heading and was therefore not teacher-only metadata.",
+          "fix": "Project Han-containing titles to English fallbacks and omit Han-containing descriptions and objectives from student metadata. Add English instructions and acceptance guards to generated student messages, formative profiles and teaching artifacts.",
+          "impact": "New accepted system-generated student text and the affected headings are English. Original authored records, student input and historical research transcripts remain intact; this is not a translation or retroactive data rewrite."
+        },
+        {
+          "area": "Conversational evidence collection and attribution",
+          "problem": "A usable reason followed by a question was repeatedly rejected, and tutor wording sometimes attributed an explanation to a student who had only selected an option or supplied punctuation.",
+          "fix": "Item-administration tutor v3 accepts mixed reasoning plus questions while preserving the deferred concern and prohibiting initial-stage teaching or answer-key disclosure. Question-only input stays deferred. Formative host v7.12 separates selected choices from actual explanations; its profile provenance mapping preserves carried-forward confidence.",
+          "impact": "Students can continue without deleting a legitimate question. Correct selections alone do not become claims of demonstrated reasoning. The application retains authority over transitions and saved evidence."
+        },
+        {
+          "area": "Research revision counts and response latency",
+          "problem": "Legacy package-review event names were missed by confidence and alternative-answer revision counters. Generic revisions could inflate explanation counts. System deferral events could be mistaken for student actions and yield spurious zero-second response intervals.",
+          "fix": "Process summary v5 uses shared legacy-compatible revision predicates. Future package edits emit canonical confidence and tempting-option events with before/after values, without duplicate aliases. Latency v2 excludes system reactions and unknown category-only events and exports its calculation version. Update dictionary and logging definitions.",
+          "impact": "Re-exported historical derived values improve without altering original events. Explicit explanation edits alone contribute to explanation-revision counts. Missing timing evidence remains missing; pause records remain behavioral observations rather than inferred dislike."
+        }
+      ],
+      "data_impact": [
+        "The supplied review covered 20 sessions, 87 item records and 2654 timeline events. Eighteen sessions had learning conversations with 30 tutor replies and 12 student follow-up replies. Thirty display acknowledgements establish display, not reading or learning. Ten openings had no student reply; motivation cannot be inferred from silence alone.",
+        "Read-only production checks rebuilt each of the 20 selected-session research bundles, 38 files each. Every manifest entry checksum passed; wall-clock duration and pause-episode rows matched the teacher process summary. The affected historical confidence edit is now counted. Seven assessment dashboard data projections loaded successfully, and the affected topic projection contained no Han characters.",
+        "No production student writes, attempt-limit changes, schema migrations, profile rewrites or automatic student resumption occurred. One previously failed session had already recovered through its existing retry flow before this deployment. Paused students retain their existing resume/retry controls.",
+        "The four fresh provider probes used synthetic inputs and made no database reads or writes. They are operational test evidence, not additional learner attempts. Provider response IDs and latencies are retained in this release entry."
+      ],
+      "tests": [
+        {
+          "name": "Static and focused regression checks",
+          "result": "Passed with existing warnings",
+          "detail": "npm run typecheck and git diff --check passed. npx eslint src prisma scripts returned zero errors and five pre-existing warnings. English/mixed-intent smoke passed 13 checks; collection/learning-summary smoke passed 46. Transcript quality, process summaries, interpretation policy, conversation visibility, classroom acceptance, targeted quality and research export format checks passed. A mistyped export-test filename was corrected and the actual test passed."
+        },
+        {
+          "name": "Database persistence and export regression",
+          "result": "Passed after test-harness correction",
+          "detail": "In a disposable local PostgreSQL database, migrations and seed, package-review edits, readable transcripts, research-export integrity and detailed CSV export tests passed. The initial-profile-only provider-boundary test verified original/effective output separation and the normalization audit. An explicit test-only live flag initially conflicted with the approved runtime; removing that override resolved the fixture failure while the outbound network guard stayed active. The disposable database was dropped."
+        },
+        {
+          "name": "Historical invalid-output replay",
+          "result": "Three of three passed",
+          "detail": "For three production failures, the stored output failed the original provenance check. Removing exactly one misplaced answer-only annotation per output produced a fully valid semantic review. Comparison was performed on the server with aggregate-only output, no new AI calls and no writes to student records."
+        },
+        {
+          "name": "Fresh deployed synthetic AI calls",
+          "result": "Four of four passed",
+          "detail": "prisma/session-review-live-probe.ts --allow-live-synthetic passed reasoning-plus-question acceptance (2632 ms; resp_0f8b53079a47863e016ac3430a86c887d0bc114511b36350f7), question-only deferral (2019 ms; resp_044cb8f3cc033900016ac3430d0a8887d084361aeca1c78fdb), punctuation-only reasoning (22876 ms; resp_057081f5f15f7ff1016ac3430f7e2087d0ba5511654a1e0550), and explicit inability to explain (16765 ms; resp_03db9fc536a84236016ac3432603e487d08d81e22a097dba03). Both profiles marked the weak explanation insufficient, invented no misconception, retained supported reasoning on the other items, and required no normalization. All generated student fields passed English and safety validation."
+        },
+        {
+          "name": "Production research and teacher projections",
+          "result": "Passed",
+          "detail": "At 06:27:41.223Z the exact deployed revision passed all 20 selected-session bundles, 87 item rows, 14 pause episodes, 38 files per bundle, manifest checksums, teacher/export timing agreement, and the historical confidence-revision assertion. Seven assessment dashboard data projections and the student topic-language projection passed. This did not exercise a single whole-course ZIP download or every rendered dashboard interaction."
+        },
+        {
+          "name": "Deployment and operational verification",
+          "result": "Passed after restart and tool adaptation",
+          "detail": "The first SSH connection closed during the intentional deployment restart. Subsequent revision and health checks passed. ps was unavailable in the minimal image, so process verification used read-only /proc metadata. The existing additional ED25519 proof-signature warning remained; host verification was not disabled. Render build/runtime security checks passed under the already authorized, unchanged build-only advisory exception."
+        },
+        {
+          "name": "Release record verification",
+          "result": "Passed",
+          "detail": "The existing ledger was appended, the same Word report regenerated, source identity and all six record tests checked, and the full rendered report visually inspected page by page. The record-only follow-up is separate from the deployed application commit."
+        }
+      ],
+      "limitations": [
+        "The four live probes exercise provider prompts and validators, not a full multi-turn browser learning conversation or classroom-scale concurrency. They establish the tested behavior, not a guarantee for every future model response or pedagogical outcome.",
+        "Historic Chinese titles, original responses and previous failed-call records remain preserved for research provenance. English student metadata is a display projection, not a translation of all authored content. Historical exports must be regenerated to obtain the corrected derived counts and latency version.",
+        "Paused or failed attempts were not reset. Students intentionally paused or exited are not resumed automatically; they can use the existing resume/retry flow. Replay success does not claim that every affected learner has already returned or completed the assessment.",
+        "The separately authorized seven-day build-only advisory exception and its follow-up remain unchanged. The earlier legacy operational-test failures recorded in CMCQ-20261003-04 were outside this release's focused rerun and are not relabelled as resolved."
+      ],
+      "references": [
+        "docs/SESSION_REVIEW_2026-10-04.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/student-visible-safety.ts",
+        "src/lib/services/student-assessment/semantic-item-review.ts",
+        "src/lib/services/student-assessment/formative-profile.ts",
+        "src/lib/services/student-assessment/item-administration-tutor.ts",
+        "src/lib/services/student-assessment/response-revision-events.ts",
+        "src/lib/services/teacher-review/process-data-summary.ts",
+        "src/lib/services/teacher-review/turn-response-latencies.ts",
+        "prisma/student-english-mixed-intent-smoke-test.ts",
+        "prisma/student-formative-live-validation-smoke-test.ts",
+        "prisma/session-review-live-probe.ts"
       ]
     }
   ],
