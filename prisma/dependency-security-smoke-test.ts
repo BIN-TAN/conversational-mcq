@@ -45,7 +45,7 @@ async function main() {
   });
   await check("every installed security-sensitive package meets patched floor", () => {
     const floors: Record<string, string> = {
-      next: "15.5.24", sharp: "0.35.5", postcss: "8.5.23", "csv-parse": "7.0.2",
+      next: "15.5.27", sharp: "0.35.5", postcss: "8.5.23", "csv-parse": "7.0.2",
       "postcss-selector-parser": "7.1.6", "source-map-js": "1.2.2",
       "fast-xml-parser": "5.10.1", "@xmldom/xmldom": "0.8.15", "deepmerge-ts": "8.0.0",
       "js-yaml": "4.3.2", browserslist: "4.28.7", "baseline-browser-mapping": "2.11.0", nanoid: "3.3.18"

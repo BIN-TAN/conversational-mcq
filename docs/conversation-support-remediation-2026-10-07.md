@@ -125,6 +125,24 @@ Representative synthetic exchanges, quoted from the reviewed runs:
 Release commit and verified deployment evidence are maintained in
 `release-records/releases.json` and the corresponding Word record.
 
+### Deployment security correction
+
+The first deployment of application commit `598de8a` was blocked by the dependency
+security gate on October 7. Two newly reported Next.js advisories affected the
+installed 15.5.24 release (GHSA-4jqv-mc3x-m676 and GHSA-mcj8-r9mp-w47p). The runtime
+dependency and its matching compiler packages were patched to 15.5.27, and the
+security regression floor was updated. No advisory exception was added or extended.
+The unchanged lint-tool dependency remains outside the production image.
+
+After the patch, the security policy passed with zero production findings and only
+the previously approved, time-limited build exception. All 10 policy tests and 18
+functional security checks passed, as did typechecking, source lint (five existing
+warnings) and the isolated production build. A repeat database regression invocation
+could not initialize because the local PostgreSQL service was unavailable; Docker
+also returned EOF. It executed no suites. The earlier 22/22 result applies to the
+same assessment code before this framework-only patch, not to a newly completed run.
+The final deployment and runtime evidence are recorded separately in the ledger.
+
 ## Regression verification
 
 The final isolated audit passed all 22 suites, including 65 navigation-matrix paths,
