@@ -9,6 +9,7 @@ import { z } from "zod";
 import { parse } from "csv-parse/sync";
 import { AI_STUDENT_ITEMS, AI_STUDENT_SCENARIOS } from "../src/lib/evaluation/ai-student-scenarios";
 import { CONVERSATIONAL_APPLICATION_ITEMS, CONVERSATIONAL_APPLICATION_SCENARIOS, conversationalRobustnessScenarios, type ConversationalEvaluationScenario } from "../src/lib/evaluation/conversational-application-scenarios";
+import { CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS } from "../src/lib/evaluation/conversational-support-needs-scenarios";
 import type { StudentSessionState, StudentFormativeConversation } from "../src/lib/student-assessment-ui/types";
 import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 
@@ -20,10 +21,11 @@ const option = (name: string) => {
 
 async function main() {
   const robustnessSuite = option("--suite") === "conversational-robustness";
-  const applicationSuite = option("--suite") === "conversational-application" || robustnessSuite;
+  const supportNeedsSuite = option("--suite") === "conversational-support-needs";
+  const applicationSuite = option("--suite") === "conversational-application" || robustnessSuite || supportNeedsSuite;
   assert(!option("--suite") || applicationSuite, "Unknown synthetic evaluation suite.");
   const scenarioItems = applicationSuite ? CONVERSATIONAL_APPLICATION_ITEMS : AI_STUDENT_ITEMS;
-  const scenarios: readonly ConversationalEvaluationScenario[] = robustnessSuite ? conversationalRobustnessScenarios()
+  const scenarios: readonly ConversationalEvaluationScenario[] = supportNeedsSuite ? CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS : robustnessSuite ? conversationalRobustnessScenarios()
     : applicationSuite ? CONVERSATIONAL_APPLICATION_SCENARIOS : AI_STUDENT_SCENARIOS;
   const selected = scenarios.filter(s => !option("--case") || s.id === option("--case"));
   assert(selected.length, "Unknown scenario.");
@@ -80,7 +82,7 @@ async function main() {
   const studentModel = { ...resolveOpenAIModelConfigForRole("connectivity_test"), max_output_tokens: 3000 };
   const StudentReply = z.object({ message: z.string().trim().min(1) }).strict();
   const report = {
-    version: "ai-student-journeys-v3", suite: robustnessSuite ? "conversational-robustness" : applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
+    version: "ai-student-journeys-v3", suite: supportNeedsSuite ? "conversational-support-needs" : robustnessSuite ? "conversational-robustness" : applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
     scope: "Actual service, database, background preparation, tutor runtime, dashboard and research export; no browser exposure or usability measurement.",
     learner_method: "Fixed initial responses, explicitly identified scripted edge-case messages and adaptive AI replies from student-visible conversation only; no hidden profiles or keys given to learner generator.",
     database, output_directory: output, started_at: new Date().toISOString(),
@@ -89,6 +91,7 @@ async function main() {
     source_files_sha256: Object.fromEntries([
       "prisma/ai-student-journey-evaluation.ts", "src/lib/evaluation/ai-student-scenarios.ts",
       "src/lib/evaluation/conversational-application-scenarios.ts",
+      "src/lib/evaluation/conversational-support-needs-scenarios.ts",
       "src/lib/services/student-assessment/formative-profile.ts", "src/lib/services/student-assessment/semantic-item-review.ts",
       "src/lib/services/teacher-review/process-data-summary.ts",
       "src/lib/services/student-assessment/learning-profile-summary.ts",
