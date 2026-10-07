@@ -278,6 +278,12 @@ new item bank or compulsory explanation-practice-review sequence. Shared difficu
 are grouped only when supported by the student's reasoning. Prerequisite support
 follows demonstrated need or a request, and unresolved evidence remains without
 forcing every issue to be addressed.
+Application examples change a meaningful decision or reasoning demand, with explicit
+assumptions and defensible options. Tutor explanations and their later paraphrases
+are not independent application evidence. Valid objections to ambiguous wording are
+handled as content concerns unless the student's reasoning also supports a conceptual
+claim. These distinctions apply both to proposed profile changes and student-facing
+progress summaries; existing validation remains authoritative.
 
 The platform retains authority over authentication, transcript persistence,
 idempotency, privacy, safety, unadministered-item protection, conversation

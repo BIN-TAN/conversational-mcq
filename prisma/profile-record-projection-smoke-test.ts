@@ -115,7 +115,14 @@ async function main() {
         assert.equal(row.understanding_summary_version, "understanding-summary-v2");
         assert.equal(row.understanding_profile_record_id, research.understanding_profile_record_id);
       }
-      assert.equal(dashboard.understanding_distribution.find(row => row.label === expected)?.count, 1, "Dashboard and all export paths use the same canonical profile and label");
+      // Other suites may leave students owned by this demo teacher, but none took this fixture assessment.
+      const others = dashboard.summary_cards.total_students - 1;
+      assert.equal(dashboard.summary_cards.not_started, others);
+      for (const bucket of dashboard.understanding_distribution) {
+        const expectedCount = (bucket.label === expected ? 1 : 0)
+          + (bucket.label === "Unavailable / insufficient evidence" ? others : 0);
+        assert.equal(bucket.count, expectedCount, "Dashboard and exports agree, including other students without this assessment's evidence");
+      }
     }
     await assertSummaryParity("Mostly understood");
     await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "correct_but_fragile_understanding" } });

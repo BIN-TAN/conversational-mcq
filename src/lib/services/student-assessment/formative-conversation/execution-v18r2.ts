@@ -15,11 +15,12 @@ import {
   type FormativeConversationV18R2AgentInput,
   type FormativeConversationV18R2AgentOutput
 } from "./agent-contract-v18r2";
+import { eligiblePostProfileStudentEvidence } from "./evidence-identity-validator-v18";
 
 export const FORMATIVE_CONVERSATION_V18R2_EXECUTION_POLICY_VERSION =
   "formative-conversation-v18r2-execution-policy-v1" as const;
 export const FORMATIVE_CONVERSATION_V18R2_SEMANTIC_REGENERATION_VERSION =
-  "formative-conversation-v18r2-semantic-regeneration-v1" as const;
+  "formative-conversation-v18r2-semantic-regeneration-v2" as const;
 export const FORMATIVE_CONVERSATION_V18R2_ACCOUNTING_VERSION =
   "formative-conversation-v18r2-evaluation-accounting-v1" as const;
 export const FORMATIVE_CONVERSATION_V18R2_MAXIMUM_SEMANTIC_REGENERATIONS = 1;
@@ -446,6 +447,15 @@ semantic acceptance contract. Generate one fresh candidate from the same origina
 the supplied canonical misconception claim IDs and eligible evidence IDs. Do not reconstruct an ID
 from prose. Correct the stated validation category and issue paths without discussing validation with
 the student. The prior invalid candidate is immutable audit evidence and is not a visible turn.
+For changed profile fields and resolved claims, use only updated_field_eligible_evidence_ids;
+the broader allowed_evidence_ids includes historical context and is not an update whitelist.
+This rule applies to engagement, summaries and next-evidence fields as well as understanding.
+For every retained_evidence_remains_valid field, copy the value exactly from
+original_context.current_profile.canonical_profile, not from the invalid candidate. Preserve
+array order, wording and punctuation. If new evidence genuinely changes a field, declare it updated
+and cite eligible new student evidence. Otherwise retain it unchanged. Review the whole candidate,
+not just the rejected path. Never invent a profile change to repair a validation error; return a
+null transition with continue_conversation when a change is unsupported and turns remain.
 `;
 
 export const FORMATIVE_CONVERSATION_V18R2_FINAL_TURN_REGENERATION_INSTRUCTIONS = `
@@ -502,6 +512,14 @@ export function buildFormativeConversationV18R2SemanticRegenerationRequest(input
           input.base_request.input.allowed_evidence_catalog.evidence.map(
             (entry) => entry.evidence_id
           ),
+        updated_field_eligible_evidence_ids:
+          input.base_request.input.allowed_evidence_catalog.evidence
+            .filter((entry) => eligiblePostProfileStudentEvidence(
+              entry,
+              input.base_request.input.conversation_public_id,
+              input.base_request.input.current_profile.evidence_cutoff_sequence_index
+            ))
+            .map((entry) => entry.evidence_id),
         formative_lifecycle:
           input.base_request.input.formative_lifecycle
       }

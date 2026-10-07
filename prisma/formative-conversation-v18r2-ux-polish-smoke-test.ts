@@ -112,7 +112,7 @@ function main() {
   try {
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
-      "formative-conversation-host-v7.14"
+      "formative-conversation-host-v7.15"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
@@ -179,6 +179,15 @@ function main() {
       "Do not override that rule simply because the supplied explanation is correct",
       "including when the same message also requests an overview",
       "correct option cannot be identified just by its length",
+      "Design the reasoning decision before writing the options",
+      "Move shared qualifications into the stem",
+      "Agreement with an objection is not automatic",
+      "do not upgrade adjacent claims merely because the criticism is correct",
+      "Apply the same assistance-aware standard to summaries and praise as to profile changes",
+      "a student summarizing that same study has",
+      "followed by explicit endorsement of the original error is conflicting evidence",
+      "do not merely repeat the exact-true-score subtraction question",
+      "A direct question, objection, request for help",
       "a stop-only message after an already validated improvement",
       "openly correct or replace it"
     ]) assert(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS.replace(/\s+/g, " ").includes(rule), rule);

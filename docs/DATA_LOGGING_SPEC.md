@@ -2,7 +2,8 @@
 
 ## Ordinary conversational application exchanges (2026-10-07)
 
-Host `formative-conversation-host-v7.14` refines teaching instructions only.
+Host `formative-conversation-host-v7.15` refines teaching instructions; semantic
+regeneration v2 clarifies existing evidence restrictions in the repair request.
 Application questions and flexible replies remain exact tutor/student messages in
 the existing conversation, with existing timestamps, source-call joins and provenance.
 No dedicated question/key snapshot, response record, follow-up option/reason/confidence/
@@ -15,6 +16,17 @@ responses and discussion. This release does not automatically identify these
 exchanges as independent transfer, retention or chatbot-caused learning. Initial
 confidence is carried forward under its existing provenance rule, not remeasured.
 Historical messages, initial responses, profiles and export schemas are unchanged.
+The v7.15 instructions distinguish a content-quality objection from understanding
+of the underlying concept, and recognition of tutor-supplied reasoning from a new
+application. Evidence observations retain those limitations; only supported claims
+are proposed for existing validated profile updates. This changes prospective
+interpretation, not historical records or the definitions of collected measurements.
+Initial confidence remains explicitly `carried_forward_not_reassessed` for v7.15.
+Repair requests identify the subset of catalogued student evidence eligible after
+the current profile cutoff, using the validator's unchanged eligibility rule.
+Retained values must still match the current canonical profile exactly. Invalid
+candidates and repair outcomes remain in existing execution audits; the repair
+does not rewrite evidence or loosen acceptance requirements.
 
 ## Historical context versus new learning evidence
 

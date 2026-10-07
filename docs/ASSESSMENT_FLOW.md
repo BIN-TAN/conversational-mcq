@@ -270,7 +270,7 @@ and student departure are distinct from complete conceptual resolution.
 
 ### Conversational Application Questions
 
-Host `formative-conversation-host-v7.14` may initiate a brief MCQ when applying an
+Host `formative-conversation-host-v7.15` may initiate a brief MCQ when applying an
 idea would help, without waiting for a practice request. It is not required after
 each explanation. The question and options appear together in the ordinary tutor
 message, inviting an option and a brief reason in one reply. There is no required
@@ -280,6 +280,11 @@ submission gate, or new structured follow-up record.
 Suitable reviewed examples in the supplied context may be used; otherwise the
 tutor constructs instructional examples with explicit assumptions and defensible
 options. These are not published or independently validated assessment items.
+The tutor first identifies a meaningful reasoning decision, rather than only changing
+names or numbers in a worked example. It checks the premises, necessary assumptions
+and each option for a defensible best answer. Open questions and direct explanations
+remain appropriate alternatives. Objections trigger reconsideration of the actual
+premises, not automatic agreement or automatic defence of the tutor's answer.
 The initial invitation does not reveal the answer. Requested hints, direct answers
 and explanations remain available before a student responds. Option-only,
 explanation-only, uncertainty, declining, objections and topic changes are normal
@@ -288,6 +293,13 @@ success is not automatically independent transfer or retained learning.
 A restatement after both answer and explanation were supplied is recognition,
 not a new application or automatic claim resolution. A stop-only message after
 an existing profile update requires no duplicate profile transition.
+The same assistance-aware boundary applies to praise and closing summaries. Summarizing
+a study design just supplied by the tutor is not independently designing that study.
+A valid complaint about duplicate options is not by itself evidence of the underlying
+concept, and an accurate clause followed by endorsement of the original error remains
+conflicting evidence. Substantive conceptual objections may support the specific
+claim they explain. These are instruction-level safeguards, not guarantees that every
+generated semantic judgment is correct.
 
 A flawed conversational example is openly clarified or replaced, and interpretations
 depending on it are reconsidered through existing validated updates or teacher review.

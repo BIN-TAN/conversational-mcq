@@ -8,7 +8,7 @@ import { PrismaClient, type Item } from "@prisma/client";
 import { z } from "zod";
 import { parse } from "csv-parse/sync";
 import { AI_STUDENT_ITEMS, AI_STUDENT_SCENARIOS } from "../src/lib/evaluation/ai-student-scenarios";
-import { CONVERSATIONAL_APPLICATION_ITEMS, CONVERSATIONAL_APPLICATION_SCENARIOS } from "../src/lib/evaluation/conversational-application-scenarios";
+import { CONVERSATIONAL_APPLICATION_ITEMS, CONVERSATIONAL_APPLICATION_SCENARIOS, conversationalRobustnessScenarios, type ConversationalEvaluationScenario } from "../src/lib/evaluation/conversational-application-scenarios";
 import type { StudentSessionState, StudentFormativeConversation } from "../src/lib/student-assessment-ui/types";
 import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 
@@ -19,12 +19,20 @@ const option = (name: string) => {
 };
 
 async function main() {
-  const applicationSuite = option("--suite") === "conversational-application";
+  const robustnessSuite = option("--suite") === "conversational-robustness";
+  const applicationSuite = option("--suite") === "conversational-application" || robustnessSuite;
   assert(!option("--suite") || applicationSuite, "Unknown synthetic evaluation suite.");
   const scenarioItems = applicationSuite ? CONVERSATIONAL_APPLICATION_ITEMS : AI_STUDENT_ITEMS;
-  const scenarios = applicationSuite ? CONVERSATIONAL_APPLICATION_SCENARIOS : AI_STUDENT_SCENARIOS;
+  const scenarios: readonly ConversationalEvaluationScenario[] = robustnessSuite ? conversationalRobustnessScenarios()
+    : applicationSuite ? CONVERSATIONAL_APPLICATION_SCENARIOS : AI_STUDENT_SCENARIOS;
+  const selected = scenarios.filter(s => !option("--case") || s.id === option("--case"));
+  assert(selected.length, "Unknown scenario.");
+  for (const scenario of selected) {
+    assert(!scenario.turnInstructions || scenario.turnInstructions.length === scenario.followupTurns, scenario.id);
+    assert(!scenario.scriptedReplies || scenario.scriptedReplies.length === scenario.followupTurns, scenario.id);
+  }
   if (process.argv.includes("--dry-run")) {
-    console.log(JSON.stringify({ synthetic_only: true, cases: scenarios, maximum_provider_dispatches: 160 }, null, 2));
+    console.log(JSON.stringify({ synthetic_only: true, cases: selected, maximum_provider_dispatches: 240 }, null, 2));
     return;
   }
   assert(process.argv.includes("--allow-live-synthetic"), "Explicit opt-in required for paid synthetic AI calls.");
@@ -47,8 +55,8 @@ async function main() {
     LLM_PROVIDER: "openai", LLM_LIVE_CALLS_ENABLED: "true", ITEM_ADMIN_TUTOR_MODE: "live",
     FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: "true", ALLOW_MANUAL_REVIEW_STUDENT_STARTS: "true",
     RESEARCH_PSEUDONYMIZATION_KEY: randomBytes(40).toString("hex"),
-    LLM_AGENT_CALL_LIMIT_PER_SESSION: "80", LLM_AGENT_CALL_LIMIT_PER_DAY: "180",
-    LLM_DAILY_STUDENT_TOKEN_LIMIT: "500000", LLM_SESSION_TOKEN_LIMIT: "500000", LLM_DAILY_CLASS_TOKEN_LIMIT: "2500000"
+    LLM_AGENT_CALL_LIMIT_PER_SESSION: "80", LLM_AGENT_CALL_LIMIT_PER_DAY: "260",
+    LLM_DAILY_STUDENT_TOKEN_LIMIT: "1000000", LLM_SESSION_TOKEN_LIMIT: "1000000", LLM_DAILY_CLASS_TOKEN_LIMIT: "8000000"
   });
   const admin = new PrismaClient({ datasourceUrl: originalUrl.href });
   try { await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`); } finally { await admin.$disconnect(); }
@@ -71,12 +79,10 @@ async function main() {
   const generator = new OpenAIResponsesProvider({ isolated_evaluation_runtime: { purpose: "bounded_candidate_evaluation", request_timeout_ms: 120000 } });
   const studentModel = { ...resolveOpenAIModelConfigForRole("connectivity_test"), max_output_tokens: 3000 };
   const StudentReply = z.object({ message: z.string().trim().min(1) }).strict();
-  const selected = scenarios.filter(s => !option("--case") || s.id === option("--case"));
-  assert(selected.length, "Unknown scenario.");
   const report = {
-    version: "ai-student-journeys-v2", suite: applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
+    version: "ai-student-journeys-v3", suite: robustnessSuite ? "conversational-robustness" : applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
     scope: "Actual service, database, background preparation, tutor runtime, dashboard and research export; no browser exposure or usability measurement.",
-    learner_method: "Fixed edge-case initial responses plus adaptive AI replies from student-visible conversation only; no answer keys or hidden profiles given to learner generator.",
+    learner_method: "Fixed initial responses, explicitly identified scripted edge-case messages and adaptive AI replies from student-visible conversation only; no hidden profiles or keys given to learner generator.",
     database, output_directory: output, started_at: new Date().toISOString(),
     source_commit: spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
     scenarios_sha256: hash(scenarios), items_sha256: hash(scenarioItems), scenarios: selected,
@@ -92,7 +98,7 @@ async function main() {
       "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts"
     ].map(file => [file, createHash("sha256").update(readFileSync(file)).digest("hex")])),
     runtime_hash: process.env.OPERATIONAL_APPROVED_CONFIG_HASH, student_model: studentModel,
-    maximum_provider_dispatches: 160, provider_dispatches: 0, provider_models: {} as Record<string, number>,
+    maximum_provider_dispatches: 240, provider_dispatches: 0, provider_models: {} as Record<string, number>,
     results: [] as Array<Record<string, unknown>>, finished_at: null as string | null
   };
   const save = () => writeFileSync(path.join(output, "report.json"), JSON.stringify(report, null, 2));
@@ -191,31 +197,55 @@ async function main() {
             correctness: true, item_snapshot: true, correct_option_snapshot: true, item_submitted_at: true
           } });
           const priorFollowupRounds = await db.followupRound.count({ where: { concept_unit_session: where } });
-          const followupTurns = "followupTurns" in scenario ? scenario.followupTurns : 2;
+          const followupTurns = scenario.followupTurns ?? 2;
           for (let turn = 1; turn <= followupTurns; turn += 1) {
             const conversation: StudentFormativeConversation = state.formative_conversation!;
-            const response: StructuredAgentResult<{ message: string }> = await generator.executeStructured({
+            const scripted = scenario.scriptedReplies?.[turn - 1];
+            const response: StructuredAgentResult<{ message: string }> | null = scripted ? null : await generator.executeStructured({
               agent_name: "response_collection_agent", model_config: studentModel,
               instructions: "You are simulating one adult student for a bounded software evaluation, not tutoring or grading. Follow the supplied persona and current_turn_instruction only for this reply. Respond only to the visible conversation. Use 1 to 100 words. You have no hidden assessment information. Do not mention the evaluation. Return a nonempty student's message.",
               input: { persona: scenario.persona, reply_number: turn, initial_responses: scenario.reasons,
-                current_turn_instruction: "turnInstructions" in scenario ? scenario.turnInstructions[turn - 1] : undefined,
+                current_turn_instruction: scenario.turnInstructions?.[turn - 1],
                 visible_transcript: conversation.transcript.map(t => ({ actor: t.actor, message: t.message_text })) },
               output_schema: StudentReply, schema_name: "synthetic_student_reply", client_request_id: randomUUID(), timeout_ms: 120000
             });
-            assert.equal(response.status, "completed", `Synthetic learner generation ${response.status}`);
-            const message = StudentReply.parse(response.parsed_output).message;
-            (result.generated_student_replies as unknown[]).push({ turn, message, usage: response.usage });
+            if (response) assert.equal(response.status, "completed", `Synthetic learner generation ${response.status}`);
+            const message = StudentReply.parse(scripted ? { message: scripted } : response!.parsed_output).message;
+            (result.generated_student_replies as unknown[]).push({ turn, message, source: scripted ? "scripted_edge_case" : "adaptive_ai", usage: response?.usage ?? null });
             const messageInput = { conversation_public_id: conversation.conversation_public_id, client_message_id: randomUUID(), message_text: message,
               context: await buildFormativeConversationRuntimeContextSeed({ conversation_public_id: conversation.conversation_public_id, student_user_db_id: student.id }) };
-            await processFormativeConversationStudentMessage(messageInput, { runner_factory: createLiveFormativeConversationV18R2AgentRunner });
+            if (scenario.concurrentReplayTurn === turn) {
+              const duplicates = await Promise.allSettled([1, 2].map(() => processFormativeConversationStudentMessage(messageInput,
+                { runner_factory: createLiveFormativeConversationV18R2AgentRunner })));
+              assert(duplicates.some(reply => reply.status === "fulfilled"), "Both concurrent requests failed.");
+              for (const reply of duplicates) if (reply.status === "rejected") {
+                assert(["pending", "retrying"].includes(reply.reason?.response_status), `Unexpected concurrent replay error: ${reply.reason}`);
+              }
+              checks.push("Concurrent same-ID message replay accepted once or returned pending.");
+            } else await processFormativeConversationStudentMessage(messageInput, { runner_factory: createLiveFormativeConversationV18R2AgentRunner });
             const calls = await db.agentCall.count({ where });
             await processFormativeConversationStudentMessage(messageInput, { runner_factory: createLiveFormativeConversationV18R2AgentRunner });
             assert.equal(await db.agentCall.count({ where }), calls, "Message replay created another AI call.");
             state = await service.getStudentSessionState(input);
             result.transcript = state.formative_conversation!.transcript;
+            assert.equal(state.formative_conversation!.transcript.filter(entry => entry.actor === "student").length, turn,
+              "Replay duplicated or lost a persisted student message.");
+            assert.equal(state.formative_conversation!.transcript.filter(entry => entry.actor === "tutor").length, turn + 1,
+              "Each student message must have exactly one visible tutor reply after the opening.");
+            if (scenario.pauseAfterTurn === turn) {
+              if (state.formative_conversation?.status === "active") await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "pause" });
+              const prior = state.formative_conversation!.transcript;
+              await service.exitStudentAssessmentSession(input);
+              const resumed = await service.startOrResumeStudentAssessmentSession({ student_user_db_id: student.id, assessment_public_id: assessment.assessment_public_id });
+              assert.equal(resumed.session.session_public_id, input.session_public_id);
+              await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "resume" });
+              state = await service.getStudentSessionState(input);
+              assert.deepEqual(state.formative_conversation!.transcript, prior);
+              checks.push("Mid-dialogue pause, assessment exit, reload and resume retained the same attempt and transcript.");
+            }
             save();
           }
-          checks.push(`${followupTurns} adaptive AI-student messages received saved tutor replies; replays made no new AI calls.`);
+          checks.push(`${followupTurns} scripted/adaptive student messages received saved tutor replies; replays made no new AI calls.`);
           if (scenario.pause) {
             if (state.formative_conversation?.status === "active") await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "pause" });
             state = await service.getStudentSessionState(input);

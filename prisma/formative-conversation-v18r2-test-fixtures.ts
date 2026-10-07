@@ -49,6 +49,7 @@ function defaultStudentMessage(turnIndex: number, turnCount: number) {
 export function v18r2TestTranscript(input: {
   student_turn_count: number;
   student_messages?: readonly string[];
+  tutor_messages?: readonly string[];
 }) {
   if (!Number.isInteger(input.student_turn_count) || input.student_turn_count < 0) {
     throw new Error("v18r2_test_student_turn_count_invalid");
@@ -65,7 +66,7 @@ export function v18r2TestTranscript(input: {
       sequence_index: 1,
       actor: "tutor",
       message_text:
-        "Let us use your assessment reasoning to examine reliability, validity, and score uncertainty.",
+        input.tutor_messages?.[0] ?? "Let us use your assessment reasoning to examine reliability, validity, and score uncertainty.",
       created_at: timestamp(1)
     }
   ];
@@ -84,7 +85,7 @@ export function v18r2TestTranscript(input: {
       transcript.push({
         sequence_index: tutorSequence,
         actor: "tutor",
-        message_text: `Tutor response after formative student turn ${turnIndex}.`,
+        message_text: input.tutor_messages?.[turnIndex] ?? `Tutor response after formative student turn ${turnIndex}.`,
         created_at: timestamp(tutorSequence)
       });
     }
@@ -120,6 +121,7 @@ export function v18r2TestContext(input: {
   student_turn_count: number;
   max_student_turns?: 12 | 30;
   student_messages?: readonly string[];
+  tutor_messages?: readonly string[];
   current_profile_evidence_cutoff_sequence_index?: number;
   conversation_public_id?: string;
 }): FormativeConversationV18R2AgentInput {

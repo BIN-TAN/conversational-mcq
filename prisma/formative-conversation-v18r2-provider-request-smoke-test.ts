@@ -10,6 +10,10 @@ import {
 import { buildCanonicalEvidenceCatalog } from "../src/lib/domain/canonical-evidence-identity";
 import { buildFormativeConversationV18R2ProductionRequest } from "../src/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
 import { v18r2TestContext } from "./formative-conversation-v18r2-test-fixtures";
+import {
+  buildFormativeConversationV18R2SemanticRegenerationRequest,
+  FormativeConversationV18R2LogicalCallAuditSchema
+} from "../src/lib/services/student-assessment/formative-conversation/execution-v18r2";
 
 const fixtureRoot =
   "config/operational-candidates/formative-conversation-host-v5-executable-v18r2/fixtures";
@@ -155,6 +159,43 @@ function main() {
       JSON.stringify(compiledFormative.text),
       /profile_transition_recommendation/u
     );
+    const repairContext = v18r2TestContext({ student_turn_count: 3,
+      current_profile_evidence_cutoff_sequence_index: 4 });
+    const repairBase = { ...formativeRequest, input: repairContext };
+    const invalidAttempt = FormativeConversationV18R2LogicalCallAuditSchema.parse({
+      sequence: 1, kind: "base", logical_call_id: "synthetic-invalid-attempt",
+      canonical_request_hash: "0".repeat(64), result_status: "completed",
+      failure_class: "parsed_semantic_contract_failure", accepted: false,
+      logical_call_entered: true, pre_dispatch_request_rejection_count: 0,
+      http_request_count: 1, provider_response_completed_count: 1,
+      provider_attempt_count: 1, transport_retry_count: 0, parsed_candidate_count: 1,
+      semantically_accepted_candidate_count: 0, provider_request_id: null,
+      provider_response_id: null, client_request_id: "synthetic-invalid-attempt",
+      incomplete_reason: null, latency_ms: 0, input_tokens: null, output_tokens: null,
+      total_tokens: null, invalid_candidate: { candidate_hash: null,
+        candidate_json: { retained_field_was_changed: true }, candidate_text: null,
+        validation_status: "rejected", validation_issue_paths: ["profile_transition_recommendation.field_evidence"] }
+    });
+    const original = JSON.stringify({ repairContext, invalidAttempt });
+    const repair = buildFormativeConversationV18R2SemanticRegenerationRequest({
+      base_request: repairBase, invalid_attempt: invalidAttempt,
+      client_request_id: "synthetic-repair"
+    });
+    const catalog = repairContext.allowed_evidence_catalog.evidence;
+    const expected = catalog.filter(entry => entry.evidence_kind === "formative_student_turn"
+      && entry.source_sequence_index! > 4).map(entry => entry.evidence_id);
+    assert(expected.length > 0 && expected.length < catalog.length);
+    assert.deepEqual(repair.input.semantic_regeneration.updated_field_eligible_evidence_ids, expected);
+    assert.match(repair.instructions, /original_context.current_profile.canonical_profile/u);
+    assert.match(repair.instructions, /not from the invalid candidate/u);
+    assert.equal(JSON.stringify({ repairContext, invalidAttempt }), original, "Retry construction must not repair or mutate evidence.");
+    const foreign = catalog.find(entry => expected.includes(entry.evidence_id))!;
+    foreign.conversation_public_id = "different-conversation";
+    const scoped = buildFormativeConversationV18R2SemanticRegenerationRequest({
+      base_request: repairBase, invalid_attempt: invalidAttempt, client_request_id: "synthetic-scoped-repair"
+    });
+    assert(!scoped.input.semantic_regeneration.updated_field_eligible_evidence_ids.includes(foreign.evidence_id));
+    compileProductionStructuredAgentRequest(repair);
     assert.equal(networkRequests, 0);
 
     console.log(
@@ -163,6 +204,7 @@ function main() {
           status: "passed",
           exact_production_profiling_request_compiled: true,
           exact_production_formative_responses_request_compiled: true,
+          retry_evidence_cutoff_scope_and_immutability_checked: true,
           profiling_model: "gpt-5.6-terra",
           formative_model: "gpt-5.6-sol",
           formative_max_output_tokens: compiledFormative.max_output_tokens,

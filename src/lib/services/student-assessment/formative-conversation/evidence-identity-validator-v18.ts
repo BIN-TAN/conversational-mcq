@@ -92,7 +92,7 @@ function duplicateValues(values: readonly string[]) {
   return [...duplicates].sort();
 }
 
-function eligiblePostProfileStudentEvidence(
+export function eligiblePostProfileStudentEvidence(
   evidence: CanonicalEvidenceRef | undefined,
   conversationPublicId: string,
   priorProfileEvidenceCutoffSequenceIndex: number
