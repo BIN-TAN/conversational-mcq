@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-05T20:02:58.909Z",
+  "updated_at": "2026-10-07T20:54:45.859Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2315,6 +2315,98 @@
         "No new live AI dialogue was run for this instrumentation/export release. The current deterministic runtime and browser checks validate timing and persistence, not educational effectiveness or universal future reliability."
       ],
       "references": ["src/components/student-assessment/formative-input-timing.ts", "src/lib/services/student-assessment/response-stage-data.ts", "src/lib/services/teacher-research-data/response-stage-export.ts", "src/lib/services/teacher-research-data/conversation-timing.ts", "prisma/research-timing-separation-smoke-test.ts", "scripts/response-stage-browser-smoke.mjs", "docs/PROCESS_PRODUCT_ANALYTICS_GUIDE.md", "docs/DATA_LOGGING_SPEC.md"]
+    },
+    {
+      "id": "CMCQ-20261007-01",
+      "date": "2026-10-07",
+      "title": "Flexible formative application with claim-specific evidence and student choice",
+      "application_commit": "d964b7e4a66a0ebb186ae5de01b9a589671fd3e9",
+      "push_status": "Application commit pushed to origin/main. This ledger and regenerated Word record follow in a documentation-only [skip render] commit.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db3b05u0tbcc739cchs0",
+        "source_commit": "d964b7e4a66a0ebb186ae5de01b9a589671fd3e9",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db3b05u0tbcc739cchs0",
+        "verified_at": "2026-10-07T20:54:45.859Z",
+        "evidence": [
+          "Canonical Render deployment detail showed Deploy succeeded | Live for exact commit d964b7e4a66a0ebb186ae5de01b9a589671fd3e9. Auto-deploy started 20:48:23Z; duration 5m29s; service-live log 20:53:53Z. All 66 migrations were present with none pending.",
+          "Read-only runtime verification at 20:54:30Z returned the exact release commit, host v7.14 and unchanged approved configuration hash. Public health at 20:54:30Z returned ok, database reachable, schema ready and migration readiness ready. No live classroom records were read or modified for this verification.",
+          "At 20:54:45Z, web PID 14 and preparation-worker PID 15 were running; memory was 245125120 of 2147483648 bytes, with zero OOM counters. Test and deployed API credential match was checked without recording the credential. The existing additional SSH host-proof warning remained; host checking was not disabled.",
+          "A health request during rollover returned HTTP 502 and the old SSH connection closed; those pre-Live checks were not treated as success. Repeated post-Live checks passed."
+        ]
+      },
+      "summary": "Refine the existing formative conversation without introducing a fixed teaching sequence, separate practice collection or new research schema. Keep recognition after supplied help distinct from a supported profile change and preserve independent remaining difficulties.",
+      "changes": [
+        {
+          "area": "Teaching instructions and ordinary application questions",
+          "problem": "Instructions could imply complete misconception coverage or a fixed progression; application guidance used a rigid answer format and gave insufficient detail on flexible help and evidence boundaries.",
+          "fix": "Host v7.14 consolidates shared versus distinct difficulties, prerequisite support only when relevant, direct student questions, optional tutor-initiated MCQs and flexible option/reason replies in the same chat. Help, objections, declining, topic changes and pause/finish remain available.",
+          "impact": "Pedagogical choices remain model-led within the existing validated application lifecycle. No confidence check, follow-up response form, new state, context-builder or answer-key access was added."
+        },
+        {
+          "area": "Evidence interpretation and closing replies",
+          "problem": "Live development tests overcredited a restated supplied answer as application. Other runs attempted duplicate profile updates on a closing/overview request and were rejected by the existing validator.",
+          "fix": "Consolidate the recognition-only rule: after an answer and reason were supplied, repetition alone yields recognition evidence and no transition. Requests for overview, recap or stopping do not manufacture new learning evidence. Preserve existing claims and allow pause without tutor-recommended completion. Add v7.14 to the existing carried-forward confidence provenance list.",
+          "impact": "Targeted live reruns retained the SEM claim after supplied help; a separate case resolved only reliability/validity and retained SEM. Closing and overview requests succeeded without duplicate transitions. Validators and canonical profile fields are unchanged."
+        },
+        {
+          "area": "Bounded synthetic evaluation and release dependencies",
+          "problem": "The prior scenario harness did not cover the approved interaction combinations; its first expanded learner prompt could skip ahead to ending. The security gate also identified new dependency advisories.",
+          "fix": "Add seven scenario families and current-turn-only nonempty AI student replies. Assert sealed-response equality, no extra structured follow-up rounds and research integrity. Pin sharp 0.35.5, selector parser 7.1.6, source-map-js 1.2.2 and argparse 2.0.1, removing sprintf-js; test importer CLI compatibility.",
+          "impact": "The test harness remains explicitly opt-in, bounded and isolated from classroom records. Patched dependencies unblock the security gate without expanding the existing temporary braces exception."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Actual AI dialogues and manual teaching review",
+          "result": "Targeted final reruns passed; development failures retained",
+          "detail": "Nineteen synthetic session attempts across seven scenario families used 289 provider dispatches including AI learner calls. Sixteen completed mechanical checks; three development attempts failed (one empty generated student reply, two closing/profile contract failures). The harness and instructions were corrected and affected paths rerun. The final help-first, prerequisite/overview and distinct-difficulty sessions passed with the final instruction file; a shared-closing rerun passed the closing repair. Actual transcripts and structured outputs were reviewed, not only status codes."
+        },
+        {
+          "name": "Required evidence and student-choice scenarios",
+          "result": "Observed in reviewed live reruns",
+          "detail": "The final partial case resolved the reliability/validity claim, retained the independent SEM claim and used continue then pause. The help-first case provided the answer before a reply, then recorded immediate-scaffolding recognition and a null transition. Requests to decline practice, end, change topics or get an overview did not require a further answer. Some MCQs remained cosmetic variants, so example quality is a retained limitation rather than a universal pass."
+        },
+        {
+          "name": "Research capture and baseline preservation",
+          "result": "Passed for each mechanically successful session",
+          "detail": "Initial selections, explanations, confidence, keys, snapshots and submission timestamps remained exactly equal; exactly three initial responses and no additional FollowupRounds. Message replays caused no extra AI call; one completion event and one preparation job were asserted. Research turn counts and all 43 manifest entries matched. Dashboard reads passed. Service-only tests preserved missing browser-exposure data as missing. Help-first also exercised pause/resume."
+        },
+        {
+          "name": "Static, runtime and regression verification",
+          "result": "Passed with existing warnings",
+          "detail": "npm run typecheck; source lint with .data and outputs excluded (zero errors, five existing warnings); git diff --check; expanded UX smoke with nine flexible conversational fixtures; nine current runtime database suites; 13 research/timing/dashboard suites; clean-snapshot production build. The initial unscoped lint failed on scratch outputs, and restricted database/build attempts were blocked by the local sandbox; authorized isolated runs passed. No unrelated files were cleaned up."
+        },
+        {
+          "name": "Dependency security and functional compatibility",
+          "result": "Passed with the existing bounded build exception",
+          "detail": "Ten security-policy tests and 18 functional dependency checks passed, including Word/Excel import, CLI argument parsing, image output, stylesheet/source maps and archive protections. Production audit returned zero vulnerabilities. Seven all-dependency nodes remained solely in the previously authorized braces advisory chain, expiring 2026-10-11T02:55:04Z. No new exception or extension was introduced."
+        }
+      ],
+      "data_impact": [
+        "No migration, new field, event type, research table, practice-response record, assistance flag or export schema. Existing transcript, student/tutor timestamps, provider links, evidence observations and validated profiles preserve the exchanges. No historical or production student records were changed.",
+        "Prompt version is recorded through existing agent-call provenance. v7.14 profile confidence-alignment provenance explicitly remains carried_forward_not_reassessed. Student response time, system wait and provider latency retain their existing separate definitions.",
+        "Conversational applications require later transcript coding when used analytically. Recognition or a supported reply is not automatically independent transfer, retained learning or an effect caused by the tutor. Raw and failed-generation evidence remains auditable."
+      ],
+      "limitations": [
+        "Instructional intent is not a deterministic semantic guarantee. Generated options can be uneven and new examples can be too similar to prior explanations. Some replies repeat content or describe numerical assumptions broadly. Initial claim catalogs vary across runs; transcripts and observations remain essential for interpretation.",
+        "Real AI tests ran in isolated local databases with the approved production model configuration, not against classroom student accounts. Full-capacity concurrent load, every 30-turn trajectory, browser usability and classroom learning effects were not tested in this release.",
+        "Production inspection found a 1000000-token session allowance and 7000-token conversation output allowance. Reviewed four-reply cases used roughly 196000-248000 application tokens, with no budget failures. No model or budget increase was needed; longer histories and retries can increase usage.",
+        "The existing braces build-only waiver still expires on its original date. This release does not claim a zero-finding all-dependency audit or classroom validation of generated practice items."
+      ],
+      "references": [
+        "docs/conversational-application-verification-2026-10-07.md",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+        "src/lib/services/student-assessment/profile-record.ts",
+        "src/lib/evaluation/conversational-application-scenarios.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "prisma/formative-conversation-v18r2-ux-polish-smoke-test.ts",
+        "prisma/dependency-security-smoke-test.ts"
+      ]
     }
   ],
   "historical_index": [
