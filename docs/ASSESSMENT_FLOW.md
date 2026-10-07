@@ -251,15 +251,48 @@ continue to request missing evidence.
 ### Formative Misconception Coverage
 
 The formative tutor considers every administered response, including justification
-and tempting-option reasoning, and every unresolved misconception claim. It may
-group related issues but must return to distinct remaining issues after addressing
-one. Wrong answers alone are not proof of a misconception, and correct answers can
-still contain faulty reasoning. Only supported student evidence can resolve a claim.
-Partial profile improvement does not end teaching. Completion is rejected while
-known claims remain and turns are available, except an evidence-supported teacher
-assistance recommendation. Student pause/exit and the configured turn limit remain
-available; unresolved claims remain recorded. The system cannot guarantee that a
-student will resolve all difficulties before stopping.
+and tempting-option reasoning, and every unresolved misconception claim. It groups
+issues only when the student's reasoning supports the connection. Usually one
+manageable focus is chosen from the student's request, a blocking prerequisite,
+a shared distinction, and evidence specificity. These are flexible considerations,
+not a routing algorithm, remediation queue or required sequence. Distinct issues
+remain in context and can be revisited without forcing complete coverage.
+Wrong answers alone are not proof of a misconception, and correct answers can
+contain faulty reasoning. A prerequisite review follows demonstrated need or a
+student request, not the number of wrong answers. An overview request can address
+several topics directly.
+
+Only supported student evidence resolves a claim. The existing validator rejects
+unsupported global understanding and tutor-recommended completion with retained
+claims; it does not require students to answer a conversational exercise before
+using the existing pause/finish controls. Partial improvement, discussion, agreement
+and student departure are distinct from complete conceptual resolution.
+
+### Conversational Application Questions
+
+Host `formative-conversation-host-v7.14` may initiate a brief MCQ when applying an
+idea would help, without waiting for a practice request. It is not required after
+each explanation. The question and options appear together in the ordinary tutor
+message, inviting an option and a brief reason in one reply. There is no required
+format, added confidence/tempting-option collection, separate screen, activity,
+submission gate, or new structured follow-up record.
+
+Suitable reviewed examples in the supplied context may be used; otherwise the
+tutor constructs instructional examples with explicit assumptions and defensible
+options. These are not published or independently validated assessment items.
+The initial invitation does not reveal the answer. Requested hints, direct answers
+and explanations remain available before a student responds. Option-only,
+explanation-only, uncertainty, declining, objections and topic changes are normal
+conversation. The tutor accounts for prior help when interpreting later reasoning;
+success is not automatically independent transfer or retained learning.
+A restatement after both answer and explanation were supplied is recognition,
+not a new application or automatic claim resolution. A stop-only message after
+an existing profile update requires no duplicate profile transition.
+
+A flawed conversational example is openly clarified or replaced, and interpretations
+depending on it are reconsidered through existing validated updates or teacher review.
+Original assessment records and keys are not rewritten. Existing transcript,
+operational logging and evidence-based profile mechanisms remain unchanged.
 
 ### PACKAGE_REVIEW
 

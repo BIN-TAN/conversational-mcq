@@ -1,5 +1,21 @@
 # Data Logging Specification
 
+## Ordinary conversational application exchanges (2026-10-07)
+
+Host `formative-conversation-host-v7.14` refines teaching instructions only.
+Application questions and flexible replies remain exact tutor/student messages in
+the existing conversation, with existing timestamps, source-call joins and provenance.
+No dedicated question/key snapshot, response record, follow-up option/reason/confidence/
+correctness/completion fields, assistance flags, special events, export columns or
+datasets are introduced. Existing operational logging and evidence observations
+remain; a practice reply does not force a profile update or a new observation.
+
+Later transcript coding can locate questions, preceding hints or explanations,
+responses and discussion. This release does not automatically identify these
+exchanges as independent transfer, retention or chatbot-caused learning. Initial
+confidence is carried forward under its existing provenance rule, not remeasured.
+Historical messages, initial responses, profiles and export schemas are unchanged.
+
 ## Historical context versus new learning evidence
 
 `formative-conversation-evidence-id-validator-v3` separates six context-only

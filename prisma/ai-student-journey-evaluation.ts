@@ -8,6 +8,7 @@ import { PrismaClient, type Item } from "@prisma/client";
 import { z } from "zod";
 import { parse } from "csv-parse/sync";
 import { AI_STUDENT_ITEMS, AI_STUDENT_SCENARIOS } from "../src/lib/evaluation/ai-student-scenarios";
+import { CONVERSATIONAL_APPLICATION_ITEMS, CONVERSATIONAL_APPLICATION_SCENARIOS } from "../src/lib/evaluation/conversational-application-scenarios";
 import type { StudentSessionState, StudentFormativeConversation } from "../src/lib/student-assessment-ui/types";
 import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 
@@ -18,8 +19,12 @@ const option = (name: string) => {
 };
 
 async function main() {
+  const applicationSuite = option("--suite") === "conversational-application";
+  assert(!option("--suite") || applicationSuite, "Unknown synthetic evaluation suite.");
+  const scenarioItems = applicationSuite ? CONVERSATIONAL_APPLICATION_ITEMS : AI_STUDENT_ITEMS;
+  const scenarios = applicationSuite ? CONVERSATIONAL_APPLICATION_SCENARIOS : AI_STUDENT_SCENARIOS;
   if (process.argv.includes("--dry-run")) {
-    console.log(JSON.stringify({ synthetic_only: true, cases: AI_STUDENT_SCENARIOS, maximum_provider_dispatches: 160 }, null, 2));
+    console.log(JSON.stringify({ synthetic_only: true, cases: scenarios, maximum_provider_dispatches: 160 }, null, 2));
     return;
   }
   assert(process.argv.includes("--allow-live-synthetic"), "Explicit opt-in required for paid synthetic AI calls.");
@@ -65,18 +70,19 @@ async function main() {
   const { resolveOpenAIModelConfigForRole } = await import("../src/lib/llm/config");
   const generator = new OpenAIResponsesProvider({ isolated_evaluation_runtime: { purpose: "bounded_candidate_evaluation", request_timeout_ms: 120000 } });
   const studentModel = { ...resolveOpenAIModelConfigForRole("connectivity_test"), max_output_tokens: 3000 };
-  const StudentReply = z.object({ message: z.string() }).strict();
-  const selected = AI_STUDENT_SCENARIOS.filter(s => !option("--case") || s.id === option("--case"));
+  const StudentReply = z.object({ message: z.string().trim().min(1) }).strict();
+  const selected = scenarios.filter(s => !option("--case") || s.id === option("--case"));
   assert(selected.length, "Unknown scenario.");
   const report = {
-    version: "ai-student-journeys-v1", synthetic_only: true, real_student_records_used: false,
+    version: "ai-student-journeys-v2", suite: applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
     scope: "Actual service, database, background preparation, tutor runtime, dashboard and research export; no browser exposure or usability measurement.",
     learner_method: "Fixed edge-case initial responses plus adaptive AI replies from student-visible conversation only; no answer keys or hidden profiles given to learner generator.",
     database, output_directory: output, started_at: new Date().toISOString(),
     source_commit: spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
-    scenarios_sha256: hash(AI_STUDENT_SCENARIOS), scenarios: selected,
+    scenarios_sha256: hash(scenarios), items_sha256: hash(scenarioItems), scenarios: selected,
     source_files_sha256: Object.fromEntries([
       "prisma/ai-student-journey-evaluation.ts", "src/lib/evaluation/ai-student-scenarios.ts",
+      "src/lib/evaluation/conversational-application-scenarios.ts",
       "src/lib/services/student-assessment/formative-profile.ts", "src/lib/services/student-assessment/semantic-item-review.ts",
       "src/lib/services/teacher-review/process-data-summary.ts",
       "src/lib/services/student-assessment/learning-profile-summary.ts",
@@ -105,7 +111,7 @@ async function main() {
       administration_rules: { no_feedback_during_initial_administration: true }, order_index: 1, status: "published", version: 1
     } });
     const items: Item[] = [];
-    for (const [index, item] of AI_STUDENT_ITEMS.entries()) items.push(await db.item.create({ data: {
+    for (const [index, item] of scenarioItems.entries()) items.push(await db.item.create({ data: {
       item_public_id: `item_${randomUUID()}`, concept_unit_db_id: topic.id, item_order: index + 1,
       item_stem: item.stem, options: item.options.map((text, i) => ({ label: "ABCD"[i], text })), correct_option: item.key,
       distractor_rationales: item.distractors,
@@ -150,7 +156,7 @@ async function main() {
             assert.equal(state.assessment_state, "AWAIT_CONFIDENCE", `Reason did not advance for item ${index + 1}`);
             state = (await service.recordConfidence({ ...current, data: { confidence_rating: scenario.confidence, client_action_id: randomUUID() } })).state;
             if (scenario.tempting) {
-              state = (await service.recordTemptingOption({ ...current, data: { tempting_option: AI_STUDENT_ITEMS[index].key, client_action_id: randomUUID() } })).state;
+              state = (await service.recordTemptingOption({ ...current, data: { tempting_option: scenarioItems[index].key, client_action_id: randomUUID() } })).state;
               assert.equal(state.assessment_state, "AWAIT_TEMPTING_REASON");
               state = (await service.recordTemptingOption({ ...current, data: { tempting_option_reason: "That explanation also seemed plausible, and I may rethink my current answer before submitting the set.", client_action_id: randomUUID() } })).state;
             } else state = (await service.recordTemptingOption({ ...current, data: { no_tempting_option: true, client_action_id: randomUUID() } })).state;
@@ -159,7 +165,7 @@ async function main() {
           checks.push("All three items advanced to package review; answer replay accepted.");
           if (scenario.revise) for (const [index, item] of items.entries()) {
             state = (await service.updatePackageReviewItemResponse({ ...input, item_public_id: item.item_public_id, data: {
-              selected_option: AI_STUDENT_ITEMS[index].key, reasoning_text: AI_STUDENT_ITEMS[index].explanation,
+              selected_option: scenarioItems[index].key, reasoning_text: scenarioItems[index].explanation,
               confidence_rating: "medium", no_tempting_option: true, client_action_id: randomUUID()
             } })).state;
           }
@@ -180,13 +186,19 @@ async function main() {
           state = await service.getStudentSessionState(input);
           assert.equal(state.formative_conversation?.opening_status, "ready");
           checks.push("Real initial profiling and learning-conversation opening completed.");
+          const frozenResponses = await db.itemResponse.findMany({ where: { concept_unit_session: where }, orderBy: { item: { item_order: "asc" } }, select: {
+            id: true, selected_option: true, reasoning_text: true, confidence_rating: true,
+            correctness: true, item_snapshot: true, correct_option_snapshot: true, item_submitted_at: true
+          } });
+          const priorFollowupRounds = await db.followupRound.count({ where: { concept_unit_session: where } });
           const followupTurns = "followupTurns" in scenario ? scenario.followupTurns : 2;
           for (let turn = 1; turn <= followupTurns; turn += 1) {
             const conversation: StudentFormativeConversation = state.formative_conversation!;
             const response: StructuredAgentResult<{ message: string }> = await generator.executeStructured({
               agent_name: "response_collection_agent", model_config: studentModel,
-              instructions: "You are simulating one adult student for a bounded software evaluation, not tutoring or grading. Follow the supplied persona. Respond only to the visible conversation. Use at most 100 words. You have no hidden assessment information. Do not mention the evaluation. Return the student's message.",
+              instructions: "You are simulating one adult student for a bounded software evaluation, not tutoring or grading. Follow the supplied persona and current_turn_instruction only for this reply. Respond only to the visible conversation. Use 1 to 100 words. You have no hidden assessment information. Do not mention the evaluation. Return a nonempty student's message.",
               input: { persona: scenario.persona, reply_number: turn, initial_responses: scenario.reasons,
+                current_turn_instruction: "turnInstructions" in scenario ? scenario.turnInstructions[turn - 1] : undefined,
                 visible_transcript: conversation.transcript.map(t => ({ actor: t.actor, message: t.message_text })) },
               output_schema: StudentReply, schema_name: "synthetic_student_reply", client_request_id: randomUUID(), timeout_ms: 120000
             });
@@ -224,8 +236,15 @@ async function main() {
           const unit = await db.conceptUnitSession.findFirstOrThrow({ where });
           const responses = await db.itemResponse.findMany({ where: { concept_unit_session_db_id: unit.id }, orderBy: { item: { item_order: "asc" } } });
           assert.equal(responses.length, 3);
+          assert.deepEqual(await db.itemResponse.findMany({ where: { concept_unit_session: where }, orderBy: { item: { item_order: "asc" } }, select: {
+            id: true, selected_option: true, reasoning_text: true, confidence_rating: true,
+            correctness: true, item_snapshot: true, correct_option_snapshot: true, item_submitted_at: true
+          } }), frozenResponses, "Ordinary conversation rewrote sealed initial evidence.");
+          assert.equal(await db.followupRound.count({ where: { concept_unit_session: where } }), priorFollowupRounds,
+            "Conversational examples must not create legacy structured follow-up rounds.");
+          checks.push("Initial selections/reasons/confidence/keys/snapshots unchanged; no additional item responses or follow-up rounds.");
           assert(responses.every(r => r.student_display_acknowledged_at === null), "Service-only test must not fabricate browser exposure.");
-          assert.deepEqual(responses.map(r => r.selected_option), scenario.revise ? AI_STUDENT_ITEMS.map(i => i.key) : [...scenario.choices]);
+          assert.deepEqual(responses.map(r => r.selected_option), scenario.revise ? scenarioItems.map(i => i.key) : [...scenario.choices]);
           const dashboardInput = { teacher_user_db_id: teacher.id, assessment_public_id: assessment.assessment_public_id };
           const bundle = await buildAnalysisReadyResearchDataBundle({ ...dashboardInput, scope: "selected_session", session_public_id: input.session_public_id, include_incomplete_sessions: false });
           const bundlePath = path.join(output, scenario.id);
@@ -296,6 +315,13 @@ async function main() {
               input_payload: true, output_payload: true, raw_output: true
             } });
             writeFileSync(path.join(output, `${scenario.id}-agent-calls.json`), JSON.stringify(records, null, 2));
+            result.application_usage = {
+              calls: records.length,
+              input_tokens: records.reduce((sum, row) => sum + (row.input_tokens ?? 0), 0),
+              output_tokens: records.reduce((sum, row) => sum + (row.output_tokens ?? 0), 0),
+              tutor_max_output_tokens_used: Math.max(0, ...records.filter(row => row.agent_name === "formative_conversation_agent").map(row => row.output_tokens ?? 0)),
+              token_budget_failures: records.filter(row => /token.*limit|budget|output.*limit|incomplete/i.test(`${row.error_category} ${row.validation_error}`)).length
+            };
             if (records.some(record => record.error_category === "quota")) {
               providerQuotaBlocked = true;
               result.outcome = "blocked_provider_quota";

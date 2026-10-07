@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -44,7 +45,8 @@ async function main() {
   });
   await check("every installed security-sensitive package meets patched floor", () => {
     const floors: Record<string, string> = {
-      next: "15.5.24", sharp: "0.35.4", postcss: "8.5.23", "csv-parse": "7.0.2",
+      next: "15.5.24", sharp: "0.35.5", postcss: "8.5.23", "csv-parse": "7.0.2",
+      "postcss-selector-parser": "7.1.6", "source-map-js": "1.2.2",
       "fast-xml-parser": "5.10.1", "@xmldom/xmldom": "0.8.15", "deepmerge-ts": "8.0.0",
       "js-yaml": "4.3.2", browserslist: "4.28.7", "baseline-browser-mapping": "2.11.0", nanoid: "3.3.18"
     };
@@ -59,6 +61,14 @@ async function main() {
       const delta = actual.map((value, i) => value - minimum[i]).find((value) => value !== 0) ?? 0;
       assert(delta >= 0, `${location} below patched floor`);
     }
+  });
+  await check("Word importer CLI remains compatible without vulnerable formatter", () => {
+    assert(!Object.keys(lock.packages).some(location => location.endsWith("node_modules/sprintf-js")));
+    assert.equal(manifest.overrides.argparse, "2.0.1");
+    const cli = spawnSync(process.execPath, ["node_modules/mammoth/bin/mammoth", "--help"], { encoding: "utf8", timeout: 10000 });
+    assert.equal(cli.status, 0, cli.stderr);
+    assert.match(cli.stdout, /docx-path/);
+    assert.match(cli.stdout, /output-format/);
   });
   await check("audit errors never echo raw service responses or configuration", () => {
     for (const error of [new SyntaxError('Unexpected token: synthetic-private-value'), new Error('https://user:synthetic-password@registry.invalid'), null]) {

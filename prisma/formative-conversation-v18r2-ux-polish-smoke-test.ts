@@ -31,8 +31,11 @@ import {
 import { FORMATIVE_CONVERSATION_V18_PROFILE_TRANSITION_VERSION } from "../src/lib/services/student-assessment/formative-conversation/profile-update-v18";
 import {
   v18r2TestContext,
-  v18r2TestContinueOutput
+  v18r2TestContinueOutput,
+  v18r2TestTerminalOutput
 } from "./formative-conversation-v18r2-test-fixtures";
+import { validateFormativeInterpretation } from "../src/lib/services/student-assessment/formative-conversation/interpretation-policy";
+import { profileRecordProvenance } from "../src/lib/services/student-assessment/profile-record";
 
 const FIXTURE_PATH =
   "config/operational-candidates/formative-conversation-v18r2-ux-polish/fixtures/ux-polish-regression-cases.json";
@@ -109,7 +112,7 @@ function main() {
   try {
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
-      "formative-conversation-host-v7.13"
+      "formative-conversation-host-v7.14"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
@@ -161,6 +164,73 @@ function main() {
       FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS,
       /Do not reconstruct or follow those legacy routes/u
     );
+    for (const rule of [
+      "Group difficulties only when the",
+      "without waiting for a practice request",
+      "not a ranking algorithm, remediation queue, or required teaching sequence",
+      "not automatically because several answers are wrong",
+      "Requested hints, explanations and direct answers remain available afterward",
+      "Add no confidence or tempting-alternative question",
+      "do not extract a separate follow-up answer",
+      "One substantive",
+      "one correct response does not resolve unrelated claims",
+      "Consider preceding hints, supplied reasoning and worked examples",
+      "recognition of the explanation, not a new application",
+      "Do not override that rule simply because the supplied explanation is correct",
+      "including when the same message also requests an overview",
+      "correct option cannot be identified just by its length",
+      "a stop-only message after an already validated improvement",
+      "openly correct or replace it"
+    ]) assert(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS.replace(/\s+/g, " ").includes(rule), rule);
+    assert.doesNotMatch(FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, /Say to reply with the question number and chosen letter/);
+    assert.equal(profileRecordProvenance({
+      id: "synthetic-v714-profile", profile_type: "updated", item_level_evidence: [],
+      misconception_indicators: [], process_interpretation_cautions: [], confidence_alignment: "mixed",
+      based_on_agent_call: { agent_name: "formative_conversation_agent", call_status: "succeeded",
+        output_validated: true, prompt_version: FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION }
+    }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
+
+    // These are contract fixtures, not evidence that a live tutor makes the same choices.
+    const flexibleReplies = [
+      ["A", "That choice fits this distinction. What part of the example mattered to you?"],
+      ["Consistency does not establish the intended interpretation.", "That identifies the key distinction without needing an option letter."],
+      ["I don't know. Can you help before I answer?", "Yes. Consistency concerns agreement; the intended interpretation needs different evidence."],
+      ["Please just tell me the answer.", "The option separating consistency from validity fits, because repeatable scores could reflect the wrong attribute."],
+      ["I understand.", "We can leave that explanation there."],
+      ["I would rather not answer that question.", "We can leave the example and discuss your question instead."],
+      ["Can we go back to the earlier example?", "Yes. We were distinguishing repeatable scores from evidence about what those scores mean."],
+      ["I want to finish now.", "You can finish here; there is no need to answer the example."],
+      ["That interval was not guaranteed. Your example did not give distribution assumptions.", "You are right. My claim of guaranteed coverage was wrong. SEM alone does not guarantee that interval; let me correct the example."]
+    ];
+    for (const [student, tutor] of flexibleReplies) {
+      const context = v18r2TestContext({ student_turn_count: 1, student_messages: [student] });
+      const before = JSON.stringify(context);
+      const candidate = continueCandidate({ context, message: tutor });
+      const accepted = validateFormativeInterpretation({ context, candidate });
+      assert.equal(accepted.valid, true, `${student}: ${accepted.validation_issue_paths}`);
+      assert.equal(candidate.profile_transition_recommendation, null);
+      assert.deepEqual(candidate.evidence_observations, []);
+      assert.equal(JSON.stringify(context), before, "Validation must not rewrite assessment or dialogue evidence.");
+    }
+    const partialContext = v18r2TestContext({ student_turn_count: 1, student_messages: [
+      "Consistency does not establish the intended interpretation, but I still think subtracting SEM gives the exact true score."
+    ] });
+    partialContext.current_profile.canonical_profile!.confidence_alignment = "mixed";
+    partialContext.initial_profile.canonical_profile!.confidence_alignment = "mixed";
+    const partial = v18r2TestTerminalOutput({ context: partialContext, outcome: "largely_improved_understanding" });
+    const partialValidation = validateFormativeInterpretation({ context: partialContext, candidate: partial });
+    assert.equal(partialValidation.valid, true, partialValidation.validation_issue_paths.join(", "));
+    assert(partial.profile_transition_recommendation?.misconception_claim_dispositions.some(claim => claim.disposition === "retained"));
+    const falseCompletion = { ...partial, lifecycle_recommendation: "complete" };
+    assert.equal(validateFormativeInterpretation({ context: partialContext, candidate: falseCompletion }).valid, false,
+      "Tutor-recommended completion must not erase remaining claims; explicit student finish uses its separate lifecycle path.");
+
+    const contextText = JSON.stringify(partialContext);
+    assert(partialContext.assessment_response_evidence.length > 1);
+    for (const response of partialContext.assessment_response_evidence) {
+      assert(contextText.includes(response.item_public_id));
+      assert("written_reasoning" in response && "tempting_option_reason" in response && "confidence" in response);
+    }
 
     const behaviorResults = fixture.behavior_cases.map((entry, index) => {
       const context = v18r2TestContext({
@@ -384,6 +454,9 @@ function main() {
           no_question_continue_conversation_accepted: true,
           nonterminal_profile_transition_recommendation: null,
           canonical_contracts_unchanged: true,
+          flexible_conversation_contract_cases: flexibleReplies.length,
+          partial_improvement_retains_other_claim: true,
+          forced_tutor_completion_with_remaining_claim_blocked: true,
           exact_production_responses_schema_compiled: true,
           provider_calls: 0,
           model_auth_requests: 0,

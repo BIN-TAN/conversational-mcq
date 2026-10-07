@@ -269,6 +269,16 @@ answer follow-up questions, change explanation strategy, and move beyond the
 original activity when pedagogically useful. It does not return a fixed
 pedagogical action enum.
 
+Teaching may include a tutor-initiated brief application MCQ within the same
+conversation, with question and options together and a flexible invitation for an
+option and reason. This is optional instructional dialogue, not a separate
+assessment: help, declining, topic changes and existing pause/finish actions remain
+available. There is no added confidence check, structured follow-up collection,
+new item bank or compulsory explanation-practice-review sequence. Shared difficulties
+are grouped only when supported by the student's reasoning. Prerequisite support
+follows demonstrated need or a request, and unresolved evidence remains without
+forcing every issue to be addressed.
+
 The platform retains authority over authentication, transcript persistence,
 idempotency, privacy, safety, unadministered-item protection, conversation
 lifecycle, and validated learning-profile transitions. The approved
