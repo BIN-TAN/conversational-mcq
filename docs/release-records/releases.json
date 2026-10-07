@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-07T22:09:54.442Z",
+  "updated_at": "2026-10-07T23:32:56Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2508,6 +2508,110 @@
         "prisma/formative-conversation-v18r2-provider-request-smoke-test.ts",
         "scripts/conversation-regression-audit.mjs",
         "scripts/audit-ai-student-research.mjs"
+      ]
+    },
+    {
+      "id": "CMCQ-20261007-03",
+      "date": "2026-10-07",
+      "title": "Support sensitive teaching and durable assistance evidence",
+      "application_commit": "0e7bf1473070eb598393896f16b779a12a8f0c15",
+      "push_status": "Application commit pushed to origin/main; the release ledger and Word record follow in a documentation-only [skip render] commit.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db3da8jl550s73acs99g",
+        "source_commit": "0e7bf1473070eb598393896f16b779a12a8f0c15",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db3da8jl550s73acs99g",
+        "verified_at": "2026-10-07T23:32:56Z",
+        "evidence": [
+          "The first deploy dep-db3d6mqjnfac7387o5lg for 598de8ae2a92455d18f1207be7844a61057f28d6 failed at the security gate after 38.5 seconds, before app build. Two newly reported Next.js advisories were patched rather than excepted.",
+          "Canonical Render deployment dep-db3da8jl550s73acs99g showed Deploy succeeded and Live for exact commit 0e7bf1473070eb598393896f16b779a12a8f0c15. Its log recorded service live at 2026-10-07T23:31:49Z, and its pruned runtime audit had zero findings with excepted build nodes absent.",
+          "Read-only checks at 23:32:51-23:32:56Z confirmed the exact running commit, tutor host v7.16, approved runtime bb157af19e9bc876e077d2c2b6ea58bfaa5aa365f5d8cf7ac37709c970b2f2d4, healthy database and ready schema, plus web and preparation-worker processes. Memory was 232853504 of 2147483648 bytes with zero recorded OOM events. No classroom records were read or changed.",
+          "A pre-Live check still returned the prior version; later connections during restart closed. Post-Live checks succeeded. SSH retained verification and printed the existing additional-host-key proof warning; no verification bypass was used. Sol low roles, 7000 conversation-output tokens and the existing 1000000-token session allowance remain unchanged."
+        ]
+      },
+      "summary": "Preserve assistance qualifications across conversation turns, align integration requests with their validator, and distinguish limited knowledge from limited participation. Improve explanations for persistent confusion, generated application options, and faithful attribution of student claims.",
+      "changes": [
+        {
+          "area": "Assistance aware interpretation",
+          "problem": "A later summary or profile recommendation could overcredit reasoning that an earlier tutor turn had already identified as recognition of supplied reasoning.",
+          "fix": "Project accepted evidence-linked qualifications from displayed tutor turns in the same conversation into conversation-assistance-history-v1. Interpretation policy v4 rejects resolution supported exclusively by previously qualified evidence unless a current explicit reconsideration is justified. Preserve original observations and raw rejected candidates; retain existing semantic, scope and cutoff checks.",
+          "impact": "New substantive reasoning can still receive credit. No word-overlap classifier, permanent learner label, compulsory practice or additional structured response stage was added."
+        },
+        {
+          "area": "Profiling and integration",
+          "problem": "Integration could request a misconception category unsupported by its heuristic eligibility predicate. In development, candid guessing and brief explanations were also interpreted as low engagement.",
+          "fix": "Integration prompt v2 receives the same eligibility count used by its unchanged validator, and alignment errors can use the existing single repair. Canonical profiling receives participation-evidence-constraints-v1, requiring participation evidence distinct from wrong answers, limited English, low confidence, help requests or pauses. Retain the approved canonical prompt v6 and runtime.",
+          "impact": "Limited understanding can coexist with adequate participation. Missing observations remain missing. The live evaluation runner now requires a validated provider-generated canonical profile and cannot silently count a conservative fallback as a successful AI call."
+        },
+        {
+          "area": "Adaptive teaching and attribution",
+          "problem": "Persistent confusion could produce overlong explanations and generated alternatives could cue the answer. One new live exchange reversed a student's mistaken claim while saying the student was right.",
+          "fix": "Host v7.16 narrows the next explanation, permits a changed representation, and checks option comparability or uses an open application question. Before agreement it checks the actual polarity, scope and qualifications of the student's claim, separating a tutor correction from the student's contribution. Block the new internal labels from student-facing text.",
+          "impact": "Students retain help, direct answers, redirection, declining, pausing and finishing. Reasonable objections receive reconsideration. No fixed teaching sequence, extra confidence check or requirement to cover every issue was introduced."
+        },
+        {
+          "area": "Deployment security",
+          "problem": "New advisory findings for installed Next.js 15.5.24 blocked the first deployment despite an earlier passing audit.",
+          "fix": "Patch Next.js and its matching compiler packages to 15.5.27 for GHSA-4jqv-mc3x-m676 and GHSA-mcj8-r9mp-w47p. Raise the regression floor without weakening the production-zero-findings policy or extending the existing build-only exception.",
+          "impact": "No assessment rules, AI inputs, models, budgets, service tier, initial records or database schema were changed by this patch."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Seven constructed learner conditions",
+          "result": "7/7 journeys and research audits passed; teaching review exposed a corrected attribution issue",
+          "detail": "Run cmcq_ai_students_a84e562fd8ff completed at 2026-10-07T23:16:20Z in 101 dispatches, including 91 application calls with no failed call records or semantic repairs. Each case had three initial items, six student conversation replies and a validated live canonical profile. Guessing had adequate participation but insufficient understanding; partial progress retained unresolved SEM; pause/return preserved the same attempt; brief-English and strong-reasoning comparisons received Mostly understood. Actual exchanges were reviewed. This run preceded the final attribution guidance, rather than constituting seven final-prompt replications."
+        },
+        {
+          "name": "Final attribution and teaching checks",
+          "result": "15/15 probes, three exact replays and one complete final journey passed",
+          "detail": "Final seeded probes completed in 16 dispatches. One draft changed a field declared retained and was repaired once. Three replays of the exact observed attribution-error context did not repeat the reversal. Final journey cmcq_ai_students_b95bfc666ad1 completed at 2026-10-07T23:16:43Z in 15 dispatches; its 13 application call records succeeded and one internal engagement-summary inconsistency was repaired before acceptance. It retained all unresolved claims and respected stopping with a teacher-help recommendation. Reviewed prompt hash ea466cc19eb9a8389d5764d6fea8b95f13a1efe6b1b79aa0f4538822069d0daf."
+        },
+        {
+          "name": "Research export and protected records",
+          "result": "All eight latest journey exports passed independent audits",
+          "detail": "Verified all 43 manifest entries per export, transcript parity, three original response records, profile/item identity joins, transition evidence scope and cutoffs, and carried-forward confidence. Journey assertions also checked sealed-baseline equality, no FollowupRounds, single completion/preparation and delivery deduplication. No classroom accounts or records were changed."
+        },
+        {
+          "name": "Regression and build",
+          "result": "Passed with recorded warnings",
+          "detail": "Assessment-code regression before the framework patch: 22/22 suites including 65 navigation paths. Additional 30-case contract matrix, interpretation and original-candidate audit tests, provider-request checks, 88 approval/budget checks, 40 stance/evidence checks, semantic profiling validation and focused integration tests passed. After the framework patch, typecheck, exact production build, 10 security-policy tests and 18 functional security checks passed. Source lint had zero errors and five existing warnings. Production dependency audit reported zero findings; the unchanged seven-node build-only braces exception expires 2026-10-11T02:55:04Z. A repeated database audit after patching executed no suites because local PostgreSQL was unavailable and Docker returned EOF. The earlier 22-suite result is not described as an additional post-patch pass."
+        },
+        {
+          "name": "Preserved development failures and deferred harness work",
+          "result": "Corrections and limitations retained",
+          "detail": "An initial 21/22 regression result came from the legacy strict-context adapter; corrected audits passed 22/22. A focused audit test exposed an unrecognized policy-v4 projection version; original-candidate preservation was fixed and verified. A draft canonical prompt v7 conflicted with the approval, causing fallback; that run was stopped after 46 dispatches and excluded from release evidence. The draft was withdrawn and input constraints used instead. The additional legacy agent-profiling-smoke-test still expects an agent row absent under the isolated harness; maintenance is deferred, while current injected and live profiling paths passed. Unfiltered lint failed on private helper files. A restricted build failed at local IPC permission and the authorized rerun passed."
+        }
+      ],
+      "data_impact": [
+        "No database migration, research CSV schema change or historical rewrite. Initial selections, reasons, confidence, item snapshots, scores and submission times remain unchanged.",
+        "New guidance and assistance projections are stored in audited call inputs. Existing observations, rejected candidates, repairs, evidence references and validated transitions retain provenance. Missing historical assistance qualifications do not imply independent performance.",
+        "The integration eligibility calculation and assistance-history inclusion rules are documented in DATA_LOGGING_SPEC.md. They are context and validation features, not newly measured student traits. Host v7.16 confidence remains carried_forward_not_reassessed.",
+        "Student response timing, system waiting and provider latency remain separate. Service-only synthetic cases do not measure browser exposure, reading, typing or human pause duration; unavailable values stay missing."
+      ],
+      "limitations": [
+        "The consistency guard does not independently judge every semantic interpretation or the quality of reconsideration. Some recaps remain stronger in tone than the underlying assistance-qualified observations. History only projects documented supported observation types; other observations remain stored but are not exhaustively reclassified.",
+        "Pacing and alternative balance remain instruction-level improvements. Some explanations are lengthy and generated options remain uneven. These examples are ordinary tutoring, not an independently validated item bank.",
+        "The final full suite used three synthetic items and six student replies per case; it is not a 30-turn stress test, whole-class load test, new browser test or a comparison of measured achievement groups. The late attribution correction was checked by 15 probes, three exact replays and one complete journey, not a further seven-case run.",
+        "Observed software behavior and export integrity do not establish classroom learning gains, diagnostic validity or equal effectiveness across achievement groups. Those require authentic student evidence, independent outcomes and human review. Model choices, existing budgets and the 2 GB service tier were not changed."
+      ],
+      "references": [
+        "docs/conversation-support-remediation-2026-10-07.md",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/formative-conversation/assistance-history.ts",
+        "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+        "src/lib/services/student-assessment/profile-integration.ts",
+        "src/lib/agents/student-profiling/input-builder.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "prisma/conversation-teaching-probe.ts",
+        "scripts/conversation-regression-audit.mjs",
+        "scripts/audit-ai-student-research.mjs",
+        "prisma/dependency-security-smoke-test.ts"
       ]
     }
   ],
