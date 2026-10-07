@@ -112,7 +112,7 @@ function main() {
   try {
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
-      "formative-conversation-host-v7.15"
+      "formative-conversation-host-v7.16"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,

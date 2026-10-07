@@ -24,6 +24,7 @@ import {
   buildProfileIntegrationAgentInput,
   buildProfileIntegrationInterpretationPacketForSession,
   callProfileIntegrationAgent,
+  profileIntegrationEligibility,
   executeLiveProfileIntegrationAgent,
   executeProfileIntegrationAgentWithProviderForTest,
   studentStatusForIntegrationPattern,
@@ -758,6 +759,16 @@ async function runPureIntegrationAssertions() {
     unsupportedMisconceptionOutput,
     singleMisconceptionInput
   );
+  assert(singleMisconceptionInput.integration_constraints?.likely_misconception_eligible === false,
+    "The provider receives the same misconception eligibility as validation.");
+  const lowConfidenceSignals = structuredClone(singleMisconceptionInput);
+  for (const item of lowConfidenceSignals.ability_summary.item_evidence) {
+    item.ability_signal_category = "knowledge_gap";
+    item.selected_option_role = "diagnostic_distractor";
+    item.misconception_match_count = 5;
+  }
+  assert(profileIntegrationEligibility(lowConfidenceSignals).likely_misconception_eligible === false,
+    "Raw match counts and low-confidence heuristic hints cannot bypass the alignment contract.");
   assert(
     !unsupportedMisconceptionValidation.valid,
     "Likely misconception should require at least two aligned sources."
@@ -778,6 +789,8 @@ async function runPureIntegrationAssertions() {
     engagements: [engagedEvidence(1), engagedEvidence(2), engagedEvidence(3)]
   });
   const alignedMisconceptionPacket = await packetFor(alignedMisconceptionInput);
+  assert(alignedMisconceptionInput.integration_constraints?.likely_misconception_eligible === true,
+    "Eligible evidence is still permitted; the constraint is not a blanket downgrade.");
   assert(
     alignedMisconceptionPacket.integration_pattern === "likely_misconception",
     "Two aligned misconception sources should be allowed."

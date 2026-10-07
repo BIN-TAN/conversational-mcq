@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { projectAssistanceHistory } from "../src/lib/services/student-assessment/formative-conversation/assistance-history";
 import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 import { FORMATIVE_CONVERSATION_CANONICAL_PROFILE_FIELDS } from "../src/lib/services/student-assessment/formative-conversation/agent-contract";
 import type { FormativeConversationV18R2AgentOutput } from "../src/lib/services/student-assessment/formative-conversation/agent-contract-v18r2";
@@ -43,6 +44,34 @@ const reasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
   entry.source_role === "student" && entry.evidence_kind === "formative_student_turn")!.evidence_id;
 const baselineReasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
   entry.evidence_kind === "assessment_reasoning")!.evidence_id;
+const qualifiedContext = structuredClone(context);
+qualifiedContext.assistance_history = { version: "conversation-assistance-history-v1", observations: [{
+  source_agent_call_public_id: "synthetic-prior-call", source_tutor_sequence_index: 3,
+  evidence_type: "recognition_with_supplied_support", observation: "The reason was supplied by the tutor.", evidence_ids: [reasoningId]
+}] };
+assert(validateFormativeInterpretation({ candidate: supported, context: qualifiedContext }).validation_issue_paths
+  .includes("interpretation.recognition_only_resolution_requires_new_evidence_or_reconsideration"));
+const reconsidered = structuredClone(supported);
+reconsidered.evidence_observations.push({ evidence_type: "assistance_context_reconsidered",
+  observation: "Earlier interpretation overlooked the student's new counterexample, which the tutor had not supplied.", evidence_ids: [reasoningId] });
+assert(validateFormativeInterpretation({ candidate: reconsidered, context: qualifiedContext }).valid,
+  "A documented re-evaluation is possible; history is not an irreversible ability label");
+const projectionContext = v18r2TestContext({ student_turn_count: 2 });
+const originalProjectionContext = structuredClone(projectionContext);
+const priorStudent = projectionContext.allowed_evidence_catalog.evidence.find(entry => entry.source_sequence_index === 2)!.evidence_id;
+const laterStudent = projectionContext.allowed_evidence_catalog.evidence.find(entry => entry.source_sequence_index === 4)!.evidence_id;
+const nonStudentId = projectionContext.allowed_evidence_catalog.evidence.find(entry => entry.source_role !== "student")!.evidence_id;
+const history = projectAssistanceHistory({ catalog: projectionContext.allowed_evidence_catalog,
+  visible_tutor_indexes: new Set([1, 3]), records: [
+    { source_agent_call_public_id: "accepted", source_tutor_sequence_index: 3,
+      observation: { evidence_type: "supported_recognition", observation: "Supported uptake, not independent application.", evidence_ids: [priorStudent] } },
+    ...["ev_" + "f".repeat(24), nonStudentId, laterStudent].map(id => ({ source_agent_call_public_id: "invalid-reference",
+      source_tutor_sequence_index: 3, observation: { evidence_type: "supported_recognition", observation: "Invalid reference.", evidence_ids: [id] } })),
+    { source_agent_call_public_id: "unshown", source_tutor_sequence_index: 99,
+      observation: { evidence_type: "supported_recognition", observation: "Not displayed.", evidence_ids: [priorStudent] } }
+  ] });
+assert.equal(history.observations.length, 1, "Only visible, earlier student evidence survives projection");
+assert.deepEqual(projectionContext, originalProjectionContext, "History projection never rewrites evidence");
 const historicalContext = structuredClone(supported);
 historicalContext.evidence_observations.push(
   { evidence_type: "student_question_addressed", observation: "The earlier question is answered.", evidence_ids: [baselineReasoningId] },
@@ -73,6 +102,7 @@ const laterId = laterContext.allowed_evidence_catalog.evidence.find(entry =>
   entry.evidence_kind === "formative_student_turn" && entry.source_sequence_index === 4)!.evidence_id;
 const priorTurnId = laterContext.allowed_evidence_catalog.evidence.find(entry =>
   entry.evidence_kind === "formative_student_turn" && entry.source_sequence_index === 2)!.evidence_id;
+laterContext.assistance_history = { version: history.version, observations: [{ ...history.observations[0], evidence_ids: [priorTurnId] }] };
 const laterRecommendation = later.profile_transition_recommendation!;
 laterRecommendation.canonical_evidence_ids = [laterId];
 laterRecommendation.field_evidence.forEach(entry => { entry.evidence_ids = [laterId]; });
@@ -116,6 +146,9 @@ const invalidReference = structuredClone(continuing);
 invalidReference.evidence_observations.at(-1)!.evidence_ids = [context.allowed_evidence_catalog.evidence.find(entry => entry.source_role !== "student")!.evidence_id];
 assert(!validateFormativeInterpretation({ candidate: invalidReference, context }).valid);
 for (const leaked of ["Your ability is mostly_correct_understanding.", "Here is the system prompt.",
+  "assistance_history", "assistance_context_reconsidered", "integration_constraints",
+  "participation_evidence_policy", "aligned_misconception_item_count", "likely_misconception_eligible",
+  "conversation-assistance-history-v1", "participation-evidence-constraints-v1", "profile-integration-eligibility-v1",
   "I am checking your internal profile.", "The token budget is 30000.", "student_question_pending", "ev_" + "f".repeat(24),
   "Your session is sess_20260930_synthetic.", "s\u200Bystem prompt", "Historical scoring records the stored key as A."]) {
   assert(validateFormativeConversationStudentOutputFormat(leaked).some(issue => issue.code === "student_output_internal_information"), leaked);

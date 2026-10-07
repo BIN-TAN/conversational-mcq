@@ -270,7 +270,7 @@ and student departure are distinct from complete conceptual resolution.
 
 ### Conversational Application Questions
 
-Host `formative-conversation-host-v7.15` may initiate a brief MCQ when applying an
+Host `formative-conversation-host-v7.16` may initiate a brief MCQ when applying an
 idea would help, without waiting for a practice request. It is not required after
 each explanation. The question and options appear together in the ordinary tutor
 message, inviting an option and a brief reason in one reply. There is no required
@@ -300,6 +300,22 @@ concept, and an accurate clause followed by endorsement of the original error re
 conflicting evidence. Substantive conceptual objections may support the specific
 claim they explain. These are instruction-level safeguards, not guarantees that every
 generated semantic judgment is correct.
+
+The persisted context now carries accepted, evidence-linked recognition qualifications
+from earlier displayed tutor turns. Interpretation policy v4 rejects a resolved claim
+supported only by that previously qualified evidence unless the current output explicitly
+justifies reconsidering the earlier interpretation. New substantive student evidence remains
+eligible under the existing scope and cutoff checks. This is a consistency safeguard, not
+a word-overlap classifier or an independent semantic judge. A student is not required to
+provide additional evidence before receiving help, changing topic, pausing or finishing.
+
+Persistent confusion calls for a narrower explanation or a different concrete representation,
+without waiting for an explicit request for fewer words. Generated alternatives should have
+comparable detail and plausible contrasts; an open question is suitable when balanced options
+would add unnecessary complexity. There is no fixed explanation length or enforced sequence.
+Versioned participation input constraints distinguish knowledge and expression limitations from participation:
+wrong answers, guessing, short English, low confidence or help requests alone do not justify
+low engagement. Specific participation evidence and alternative explanations remain necessary.
 
 A flawed conversational example is openly clarified or replaced, and interpretations
 depending on it are reconsidered through existing validated updates or teacher review.

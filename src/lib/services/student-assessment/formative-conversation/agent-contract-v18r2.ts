@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { AssistanceHistorySchema } from "./assistance-history";
 import { CanonicalEligibleEvidenceCatalogSchema } from "@/lib/domain/canonical-evidence-identity";
 import { CanonicalMisconceptionClaimCatalogSchema } from "@/lib/domain/misconception-claim-identity";
 import {
@@ -55,6 +56,7 @@ export const FormativeConversationV18R2AgentInputSchema = z
     concept_unit_public_id: z.string().min(1),
     latest_student_message: z.string().min(1).max(5_000).nullable(),
     visible_transcript: z.array(FormativeConversationTranscriptTurnSchema),
+    assistance_history: AssistanceHistorySchema.optional(),
     administered_items: z.array(FormativeConversationAdministeredItemSchema),
     assessment_specification:
       FormativeConversationAssessmentSpecificationSchema.nullable(),

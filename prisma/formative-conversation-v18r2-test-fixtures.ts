@@ -218,8 +218,9 @@ export function v18r2TestContext(input: {
 function asV18Context(
   context: FormativeConversationV18R2AgentInput
 ): FormativeConversationV18AgentInput {
-  const { formative_lifecycle: ignored, ...source } = structuredClone(context);
+  const { formative_lifecycle: ignored, assistance_history: ignoredHistory, ...source } = structuredClone(context);
   void ignored;
+  void ignoredHistory;
   return FormativeConversationV18AgentInputSchema.parse({
     ...source,
     contract_version: FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION,

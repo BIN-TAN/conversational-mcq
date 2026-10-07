@@ -410,6 +410,14 @@ export async function buildInitialStudentProfilingInput(
         "insufficient_evidence"
       ],
       conservative_inference_required: true,
+      participation_evidence_policy: {
+        version: "participation-evidence-constraints-v1",
+        knowledge_and_participation_are_distinct: true,
+        insufficient_alone_for_low_engagement: ["wrong answers", "low confidence", "brief English",
+          "admitting a guess", "asking for help", "difficulty explaining an unfamiliar concept",
+          "pausing or stopping", "elapsed timestamps"],
+        interpretation_boundary: "Limited knowledge or expression can limit ability evidence while participation remains adequate. Low engagement requires specific observable participation evidence beyond these limitations, with plausible alternatives considered. Completing requested responses and candidly expressing uncertainty support participation. Use insufficient_process_evidence when engagement cannot be determined. Never treat system or model waiting as student response time."
+      },
       output_schema_version: prompt.schema_version
     }
   };

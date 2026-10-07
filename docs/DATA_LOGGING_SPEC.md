@@ -1,5 +1,50 @@
 # Data Logging Specification
 
+## Assistance qualification carry-forward (2026-10-07)
+
+Host `formative-conversation-host-v7.16` receives optional `assistance_history`, version
+`conversation-assistance-history-v1`, in its existing audited input payload. It is a projection
+of existing accepted observations, not a new student measure or a separate assistance score.
+The builder selects successful validated calls in the same conversation with persisted
+observation references. Each projected observation includes `evidence_type`, `observation`,
+`evidence_ids`, `source_agent_call_public_id`, and `source_tutor_sequence_index`. Its source
+tutor turn must be visible and its references must identify earlier student evidence in the
+current catalog. Provider reasoning, invalid drafts, other conversations and undisplayed
+tutor messages are excluded. No additional raw transcript copies are introduced.
+
+Projection includes types containing `recognition`, `support_limitation`, or
+`understanding_not_demonstrated`, plus the exact type `assistance_context_reconsidered`.
+Other existing observations remain stored but are not part of this compact projection.
+Missing historical qualifications are unknown, not evidence of independent performance.
+Interpretation policy v4 rejects a newly resolved claim when all its references were
+previously recognition-qualified, unless the current output explicitly reconsiders that
+interpretation with the same references. A new reference or reconsideration is not proof
+of understanding: semantic review and all existing scope, cutoff and profile checks apply.
+Original candidates, rejection paths and repair outcomes remain audited. Historical records
+are not revalidated or rewritten by the new policy.
+
+Profile integration prompt v2 receives `integration_constraints`, version
+`profile-integration-eligibility-v1`. `aligned_misconception_item_count` counts existing
+item summaries with category `misconception_signal`, a positive misconception-match count,
+and diagnostic selected- or tempting-option metadata. `minimum_aligned_items` is 2;
+`likely_misconception_eligible` is true exactly when the count is at least 2. The same
+predicate still validates the output. These are legacy heuristic eligibility features,
+not new semantic judgments or a count of independent validated misconceptions. Low-confidence
+items classified as `knowledge_gap` by that heuristic remain available to the separate
+response-based canonical profiler. Alignment rejection can use the existing single repair;
+it does not increase retries or accept invalid output.
+
+The canonical profiling input adds `profiling_constraints.participation_evidence_policy`,
+version `participation-evidence-constraints-v1`, to separate limited knowledge from
+participation. It lists observations insufficient alone for low engagement and requires
+specific participation evidence and consideration of alternatives. The approved canonical
+prompt v6, model, output contract and runtime approval remain unchanged. This changes
+prospective context guidance, not collected response definitions or historical engagement
+labels. Confidence alignment remains `carried_forward_not_reassessed` for tutor v7.16.
+No database migration, research CSV column, additional confidence check, or structured
+follow-up response collection is introduced. Student time, system wait and model latency
+remain separate; unavailable browser measures remain missing in service-only tests.
+
 ## Ordinary conversational application exchanges (2026-10-07)
 
 Host `formative-conversation-host-v7.15` refines teaching instructions; semantic

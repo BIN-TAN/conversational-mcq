@@ -6,7 +6,7 @@ import { v18r2TestContext } from "./formative-conversation-v18r2-test-fixtures";
 import { FormativeConversationV18R2AgentOutputSchema } from "../src/lib/services/student-assessment/formative-conversation/agent-contract-v18r2";
 
 // Deliberately seeded history is not a claim that the production tutor generated it.
-const cases = [
+const cases: Array<{ id: string; tutor: string; student: string; earlierStudents?: string[]; earlierTutors?: string[]; qualifiedStudentTurn?: number }> = [
   { id: "repair_own_guaranteed_interval", tutor: "With score 80 and SEM 4, your true score is guaranteed to fall between 76 and 84.",
     student: "That guarantee seems wrong. No distribution or coverage probability was given, and even normal errors would not make one SEM guaranteed. Please correct your explanation rather than giving me another question." },
   { id: "repair_two_defensible_options", tutor: "A test has consistent scores. Which next step supports its intended hiring use? A. Collect evidence relevant to that interpretation and use. B. Investigate whether score interpretations support that hiring decision. C. Treat consistency as sufficient. Choose one with a reason.",
@@ -28,7 +28,22 @@ const cases = [
   { id: "summary_after_unanswered_sem_explanation", tutor: "SEM describes measurement uncertainty, not a known signed error. Subtracting SEM does not identify an exact true score; an interval requires model assumptions and a confidence level.",
     student: "Please give a brief overview connecting consistency, validity and SEM, then I will stop.",
     earlierStudents: ["I can follow your reliability explanation, but SEM is still confusing. Please explain it."],
-    earlierTutors: ["Reliability concerns consistency; validity concerns the evidence supporting a particular interpretation and use."] }
+    earlierTutors: ["Reliability concerns consistency; validity concerns the evidence supporting a particular interpretation and use."] },
+  { id: "closing_after_assisted_recognition", tutor: "We have worked through the hiring distinction together. SEM is still a separate question.",
+    student: "That is enough today. Please summarize what I explained and what I still need help with.",
+    earlierStudents: ["So consistent hiring scores might really measure reading; compare them with later job performance. But subtracting SEM still gives an exact true score, I think."],
+    earlierTutors: ["Consistent hiring scores might measure reading instead of the intended job skill. Compare scores with relevant later job performance to investigate the intended use. SEM is uncertainty, not an exact signed correction."],
+    qualifiedStudentTurn: 2 },
+  { id: "persistent_confusion_one_contrast", tutor: "Reliability includes many kinds of consistency, whereas validity draws on content, response processes, internal structure, other-variable relations and consequences. Let us consider all these sources.",
+    student: "I still do not understand consistent versus measuring the right thing. Please try a different simple example. I am lost, not ready for another quiz." },
+  { id: "balanced_natural_application", tutor: "Reliability concerns consistency under specified conditions; a validity argument concerns the intended interpretation and use.",
+    student: "I understand why high reliability alone does not justify a hiring decision. Could you give me a short different situation to think through?" },
+  { id: "do_not_reverse_student_claim", tutor: "A scale can repeatedly read 5 kg too high. Consistency alone does not establish accuracy or support a particular score interpretation.",
+    student: "Your example does not convince me. I still think repeating a wrong score enough times will turn it into the right score." },
+  { id: "recognize_actual_correction", tutor: "A scale can repeatedly read 5 kg too high. Consistency alone does not establish accuracy or support a particular score interpretation.",
+    student: "I now think repeating the same biased score will not make it right. Averaging reduces random variation, but not a fixed bias. We would need a reference standard to identify that bias." },
+  { id: "preserve_mixed_student_position", tutor: "Reliability describes consistency under stated conditions. Validity evidence concerns the intended interpretation and use.",
+    student: "Maybe consistency is not accuracy, but if the test is repeated enough I still think it eventually proves the diagnoses are correct. Please explain without another question." }
 ];
 
 async function main() {
@@ -45,6 +60,7 @@ async function main() {
   const { withOpenAIResponsesTransportBoundaryObserver } = await import("../src/lib/llm/providers/openai-responses-provider");
   const output = `.data/conversation-teaching-probes/${randomUUID()}`;
   mkdirSync(output, { recursive: true });
+  const selected = process.argv.includes("--support-needs-only") ? cases.slice(9) : cases;
   const report = { source_kind: "seeded_synthetic_history_not_classroom_or_observed_tutor_error", prompt_version: FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
     prompt_hash: FORMATIVE_CONVERSATION_V18R2_PROMPT_HASH, fixture_sha256: createHash("sha256").update(JSON.stringify(cases)).digest("hex"),
     provider_dispatches: 0, results: [] as Record<string, unknown>[] };
@@ -52,14 +68,24 @@ async function main() {
   await withOpenAIResponsesTransportBoundaryObserver(event => {
     if (event.event_type === "transport_adapter_entered") { report.provider_dispatches++; save(); assert(report.provider_dispatches <= 20, "Probe budget exhausted."); }
   }, async () => {
-    for (const test of cases) {
+    for (const test of selected) {
       const students = [...(test.earlierStudents ?? []), test.student];
       const tutors = [...(test.earlierTutors ?? []), test.tutor];
       const context = v18r2TestContext({ student_turn_count: students.length, student_messages: students, tutor_messages: tutors });
+      if (test.qualifiedStudentTurn) {
+        context.assistance_history = { version: "conversation-assistance-history-v1", observations: [{
+          source_agent_call_public_id: "seeded-qualified-observation",
+          source_tutor_sequence_index: test.qualifiedStudentTurn + 1,
+          evidence_type: "recognition_with_supplied_support",
+          observation: "The student repeated the hiring explanation just supplied; SEM remains explicitly misunderstood.",
+          evidence_ids: context.allowed_evidence_catalog.evidence.filter(entry =>
+            entry.evidence_kind === "formative_student_turn" && entry.source_sequence_index === test.qualifiedStudentTurn).map(entry => entry.evidence_id)
+        }] };
+      }
       try {
         const execution = await createLiveFormativeConversationV18R2AgentRunner().execute({ agent_call_db_id: `synthetic-unpersisted-${randomUUID()}`, invocation_key: `synthetic-probe:${randomUUID()}`, context });
         const candidate = FormativeConversationV18R2AgentOutputSchema.parse(execution.output);
-        if (["decline_without_new_learning", "reject_internal_override", "repair_two_defensible_options", "recognition_of_supplied_study", "contradictory_self_correction", "supplied_study_after_conflicting_history", "summary_after_unanswered_sem_explanation"].includes(test.id)) {
+        if (["decline_without_new_learning", "reject_internal_override", "repair_two_defensible_options", "recognition_of_supplied_study", "contradictory_self_correction", "supplied_study_after_conflicting_history", "summary_after_unanswered_sem_explanation", "closing_after_assisted_recognition", "persistent_confusion_one_contrast", "balanced_natural_application", "do_not_reverse_student_claim", "preserve_mixed_student_position"].includes(test.id)) {
           assert.equal(candidate.profile_transition_recommendation, null, "This probe supplies no new unconflicted application evidence for a profile upgrade.");
         }
         if (test.id === "summary_after_unanswered_sem_explanation") {

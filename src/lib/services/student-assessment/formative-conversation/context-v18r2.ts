@@ -1,3 +1,5 @@
+import { prisma } from "@/lib/db";
+import { projectAssistanceHistory } from "./assistance-history";
 import {
   FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION,
@@ -67,5 +69,34 @@ export async function compilePersistedFormativeConversationV18R2Context(
   safety: ReturnType<typeof validateFormativeConversationSafetyBoundary>;
 }> {
   const v18 = await compilePersistedFormativeConversationV18Context(input);
-  return v18R2Context(v18.context, maxStudentTurns);
+  const result = v18R2Context(v18.context, maxStudentTurns);
+  const calls = await prisma.agentCall.findMany({
+    where: {
+      formative_conversation_session: { conversation_public_id: input.conversation_public_id },
+      agent_name: "formative_conversation_agent", call_status: "succeeded", output_validated: true,
+      formative_conversation_profile_evidence_references: { some: {} }
+    },
+    select: {
+      agent_call_public_id: true, output_payload: true,
+      formative_conversation_profile_evidence_references: {
+        where: { formative_conversation_session: { conversation_public_id: input.conversation_public_id } },
+        select: { evidence_observation_index: true, source_tutor_turn: { select: { sequence_index: true } } }
+      }
+    }
+  });
+  result.context.assistance_history = projectAssistanceHistory({
+    catalog: result.context.allowed_evidence_catalog,
+    visible_tutor_indexes: new Set(result.context.visible_transcript.filter(turn => turn.actor === "tutor").map(turn => turn.sequence_index)),
+    records: calls.flatMap(call => {
+      const payload = call.output_payload as { evidence_observations?: unknown[] } | null;
+      const observations = payload?.evidence_observations;
+      if (!Array.isArray(observations)) return [];
+      return call.formative_conversation_profile_evidence_references.map(reference => ({
+        source_agent_call_public_id: call.agent_call_public_id,
+        source_tutor_sequence_index: reference.source_tutor_turn.sequence_index,
+        observation: observations[reference.evidence_observation_index]
+      }));
+    })
+  });
+  return result;
 }

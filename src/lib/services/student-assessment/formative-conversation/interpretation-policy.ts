@@ -7,8 +7,9 @@ import {
 } from "./agent-contract-v18r2";
 import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
 import { learningSummaryEvidenceIssues } from "./learning-summary-policy";
+import { isRecognitionQualification } from "./assistance-history";
 
-export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v3";
+export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v4";
 
 // This projection fixes bookkeeping only. Raw output and every evidence reference survive.
 export function prepareFormativeInterpretationResult(
@@ -64,6 +65,17 @@ export function validateFormativeInterpretation(input: {
   const recommendation = output.profile_transition_recommendation;
   const updated = recommendation?.updated_profile;
   const issues: string[] = learningSummaryEvidenceIssues(output, input.context);
+  const qualifiedIds = new Set((input.context.assistance_history?.observations ?? [])
+    .filter(observation => isRecognitionQualification(observation.evidence_type))
+    .flatMap(observation => observation.evidence_ids));
+  for (const claim of recommendation?.misconception_claim_dispositions ?? []) {
+    if (claim.disposition !== "resolved" || !claim.evidence_ids.length ||
+        !claim.evidence_ids.every(id => qualifiedIds.has(id))) continue;
+    const reconsidered = output.evidence_observations.some(observation =>
+      observation.evidence_type === "assistance_context_reconsidered" &&
+      claim.evidence_ids.every(id => observation.evidence_ids.includes(id)));
+    if (!reconsidered) issues.push("interpretation.recognition_only_resolution_requires_new_evidence_or_reconsideration");
+  }
   const coverage = output.evidence_observations.filter(observation =>
     ["student_question_pending", "student_question_addressed", "assessment_content_ambiguity"].includes(observation.evidence_type));
   for (const observation of coverage) {

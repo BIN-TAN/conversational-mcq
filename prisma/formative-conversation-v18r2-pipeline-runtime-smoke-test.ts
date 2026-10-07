@@ -283,6 +283,9 @@ function createRunner() {
                   outcome: "largely_improved_understanding"
                 })
               : v18r2TestContinueOutput({ context });
+      if (studentTurnCount === 1 && output.evidence_observations[0]) {
+        output.evidence_observations[0].evidence_type = "recognition_with_supplied_support";
+      }
       const startedAt = new Date();
       return {
         output,
@@ -335,8 +338,17 @@ async function main() {
       include_production_profiling: true,
       frozen_initial_profiles: {},
       profiling_mock_provider_mode: "student_profiling_compound_misconception",
-      profiling_no_provider_test_executor: (input) =>
-        executeAgent({
+      profiling_no_provider_test_executor: (input) => {
+        const policy = input.allowlistedInput.profiling_constraints.participation_evidence_policy as {
+          version: string; knowledge_and_participation_are_distinct: boolean;
+          insufficient_alone_for_low_engagement: string[]; interpretation_boundary: string;
+        };
+        assert.equal(policy.version, "participation-evidence-constraints-v1");
+        assert(policy.knowledge_and_participation_are_distinct);
+        assert(policy.insufficient_alone_for_low_engagement.includes("admitting a guess"));
+        assert(policy.insufficient_alone_for_low_engagement.includes("brief English"));
+        assert(policy.interpretation_boundary.includes("Never treat system or model waiting as student response time"));
+        return executeAgent({
           agent_name: input.agentName,
           input: input.allowlistedInput,
           assessment_session_db_id:
@@ -354,7 +366,8 @@ async function main() {
           model_config_override: {
             model_name: "v18r2-no-provider-structured-request"
           }
-        })
+        });
+      }
     });
 
     assert.equal(result.report.export_validation.status, "passed");
@@ -362,7 +375,11 @@ async function main() {
     assert.equal(result.report.students.length, 2);
 
     for (const [index, student] of result.report.students.entries()) {
-      assert.equal(student.execution_error, null);
+      const failedCalls = student.execution_error && student.conversation_public_id
+        ? await prisma.agentCall.findMany({ where: { formative_conversation_session: {
+          conversation_public_id: student.conversation_public_id }, call_status: { not: "succeeded" } },
+          select: { error_category: true, validation_error: true } }) : [];
+      assert.equal(student.execution_error, null, JSON.stringify(failedCalls));
       assert(student.conversation_public_id);
       assert.equal(student.profile_transition_occurred, true);
       const expectedOutcome =
@@ -415,6 +432,14 @@ async function main() {
       assert.equal(contexts[0]?.assessment_response_evidence.length, 3);
       assert.equal(contexts[0]?.formative_lifecycle.student_turn_index, 0);
       assert.equal(contexts[1]?.formative_lifecycle.student_turn_index, 1);
+      assert.equal(contexts[0]?.assistance_history?.observations.length, 0);
+      if (contexts[2]) {
+        assert(contexts[2].assistance_history?.observations.some(observation =>
+          observation.evidence_type === "recognition_with_supplied_support"));
+        assert(contexts[2].assistance_history?.observations.every(observation =>
+          observation.source_agent_call_public_id && contexts[2]!.visible_transcript.some(turn =>
+            turn.actor === "tutor" && turn.sequence_index === observation.source_tutor_sequence_index)));
+      }
       assert.equal(
         conversation.conversation_turns.filter(
           (turn) => turn.actor_type === "student"

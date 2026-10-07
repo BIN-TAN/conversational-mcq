@@ -38,7 +38,7 @@ import {
 
 export const PROFILE_INTEGRATION_AGENT_NAME = "profile_integration_agent" as const;
 export const PROFILE_INTEGRATION_AGENT_VERSION = "profile-integration-v1" as const;
-export const PROFILE_INTEGRATION_PROMPT_VERSION = "profile-integration-prompt-v1" as const;
+export const PROFILE_INTEGRATION_PROMPT_VERSION = "profile-integration-prompt-v2" as const;
 export const PROFILE_INTEGRATION_PACKET_SCHEMA_VERSION =
   "profile-integration-interpretation-v1" as const;
 export const PROFILE_INTEGRATION_REVIEW_ARTIFACT_VERSION =
@@ -65,6 +65,13 @@ Boundaries:
 - If evidence is mixed, conflicting, low-information, or heavily limited, use broad conservative categories and lower confidence.
 - Correct option selection is not sufficient evidence of understanding. Treat correct answers with weak reasoning, low confidence, uncertainty markers, or missing distractor-boundary explanation as unsupported correctness or insufficient evidence until the student provides reasoning, conceptual-boundary evidence, or distractor-boundary evidence.
 - Use likely_misconception only when at least two aligned evidence sources support the same conceptual issue.
+- The integration_constraints report eligibility computed by the same validator that accepts this packet.
+  If likely_misconception_eligible is false, do not choose likely_misconception; describe the available
+  evidence conservatively using another supported pattern and preserve its limitations. Raw match counts
+  alone do not establish alignment: they can include selected or tempting options and lexical matches.
+  The legacy item category knowledge_gap is a heuristic signal, not proof that an explicit misconception
+  is absent; low confidence is not absence of reasoning, and high confidence is not proof of understanding.
+  This summary must not override the separate response-based semantic profile or fabricate missing reasons.
 - Do not use high status_confidence when evidence consistency is mixed/conflicting/insufficient, reasoning quality is vague/mixed/insufficient, multiple I-don't-know or low-information signals are present, metadata limitations are substantial, or the integration pattern is mixed_or_conflicting_evidence or insufficient_evidence.
 - Student-facing status labels must be exactly Mostly understood, Still developing, or Needs more work.
 - Internal status may use Insufficient evidence.
@@ -110,6 +117,8 @@ Repair pass:
 - If ai_assistance_signal is insufficient_evidence or none_indicated, make no AI, external-assistance, integrity, authenticity, independent-work, suspicious-behavior, or response-provenance claim.
 - If high confidence was rejected, lower status_confidence and add a limitation.
 - If evidence is mixed or weak, choose mixed_or_conflicting_evidence or insufficient_evidence.
+- If insufficient_misconception_alignment was reported, re-evaluate using integration_constraints and
+  choose a supported eligible pattern. Retain the evidence limitations; do not invent aligned sources.
 `;
 
 const PROFILE_INTEGRATION_REPAIR_PROMPT_HASH = createHash("sha256")
@@ -297,6 +306,12 @@ const PROFILE_INTEGRATION_STUDENT_PROFILE_SOURCE = "profile_integration_interpre
 export type ProfileIntegrationAgentInput = {
   agent_name: typeof PROFILE_INTEGRATION_AGENT_NAME;
   schema_version: "profile-integration-input-v1";
+  integration_constraints?: {
+    version: "profile-integration-eligibility-v1";
+    aligned_misconception_item_count: number;
+    minimum_aligned_items: 2;
+    likely_misconception_eligible: boolean;
+  };
   session_context: {
     session_public_id: string;
     student_public_id: string;
@@ -590,7 +605,7 @@ export function buildProfileIntegrationAgentInput(input: {
       }
     : {};
 
-  return {
+  const agentInput: ProfileIntegrationAgentInput = {
     agent_name: PROFILE_INTEGRATION_AGENT_NAME,
     schema_version: "profile-integration-input-v1",
     session_context: {
@@ -673,6 +688,7 @@ export function buildProfileIntegrationAgentInput(input: {
     },
     ...contextFields
   };
+  return { ...agentInput, integration_constraints: profileIntegrationEligibility(agentInput) };
 }
 
 function strongestClaimStrength(count: number, highStrengthCount = count): z.infer<typeof ClaimStrengthSchema> {
@@ -688,6 +704,13 @@ function alignedMisconceptionEvidenceCount(input: ProfileIntegrationAgentInput) 
     (item.selected_option_role === "diagnostic_distractor" ||
       item.tempting_option_role === "diagnostic_distractor")
   ).length;
+}
+
+export function profileIntegrationEligibility(input: ProfileIntegrationAgentInput) {
+  const count = alignedMisconceptionEvidenceCount(input);
+  return { version: "profile-integration-eligibility-v1" as const,
+    aligned_misconception_item_count: count, minimum_aligned_items: 2 as const,
+    likely_misconception_eligible: count >= 2 };
 }
 
 function substantialMetadataLimitations(input: ProfileIntegrationAgentInput) {
@@ -1156,7 +1179,8 @@ const REMEDIABLE_PROFILE_INTEGRATION_RULES = new Set<ProfileIntegrationValidatio
   "correct_option_leak_detected",
   "distractor_metadata_detected",
   "misconception_id_exposed",
-  "high_confidence_overclaim"
+  "high_confidence_overclaim",
+  "insufficient_misconception_alignment"
 ]);
 
 function profileIntegrationIssueIsRepairable(issue: ProfileIntegrationValidationIssue) {

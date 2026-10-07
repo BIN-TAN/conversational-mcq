@@ -96,6 +96,12 @@ async function main() {
       "src/lib/services/teacher-review/process-data-summary.ts",
       "src/lib/services/student-assessment/learning-profile-summary.ts",
       "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+      "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts",
+      "src/lib/services/student-assessment/formative-conversation/assistance-history.ts",
+      "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts",
+      "src/lib/services/student-assessment/profile-integration.ts",
+      "src/lib/agents/prompts/student-profiling/v1.ts",
+      "src/lib/agents/student-profiling/input-builder.ts",
       "src/lib/llm/lossless-profiling-input.ts", "src/lib/llm/providers/openai-responses-provider.ts",
       "src/lib/agents/provider-request.ts", "src/lib/operational/active-approval-bundle.ts",
       "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts"
@@ -194,6 +200,10 @@ async function main() {
           assert.equal(finalJob.status, "completed", `Preparation ${finalJob.status}: ${finalJob.last_error_category}`);
           state = await service.getStudentSessionState(input);
           assert.equal(state.formative_conversation?.opening_status, "ready");
+          const liveProfiles = await db.agentCall.count({ where: { ...where,
+            agent_name: "student_profiling_agent", provider: "openai", call_status: "succeeded", output_validated: true } });
+          result.validated_live_initial_profile_calls = liveProfiles;
+          assert.equal(liveProfiles, 1, "Initial profile must come from one validated live call, not a silent fallback.");
           checks.push("Real initial profiling and learning-conversation opening completed.");
           const frozenResponses = await db.itemResponse.findMany({ where: { concept_unit_session: where }, orderBy: { item: { item_order: "asc" } }, select: {
             id: true, selected_option: true, reasoning_text: true, confidence_rating: true,
@@ -350,6 +360,9 @@ async function main() {
             writeFileSync(path.join(output, `${scenario.id}-agent-calls.json`), JSON.stringify(records, null, 2));
             result.application_usage = {
               calls: records.length,
+              rejected_or_failed_calls: records.filter(row => !row.output_validated || row.call_status !== "succeeded")
+                .map(row => ({ agent_name: row.agent_name, call_status: row.call_status,
+                  error_category: row.error_category, validation_error: row.validation_error })),
               input_tokens: records.reduce((sum, row) => sum + (row.input_tokens ?? 0), 0),
               output_tokens: records.reduce((sum, row) => sum + (row.output_tokens ?? 0), 0),
               tutor_max_output_tokens_used: Math.max(0, ...records.filter(row => row.agent_name === "formative_conversation_agent").map(row => row.output_tokens ?? 0)),

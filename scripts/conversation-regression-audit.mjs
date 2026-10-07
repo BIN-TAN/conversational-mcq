@@ -30,6 +30,7 @@ const suites = [
   "response-stage-observation-smoke-test", "research-suitability-contract-smoke-test",
   "teacher-dashboard-smoke-test", "student-teacher-readable-transcript-smoke-test"
 ];
+const selectedSuites = process.argv.slice(2).length ? process.argv.slice(2) : suites;
 let created = false;
 const results = [];
 function run(label, args) {
@@ -43,11 +44,11 @@ try {
   await admin.$executeRawUnsafe(`CREATE DATABASE "${name}"`); created = true;
   assert(run("migrate", ["node_modules/prisma/build/index.js", "migrate", "deploy"]));
   assert(run("seed", ["--import", "tsx", "prisma/seed.ts"]));
-  run("suites", ["scripts/student-navigation-audit.mjs", ...suites]);
+  run("suites", ["scripts/student-navigation-audit.mjs", ...selectedSuites]);
 } finally {
   if (created) await admin.$executeRawUnsafe(`DROP DATABASE "${name}" WITH (FORCE)`);
   await admin.$disconnect();
-  writeFileSync(`${output}/results.json`, JSON.stringify({ suites, results, database_dropped: created }, null, 2));
+  writeFileSync(`${output}/results.json`, JSON.stringify({ suites: selectedSuites, results, database_dropped: created }, null, 2));
   console.log(JSON.stringify({ output, results }));
   process.exitCode = results.every(row => row.passed) ? 0 : 1;
 }
