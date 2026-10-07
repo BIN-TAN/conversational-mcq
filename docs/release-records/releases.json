@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-07T20:54:45.859Z",
+  "updated_at": "2026-10-07T22:09:54.442Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2406,6 +2406,108 @@
         "prisma/ai-student-journey-evaluation.ts",
         "prisma/formative-conversation-v18r2-ux-polish-smoke-test.ts",
         "prisma/dependency-security-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261007-02",
+      "date": "2026-10-07",
+      "title": "Assistance aware conversation evidence and broader failure recovery verification",
+      "application_commit": "8c65218b20667e08dadd04759d3c237d80438ab9",
+      "push_status": "Application commit pushed to origin/main; the ledger and regenerated Word follow as a documentation-only [skip render] commit.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db3c3j7f3r2c73fp64sg",
+        "source_commit": "8c65218b20667e08dadd04759d3c237d80438ab9",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db3c3j7f3r2c73fp64sg",
+        "verified_at": "2026-10-07T22:09:13.323Z",
+        "evidence": [
+          "Canonical Render deployment detail showed Live and Deploy succeeded for exact application commit 8c65218b20667e08dadd04759d3c237d80438ab9.",
+          "Read-only runtime verification returned the same commit, host v7.15 and approved configuration bb157af19e9bc876e077d2c2b6ea58bfaa5aa365f5d8cf7ac37709c970b2f2d4. The public health endpoint and preparation worker were checked after Live. No classroom records were read or changed.",
+          "Post-Live checks at 22:08:56-22:09:39 UTC confirmed database and schema readiness, web and preparation-worker processes, 237740032 bytes of memory against a 2147483648-byte limit, and zero recorded out-of-memory events. Each SSH check first encountered a remote-closed connection and succeeded on its next attempt. SSH retained host verification and printed the existing additional-host-key proof warning; no security bypass was applied.",
+          "The approved Sol low feedback/conversation roles, 7000-token conversation output allowance and 1000000-token session allowance were retained. No model, capacity or budget increase was needed for this release."
+        ]
+      },
+      "summary": "Strengthen the distinction between student reasoning and supplied assistance, improve ordinary conversational examples, and repair evidence-construction guidance without weakening validation. Expand real synthetic AI dialogues, targeted probes, navigation, browser and research-export verification.",
+      "changes": [
+        {
+          "area": "Teaching and interpretation",
+          "problem": "Broader development review found that a duplicate-option objection, a restated tutor-supplied study, and a closing overview could be overcredited as conceptual understanding or independent application.",
+          "fix": "Host v7.15 evaluates the specific contribution against preceding help, retains contradictory and unresolved evidence, and applies that standard to profile recommendations, praise and summaries. A wording objection is distinct from a conceptual explanation. Application guidance emphasizes a changed decision, defensible premises and options, and reconsideration of valid objections without automatic agreement.",
+          "impact": "Help, direct explanation, student questions, declining, topic changes and pause/finish remain ordinary conversation. No compulsory activity, confidence recheck, new follow-up form or fixed teaching sequence was added."
+        },
+        {
+          "area": "Validated recommendation recovery",
+          "problem": "One live development journey exhausted its single semantic repair: the base candidate cited older engagement evidence, and its retry changed recommended_next_evidence while declaring that field retained. The student message was saved but the tutor reply was withheld.",
+          "fix": "Semantic regeneration v2 supplies a changed-field evidence whitelist using the same post-cutoff eligibility predicate as validation. Retained fields must be copied from the authoritative current profile, not the invalid draft. Main guidance applies cutoff restrictions to every changed field.",
+          "impact": "The validation predicate is unchanged. Invalid candidates remain immutable audit evidence. There is still at most one repair; no silent evidence rewrite, additional retry or fabricated profile improvement."
+        },
+        {
+          "area": "Reproducible regression coverage",
+          "problem": "Adaptive learner generation did not guarantee that all intended objections, returns and concurrent requests occurred. A dashboard test also assumed its student was the only teacher-owned account.",
+          "fix": "Add seven robustness families with explicitly identified fixed edge-case turns plus adaptive replies, exact duplicate-turn assertions, exit/resume checks, nine seeded-history probes and three exact failed-context replays. Add an isolated 22-suite audit. Correct the fixture to include other students in the no-evidence category.",
+          "impact": "The dashboard application was not changed to satisfy the fixture. Test accounts and databases are local synthetic data; classroom accounts, attempts and research records were untouched."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Final real AI application suite",
+          "result": "7/7 journeys passed and exchanges reviewed",
+          "detail": "Final run cmcq_ai_students_cc13e0f6db2b completed 2026-10-07T22:02:55Z with 106 provider dispatches including learner generation. Instruction and evidence-validator hashes match the released source. Help-first produced no profile transition after the supplied answer; partial correction retained SEM; low-confidence sound reasoning received credit; conflicts, decline and finish succeeded. One rejected summary candidate was repaired within the existing one-repair limit."
+        },
+        {
+          "name": "Additional scenarios and targeted probes",
+          "result": "Passed with developmental versions distinguished",
+          "detail": "Seven additional robustness families passed in two developmental runs (106 and 108 dispatches), including recurrence, 12 student replies, pause/exit/resume and concurrent same-ID delivery. Later distinct-difficulty and exact pause/replay tests passed (16 and 14 dispatches). Nine final seeded probes passed in nine dispatches; three exact failed-context replays returned accepted null transitions. These three base-call successes are not a universal repair success rate. Actual replies and evidence outputs were reviewed."
+        },
+        {
+          "name": "Preserved failed development checks",
+          "result": "Corrected and rerun; not erased",
+          "detail": "An earlier seven-family application run completed 6/7 journeys in 103 dispatches; the failed recommendation path motivated the v2 repair guidance and passed in the final full run and three exact replays. The first broad regression audit had 21/22 passes because a fixture ignored other synthetic students; corrected audits passed 22/22. Earlier teaching probes exposed overcredit even when structural validation passed. A temporary probe optional-array type error was corrected; the final typecheck passed."
+        },
+        {
+          "name": "Navigation and protected-state contracts",
+          "result": "Passed",
+          "detail": "Final isolated audit: 22/22 suites, including 65 navigation-matrix paths. Additional 30-case contract matrix and interpretation-policy tests passed. Retry request tests verify the post-cutoff subset, conversation scope, immutable inputs, production request compilation and zero provider calls. UX controls preserve flexible replies, partial claims and protected information boundaries."
+        },
+        {
+          "name": "Browser and research verification",
+          "result": "Passed",
+          "detail": "Desktop/mobile browser checks with mock AI covered initial stages, rejected input/retry, reload, explicit pause, delivery deduplication, forged outcome rejection, student isolation and read-only history. Screenshots were inspected. Database, process data and research ZIP matched. All seven final live research audits passed: three initial responses, exact sealed-baseline equality, no FollowupRounds, one completion and preparation job, transcript parity, all 43 manifest entries, evidence joins/cutoffs and carried-forward confidence. The failed developmental session stayed incomplete."
+        },
+        {
+          "name": "Static build and dependency checks",
+          "result": "Passed with existing warnings and bounded build exception",
+          "detail": "npm run typecheck; source lint excluding .data and outputs (zero errors, five existing warnings); git diff --check; isolated production build. Security policy and functional checks passed (10 and 18); production dependencies had zero vulnerabilities. The existing seven-node braces build-only exception retained its original 2026-10-11T02:55:04Z expiry; no new exception or extension was introduced."
+        }
+      ],
+      "data_impact": [
+        "No database migration, export schema change, new item response, confidence measure, assistance flag or historical rewrite. Initial selections, explanations, confidence, scores, snapshots and submission times are preserved.",
+        "Existing conversation messages, evidence observations, provider calls, invalid-candidate audits and validated profile transitions retain prospective evidence. v7.15 confidence alignment remains carried_forward_not_reassessed. Student timing, system waiting and provider latency remain separate; unavailable browser measurements stay missing in service-only tests.",
+        "Seeded tutor errors are constructed test inputs, not evidence that a production tutor previously made those errors. Synthetic results are not classroom learning outcomes. Study-design paraphrases and assisted recognition require contextual analysis rather than automatic independent-transfer labels."
+      ],
+      "limitations": [
+        "Instruction refinements reduce observed overcredit but cannot deterministically verify every semantic claim. Some generated options remain uneven or cosmetically similar; some explanations and summaries remain repetitive. These ordinary teaching examples are not validated test-bank items or independent outcome measures.",
+        "Initial misconception catalogs vary across runs. A recurring claim outside the current catalog is retained through existing uncatalogued_misconception observations and review; the last validated profile is not a continuously exhaustive inventory of all later difficulties. Review transcripts and observations alongside it.",
+        "The longest live trajectory in this review had 12 student replies. No full 30-turn stress test, whole-class capacity test or new authentic-student study was performed. Browser checks used mock AI; live dialogue checks used isolated service/database paths. Earlier broad runs and final targeted/full reruns are distinguished by stored source hashes.",
+        "Classroom diagnostic accuracy, learning gains, retention, transfer and fairness need independent empirical evaluation. Passing workflow and export checks is evidence of covered software behavior, not proof of these educational claims."
+      ],
+      "references": [
+        "docs/conversation-robustness-verification-2026-10-07.md",
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts",
+        "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts",
+        "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts",
+        "src/lib/services/student-assessment/profile-record.ts",
+        "src/lib/evaluation/conversational-application-scenarios.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "prisma/conversation-teaching-probe.ts",
+        "prisma/conversation-failed-context-replay.ts",
+        "prisma/formative-conversation-v18r2-provider-request-smoke-test.ts",
+        "scripts/conversation-regression-audit.mjs",
+        "scripts/audit-ai-student-research.mjs"
       ]
     }
   ],
