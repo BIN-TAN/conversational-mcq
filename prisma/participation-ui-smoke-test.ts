@@ -4,9 +4,8 @@ import path from "node:path";
 import { createServer } from "node:http";
 import { build } from "esbuild";
 import postcss from "postcss";
-import tailwind from "tailwindcss";
+import tailwind from "@tailwindcss/postcss";
 import { chromium } from "playwright";
-import config from "../tailwind.config";
 import { buildProcessDataSummary } from "../src/lib/services/teacher-review/process-data-summary";
 
 async function main() {
@@ -33,7 +32,7 @@ async function main() {
     import {ProcessDataSection} from './src/components/teacher-review/process-data-section';
     createRoot(document.getElementById('root')).render(<ProcessDataSection data={${JSON.stringify(data)}} sessionPublicId="synthetic-review"/>);`,
     resolveDir: process.cwd(), loader: "tsx" }, bundle: true, write: false, platform: "browser", jsx: "automatic", define: { "process.env.NODE_ENV": '"production"' } });
-  const css = await postcss([tailwind(config)]).process(await readFile("src/app/globals.css", "utf8"), { from: "src/app/globals.css" });
+  const css = await postcss([tailwind()]).process(await readFile("src/app/globals.css", "utf8"), { from: "src/app/globals.css" });
   const html = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Process data: synthetic review</title>
     <style>${css.css}main{max-width:1200px;margin:32px auto;padding:0 20px;font-family:Arial,sans-serif}</style>
     <main><div id="root"></div></main><script>${bundle.outputFiles[0].text.replaceAll("</script", "<\\/script")}</script></html>`;

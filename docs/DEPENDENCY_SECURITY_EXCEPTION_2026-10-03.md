@@ -1,5 +1,22 @@
 # Temporary build dependency exception
 
+## Superseded by dependency removal on October 10 Edmonton time
+
+This historical approval expired at its original deadline and was not extended.
+The replacement removes the affected build dependency chains: Tailwind 4 uses
+its released PostCSS integration, and the preserved Next ESLint rules use a
+small, openly documented local directory-matching adapter instead of fast-glob.
+No affected package is renamed or hidden from npm audit. See
+`tooling/eslint-next/README.md` and the release ledger for implementation and
+verification evidence.
+
+The executable exception, allowlist, and date-based acceptance path have been
+removed. Both full and production audits must report zero findings; registry,
+command, or report-validation failures still block release. Runtime verification
+also inspects the installed filesystem for development-only dependencies and
+braces, including nested copies not listed in the lockfile. The text below is
+retained as the original approval record, not as current release policy.
+
 The project owner explicitly approved one seven-day exception on October 3,
 2026 (America/Edmonton). It permits deployment of the pending API recovery fix
 without a major framework/style-tool migration. This is risk acceptance, not a

@@ -1,0 +1,5 @@
+# Preserve the audited upstream and delivered bytes on Windows and Linux.
+* text eol=lf
+
+# Keep the upstream comment bytes identical to the recorded source hash.
+dist/utils/node-attributes.js whitespace=-blank-at-eol

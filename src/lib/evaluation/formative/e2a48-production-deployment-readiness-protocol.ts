@@ -457,7 +457,7 @@ function buildBuildAudit() {
         /startCommand:\s*npm run start/u.test(renderYaml) &&
         scripts.start === "next start",
       css_build_dependencies_available:
-        ["tailwindcss", "postcss", "autoprefixer"].every((name) => Boolean(deps[name])) &&
+        ["tailwindcss", "postcss", "@tailwindcss/postcss"].every((name) => Boolean(deps[name])) &&
         /npm ci --include=dev/u.test(renderYaml),
       application_build_provenance_declared:
         scripts.build?.includes("app:build-info:write") === true &&

@@ -79,7 +79,7 @@ const SECRET_VALUE_PATTERNS = [
   /render_[A-Za-z0-9_-]{16,}/u
 ];
 
-const CSS_BUILD_DEPENDENCIES = ["tailwindcss", "postcss", "autoprefixer"] as const;
+const CSS_BUILD_DEPENDENCIES = ["tailwindcss", "postcss", "@tailwindcss/postcss"] as const;
 
 type PackageMetadata = {
   dependencies?: Record<string, string>;
