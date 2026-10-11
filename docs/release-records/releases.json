@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-07T23:32:56Z",
+  "updated_at": "2026-10-11T05:54:57.2112911Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2612,6 +2612,120 @@
         "scripts/conversation-regression-audit.mjs",
         "scripts/audit-ai-student-research.mjs",
         "prisma/dependency-security-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261010-01",
+      "date": "2026-10-10",
+      "title": "Remove vulnerable build dependencies and restore strict security gates",
+      "application_commit": "3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1",
+      "push_status": "The exact application commit was committed and pushed to origin/main. Push success is separate from deployment verification.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db5i593rjlhs73aq23t0",
+        "source_commit": "3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db5i593rjlhs73aq23t0",
+        "verified_at": "2026-10-11T05:54:53.906Z",
+        "evidence": [
+          "Canonical Render deployment dep-db5i593rjlhs73aq23t0 showed Deploy succeeded and Live at 2026-10-11T05:51:33Z for exact application commit 3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1.",
+          "Final-image runtime gate at 05:48:50Z reported zero production-audit findings, braces absent and build-only nodes absent across 32 package directories. Pre-deploy at 05:50:39Z found 66 migrations and no pending migrations.",
+          "Read-only Web Shell verification at 2026-10-11T05:54:53.906Z matched both application_build and RENDER_GIT_COMMIT to the exact application SHA; HTTP 200, database reachable, schema ready, migration readiness ready, and one preparation-worker process. Physical scan again found braces and build-only nodes absent across 32 directories.",
+          "The public health check at 2026-10-11T05:54:57.2112911Z also reported healthy production status. These checks confirm readiness and process presence, not a completed real worker job or a live LLM interaction."
+        ]
+      },
+      "summary": "Remove the unpatched braces chains behind GHSA-vfj7-8cjw-p6xm and end the temporary build exception without extending its 2026-10-11T02:55:04Z expiry. Full and production audits are clean; the exact application commit is verified Live. Preserve assessment behavior and lint coverage, with the pre-existing historical hash-harness failure retained below.",
+      "changes": [
+        {
+          "area": "Dependency removal and strict security enforcement",
+          "problem": "The previous full dependency audit reported seven high findings through development tools, while the production audit was clean; braces had no released patch.",
+          "fix": "Remove the vulnerable chains through Tailwind 4 and a transparent local copy of the complete Next lint plugin using the real tinyglobby dependency. Remove the exception without changing its original expiry; enforce clean full/production audits and physical runtime absence checks.",
+          "impact": "No audit suppression, package alias, or replacement exception is used. Runtime dependency versions remain unchanged; the vendored MIT sources and narrow adapter are traceable by hashes."
+        },
+        {
+          "area": "Styles and lint compatibility",
+          "problem": "A tooling upgrade could change assessment styling or silently reduce lint coverage.",
+          "fix": "Retain the prior design tokens and required Tailwind 3 style behavior through explicit compatibility CSS. Preserve all 21 Next rules and effective parser, rule, global and resolver settings; test directory matching on Windows.",
+          "impact": "Login, student chat and teacher views were checked on desktop and mobile. Application-owned assessment state, answer-key protection and research logging are unchanged."
+        },
+        {
+          "area": "Windows build and verification integration",
+          "problem": "Generated local tool/research archives obstructed typechecking, and older test integration expected the previous Tailwind API.",
+          "fix": "Exclude generated directories from source checks, update the participation/style and deployment-readiness checks for the new tooling, and use an ESM parser wrapper that preserves lint behavior.",
+          "impact": "Source checks remain enabled. The final production build passed; failed and aborted intermediate attempts remain recorded below."
+        },
+        {
+          "area": "Associated documentation-only Windows follow-up",
+          "problem": "The prior Word render substituted unavailable Chinese fonts, losing glyphs in bold labels; CRLF checkout changes also invalidated its byte-based fingerprint.",
+          "fix": "Use Microsoft YaHei with Arial, pin LF only for the generator and ledger, and document the verified portable Windows rendering workflow.",
+          "impact": "Preserve all historical entries and append this release once. This record-generation follow-up is separate from the deployed application commit."
+        }
+      ],
+      "tests": [
+        {
+          "name": "npm run security:dependency-smoke; security:dependencies; npm audit --json; npm audit --omit=dev --json",
+          "result": "Passed",
+          "detail": "Security suites passed 19 and 18 checks. Separate npm audit --json and npm audit --omit=dev --json each exited 0 with zero findings; before remediation the full audit had seven high findings and production had none."
+        },
+        {
+          "name": "security:lint-tooling-smoke and security:style-tooling-smoke",
+          "result": "Passed",
+          "detail": "Vendor checks passed 6/6, including complete configuration parity and executed Next diagnostics; CSS checks passed 5/5."
+        },
+        {
+          "name": "npm run typecheck, lint and production build",
+          "result": "Passed after recorded corrections",
+          "detail": "Typechecking first aborted while traversing generated archives, then exposed the old participation-test Tailwind import; both were corrected. Lint initially rejected the CJS wrapper; ESM parity passed. An old launcher forced development mode and the first build was aborted; the production rerun exited 0. Final lint: zero errors, five existing warnings."
+        },
+        {
+          "name": "Database, conversational flow, exports and timing checks",
+          "result": "Passed locally",
+          "detail": "db:smoke, student:conversational-flow-smoke, export:master-smoke, export:master-complete-smoke and student:research-timing-separation-smoke passed against the isolated local synthetic/mock environment."
+        },
+        {
+          "name": "Interface and deployment-readiness checks",
+          "result": "Passed locally",
+          "detail": "Participation UI passed at 1440/390 widths. Six login/chat/teacher views passed geometry checks at 1365/390. A mobile capture-format mismatch was resolved using client width 390 and exact relative boxes for 59 DOM nodes; the full-page capture API timed out, while the visible capture was clean. student:render-staging-readiness-smoke passed 14/14; no staging deployment was performed."
+        },
+        {
+          "name": "Fresh production-only installation",
+          "result": "Passed locally",
+          "detail": "A fresh local 189-package production installation passed audit and physical checks. The final Render image also passed its production audit and physical absence gate; the running instance was checked again after Live."
+        },
+        {
+          "name": "Supplemental eval:formative:e2a48:build-smoke",
+          "result": "Failed; pre-existing harness limitation retained",
+          "detail": "The protected-hash check also failed when unmodified baseline functions evaluated raw baseline HEAD content: its historical expected hashes predate later fixes. All eight protected files remain unchanged in this release; the changed CSS predicate passed. The historical harness was not rewritten or reported as passing."
+        },
+        {
+          "name": "Windows Word build, --check and scripts/test-change-record.py",
+          "result": "Passed",
+          "detail": "The rebuilt record passed source-identity/content checks and all 7 tests, including deterministic output, release provenance, saved Chinese font settings and LF fingerprint-source bytes. Every historical entry was preserved by semantic-hash comparison; final-page visual review is a separate completion gate."
+        }
+      ],
+      "data_impact": [
+        "No production student records, schema, assessment prompts, scoring rules or stored research derivations were changed. Runtime dependency versions are unchanged.",
+        "Only isolated Windows local tests wrote synthetic/mock records. Their results establish covered software behavior, not classroom learning gains or diagnostic validity.",
+        "No historical student records were re-scored or backfilled, and prior failed/deferred checks remain part of the release history."
+      ],
+      "limitations": [
+        "Tailwind 4 requires modern browsers: Safari 16.4+, Chrome 111+ and Firefox 128+. Older-browser compatibility is not established.",
+        "Vendored Next rules require explicit upstream maintenance. Unused zero-padded or stepped root-directory brace patterns are not supported by the replacement glob adapter.",
+        "Five existing lint warnings and the historical e2a48 hash-harness failure remain. The mobile full-page capture timeout is not a successful full-page visual check.",
+        "Production checks establish current readiness and worker-process presence. No real student assessment, completed worker job or live LLM call was exercised by this release verification."
+      ],
+      "references": [
+        "docs/DEPENDENCY_SECURITY_REMEDIATION_2026-10-10.md",
+        "scripts/dependency-security-check.mjs",
+        "scripts/dependency-security-check.test.mjs",
+        "scripts/tailwind-compatibility.test.mjs",
+        "scripts/eslint-next-vendor.test.mjs",
+        "tooling/eslint-next/provenance.json",
+        "src/app/tailwind-v3-preflight.css",
+        "src/app/tailwind-v3-utilities.css",
+        "scripts/build-change-record.py",
+        "scripts/test-change-record.py"
       ]
     }
   ],

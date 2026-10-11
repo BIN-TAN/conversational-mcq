@@ -1,0 +1,2 @@
+# The release Word fingerprint includes the ledger's exact bytes.
+releases.json text eol=lf

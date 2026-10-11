@@ -1,0 +1,2 @@
+# The release Word fingerprint includes the generator's exact bytes.
+build-change-record.py text eol=lf

@@ -59,8 +59,19 @@ class RecordTests(unittest.TestCase):
             record.build(self.data, identity, second)
             self.assertEqual(first.read_bytes(), second.read_bytes())
             record.check(first, self.data, identity)
+            # Verify the saved styles used by both body text and bold CJK labels.
+            # Visual rendering remains necessary to confirm actual glyph coverage.
+            doc = record.Document(first)
+            for name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Table Text", "Reference"):
+                style = doc.styles[name]
+                self.assertEqual(style.font.name, "Arial", name)
+                self.assertEqual(style.element.rPr.rFonts.get(record.qn("w:eastAsia")), "Microsoft YaHei", name)
             with self.assertRaisesRegex(ValueError, "stale"):
                 record.check(first, self.data, "changed-source")
+
+    def test_fingerprint_sources_have_checkout_stable_line_endings(self):
+        for source in (record.SOURCE, Path(record.__file__)):
+            self.assertNotIn(b"\r\n", source.read_bytes(), str(source))
 
 
 if __name__ == "__main__":

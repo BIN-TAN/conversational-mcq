@@ -71,7 +71,7 @@ def set_font(style, size):
     fonts = style.element.get_or_add_rPr().get_or_add_rFonts()
     for theme in ("asciiTheme", "hAnsiTheme", "eastAsiaTheme", "cstheme"):
         fonts.attrib.pop(qn("w:" + theme), None)
-    fonts.set(qn("w:eastAsia"), "Hiragino Sans GB")
+    fonts.set(qn("w:eastAsia"), "Microsoft YaHei")
 
 
 def paragraph(doc, text, label=None, style=None):

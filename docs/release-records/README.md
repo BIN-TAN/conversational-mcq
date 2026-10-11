@@ -33,26 +33,49 @@ psychometric validity. Older commit titles are an index, not verified deploys.
 
 ## Rebuild and check
 
-Use the document skill and resolve the bundled Python and renderer through
-`load_workspace_dependencies`. Python needs `python-docx`. No package install or
-application dependency change is required. From the repository root:
+Use the current documents skill and call `load_workspace_dependencies` to resolve
+the bundled Python and Node executables. The Windows bundle provides `python-docx`,
+`pdf2image`, Pillow and Poppler. It does not provide LibreOffice. This workstation
+uses the verified official LibreOffice 26.2.6 runtime extracted under
+`.data/windows-tools/libreoffice-26.2.6/runtime/program`; do not substitute a user's
+desktop installation. No application dependency change is required.
 
-```sh
-"$DOCX_PYTHON" scripts/build-change-record.py
-"$DOCX_PYTHON" scripts/build-change-record.py --check
-"$DOCX_PYTHON" scripts/test-change-record.py
-"$DOCX_PYTHON" "$DOCUMENT_SKILL/render_docx.py" \
-  docs/release-records/Conversational_MCQ_Change_and_Deployment_Record.docx \
-  --output_dir /private/tmp/cmcq-change-record-render --emit_pdf
+The following PowerShell commands match the verified Windows runtime
+`26.1009.11318`. If the loader or skills catalog reports a different location,
+use those returned absolute paths instead. Run from the repository root after
+the ledger contains the actual application commit and deployment evidence:
+
+```powershell
+$dependencyRoot = Join-Path $env:USERPROFILE '.cache/codex-runtimes/codex-primary-runtime/dependencies'
+$docxPython = Join-Path $dependencyRoot 'python/python.exe'
+$artifactNode = Join-Path $dependencyRoot 'node/bin/node.exe'
+$documentSkill = Join-Path $env:USERPROFILE '.codex/plugins/cache/openai-primary-runtime/documents/26.1009.11318/skills/documents'
+$officeBin = (Resolve-Path -LiteralPath '.data/windows-tools/libreoffice-26.2.6/runtime/program').Path
+$popplerBin = Join-Path $dependencyRoot 'native/poppler/Library/bin'
+$env:PATH = "$officeBin;$popplerBin;$env:PATH"
+
+# Run once immediately before the first Word-authoring command for this update.
+& $artifactNode "$documentSkill/container_tools/mark_artifact_operation_started.mjs" --operation-kind edit --expected-output-count 1 --output-format docx
+& $docxPython scripts/build-change-record.py
+& $docxPython scripts/build-change-record.py --check
+& $docxPython scripts/test-change-record.py
+& $docxPython "$documentSkill/render_docx.py" `
+  docs/release-records/Conversational_MCQ_Change_and_Deployment_Record.docx `
+  --output_dir .data/release-record-render --emit_pdf
 ```
 
-Inspect every rendered PNG. QA images and PDFs stay outside the repository.
-For the bundled macOS renderer, explicitly set `FONTCONFIG_FILE` to the bundled
-`dependencies/native/libreoffice-headless/libreoffice/LibreOfficeDev.app/Contents/Resources/fontconfig/fonts.conf`
-if Chinese glyphs are absent. Resolve the dependencies root from the loader;
-do not install or switch to a desktop LibreOffice. The report uses Hiragino
-Sans GB for Chinese and Arial for Latin text. Verify the actual render rather
-than assuming successful conversion means the fonts rendered.
+Stop and resolve any nonzero command result before proceeding. Inspect every
+rendered PNG at readable size, including all historical entries. QA images and
+PDFs stay in ignored `.data`, outside the committed record. The report uses
+Microsoft YaHei for Chinese and Arial for Latin text; both are installed on the
+Windows workstation. Inspect bold Chinese labels as well as normal paragraphs:
+successful conversion alone does not establish that all glyphs rendered.
+
+Scoped `.gitattributes` entries require LF line endings for `releases.json` and
+`scripts/build-change-record.py`. Preserve LF when updating the ledger. These
+exact bytes form the source fingerprint, so a Windows editor changing them to
+CRLF would produce a false stale-artifact failure. The focused tests enforce LF;
+historical release content must remain unchanged when normalizing line endings.
 `--check` checks source identity and essential content, not visual quality.
 The source hash is stored in Word metadata. Output ZIP metadata is normalized
 so unchanged source and generator inputs produce the same file in this runtime.
