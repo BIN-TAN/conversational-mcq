@@ -3,7 +3,7 @@ import { Prisma, type ActivityRuntimeAttempt } from "@prisma/client";
 import { z } from "zod";
 import {
   FormativePlanningOutput,
-  StudentProfileOutput,
+  StoredStudentProfileOutput as StudentProfileOutput,
   type AgentOutputByName
 } from "@/lib/agents/contracts";
 import { executeStudentProfilingCandidate } from "@/lib/agents/student-profiling/service";

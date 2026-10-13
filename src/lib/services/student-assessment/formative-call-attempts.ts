@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type AgentCall } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { StudentAssessmentServiceError } from "./errors";
 
@@ -12,7 +12,7 @@ export function latestFormativeCallAttempt(key: string, client: Prisma.Transacti
 export async function reserveFormativeCallAttempt(data: Prisma.AgentCallUncheckedCreateInput & {
   agent_invocation_key: string;
   concept_unit_session_db_id: string;
-}) {
+}, options: { retryFailed?: boolean | ((prior: AgentCall) => boolean) } = {}) {
   return prisma.$transaction(async tx => {
     // Reserve under a short topic-session lock; never hold a database lock during an AI call.
     await tx.$queryRaw`SELECT id FROM concept_unit_sessions WHERE id = ${data.concept_unit_session_db_id}::uuid FOR UPDATE`;
@@ -21,7 +21,9 @@ export async function reserveFormativeCallAttempt(data: Prisma.AgentCallUnchecke
         prior.concept_unit_session_db_id !== data.concept_unit_session_db_id || prior.agent_name !== data.agent_name)) {
       throw new StudentAssessmentServiceError("idempotency_conflict", "Preparation evidence does not match the existing operation.", 409);
     }
-    if (prior && !["failed", "invalid_output"].includes(prior.call_status)) {
+    const retryFailed = prior && typeof options.retryFailed === "function"
+      ? options.retryFailed(prior) : options.retryFailed !== false;
+    if (prior && (!retryFailed || !["failed", "invalid_output"].includes(prior.call_status))) {
       return { call: prior, created: false };
     }
     const priorIndex = prior?.agent_invocation_key === data.agent_invocation_key ? 0

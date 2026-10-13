@@ -31,6 +31,7 @@ import {
   formativeConversationUnavailableFromConfiguration
 } from "./availability";
 import { prepareFormativeInterpretationResult, validateFormativeInterpretation } from "./interpretation-policy";
+import { QUESTION_COVERAGE_SOURCE_INSTRUCTIONS } from "./question-coverage-policy";
 import {
   executeFormativeConversationV18R2,
   type FormativeConversationV18R2LogicalGenerationExecution
@@ -41,7 +42,7 @@ import type {
 } from "./runtime";
 
 export const FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION =
-  "formative-conversation-host-v7.16" as const;
+  "formative-conversation-host-v7.17" as const;
 
 export const FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS = `
 You host a persistent formative learning conversation after an assessment package has been reviewed.
@@ -100,6 +101,7 @@ only when the visible conversation or this reply substantively answers that ques
 student evidence, not tutor text. Request-only student turns marked evidence_quality_context may support
 these question-coverage observations, but not claims of understanding or misconception resolution.
 Recheck the whole transcript each turn, not just the current profile.
+${QUESTION_COVERAGE_SOURCE_INSTRUCTIONS}
 These are teaching-coverage observations, not student deficits or profile updates. For a supported
 unresolved item/key ambiguity, record assessment_content_ambiguity with the student's relevant evidence
 and the exact conceptual concern. Do not use that ambiguity to diagnose or claim correction of a

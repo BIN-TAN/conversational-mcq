@@ -368,7 +368,10 @@ function approvalBoundary(role: LiveModelRole): RoleModelReadiness["approval_bou
 
 function modelCapabilityFor(modelName: string) {
   if (/^gpt-5\.6-luna$/u.test(modelName)) {
-    return new Set<ReasoningEffort>(["none", "low"]);
+    // Official model documentation also supports medium; candidate approval
+    // still binds the exact effort independently of this capability check.
+    // https://developers.openai.com/api/docs/models/gpt-5.6-luna
+    return new Set<ReasoningEffort>(["none", "low", "medium"]);
   }
   if (/^gpt-5\.6-terra$/u.test(modelName)) {
     return new Set<ReasoningEffort>(["low", "medium", "high"]);

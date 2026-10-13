@@ -3,8 +3,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS } from "../evaluation/conversational-support-needs-scenarios";
+import { LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION, LUNA_PROFILE_FIDELITY_SOURCE_FILES,
+  type LUNA_PROFILE_FIDELITY_CORRECTION } from "./luna-profile-fidelity-identity";
 
 export const LUNA_LOW_ALL_ROLES_VALIDATION_VERSION = "luna-low-all-roles-validation-v1";
+export const LUNA_MEDIUM_ALL_ROLES_VALIDATION_VERSION = "luna-medium-all-roles-validation-v1";
+export type LunaCandidateReasoningEffort = "low" | "medium";
 export const LUNA_LOW_REQUIRED_SCENARIOS = [
   "persistent_prerequisite_confusion", "partial_progress_many_difficulties",
   "guessing_agreement_not_understanding", "confident_error_resists_explanation",
@@ -31,13 +35,29 @@ export const LunaLowAllRolesValidationSchema = z.object({
     reason: z.string().trim().min(1) }).strict())
 }).strict();
 
+// A separate version prevents historic low evidence from authorizing medium.
+export const LunaMediumAllRolesValidationSchema = LunaLowAllRolesValidationSchema.extend({
+  version: z.literal(LUNA_MEDIUM_ALL_ROLES_VALIDATION_VERSION)
+}).strict();
+
+const LunaMediumProfileFidelityValidationSchema = LunaMediumAllRolesValidationSchema.extend({
+  version: z.literal(LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION),
+  corrected_source_files_sha256: z.record(digest),
+  case_reviews: z.array(z.object({
+    case_id: z.enum(LUNA_LOW_REQUIRED_SCENARIOS),
+    profile_fidelity_accepted: z.literal(true),
+    student_question_coverage_accepted: z.literal(true),
+    limitations: z.array(z.string().trim().min(1))
+  }).strict()).length(LUNA_LOW_REQUIRED_SCENARIOS.length)
+}).strict();
+
 const usageSchema = z.object({ input_tokens: z.number().int().positive(), output_tokens: z.number().int().positive(),
   total_tokens: z.number().int().positive().optional() }).passthrough();
 const reportHeaderSchema = z.object({
   version: z.literal("ai-student-journeys-v3"), suite: z.literal("conversational-support-needs"),
   synthetic_only: z.literal(true), real_student_records_used: z.literal(false), runtime_hash: digest,
   source_commit: z.string().regex(/^[a-f0-9]{40}$/), source_files_sha256: z.record(digest),
-  student_model: z.object({ model_name: z.literal("gpt-5.6-luna"), reasoning_effort: z.literal("low") }).passthrough(),
+  student_model: z.object({ model_name: z.literal("gpt-5.6-luna"), reasoning_effort: z.enum(["low", "medium"]) }).passthrough(),
   provider_dispatches: z.number().int().nonnegative(), provider_models: z.record(z.number().int().positive()),
   finished_at: z.string().datetime(), results: z.array(z.object({ case_id: z.enum(LUNA_LOW_REQUIRED_SCENARIOS),
     outcome: z.string().min(1) }).passthrough()).min(1)
@@ -78,7 +98,23 @@ function readBoundJson(reference: z.infer<typeof fileReference>) {
 // This validates retained native engineering evidence, not educational effectiveness.
 // File hashes establish integrity/provenance, not independent provider attestation.
 export function verifyLunaLowValidation(reference: z.infer<typeof fileReference>, runtimeHash: string) {
-  const validation = LunaLowAllRolesValidationSchema.parse(readBoundJson(reference));
+  return verifyLunaValidation(reference, runtimeHash, "low");
+}
+
+export function verifyLunaValidation(reference: z.infer<typeof fileReference>, runtimeHash: string,
+  reasoningEffort: LunaCandidateReasoningEffort, profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION) {
+  z.enum(["low", "medium"]).parse(reasoningEffort);
+  if (profileCorrection && (profileCorrection !== "profile-fidelity-v1" || reasoningEffort !== "medium")) {
+    throw new Error("The profile-fidelity correction requires its exact medium-only validation scope.");
+  }
+  const schema = profileCorrection ? LunaMediumProfileFidelityValidationSchema :
+    reasoningEffort === "low" ? LunaLowAllRolesValidationSchema : LunaMediumAllRolesValidationSchema;
+  const validation = schema.parse(readBoundJson(reference));
+  const corrected = validation.version === LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION ? validation : null;
+  if (corrected && (new Set(corrected.case_reviews.map(row => row.case_id)).size !== LUNA_LOW_REQUIRED_SCENARIOS.length ||
+      LUNA_PROFILE_FIDELITY_SOURCE_FILES.some(file => !corrected.corrected_source_files_sha256[file]))) {
+    throw new Error("Corrected profile evaluation requires every case review and exact changed-source inventory.");
+  }
   if (validation.runtime_candidate_hash !== runtimeHash) throw new Error("Luna-low validation candidate mismatch.");
   const transport = transportSchema.parse(readBoundJson(validation.transport_usage));
   const requests = new Map(transport.requests.map(row => [row.request_index, row]));
@@ -94,7 +130,12 @@ export function verifyLunaLowValidation(reference: z.infer<typeof fileReference>
     if (seenReports.has(reportPath)) throw new Error("Duplicate journey report.");
     seenReports.add(reportPath);
     const report = reportHeaderSchema.parse(readBoundJson(reference));
-    if (report.runtime_hash !== runtimeHash || Object.keys(report.source_files_sha256).length === 0 ||
+    if (accepted && corrected && LUNA_PROFILE_FIDELITY_SOURCE_FILES.some(file =>
+      report.source_files_sha256[file] !== corrected.corrected_source_files_sha256[file])) {
+      throw new Error("Native corrected-profile source provenance mismatch.");
+    }
+    if (report.runtime_hash !== runtimeHash || report.student_model.reasoning_effort !== reasoningEffort ||
+        Object.keys(report.source_files_sha256).length === 0 ||
         (accepted ? report.provider_dispatches !== selected.length : report.provider_dispatches < selected.length) ||
         Object.entries(report.provider_models).some(([model]) => model !== "gpt-5.6-luna") ||
         Object.values(report.provider_models).reduce((sum, count) => sum + count, 0) !== report.provider_dispatches) {
@@ -162,7 +203,7 @@ export function verifyLunaLowValidation(reference: z.infer<typeof fileReference>
           }
           continue;
         }
-        if (call.model_name !== "gpt-5.6-luna" || call.reasoning_effort !== "low") throw new Error("Actual OpenAI call model/reasoning mismatch.");
+        if (call.model_name !== "gpt-5.6-luna" || call.reasoning_effort !== reasoningEffort) throw new Error("Actual OpenAI call model/reasoning mismatch.");
         if (call.call_status !== "succeeded" || !call.output_validated) continue;
         const matched = caseRows.find(row => row.category === "application" && row.status === "completed" &&
           row.provider_response_id === call.provider_response_id);

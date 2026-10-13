@@ -317,6 +317,15 @@ const ProductionStudentProfileMisconceptionIndicatorSchema = z
   })
   .strict();
 
+export const StudentProfileReasoningBasisSchema = z.object({
+  assessment: z.enum([
+    "adequate_for_item", "limited_explanation", "incorrect_explanation",
+    "explicit_guess", "recognition_only", "not_provided", "not_assessable"
+  ]),
+  source_quote: z.string().min(1).nullable(),
+  diagnostic_limitation: z.string().min(1).nullable()
+}).strict();
+
 // Retained for historical V3-V17 fixture and replay parsing only.
 export const StudentProfileOutput = AgentOutputBase.extend({
   agent_name: z.literal("student_profiling_agent"),
@@ -366,6 +375,18 @@ export const ProductionStudentProfileOutput = StudentProfileOutput.extend({
     ProductionStudentProfileMisconceptionIndicatorSchema
   )
 }).strict();
+
+// V4 remains available to historical evaluation/replay code. Only current
+// provider dispatch uses V5; stored profile readers accept either shape.
+export const ProductionStudentProfileOutputV5 = ProductionStudentProfileOutput.extend({
+  item_level_evidence: z.array(StudentProfileOutput.shape.item_level_evidence.element.extend({
+    reasoning_basis: StudentProfileReasoningBasisSchema
+  }).strict())
+}).strict();
+
+export const StoredStudentProfileOutput = z.union([
+  ProductionStudentProfileOutputV5, StudentProfileOutput
+]);
 
 export const FormativePlanningInput = z.object({
   latest_student_profile: JsonRecord,
@@ -432,7 +453,7 @@ export const agentInputSchemas = {
 export const agentOutputSchemas = {
   item_verification_agent: ItemVerificationOutput,
   response_collection_agent: ResponseCollectionOutput,
-  student_profiling_agent: ProductionStudentProfileOutput,
+  student_profiling_agent: ProductionStudentProfileOutputV5,
   formative_value_and_planning_agent: FormativePlanningOutput,
   followup_agent: FollowupOutput
 } as const;
@@ -451,8 +472,11 @@ type ParsedMisconceptionIndicator =
   ParsedStudentProfileOutput["misconception_indicators"][number];
 type CompatibleStudentProfileOutput = Omit<
   ParsedStudentProfileOutput,
-  "misconception_indicators"
+  "misconception_indicators" | "item_level_evidence"
 > & {
+  item_level_evidence: Array<ParsedStudentProfileOutput["item_level_evidence"][number] & {
+    reasoning_basis?: z.infer<typeof StudentProfileReasoningBasisSchema>;
+  }>;
   misconception_indicators: Array<
     Omit<ParsedMisconceptionIndicator, "atomic_claims"> & {
       atomic_claims?: ParsedMisconceptionIndicator["atomic_claims"];

@@ -853,6 +853,8 @@ export class MockLlmProvider implements LlmProvider {
 
     if (request.agent_name === "student_profiling_agent") {
       const input = request.input as Record<string, unknown>;
+      const usesFactBinding = request.schema_name === "student_profile_output_v5";
+      if (usesFactBinding) output.schema_version = "student-profile-output-v5";
       const responseItems = profilingResponseItems(input);
       const correctCount = responseItems.filter(
         (item) => item.correctness === "correct"
@@ -876,7 +878,12 @@ export class MockLlmProvider implements LlmProvider {
         correctness: item.correctness,
         reasoning_quality:
           "Mock provider output records the supplied reasoning as observable evidence only.",
-        confidence_rating: item.confidence_rating
+        confidence_rating: item.confidence_rating,
+        ...(usesFactBinding ? { reasoning_basis: {
+          assessment: item.reasoning_text ? "not_assessable" : "not_provided",
+          source_quote: item.reasoning_text || null,
+          diagnostic_limitation: "Mock provider output makes no substantive reasoning-quality judgment."
+        } } : {})
       }));
       output.ability_profile = noGroundedItems
         ? "insufficient_evidence"
@@ -888,7 +895,7 @@ export class MockLlmProvider implements LlmProvider {
       output.ability_pattern_flags = noGroundedItems
         ? ["no_clear_pattern"]
         : allCorrect
-          ? ["correct_answer_weak_reasoning"]
+          ? usesFactBinding ? ["no_clear_pattern"] : ["correct_answer_weak_reasoning"]
           : incorrectCount === responseItems.length
             ? [
                 "misconception_indicator_present",

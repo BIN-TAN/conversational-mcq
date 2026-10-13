@@ -2326,3 +2326,56 @@ learning conversation is excluded. If no recorded item totals are available,
 the existing start-to-completion wall-clock fallback remains separately labeled.
 Neither metric measures active attention; no value is copied into uncollected
 research active-time fields.
+
+### Prospective profile fact binding and semantic repair (2026-10-13)
+
+`student-profiling-v7` / `student-profile-output-v5` adds `reasoning_basis` to
+each generated item-level evidence object: `assessment`, an exact student
+`source_quote` (null for absent reasoning), and `diagnostic_limitation` when an
+observed limitation is claimed. These are model-derived annotations stored in
+existing JSON, not additional student responses or validated learning outcomes.
+Historical V4 and earlier records remain readable without backfilling this field.
+
+`student-profile-request-schema-v1` restricts the current provider request's
+pattern arrays using their existing exclusivity rules and fully known sealed
+correctness. It changes the set of outputs the provider may generate, not the
+stored V5 shape or historical readers. Raw outputs are not coerced or relabeled;
+semantic validation remains a separate gate. Missing or conflicting correctness
+does not permit an inferred restriction on correct-answer pattern flags.
+
+`student-profile-fact-binding-v2` checks submitted confidence, explicit skip
+booleans, item coverage and reasoning-source provenance. A weak-reasoning flag
+must have a corresponding correct item with a specified limitation; this checks
+internal consistency, not whether the model's substantive judgment is sound.
+For current V5 profiles, all-incorrect answers with all-incorrect explanations
+do not support a correctness-versus-reasoning mismatch flag. The check uses the
+model's structured reasoning classifications alongside sealed correctness; it
+does not determine the meaning of an explanation by keyword matching. Earlier
+V4 and process-based independence interpretations retain their existing rules.
+`student-profile-semantic-repair-v1` permits one semantic regeneration. Rejected
+and repaired semantic attempts have distinct AgentCall rows and invocation keys;
+the rejected row retains raw/output payload and usage with `invalid_output` /
+`semantic_validation`. The repair carries a link to that rejected call. Only a
+validated result can become the active profile. Generic provider transport/schema
+retries retain their existing single-row behavior; the evaluation transport
+ledger separately records every paid attempt and is required for reconciled cost.
+
+`formative-profile-source-quote-repair-v1` applies separately to the earlier
+chat-native formative profile. Only the two reasoning/interpretation source
+quote mismatch rules qualify, with no other validation failures. The rejected
+raw response and its usage remain on the original AgentCall; a deterministic
+`:source-quote-repair:1` key links one separately audited regeneration. Sealed
+input, prompt/schema and model/budget identity must match before reuse. Restart
+recovery reuses the same repair attempt, including retained failures; it does
+not reset the allowance or alter student quotations to make validation pass.
+
+`student-question-source-quote-v1` and interpretation policy v5 require pending
+or addressed student-question observations to begin with `Student question:`
+followed by a JSON-quoted verbatim student excerpt and a coverage explanation.
+The source must be an eligible cited student response in the current evidence
+scope; the same exact source/quote cannot be both pending and addressed. Missing
+questions produce no pending observation. This metadata does not alter visible
+messages, raw student products, timing definitions, export columns or historical
+observations. Different excerpts and substantive question-answer quality still
+require human review. Synthetic evaluation evidence must be labeled separately
+from classroom learning evidence.

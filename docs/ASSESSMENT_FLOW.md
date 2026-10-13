@@ -646,3 +646,40 @@ confirmation. The client requests conversation end, then assessment completion
 only when the server authorizes it; these remain separate persisted events.
 Interrupted completion can be retried. Non-final topics finish only their own
 conversation. Any unsent message is explicitly excluded from submission.
+
+## Prospective profile fidelity and question coverage (2026-10-13)
+
+Canonical profiling v7 / output v5 binds correctness, recorded confidence and
+explicit skip flags to the sealed response package. Per-item `reasoning_basis`
+separates adequate reasoning, a specific observed limitation, guessing,
+recognition-only evidence and absent or unassessable reasoning. Concise accurate
+reasoning and untested transfer do not by themselves establish weak reasoning.
+The model still interprets the meaning of evidence; source checks do not prove
+that its substantive diagnosis is correct.
+
+The current profiling request also restricts structurally impossible pattern
+combinations before generation. `no_clear_pattern` must stand alone, and a
+correct-answer weakness flag is unavailable when sealed item correctness is
+fully known and no item is correct. Unknown or conflicting correctness does not
+justify that restriction. The application does not rewrite a returned flag to
+make it pass; all semantic evidence checks still apply.
+
+A schema-valid but semantically invalid initial profile receives at most one
+targeted regeneration from unchanged student evidence. Both semantic attempts
+remain separate agent-call records. A restart resumes the same repair identity
+or reuses its validated result. A failed or blocked repair requires review;
+an invalid profile is not silently relabeled as a valid fallback. Existing
+provider transport/schema retry limits are unchanged.
+
+The earlier chat-native formative profile has a separate one-attempt repair
+only when an otherwise schema-valid response fails exclusively the verbatim
+reasoning or interpretation quote checks. It regenerates from the unchanged
+sealed response, retains the original rejected call, and keeps all validation
+and usage limits. A failed repair cannot create a third request on retry.
+
+Conversation host v7.17 / interpretation policy v5 requires student-question
+coverage observations to quote their cited student source. A tutor's unanswered
+question is not a pending student question, and no-question status is omitted.
+This is internal evidence metadata, not a new student action or message format.
+The source check establishes provenance and exact-quote consistency, not the
+quality of an answer. Historical transcripts and profile versions remain intact.

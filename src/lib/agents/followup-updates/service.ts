@@ -12,7 +12,7 @@ import {
   FollowupInput,
   FollowupOutput,
   FormativePlanningOutput,
-  StudentProfileOutput,
+  StoredStudentProfileOutput as StudentProfileOutput,
   type AgentInputByName,
   type AgentOutputByName
 } from "@/lib/agents/contracts";

@@ -10,6 +10,7 @@ import type { AgentModelConfig } from "@/lib/llm/config";
 import { compileOpenAIResponsesRequestBody } from "@/lib/llm/providers/openai-responses-provider";
 import type { StructuredAgentRequest } from "@/lib/llm/providers/types";
 import { AGENT_INPUT_ENCODING, usesLosslessAgentInput } from "@/lib/llm/lossless-profiling-input";
+import { studentProfileRequestOutputSchema, STUDENT_PROFILE_REQUEST_SCHEMA_VERSION } from "@/lib/agents/student-profiling/output-schema";
 
 export function buildProductionStructuredAgentRequest<TInput, TOutput>(input: {
   agent_name: string;
@@ -58,9 +59,9 @@ export function buildProductionAgentRequest<TAgentName extends AgentName>(input:
   AgentOutputByName[TAgentName]
 > {
   const prompt = getPromptForAgent(input.agent_name);
-  const outputSchema = agentOutputSchemas[
-    input.agent_name
-  ] as unknown as z.ZodType<AgentOutputByName[TAgentName]>;
+  const outputSchema = (input.agent_name === "student_profiling_agent"
+    ? studentProfileRequestOutputSchema(input.input as AgentInputByName["student_profiling_agent"])
+    : agentOutputSchemas[input.agent_name]) as unknown as z.ZodType<AgentOutputByName[TAgentName]>;
   return buildProductionStructuredAgentRequest({
     agent_name: input.agent_name,
     model_config: input.model_config,
@@ -75,7 +76,8 @@ export function buildProductionAgentRequest<TAgentName extends AgentName>(input:
       agent_name: input.agent_name,
       prompt_version: prompt.prompt_version,
       schema_version: prompt.schema_version,
-      ...(input.metadata ?? {})
+      ...(input.metadata ?? {}),
+      ...(input.agent_name === "student_profiling_agent" ? { request_schema_guard: STUDENT_PROFILE_REQUEST_SCHEMA_VERSION } : {})
     }
   }) as StructuredAgentRequest<
     AgentInputByName[TAgentName],

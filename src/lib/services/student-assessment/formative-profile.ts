@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-content-policy";
 import { containsChineseText, containsInternalSystemInformation, STUDENT_OUTPUT_LANGUAGE_INSTRUCTIONS } from "@/lib/student-visible-safety";
-import { Prisma } from "@prisma/client";
+import { Prisma, type AgentCall } from "@prisma/client";
 import { z } from "zod";
 import { CHOICE_ANNOTATION_NORMALIZATION_VERSION, CurrentSemanticItemReviewSchema, SemanticItemReviewSchema, normalizeChoiceOnlyAnnotations, semanticItemReviewSchemaForPackage, validateSemanticItemReviews } from "./semantic-item-review";
 import { prisma } from "@/lib/db";
@@ -74,6 +74,8 @@ import {
 import { ensureFormativeConversationOpeningForConceptUnitSession } from "@/lib/services/student-assessment/formative-conversation/opening-orchestration";
 import { StudentAssessmentServiceError } from "./errors";
 import { latestFormativeCallAttempt, recordUnexpectedFormativeCallFailure, reserveFormativeCallAttempt } from "./formative-call-attempts";
+import { buildSourceQuoteRepairInput, executeWithSourceQuoteRepair, sourceQuoteRepairInputMatches,
+  sourceQuoteRepairInvocationKey, sourceQuoteRepairIssues } from "./formative-profile-quote-repair";
 import {
   resolveTopicDialogueExecutionPlan,
   type FormativeExecutionMode
@@ -2480,14 +2482,44 @@ async function latestInitialResponsePackage(conceptUnitSessionDbId: string) {
   });
 }
 
-async function callProviderOrMock(input: {
+type ProfileProviderInput = {
   assessment_session_db_id: string;
   concept_unit_session_db_id: string;
   agent_invocation_key: string;
   provider_input: unknown;
   correct_options: string[];
   execution_mode: FormativeExecutionMode;
-}) {
+};
+
+async function callProviderOrMock(input: ProfileProviderInput) {
+  return executeWithSourceQuoteRepair({
+    readRejected: async (agentCallId?: string) => {
+      const prior = agentCallId
+        ? await prisma.agentCall.findUnique({ where: { id: agentCallId } })
+        : await latestFormativeCallAttempt(input.agent_invocation_key);
+      const issues = prior?.call_status === "invalid_output" && prior.error_category === "student_facing_validation"
+        ? sourceQuoteRepairIssues(prior.validation_error) : null;
+      if (!prior || !issues || prior.provider !== "openai") return null;
+      if (prior.output_validated || prior.agent_name !== CHAT_NATIVE_PROFILE_AGENT_NAME ||
+          prior.assessment_session_db_id !== input.assessment_session_db_id ||
+          prior.concept_unit_session_db_id !== input.concept_unit_session_db_id ||
+          prior.prompt_hash !== CHAT_NATIVE_PROFILE_PROMPT_HASH || prior.prompt_version !== CHAT_NATIVE_PROFILE_PROMPT_VERSION ||
+          prior.schema_version !== CHAT_NATIVE_PROFILE_SCHEMA_VERSION ||
+          !sourceQuoteRepairInputMatches(prior.input_payload, input.provider_input)) {
+        throw new StudentAssessmentServiceError("idempotency_conflict", ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE, 409,
+          { reason: "source_quote_repair_identity_mismatch" });
+      }
+      return { prior, issues };
+    },
+    executeOriginal: () => callProfileProviderAttempt(input),
+    executeRepair: ({ prior, issues }) => callProfileProviderAttempt({ ...input,
+      agent_invocation_key: sourceQuoteRepairInvocationKey(input.agent_invocation_key),
+      provider_input: buildSourceQuoteRepairInput(prior.input_payload, prior.id, issues)
+    }, prior)
+  });
+}
+
+async function callProfileProviderAttempt(input: ProfileProviderInput, repairOf?: AgentCall) {
   const startedAt = new Date();
   let runtimeProvider: "mock" | "openai" = "mock";
   let modelName = "mock-chat-native-formative-profile";
@@ -2528,6 +2560,12 @@ async function callProviderOrMock(input: {
   const liveOutputSchema = liveCallAllowed
     ? chatNativeProfileSchemaForPackage(jsonRecord(input.provider_input).response_package)
     : ChatNativeLiveFormativeProfileOutputSchema;
+  if (repairOf && (!liveCallAllowed || runtimeProvider !== repairOf.provider ||
+      modelName !== repairOf.model_name || (modelConfig?.reasoning_effort ?? null) !== repairOf.reasoning_effort ||
+      (modelConfig?.max_output_tokens ?? null) !== repairOf.max_output_tokens)) {
+    throw new StudentAssessmentServiceError("llm_runtime_blocked", ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE, 409,
+      { reason: "source_quote_repair_configuration_changed" });
+  }
   const reservation = await reserveFormativeCallAttempt({
     id: randomUUID(),
     assessment_session_db_id: input.assessment_session_db_id,
@@ -2548,9 +2586,18 @@ async function callProviderOrMock(input: {
     live_call_allowed: liveCallAllowed,
     call_status: "started",
     started_at: startedAt
-  });
+  }, { retryFailed: repairOf ? false : prior => !(prior.call_status === "invalid_output" &&
+    prior.error_category === "student_facing_validation" && sourceQuoteRepairIssues(prior.validation_error)) });
   const agentCall = reservation.call;
   if (!reservation.created) {
+    if (repairOf && (agentCall.prompt_hash !== CHAT_NATIVE_PROFILE_PROMPT_HASH ||
+        agentCall.prompt_version !== CHAT_NATIVE_PROFILE_PROMPT_VERSION || agentCall.schema_version !== CHAT_NATIVE_PROFILE_SCHEMA_VERSION ||
+        agentCall.model_name !== modelName || agentCall.reasoning_effort !== (modelConfig?.reasoning_effort ?? null) ||
+        agentCall.max_output_tokens !== (modelConfig?.max_output_tokens ?? null) ||
+        !sourceQuoteRepairInputMatches(agentCall.input_payload, input.provider_input))) {
+      throw new StudentAssessmentServiceError("idempotency_conflict", ASSESSMENT_TUTOR_UNAVAILABLE_MESSAGE, 409,
+        { reason: "source_quote_repair_identity_mismatch" });
+    }
     const replay = ChatNativeFormativeProfileOutputSchema.safeParse(agentCall.output_payload);
     if (agentCall.call_status === "succeeded" && agentCall.output_validated && replay.success) {
       return { agent_call_id: agentCall.id, output: replay.data, validation_status: "validated_idempotent_replay",

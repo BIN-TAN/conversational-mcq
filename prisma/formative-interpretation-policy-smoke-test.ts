@@ -44,6 +44,8 @@ const reasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
   entry.source_role === "student" && entry.evidence_kind === "formative_student_turn")!.evidence_id;
 const baselineReasoningId = context.allowed_evidence_catalog.evidence.find(entry =>
   entry.evidence_kind === "assessment_reasoning")!.evidence_id;
+const quoteEvidence = (id: string, catalog = context.allowed_evidence_catalog) =>
+  `Student question: ${JSON.stringify(catalog.evidence.find(entry => entry.evidence_id === id)!.content)} Coverage interpretation is recorded separately.`;
 const qualifiedContext = structuredClone(context);
 qualifiedContext.assistance_history = { version: "conversation-assistance-history-v1", observations: [{
   source_agent_call_public_id: "synthetic-prior-call", source_tutor_sequence_index: 3,
@@ -74,7 +76,7 @@ assert.equal(history.observations.length, 1, "Only visible, earlier student evid
 assert.deepEqual(projectionContext, originalProjectionContext, "History projection never rewrites evidence");
 const historicalContext = structuredClone(supported);
 historicalContext.evidence_observations.push(
-  { evidence_type: "student_question_addressed", observation: "The earlier question is answered.", evidence_ids: [baselineReasoningId] },
+  { evidence_type: "student_question_addressed", observation: quoteEvidence(baselineReasoningId), evidence_ids: [baselineReasoningId] },
   { evidence_type: "learning_summary_progress", observation: "Earlier and later reasoning are contrasted.", evidence_ids: [baselineReasoningId, reasoningId] }
 );
 assert(validateFormativeInterpretation({ candidate: historicalContext, context }).valid,
@@ -109,6 +111,7 @@ laterRecommendation.field_evidence.forEach(entry => { entry.evidence_ids = [late
 laterRecommendation.misconception_claim_dispositions.forEach(entry => { entry.evidence_ids = [laterId]; });
 later.evidence_observations[0].evidence_ids = [laterId];
 later.evidence_observations[1].evidence_ids = [priorTurnId];
+later.evidence_observations[1].observation = quoteEvidence(priorTurnId, laterContext.allowed_evidence_catalog);
 later.evidence_observations[2].evidence_ids = [priorTurnId, laterId];
 assert(validateFormativeInterpretation({ candidate: later, context: laterContext }).valid,
   "A subsequent profile can preserve a question and cumulative before/after summary across its cutoff");
@@ -119,7 +122,7 @@ assert(!validateFormativeInterpretation({ candidate: staleLearning, context: lat
 const pending = structuredClone(supported);
 pending.lifecycle_recommendation = "complete";
 pending.evidence_observations.push({ evidence_type: "student_question_pending",
-  observation: "The student explicitly asked an additional conceptual question.", evidence_ids: [reasoningId] });
+  observation: quoteEvidence(reasoningId), evidence_ids: [reasoningId] });
 assert(validateFormativeInterpretation({ candidate: pending, context }).validation_issue_paths
   .includes("instructional_coverage.unanswered_questions_require_support"));
 const continuing = { ...pending, lifecycle_recommendation: "continue" as const,
@@ -236,6 +239,7 @@ assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...pro
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.8" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.9" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.10" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
+assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.17" } }).profile_confidence_alignment_scope, "carried_forward_not_reassessed");
 assert.equal(profileRecordProvenance({ ...profile, profile_type: "initial" }).profile_confidence_alignment_scope, "initial_assessment");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: { ...profile.based_on_agent_call, prompt_version: "formative-conversation-host-v7.5" } }).profile_confidence_alignment_scope, "legacy_scope_unrecorded");
 assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: null }).profile_confidence_alignment_scope, "unavailable");

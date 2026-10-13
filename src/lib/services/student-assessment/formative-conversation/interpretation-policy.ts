@@ -8,8 +8,9 @@ import {
 import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
 import { learningSummaryEvidenceIssues } from "./learning-summary-policy";
 import { isRecognitionQualification } from "./assistance-history";
+import { questionCoverageEvidenceIssues } from "./question-coverage-policy";
 
-export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v4";
+export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v5";
 
 // This projection fixes bookkeeping only. Raw output and every evidence reference survive.
 export function prepareFormativeInterpretationResult(
@@ -64,7 +65,10 @@ export function validateFormativeInterpretation(input: {
   const prior = input.context.current_profile.canonical_profile;
   const recommendation = output.profile_transition_recommendation;
   const updated = recommendation?.updated_profile;
-  const issues: string[] = learningSummaryEvidenceIssues(output, input.context);
+  const issues: string[] = [
+    ...learningSummaryEvidenceIssues(output, input.context),
+    ...questionCoverageEvidenceIssues(output, input.context)
+  ];
   const qualifiedIds = new Set((input.context.assistance_history?.observations ?? [])
     .filter(observation => isRecognitionQualification(observation.evidence_type))
     .flatMap(observation => observation.evidence_ids));

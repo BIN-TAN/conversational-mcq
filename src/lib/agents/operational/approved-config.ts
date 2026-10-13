@@ -3,7 +3,11 @@ import path from "node:path";
 import { z } from "zod";
 import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { listAgentPrompts } from "@/lib/agents/prompts/registry";
-import { STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION } from "@/lib/agents/student-profiling/semantic-validation";
+import { STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION, STUDENT_PROFILE_FACT_BINDING_VERSION } from "@/lib/agents/student-profiling/semantic-validation";
+import { STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION } from "@/lib/agents/student-profiling/semantic-repair";
+import { QUESTION_COVERAGE_POLICY_VERSION } from "@/lib/services/student-assessment/formative-conversation/question-coverage-policy";
+import { FORMATIVE_PROFILE_QUOTE_REPAIR_VERSION } from "@/lib/services/student-assessment/formative-profile-quote-repair";
+import { STUDENT_PROFILE_REQUEST_SCHEMA_VERSION } from "@/lib/agents/student-profiling/output-schema";
 import {
   liveModelRoleEnvSources,
   modelConfigCompatibilityIssues,
@@ -636,6 +640,19 @@ function verifyDerivedApprovedOperationalConfig(
   const approvedConsistencyVersion = manifest.configuration_fingerprint.deterministic_guard_versions.student_profile_evidence_consistency;
   if (approvedConsistencyVersion && approvedConsistencyVersion !== STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION) {
     issues.push({ code: "profile_evidence_validator_mismatch", message: "The profiling evidence validator does not match its approval." });
+  }
+  if (manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent.prompt_version === "student-profiling-v7") {
+    for (const [key, version] of [
+      ["student_profile_fact_binding", STUDENT_PROFILE_FACT_BINDING_VERSION],
+      ["student_profile_semantic_repair", STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION],
+      ["student_question_source_quote", QUESTION_COVERAGE_POLICY_VERSION],
+      ["formative_profile_source_quote_repair", FORMATIVE_PROFILE_QUOTE_REPAIR_VERSION],
+      ["student_profile_request_schema", STUDENT_PROFILE_REQUEST_SCHEMA_VERSION]
+    ]) {
+      if (manifest.configuration_fingerprint.deterministic_guard_versions[key] !== version) {
+        issues.push({ code: "profile_fidelity_guard_mismatch", message: `The ${key} guard does not match its approval.` });
+      }
+    }
   }
   for (const [name, actual, approved] of policyAssertions) {
     if (explicitlyConfigured(name) && actual !== approved) {

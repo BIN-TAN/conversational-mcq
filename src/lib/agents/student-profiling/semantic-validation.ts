@@ -7,6 +7,8 @@ type JsonRecord = Record<string, unknown>;
 export const STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION =
   "student-profile-evidence-consistency-v2" as const;
 
+export const STUDENT_PROFILE_FACT_BINDING_VERSION = "student-profile-fact-binding-v2" as const;
+
 export const studentProfileEvidenceConsistencyValues = [
   "coherent",
   "mixed_resolved",
@@ -40,6 +42,10 @@ type GroundedItemEvidence = {
   reasoning_present: boolean;
   confidence_present: boolean;
   confidence_rating: string | null;
+  confidence_recorded: boolean;
+  reasoning_text: string | null;
+  skipped_reasoning: boolean | null;
+  skipped_confidence: boolean | null;
 };
 
 function jsonRecord(value: unknown): JsonRecord | null {
@@ -89,6 +95,12 @@ function packageItemEvidence(value: unknown): GroundedItemEvidence[] {
       return;
     }
 
+    const reasoningRecorded = ["reasoning_text", "reasoning_text_final", "reasoning"].some(
+      (key) => Object.hasOwn(response, key)
+    );
+    const confidenceRecorded = ["confidence_rating", "confidence_final"].some(
+      (key) => Object.hasOwn(response, key)
+    );
     const reasoningText =
       stringValue(response, "reasoning_text") ??
       stringValue(response, "reasoning_text_final") ??
@@ -102,9 +114,15 @@ function packageItemEvidence(value: unknown): GroundedItemEvidence[] {
       item_public_id: itemPublicId,
       correctness:
         normalizedCorrectness(response.correctness) ?? existing?.correctness ?? null,
-      reasoning_present: Boolean(reasoningText) || existing?.reasoning_present === true,
-      confidence_present: Boolean(confidence) || existing?.confidence_present === true,
-      confidence_rating: confidence ?? existing?.confidence_rating ?? null
+      reasoning_present: reasoningRecorded ? Boolean(reasoningText) : existing?.reasoning_present === true,
+      confidence_present: confidenceRecorded ? Boolean(confidence) : existing?.confidence_present === true,
+      confidence_rating: confidenceRecorded ? confidence : existing?.confidence_rating ?? null,
+      confidence_recorded: confidenceRecorded || existing?.confidence_recorded === true,
+      reasoning_text: reasoningRecorded ? reasoningText : existing?.reasoning_text ?? null,
+      skipped_reasoning: typeof response.skipped_reasoning === "boolean"
+        ? response.skipped_reasoning : existing?.skipped_reasoning ?? null,
+      skipped_confidence: typeof response.skipped_confidence === "boolean"
+        ? response.skipped_confidence : existing?.skipped_confidence ?? null
     });
   };
 
@@ -118,6 +136,39 @@ function packageItemEvidence(value: unknown): GroundedItemEvidence[] {
   }
 
   return [...items.values()];
+}
+
+// Provider-schema restriction only: reuse the validator's item merge order,
+// but never turn an unknown sealed correctness value into a known fact merely
+// because an earlier metadata projection supplied a value.
+export function studentProfileSealedCorrectness(input?: StudentProfilingInput): {
+  item_count: number;
+  all_known_incorrect: boolean;
+} {
+  const correctnessById = new Map<string, "correct" | "incorrect" | null>();
+  for (const responsePackage of [input?.initial_response_package, input?.followup_evidence_package]) {
+    for (const item of packageItemEvidence(responsePackage)) {
+      correctnessById.set(item.item_public_id, item.correctness);
+    }
+    const payload = jsonRecord(jsonRecord(responsePackage)?.payload);
+    const sealedCorrectness = new Map<string, "correct" | "incorrect" | null>();
+    for (const response of arrayRecords(payload?.item_responses)) {
+      const itemPublicId = stringValue(response, "item_public_id");
+      if (!itemPublicId) continue;
+      const correctness = normalizedCorrectness(response.correctness);
+      // Conflicting duplicate facts inside one sealed package remain unknown;
+      // a separate later follow-up package still has its normal precedence.
+      sealedCorrectness.set(itemPublicId,
+        sealedCorrectness.has(itemPublicId) && sealedCorrectness.get(itemPublicId) !== correctness
+          ? null : correctness);
+    }
+    for (const [itemPublicId, correctness] of sealedCorrectness) correctnessById.set(itemPublicId, correctness);
+  }
+  return {
+    item_count: correctnessById.size,
+    all_known_incorrect: correctnessById.size > 0 &&
+      [...correctnessById.values()].every(value => value === "incorrect")
+  };
 }
 
 function packageHasProcessEvidence(value: unknown) {
@@ -390,11 +441,17 @@ function validateGroundedItemEvidence(input: {
   const groundedById = new Map(
     groundedItems.map((item) => [item.item_public_id, item])
   );
+  const requiresBasis = input.providerInput.profiling_constraints.fact_binding_version ===
+    STUDENT_PROFILE_FACT_BINDING_VERSION || input.output.schema_version === "student-profile-output-v5";
+  const seenItemIds = new Set<string>();
 
   for (const item of input.output.item_level_evidence) {
     if (!item.item_public_id) {
+      if (requiresBasis) issues.push("item_level_evidence requires an exact submitted item_public_id.");
       continue;
     }
+    if (seenItemIds.has(item.item_public_id)) issues.push(`item_level_evidence duplicates item ${item.item_public_id}.`);
+    seenItemIds.add(item.item_public_id);
 
     const grounded = groundedById.get(item.item_public_id);
     if (!grounded) {
@@ -406,14 +463,71 @@ function validateGroundedItemEvidence(input: {
 
     const outputCorrectness = normalizedCorrectness(item.correctness);
     if (
-      outputCorrectness &&
       grounded.correctness &&
+      (requiresBasis || outputCorrectness) &&
       outputCorrectness !== grounded.correctness
     ) {
       issues.push(
         `item_level_evidence correctness for ${item.item_public_id} does not match the response package.`
       );
     }
+
+    // Confidence is a submitted value, not another model estimate. A recorded
+    // null also matters: the model must not invent a value for a skipped field.
+    if (grounded.confidence_recorded && item.confidence_rating !== grounded.confidence_rating) {
+      issues.push(
+        `item_level_evidence confidence_rating for ${item.item_public_id} does not match the response package.`
+      );
+    }
+    const basis = item.reasoning_basis;
+    if (!basis) {
+      if (requiresBasis) issues.push(`item_level_evidence for ${item.item_public_id} requires reasoning_basis.`);
+      continue;
+    }
+    if (grounded.reasoning_present) {
+      if (!basis.source_quote?.trim() || !grounded.reasoning_text?.includes(basis.source_quote)) {
+        issues.push(`reasoning_basis source_quote for ${item.item_public_id} must quote the submitted reasoning verbatim.`);
+      }
+      if (basis.assessment === "not_provided") {
+        issues.push(`reasoning_basis for ${item.item_public_id} cannot classify submitted reasoning as not_provided.`);
+      }
+    } else if (basis.source_quote !== null || basis.assessment !== "not_provided") {
+      issues.push(`reasoning_basis for ${item.item_public_id} must preserve absent reasoning with not_provided and a null source_quote.`);
+    }
+    if (["limited_explanation", "incorrect_explanation", "explicit_guess"].includes(basis.assessment) &&
+      !basis.diagnostic_limitation?.trim()) {
+      issues.push(`reasoning_basis for ${item.item_public_id} requires a specific diagnostic_limitation.`);
+    }
+  }
+
+  for (const flag of ["skipped_reasoning", "skipped_confidence"] as const) {
+    if (input.output.engagement_pattern_flags.includes(flag) &&
+      !groundedItems.some((item) => item[flag] === true)) {
+      issues.push(`${flag} requires an explicitly recorded skip in the response package; missing, brief or uncertain evidence is not a skip.`);
+    }
+  }
+
+  if (requiresBasis) {
+    for (const item of groundedById.values()) {
+      if ((item.confidence_recorded || item.reasoning_present || item.correctness) &&
+        !seenItemIds.has(item.item_public_id)) {
+        issues.push(`item_level_evidence omits submitted item ${item.item_public_id}.`);
+      }
+    }
+  }
+  if (requiresBasis && input.output.ability_pattern_flags.includes("correct_answer_weak_reasoning")) {
+    const supported = input.output.item_level_evidence.some((item) => {
+      const grounded = item.item_public_id ? groundedById.get(item.item_public_id) : undefined;
+      return grounded?.correctness === "correct" && item.reasoning_basis &&
+        ["limited_explanation", "incorrect_explanation", "explicit_guess", "not_provided"].includes(item.reasoning_basis.assessment);
+    });
+    if (!supported) issues.push("correct_answer_weak_reasoning requires a correct item with a supported reasoning limitation; adequate, recognition-only or unassessed reasoning does not establish this flag.");
+  }
+  if (requiresBasis && input.output.ability_pattern_flags.includes("correctness_reasoning_mismatch") &&
+      studentProfileSealedCorrectness(input.providerInput).all_known_incorrect &&
+      [...groundedById.keys()].every(itemId => input.output.item_level_evidence.some(item =>
+        item.item_public_id === itemId && item.reasoning_basis?.assessment === "incorrect_explanation"))) {
+    issues.push("correctness_reasoning_mismatch is not supported when every sealed answer is incorrect and every corresponding reasoning_basis is incorrect_explanation; incorrect answers with incorrect explanations alone are not a correctness-versus-reasoning mismatch.");
   }
 
   return issues;

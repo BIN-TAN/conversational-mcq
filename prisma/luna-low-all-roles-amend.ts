@@ -1,9 +1,9 @@
 import { loadEnvConfig } from "@next/env";
 import {
-  prepareLunaLowAllRolesAmendment,
+  prepareLunaAllRolesAmendment,
   resolveActiveOperationalApproval,
-  stageLunaLowAllRolesCandidate,
-  stageLunaLowAllRolesCandidateFromManifest
+  stageLunaAllRolesCandidate,
+  stageLunaAllRolesCandidateFromManifest
 } from "../src/lib/operational/active-approval-bundle";
 import { argValue } from "./operational-model-upgrade-cli-args";
 
@@ -16,17 +16,25 @@ const required = (name: string) => {
 };
 const mode = required("--mode");
 if (!["candidate", "approve"].includes(mode)) throw new Error("Use --mode candidate or approve.");
-if (required("--confirm") !== "authorize all application roles gpt-5.6-luna low") {
+const reasoningEffort = argValue("--reasoning-effort") ?? "low";
+if (reasoningEffort !== "low" && reasoningEffort !== "medium") throw new Error("Use --reasoning-effort low or medium.");
+const profileCorrection = argValue("--profile-correction");
+if (profileCorrection !== undefined && (profileCorrection !== "profile-fidelity-v1" || reasoningEffort !== "medium")) {
+  throw new Error("Use --profile-correction profile-fidelity-v1 only with medium reasoning.");
+}
+if (required("--confirm") !== `authorize all application roles gpt-5.6-luna ${reasoningEffort}${profileCorrection ? " and exact profile fidelity correction" : ""}`) {
   throw new Error("Explicit all-role model and reasoning authorization is required.");
 }
 const common = {
+  reasoningEffort: reasoningEffort as "low" | "medium",
+  profileCorrection: profileCorrection as "profile-fidelity-v1" | undefined,
   outputDirectory: required("--output-directory"),
   authorizationReference: required("--authorization-reference")
 };
 const exportedParentPath = argValue("--parent-manifest");
 if (exportedParentPath) {
   if (mode !== "candidate") throw new Error("An exported manifest alone cannot authorize production approval.");
-  const result = stageLunaLowAllRolesCandidateFromManifest({
+  const result = stageLunaAllRolesCandidateFromManifest({
     ...common, parentManifestPath: exportedParentPath,
     expectedParentManifestSha256: required("--expected-parent-manifest-sha256"),
     expectedParentRuntimeHash: required("--expected-parent-hash")
@@ -37,9 +45,9 @@ if (exportedParentPath) {
   if (parent?.kind !== "derived_approval") throw new Error("A verified derived parent approval is required.");
   const input = { ...common, parent, expectedParentHash: required("--expected-parent-hash") };
   if (mode === "candidate") {
-    console.log(JSON.stringify({ ...stageLunaLowAllRolesCandidate(input), provider_calls: 0, activation_performed: false }, null, 2));
+    console.log(JSON.stringify({ ...stageLunaAllRolesCandidate(input), provider_calls: 0, activation_performed: false }, null, 2));
   } else {
-    const result = prepareLunaLowAllRolesAmendment({ ...input, validationEvidencePath: required("--validation-evidence") });
+    const result = prepareLunaAllRolesAmendment({ ...input, validationEvidencePath: required("--validation-evidence") });
     console.log(JSON.stringify({
       status: "approved_artifacts_prepared_not_activated", manifestPath: result.manifestPath,
       evidencePath: result.evidencePath, runtime_candidate_hash: result.evidence.runtime_candidate_hash,

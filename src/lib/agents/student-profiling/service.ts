@@ -4,7 +4,9 @@ import {
   type ExecuteOperationalAgentInput,
   type OperationalAgentExecutionResult
 } from "@/lib/agents/operational/executor";
-import type { AgentOutputByName } from "@/lib/agents/contracts";
+import { ProductionStudentProfilingInput, ProductionStudentProfileOutputV5,
+  type AgentOutputByName } from "@/lib/agents/contracts";
+import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
 import { prisma } from "@/lib/db";
 import { LlmUsageGuardBlockedReason } from "@/lib/llm/usage/usage-guard";
@@ -28,6 +30,8 @@ import {
   type StudentProfileWithAgentCall
 } from "./serializers";
 import { validateStudentProfileOutputSemantics } from "./semantic-validation";
+import { executeStudentProfileWithSemanticRepair, studentProfileReusableInvocationKeys, studentProfileSealedInputMatches,
+  STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION } from "./semantic-repair";
 
 export class StudentProfilingServiceError extends Error {
   code: string;
@@ -92,7 +96,7 @@ async function profileByInvocationKey(agentInvocationKey: string) {
     where: {
       profile_type: "initial",
       based_on_agent_call: {
-        agent_invocation_key: agentInvocationKey,
+        agent_invocation_key: { in: studentProfileReusableInvocationKeys(agentInvocationKey) },
         call_status: "succeeded",
         output_validated: true
       }
@@ -186,6 +190,50 @@ function profilingContextPublicId(built: BuiltStudentProfilingInput) {
   ].join(":");
 }
 
+async function executeValidatedProfiling(
+  request: ExecuteOperationalAgentInput<"student_profiling_agent">,
+  execute: StudentProfilingNoProviderExecutor = executeOperationalAgent
+) {
+  return executeStudentProfileWithSemanticRepair({
+    request, execute,
+    readPriorSemanticRejection: async () => {
+      const prior = await prisma.agentCall.findUnique({ where: { agent_invocation_key: request.invocationKey } });
+      if (!prior || prior.call_status !== "invalid_output" || prior.error_category !== "semantic_validation") return null;
+      const prompt = getPromptForAgent("student_profiling_agent");
+      const providerInput = ProductionStudentProfilingInput.safeParse(prior.input_payload);
+      const output = ProductionStudentProfileOutputV5.safeParse(prior.output_payload);
+      const eligible = prior.agent_name === "student_profiling_agent" && !prior.output_validated &&
+        prior.assessment_session_db_id === request.operationalContext.assessment_session_db_id &&
+        prior.concept_unit_session_db_id === request.operationalContext.concept_unit_session_db_id &&
+        prior.prompt_hash === prompt.prompt_hash && prior.prompt_version === prompt.prompt_version &&
+        prior.schema_version === prompt.schema_version && providerInput.success && output.success &&
+        studentProfileSealedInputMatches(providerInput.data, request.allowlistedInput);
+      return { agent_call_id: prior.id,
+        provider_input: eligible && providerInput.success ? providerInput.data : null,
+        output: eligible && output.success ? output.data : null };
+    },
+    recordRejected: async (result, semantic) => {
+      // Preserve the original raw/output payload and usage. Rejection changes
+      // validation status only; regeneration receives its own AgentCall row.
+      await prisma.agentCall.update({
+        where: { id: result.agent_call_id },
+        data: { output_validated: false, validation_error: semantic.issues.join("; "),
+          call_status: "invalid_output", error_category: "semantic_validation" }
+      });
+      await logAgentEvent({
+        assessment_session_db_id: request.operationalContext.assessment_session_db_id!,
+        concept_unit_session_db_id: request.operationalContext.concept_unit_session_db_id!,
+        event_type: "schema_validation_failed",
+        payload: { agent_name: "student_profiling_agent", agent_call_id: result.agent_call_id,
+          result_status: "semantic_validation_failed", semantic_issues: semantic.issues,
+          semantic_warnings: semantic.warnings, semantic_repair_policy: STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION,
+          evidence_consistency_version: semantic.evidence_consistency.version,
+          evidence_consistency: semantic.evidence_consistency.classification }
+      });
+    }
+  });
+}
+
 function deterministicInitialProfileFallback(built: BuiltStudentProfilingInput) {
   return {
     agent_name: "student_profiling_agent" as const,
@@ -258,7 +306,7 @@ async function executeProfilingBuiltInput(input: {
     }
   });
 
-  const result = await executeOperationalAgent({
+  const result = await executeValidatedProfiling({
     agentName: "student_profiling_agent",
     allowlistedInput: input.built.input,
     invocationKey: input.built.agent_invocation_key,
@@ -571,9 +619,7 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
   }
 
   const result = providerExecutionAllowed
-    ? await (
-        input.no_provider_test_executor ?? executeOperationalAgent
-      )({
+    ? await executeValidatedProfiling({
         agentName: "student_profiling_agent",
         allowlistedInput: built.input,
         invocationKey: built.agent_invocation_key,
@@ -594,7 +640,7 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
             ? { mock_mode: input.mock_provider_mode }
             : {})
         }
-      })
+      }, input.no_provider_test_executor)
     : {
         status: "failed" as const,
         error: {
@@ -605,6 +651,15 @@ export async function runInitialStudentProfiling(input: RunInitialStudentProfili
         },
         retry_count: 0
       };
+
+  if (result.status === "semantic_validation_failed") {
+    return {
+      status: "semantic_validation_failed" as const,
+      profile: null,
+      agent_call_id: result.agent_call_id,
+      agent_invocation_key: built.agent_invocation_key
+    };
+  }
 
   if (result.status !== "succeeded") {
     if (providerExecutionAllowed) {

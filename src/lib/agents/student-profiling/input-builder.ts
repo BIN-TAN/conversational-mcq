@@ -7,6 +7,7 @@ import { assertNoRawStudentIdentifiersInProviderPayload } from "@/lib/llm/provid
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { buildCanonicalEvidenceCatalog } from "@/lib/domain/canonical-evidence-identity";
 import { projectConceptAdministrationRulesForStudentAgents } from "@/lib/services/content/item-design-provider-boundary";
+import { STUDENT_PROFILE_FACT_BINDING_VERSION } from "./semantic-validation";
 
 export type StudentProfilingInput = AgentInputByName["student_profiling_agent"];
 
@@ -395,6 +396,9 @@ export async function buildInitialStudentProfilingInput(
     followup_evidence_package: null,
     profile_type: "initial",
     profiling_constraints: {
+      fact_binding_version: STUDENT_PROFILE_FACT_BINDING_VERSION,
+      sealed_response_facts: "The sealed package is authoritative for correctness, submitted confidence and explicit skipped booleans. Do not infer or replace these facts. Quote reasoning exactly from the submitted item response.",
+      reasoning_scope: "Concise accurate reasoning can be adequate for the administered item. Brevity, low confidence, recognition alone and untested transfer do not establish a reasoning defect. A weak-reasoning flag needs a specific observed conceptual or explanatory limitation, not a missing additional test.",
       profile_layers: [
         "ability_profile",
         "engagement_profile",
