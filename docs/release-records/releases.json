@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-11T05:54:57.2112911Z",
+  "updated_at": "2026-10-13T09:13:48.050Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2726,6 +2726,112 @@
         "src/app/tailwind-v3-utilities.css",
         "scripts/build-change-record.py",
         "scripts/test-change-record.py"
+      ]
+    },
+    {
+      "id": "CMCQ-20261013-01",
+      "date": "2026-10-13",
+      "title": "Luna low evaluation blocked before production activation",
+      "application_commit": "d3f7c22285aced3c33eb87733b327030555523c3",
+      "push_status": "Candidate code pushed and exact remote SHA verified on codex/luna-low-evaluation only. origin/main remains cb10206fe24a53bfa6a62582f679fe5b00f204d3. This is a preserved evaluation, not a released application.",
+      "deployment": {
+        "status": "pending",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": null,
+        "source_commit": "d3f7c22285aced3c33eb87733b327030555523c3",
+        "verified_at": "2026-10-13T09:09:50.413Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0",
+        "evidence": [
+          "Deployment is blocked by three live candidate failures and accepted profile/observation fidelity concerns. No candidate activation, approval bundle, Render configuration change or deployment was created.",
+          "Read-only Render verification at 2026-10-13T09:09:50.413Z showed existing deployment dep-db5i593rjlhs73aq23t0 Live for application 3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1. The canonical service follows main, not the evaluation branch.",
+          "Production runtime settings were read from the existing approval manifest at 2026-10-13T08:47:43.113Z. Runtime hash bb157af19e9bc876e077d2c2b6ea58bfaa5aa365f5d8cf7ac37709c970b2f2d4 was retained as parent; no production data was written. Prior release health evidence was not represented as a new health or worker-job test."
+        ]
+      },
+      "summary": "The requested all-role GPT-5.6 Luna low candidate was tested locally on Windows with existing synthetic scenarios. Four of seven cases completed mechanically; three failed profiling validation. Review found unsupported accepted research metadata. The candidate is preserved on a separate branch and is not safe for production activation.",
+      "changes": [
+        {
+          "area": "Candidate model configuration",
+          "problem": "All 18 application roles must use Luna low without losing deployed budgets or bypassing approval.",
+          "fix": "Add an exact model/effort-only amendment derived from the verified deployed manifest and a restricted local candidate mode. Preserve prompts, schemas, token limits and authoritative application transitions.",
+          "impact": "All 18 roles compile Luna low requests in offline checks. Live scenarios exercise their active assessment roles; they do not cover every authoring or legacy role with a paid call."
+        },
+        {
+          "area": "Validation and approval protection",
+          "problem": "A candidate cannot be described as approved before its evidence passes review.",
+          "fix": "Expose validation-pending status; restrict execution to development and isolated loopback synthetic databases. Bind eventual approval to native seven-case reports, call records, usage evidence and explicit review. Reject production and canary overrides.",
+          "impact": "The actual failed report was rejected by the approval verifier. No approval was generated and no failing candidate was deployed."
+        },
+        {
+          "area": "Reproducible cost and research evidence",
+          "problem": "Aggregate application totals can omit failed attempts or mix simulator cost with an assessment.",
+          "fix": "Retain usage and response identifiers in test exports; add offline cost reporting and 15 pricing/reconciliation tests. Use a passive local transport ledger to include every paid dispatch, cached reads, cache writes and failed calls.",
+          "impact": "Token-based estimates separate application, synthetic learner and connectivity costs. No API key, raw student transcript or local credential file is committed."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Live conversational-support-needs simulations",
+          "result": "Four completed; three failed; rollout blocked",
+          "detail": "Run each of seven existing cases once with Luna low and identical source/runtime hashes. Persistent prerequisite confusion, partial progress with many difficulties, and overwhelmed pause/return failed canonical profiling because no_clear_pattern was combined with specific flags. Preparation remained retryable; the harness stopped before dialogue and cancelled only its synthetic pending jobs. Production retry recovery was not exercised."
+        },
+        {
+          "name": "Completed conversations and evidence review",
+          "result": "Mechanical passes with substantive semantic concerns",
+          "detail": "Guessing/agreement, confident error, brief sound reasoning and strong prior reasoning each completed three items, six student replies and seven tutor messages with research checks. Guessing profile changed low confidence to medium and marked completed reasoning/confidence as skipped. Confident-error observations confused tutor questions with pending student questions. Brief-language profile labelled sound reasoning weak and recommended an unused confidence re-rating. Strong-prior closing retained untested transfer but could make assistance more explicit. Review was AI-assisted engineering review, not independent human educational validation."
+        },
+        {
+          "name": "llm:luna-low-request-smoke; llm:luna-low-amendment-smoke; classroom:session-cost-smoke",
+          "result": "Passed offline",
+          "detail": "18 role requests; 141 amendment/isolation/evidence assertions; 15 cost-report tests. Exact deployed parent, budgets and non-model settings preserved. Actual failed live evidence also rejected by the approval verifier."
+        },
+        {
+          "name": "security:dependency-smoke; security:dependencies; full and production npm audits",
+          "result": "Passed",
+          "detail": "19 policy tests and 18 application security checks passed. Both independent npm audit --json and npm audit --omit=dev --json returned zero findings. No dependency or security exception was introduced."
+        },
+        {
+          "name": "typecheck; lint; build",
+          "result": "Passed after retained initial build failure",
+          "detail": "Final typecheck and production build passed. Lint had zero errors and five pre-existing warnings. An initial build used a development-mode launcher and exhausted the default heap; production rerun with a 12 GB heap passed, followed by a final successful build after the validation-evidence module was complete."
+        },
+        {
+          "name": "Student flow, timing, exports and contract regressions",
+          "result": "Focused checks passed; two pre-existing harness failures retained",
+          "detail": "student:conversational-flow-smoke, student:research-timing-separation-smoke, export:master-smoke, export:master-complete-smoke, student:latency-smoke, operational:formative-conversation-v18r2-contract-smoke and provider-request-smoke passed. student:formative-conversation-runtime-smoke failed an expected v5.3 versus actual v5.4 assertion. The v18r2 pipeline-runtime smoke expected null instead of synthetic_formative_conversation_execution_failed. Both failures were reproduced against unmodified cb10206f in a separate mock database with zero provider calls; fixtures were not rewritten."
+        },
+        {
+          "name": "Usage reconciliation and session estimate",
+          "result": "77 paid requests accounted for; no missing usage",
+          "detail": "76 scenario requests plus one connectivity request cost an estimated USD 0.27380429 at published standard rates. Four completed application sessions cost USD 0.05206623 to 0.05486863, mean USD 0.05356265, excluding learner simulation. These are three-item/six-reply sessions. Failed attempts, simulator overhead and connectivity remain separately recorded. The conservative guard total was USD 0.35789460 under the USD 2 cap; neither value is a provider invoice."
+        },
+        {
+          "name": "Preserved setup failures",
+          "result": "Corrected before paid scenarios",
+          "detail": "A loader-worker budget-lock collision and an over-restricted free model-metadata check initially prevented execution. Both generated no paid provider requests. The isolated launcher was corrected without modifying application readiness rules; original logs and reports remain locally preserved."
+        }
+      ],
+      "data_impact": [
+        "All writes were confined to fresh synthetic local test databases on this Windows PC. Real student accounts, answers, attempts, permissions and research records were not modified. No schema migration, assessment prompt or student-interface wording change.",
+        "The seven reports identify baseline cb10206f plus dirty-worktree source hashes; all 24 recorded source files matched across runs and the final candidate. Frozen research configuration and prior archives were preserved.",
+        "Mechanical export integrity does not establish semantic profile accuracy. Incorrect derived metadata observed in this evaluation is evidence against activation, not a corrected student research record.",
+        "Timing separation checks used synthetic/mock data. These simulations are software and engineering observations, not classroom learning gains or diagnostic-validity evidence."
+      ],
+      "limitations": [
+        "Do not activate this all-Luna configuration. The profiling failures and accepted metadata fidelity defects need remediation and another reviewed evaluation. A later mechanical pass alone would not resolve the semantic concerns.",
+        "One synthetic attempt per scenario is too small to estimate a production failure rate. Three cases never reached dialogue; pause/return teaching behavior in the failed overwhelmed case remains unobserved.",
+        "Session cost depends on conversation length, context growth, cache behavior and retries. The estimate excludes hosting, database, taxes, authoring and human review. Future repeated runs of the same case must use separate transport ledgers: current cost selection is by case ID and marks mismatched dispatch coverage unknown.",
+        "No new deployment, production health/job test, browser interaction test or Docker image build was performed for this blocked candidate. Production keeps its previous application and model configuration."
+      ],
+      "references": [
+        "docs/release-records/evidence/luna-low-evaluation-20261013.json",
+        "prisma/luna-low-all-roles-amend.ts",
+        "prisma/luna-low-all-roles-amendment-smoke-test.ts",
+        "prisma/luna-low-role-request-smoke-test.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "src/lib/operational/luna-low-validation-evidence.ts",
+        "scripts/ai-session-cost-report.mjs",
+        "scripts/ai-session-cost-report.test.mjs"
       ]
     }
   ],

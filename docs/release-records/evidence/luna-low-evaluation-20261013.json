@@ -1,0 +1,559 @@
+{
+  "version": "luna-low-seven-case-evaluation-summary-v1",
+  "generated_at": "2026-10-13T09:12:21.348Z",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "classroom_learning_effectiveness_evidence": false,
+  "reviewer_kind": "AI_assisted_engineering_review",
+  "independent_human_pedagogical_validation": false,
+  "production_activation_approved": false,
+  "decision": "preserve_evaluation_branch_without_deployment; required seven-case acceptance not satisfied",
+  "scope": {
+    "suite": "conversational-support-needs",
+    "case_count": 7,
+    "model_name": "gpt-5.6-luna",
+    "reasoning_effort": "low",
+    "initial_items_per_case": 3,
+    "intended_student_reply_opportunities": 6,
+    "completed_dialogue_student_turns": 6,
+    "completed_dialogue_tutor_turns": 7,
+    "source_commits": [
+      "cb10206fe24a53bfa6a62582f679fe5b00f204d3"
+    ],
+    "source_worktree_dirty": true,
+    "runtime_hashes": [
+      "a4013c6fc0422313c2a8dfcfb920440d3716e2d99631e125796a1b18750e552b"
+    ],
+    "no_real_student_records_changed": true,
+    "live_retries_after_case_failure": false,
+    "candidate_commit_after_evaluation": "d3f7c22285aced3c33eb87733b327030555523c3",
+    "candidate_branch": "codex/luna-low-evaluation",
+    "source_commit_interpretation": "Reports were generated against dirty baseline cb10206fe24a53bfa6a62582f679fe5b00f204d3 plus per-file SHA256 and runtime hash. The evaluated candidate was subsequently committed as d3f7c22285aced3c33eb87733b327030555523c3 on an evaluation branch; it is not a tested clean-baseline or deployed application SHA.",
+    "current_worktree_source_hashes_match_all_reported_files": true,
+    "source_files_verified_count": 24,
+    "source_files_sha256": {
+      "prisma/ai-student-journey-evaluation.ts": "e81028ace6e4541e6ea48d027b249de843c697a863bd9d875ce2fda1f8c8d645",
+      "src/lib/evaluation/ai-student-scenarios.ts": "6e96e74d1cf5690b5e29f90212ab095a86756ed11daab56aadda39ae4301bfa9",
+      "src/lib/evaluation/conversational-application-scenarios.ts": "d350888e114bfed055dd2fcb94b0df6901677f7abf7fa3488298ddd9f06e516b",
+      "src/lib/evaluation/conversational-support-needs-scenarios.ts": "b574167e55d9dbab5f39b4dd38dfc6cad965ef7a541e42bc5ca7d2134254d773",
+      "src/lib/services/student-assessment/formative-profile.ts": "b5077c790b89576d84751f8b6b1630d51631ce83f02265a3711b451eda55ac6e",
+      "src/lib/services/student-assessment/semantic-item-review.ts": "4114255804e1f49a4d66962817543d1aca1dcc692f94ba17f86d77ada4a7de6a",
+      "src/lib/services/teacher-review/process-data-summary.ts": "b04054e3653a08a2267a8b6f89bf8e6270c92de8c034d63311482bac11be17fc",
+      "src/lib/services/student-assessment/learning-profile-summary.ts": "fdf1d0cbee3c6270214c111d2e0c6f4576767e8c2faae77b3be9cfc812f5d049",
+      "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts": "4e755d14381c84c06bfd02fa0ea9d0a2b0d5cff14dee758e2e703af3fc00b213",
+      "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts": "cd9cf84a541d5dc91e790a52b14a8c5c9a6a853ae1c1497f487c25aa31ffda7b",
+      "src/lib/services/student-assessment/formative-conversation/assistance-history.ts": "678f44f9692a4b8ce4f195c6fb99dc9886c8fad5373f5257a83ce36434292b49",
+      "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts": "1e84acb6053fc69d679f835793a333b9e39e7c963ecf602f82a4e9aaa8401dc8",
+      "src/lib/services/student-assessment/profile-integration.ts": "a0a36695f607f426181c426437f950b978ef2ce7ceb2393ac2be2bb9aae67557",
+      "src/lib/agents/prompts/student-profiling/v1.ts": "16a93be9b96cd38d8c9449ac0347b8e9a9a026422b2d929a84f874340f23a202",
+      "src/lib/agents/student-profiling/input-builder.ts": "93cb459a255e4782d253d55d460638f800134d77bdfe5b08d7177de6b71d40ad",
+      "src/lib/llm/lossless-profiling-input.ts": "f4446fdd222aab93b913ab35c8d18ad79e3455da295ce2663f8458444650733c",
+      "src/lib/llm/providers/openai-responses-provider.ts": "a3f154ce505677d0ca9e441e4376963b3288ef9cdf646b75c387ce95d223e76a",
+      "src/lib/agents/provider-request.ts": "848520b978a424054041fbf1f6c3947538c39e573ce11fc8d3e3f0be8e8e015c",
+      "src/lib/operational/active-approval-bundle.ts": "f5f43f2ad7c38d14743bec3c706f900bbda7fdd21e31c28527190c77d1786385",
+      "src/lib/llm/config.ts": "f3e588cca1441c3ae11abd3196f0c50e43f033791d11988d6897dda8e3e49e6e",
+      "src/lib/agents/operational/approved-config.ts": "96bd0c80720b06fdad605b7d39ec10d51ca4b1d850618239ccd3c71293460338",
+      "src/lib/operational/guarded-agent-integration.ts": "40159d215f40239f2bccd7bdbfdf3e8b3de1e5a8e953ee89840209578a95fe25",
+      "src/lib/services/student-assessment/student-runtime-live-agent.ts": "a509008d84a9b7b7fb46d1b6ec2ec1ad3743bd183a551ebf7660fcfc7331d5ee",
+      "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts": "ffad76bc1d086bacb5c5f41a94caa2b8ae4692d96a3d40f2a9430688da002f91"
+    },
+    "production_deployment_performed": false
+  },
+  "outcomes": {
+    "mechanical_completed": 4,
+    "mechanical_failed": 3,
+    "canonical_initial_profiles_rejected": 3,
+    "completed_cases_are_not_blanket_qualitative_pass": true,
+    "release_blocker": "Three canonical profiles combined no_clear_pattern with specific flags; preparation remained retryable before any formative dialogue.",
+    "additional_accepted_metadata_findings": [
+      "Guessed-answer case: false skipped-reasoning/skipped-confidence flags and medium item-confidence values despite low submitted confidence.",
+      "Confident-error case: student-question-pending tags refer to a tutor question or text saying no student question is pending.",
+      "Brief-language case: weak-reasoning flag conflicts with accurate concise reasoning; unused recommendation suggests new confidence rating."
+    ],
+    "qualification_caution": "Strong-prior case records assistance limits during dialogue; closing is less explicit about support, though independent transfer is not claimed."
+  },
+  "pricing": {
+    "model": "gpt-5.6-luna",
+    "currency": "USD",
+    "basis": "standard API text-token rates; not an invoice",
+    "source_checked_at": "2026-10-13",
+    "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+    "per_million": {
+      "input": 0.2,
+      "cached_input": 0.02,
+      "cache_write_input": 0.25,
+      "output": 1.2
+    },
+    "long_context": {
+      "input_tokens_exceeding": 272000,
+      "input_multiplier": 2,
+      "output_multiplier": 1.5
+    }
+  },
+  "accounting": {
+    "source": "passive fetch transport usage; per-request replacement of AgentCall aggregates",
+    "currency": "USD",
+    "provider_dispatches_in_seven_cases": 76,
+    "application_requests": 70,
+    "simulator_learner_requests": 6,
+    "connectivity_requests": 1,
+    "total_requests": 77,
+    "missing_usage_requests": 0,
+    "requests_exceeding_272000_input_tokens": 0,
+    "all_report_dispatch_counts_match_sidecar": true,
+    "failed_and_rejected_calls_included": true,
+    "reasoning_tokens_are_subset_of_output": true,
+    "cached_and_cache_write_tokens_partition_input": true,
+    "application_all_attempts": {
+      "cost": {
+        "lower_usd": 0.27240694,
+        "upper_usd": 0.27240694,
+        "exact_usd": 0.27240694
+      },
+      "tokens": {
+        "input_tokens": {
+          "known": 1219904,
+          "records_missing": 0
+        },
+        "cached_input_tokens": {
+          "known": 364832,
+          "records_missing": 0
+        },
+        "cache_write_input_tokens": {
+          "known": 854862,
+          "records_missing": 0
+        },
+        "output_tokens": {
+          "known": 42794,
+          "records_missing": 0
+        },
+        "reasoning_tokens": {
+          "known": 6185,
+          "records_missing": 0
+        }
+      }
+    },
+    "application_completed_sessions": {
+      "count": 4,
+      "cost_total": {
+        "lower_usd": 0.21425062,
+        "upper_usd": 0.21425062,
+        "exact_usd": 0.21425062
+      },
+      "per_session_min_usd": 0.05206623,
+      "per_session_max_usd": 0.05486863,
+      "per_session_mean_usd": 0.053562655
+    },
+    "application_failed_attempts": {
+      "count": 3,
+      "cost_total": {
+        "lower_usd": 0.05815632,
+        "upper_usd": 0.05815632,
+        "exact_usd": 0.05815632
+      },
+      "limitation": "Each stopped after six application calls; these are failed attempt costs, not completed assessment-session estimates."
+    },
+    "simulator_learner_overhead": {
+      "cost": {
+        "lower_usd": 0.00137315,
+        "upper_usd": 0.00137315,
+        "exact_usd": 0.00137315
+      },
+      "tokens": {
+        "input_tokens": {
+          "known": 4383,
+          "records_missing": 0
+        },
+        "cached_input_tokens": {
+          "known": 0,
+          "records_missing": 0
+        },
+        "cache_write_input_tokens": {
+          "known": 1051,
+          "records_missing": 0
+        },
+        "output_tokens": {
+          "known": 370,
+          "records_missing": 0
+        },
+        "reasoning_tokens": {
+          "known": 47,
+          "records_missing": 0
+        }
+      }
+    },
+    "connectivity_probe_overhead": {
+      "cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.0000242,
+        "upper_usd": 0.0000242,
+        "exact_usd": 0.0000242
+      },
+      "tokens": {
+        "input_tokens": {
+          "known": 37,
+          "records_missing": 0
+        },
+        "cached_input_tokens": {
+          "known": 0,
+          "records_missing": 0
+        },
+        "cache_write_input_tokens": {
+          "known": 0,
+          "records_missing": 0
+        },
+        "output_tokens": {
+          "known": 14,
+          "records_missing": 0
+        },
+        "reasoning_tokens": {
+          "known": 0,
+          "records_missing": 0
+        }
+      }
+    },
+    "total_experiment_cost": {
+      "status": "exact_for_recorded_usage",
+      "lower_usd": 0.27380429,
+      "upper_usd": 0.27380429,
+      "exact_usd": 0.27380429
+    },
+    "unknown_cost_bounds_present": false,
+    "cost_interpretation": "Exact arithmetic for recorded usage at dated standard text-token rates; not an invoice. Excludes taxes, discounts, hosting, human review and unrelated Codex/editor work. No separate evaluator API was invoked."
+  },
+  "cases": [
+    {
+      "case_id": "persistent_prerequisite_confusion",
+      "mechanical_outcome": "failed",
+      "qualitative_verdict": "blocked_before_formative_dialogue",
+      "actual_formative_student_turns": 0,
+      "actual_formative_tutor_turns": 0,
+      "application_requests": 6,
+      "simulator_learner_requests": 0,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.02053941,
+        "upper_usd": 0.02053941,
+        "exact_usd": 0.02053941
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0,
+        "upper_usd": 0,
+        "exact_usd": 0
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_74b69c88d8ba/report.json",
+        "sha256": "f75540874dc285d6ae4369c96e36370a7b4f4c95efbfac2d82fa9d08d6cfa476"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_74b69c88d8ba/persistent_prerequisite_confusion-agent-calls.json",
+        "sha256": "37363eb34121d32f2d93a6e170432494b62b27c470eb4cd536fdac31494b0c5c"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/persistent_prerequisite_confusion.json",
+        "sha256": "ba1a09947b8f74b12e53025efbfb54bac718fe649e589acec75b7acb165d2281"
+      },
+      "findings": [
+        {
+          "severity": "release_blocker",
+          "finding": "Canonical profiling combined no_clear_pattern with specific ability and engagement flags. The validator rejected that contradictory draft; preparation remained retryable and no formative conversation was available."
+        },
+        {
+          "severity": "observation",
+          "finding": "The rejected draft otherwise identified the explicit reliability/validity and SEM misconceptions and described participation without treating low confidence or brief reasoning as poor engagement. This does not make the rejected profile accepted evidence."
+        }
+      ]
+    },
+    {
+      "case_id": "partial_progress_many_difficulties",
+      "mechanical_outcome": "failed",
+      "qualitative_verdict": "blocked_before_formative_dialogue",
+      "actual_formative_student_turns": 0,
+      "actual_formative_tutor_turns": 0,
+      "application_requests": 6,
+      "simulator_learner_requests": 0,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.01891703,
+        "upper_usd": 0.01891703,
+        "exact_usd": 0.01891703
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0,
+        "upper_usd": 0,
+        "exact_usd": 0
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_b2252083284e/report.json",
+        "sha256": "06d61d255751c9ff2ee1c58225a63c4df7ee728534671bc90ee9d35641d1d0eb"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_b2252083284e/partial_progress_many_difficulties-agent-calls.json",
+        "sha256": "25b2aeefb7f2b506692d3a6d468dea158c072b5525950acbc8b00ea2bca0aecf"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/partial_progress_many_difficulties.json",
+        "sha256": "8e0974b3683b2be75d540db2d3059d2922de26efb9250c9e56d7b73283529d50"
+      },
+      "findings": [
+        {
+          "severity": "release_blocker",
+          "finding": "Canonical profiling combined no_clear_pattern with sustained_engagement. The validator rejected the contradictory engagement flags; preparation remained retryable and no formative conversation was available."
+        },
+        {
+          "severity": "observation",
+          "finding": "The rejected draft identified the explicit reliability/validity and SEM misconceptions and retained adequate engagement despite brief reasoning and low confidence. Rejected observations are not accepted evidence."
+        }
+      ]
+    },
+    {
+      "case_id": "guessing_agreement_not_understanding",
+      "mechanical_outcome": "mechanical_checks_passed_manual_pedagogical_review_required",
+      "qualitative_verdict": "teaching_criteria_observed_but_accepted_profile_fidelity_failure",
+      "actual_formative_student_turns": 6,
+      "actual_formative_tutor_turns": 7,
+      "application_requests": 13,
+      "simulator_learner_requests": 1,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.05417118,
+        "upper_usd": 0.05417118,
+        "exact_usd": 0.05417118
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.0001508,
+        "upper_usd": 0.0001508,
+        "exact_usd": 0.0001508
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_5b49aae098b4/report.json",
+        "sha256": "b0639c10786525bfe5f5d30be21b9e649b996f0100ac1d0b20a6c22dc26a1cab"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_5b49aae098b4/guessing_agreement_not_understanding-agent-calls.json",
+        "sha256": "fef2d498c9902677f3572344ffc529826858e6bb926da195e520542fa4cb24a8"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/guessing_agreement_not_understanding.json",
+        "sha256": "c35dd33e4dd5f5a265417773a29d7fb04d7f76faac91fdc9bb356b8219910939"
+      },
+      "findings": [
+        {
+          "severity": "substantive_quality_failure",
+          "finding": "Accepted canonical profile emits skipped_reasoning and skipped_confidence despite all three canonical initial responses having both flags false and the profile rationale stating all requested responses were completed. All three item_level_evidence confidence_rating values are medium despite all three submitted confidence ratings being low."
+        },
+        {
+          "severity": "observation",
+          "finding": "Visible tutor dialogue and evidence observations do not award mastery for correct guesses, agreement or uncertainty. Direct explanations are given without a new test; a scale analogy is introduced when agreement is withdrawn; closing retains both SEM and reliability-validity uncertainty and respects stopping. Profile transition recommendations remain null."
+        }
+      ]
+    },
+    {
+      "case_id": "confident_error_resists_explanation",
+      "mechanical_outcome": "mechanical_checks_passed_manual_pedagogical_review_required",
+      "qualitative_verdict": "teaching_criteria_observed_with_evidence_metadata_concern",
+      "actual_formative_student_turns": 6,
+      "actual_formative_tutor_turns": 7,
+      "application_requests": 13,
+      "simulator_learner_requests": 1,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.05486863,
+        "upper_usd": 0.05486863,
+        "exact_usd": 0.05486863
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.0002718,
+        "upper_usd": 0.0002718,
+        "exact_usd": 0.0002718
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_ed4f10f8ed4e/report.json",
+        "sha256": "0c51f80c8ca56e9aa602f35faa1803f5766c0a0847a94009bfce67553b441912"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_ed4f10f8ed4e/confident_error_resists_explanation-agent-calls.json",
+        "sha256": "c6fbb67af79b80849dca01372a5565c26af2f5aa49d677f7946ada6034c47b44"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/confident_error_resists_explanation.json",
+        "sha256": "16e53587f044bf47a955d5ae34c0a23b62330334a746f9ae9f74bedb0a94a37a"
+      },
+      "findings": [
+        {
+          "severity": "quality_concern",
+          "finding": "The first formative reply labels a tutor question as student_question_pending, and the next reply uses student_question_pending while its observation states that no explicit substantive student question is pending. These accepted machine-readable coverage tags contradict the meaning of their text."
+        },
+        {
+          "severity": "observation",
+          "finding": "The tutor respectfully rejects persistent reliability-as-validity claims, introduces a biased thermometer example, answers the new alpha-as-diagnostic-accuracy claim, honors the request for no formula/quiz, and explicitly retains uncertainty at exit. No profile transition claims corrected understanding; closing gives a concrete teacher question without claiming notification."
+        }
+      ]
+    },
+    {
+      "case_id": "overwhelmed_pause_return",
+      "mechanical_outcome": "failed",
+      "qualitative_verdict": "blocked_before_formative_dialogue",
+      "actual_formative_student_turns": 0,
+      "actual_formative_tutor_turns": 0,
+      "application_requests": 6,
+      "simulator_learner_requests": 0,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.01869988,
+        "upper_usd": 0.01869988,
+        "exact_usd": 0.01869988
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0,
+        "upper_usd": 0,
+        "exact_usd": 0
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_9d285ca42a02/report.json",
+        "sha256": "e87c8d86f7d0276fca0e627f86335df2058c745f3a7f27805ad1b4e8c1a65546"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_9d285ca42a02/overwhelmed_pause_return-agent-calls.json",
+        "sha256": "802a5ba34f08037e3c94fc9c0e1fb1d18618f5e44e2bc81b4e7adffa37baa779"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/overwhelmed_pause_return.json",
+        "sha256": "6a6b98e5e9a67e04795e2dea85e09ad1d9910386fbd96a38dba62483247e8b75"
+      },
+      "findings": [
+        {
+          "severity": "release_blocker",
+          "finding": "Canonical profile combines no_clear_pattern with specific ability and engagement flags. The validator rejects the draft; preparation stays retryable. No tutor opening, short-explanation request, pause/resume, or concurrent formative replay was reached."
+        },
+        {
+          "severity": "observation",
+          "finding": "Rejected draft otherwise identifies the two initial misconceptions and describes completed participation. This cannot establish the scenario-specific response to frustration or pause because those turns never occurred."
+        }
+      ]
+    },
+    {
+      "case_id": "brief_language_sound_reasoning",
+      "mechanical_outcome": "mechanical_checks_passed_manual_pedagogical_review_required",
+      "qualitative_verdict": "teaching_criteria_observed_with_profile_recommendation_concerns",
+      "actual_formative_student_turns": 6,
+      "actual_formative_tutor_turns": 7,
+      "application_requests": 13,
+      "simulator_learner_requests": 2,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.05206623,
+        "upper_usd": 0.05206623,
+        "exact_usd": 0.05206623
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.0003944,
+        "upper_usd": 0.0003944,
+        "exact_usd": 0.0003944
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_37c405ef38a2/report.json",
+        "sha256": "05765e7831228777c736f53e84b15a46286e48e42f60496c8ce65b34071861d4"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_37c405ef38a2/brief_language_sound_reasoning-agent-calls.json",
+        "sha256": "7342a21bd79cf81372f93a397a3c772e7fd982dc01470fa6bf804fdde43bad09"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/brief_language_sound_reasoning.json",
+        "sha256": "ae777cc676976647b459c4740c232d8606cf7c0089367cf790f1ea8ec501b2ba"
+      },
+      "findings": [
+        {
+          "severity": "quality_concern",
+          "finding": "Accepted ability_pattern_flags includes correct_answer_weak_reasoning while all three item rationales describe concise, conceptually accurate reasoning. The profile cites brevity and missing transfer as limitations; these warrant uncertainty about broader transfer but do not by themselves establish weak current reasoning."
+        },
+        {
+          "severity": "quality_concern",
+          "finding": "The internal recommended_next_evidence includes confidence re-rating after justification. This conflicts with the fixed initial-confidence conversational flow if activated. It was not executed: the actual tutor never requests a new confidence rating."
+        },
+        {
+          "severity": "observation",
+          "finding": "Visible tutor messages credit accurate short explanations, respond in simpler language and preserve intended-use qualifications. Evidence observations explicitly classify restatements following supplied teaching as recognition rather than independent transfer. No profile transition or broad mastery claim is made; stopping is accepted."
+        }
+      ]
+    },
+    {
+      "case_id": "strong_prior_reasoning_comparison",
+      "mechanical_outcome": "mechanical_checks_passed_manual_pedagogical_review_required",
+      "qualitative_verdict": "observed_boundary_discussion_criteria_met_with_closing_qualification_caution",
+      "actual_formative_student_turns": 6,
+      "actual_formative_tutor_turns": 7,
+      "application_requests": 13,
+      "simulator_learner_requests": 2,
+      "application_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.05314458,
+        "upper_usd": 0.05314458,
+        "exact_usd": 0.05314458
+      },
+      "simulator_learner_cost": {
+        "status": "exact_for_recorded_usage",
+        "lower_usd": 0.00055615,
+        "upper_usd": 0.00055615,
+        "exact_usd": 0.00055615
+      },
+      "source_report": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_5f2690f5616a/report.json",
+        "sha256": "ba944905619fd4597d6fa83ea89e69193db6661844d5cb21125b36c038a95d61"
+      },
+      "source_agent_calls": {
+        "path": ".data/ai-student-evaluation/cmcq_ai_students_5f2690f5616a/strong_prior_reasoning_comparison-agent-calls.json",
+        "sha256": "63f608a4dd37549ca67075aaded50429e7064512cfe645a34c459a876c0cc44a"
+      },
+      "source_cost_report": {
+        "path": ".data/luna-low-2026-10-13/cost-reports-final/strong_prior_reasoning_comparison.json",
+        "sha256": "6ffe85054df065164bf9a6cd51b4532e58059ad8b35f2b6c2b3f781a124ace06"
+      },
+      "findings": [
+        {
+          "severity": "observation",
+          "finding": "Initial profile credits accurate reasoning and high confidence without claiming novel transfer. Tutor responds to job-relevance and wellbeing boundary questions, preserves interpretation/use/population qualifications, distinguishes association from causal or intervention claims, and honors finishing. No profile transition is proposed."
+        },
+        {
+          "severity": "qualification_caution",
+          "finding": "Earlier machine-readable observations clearly label accurate follow-up reasoning as supported application after closely matched tutor instruction. Closing describes understanding demonstrated and says the discussion was worked through together, but does not restate the assistance limitation explicitly. It does preserve future transfer as untested; this is not evidence of independent learning gain."
+        }
+      ]
+    }
+  ],
+  "source_evidence": {
+    "transport_usage": {
+      "path": ".data/luna-low-2026-10-13/transport-usage.json",
+      "sha256": "b8e2fe878610557057219a238474fbb243d35a9569fd710d48ea5031d95d4f09"
+    },
+    "qualitative_review": {
+      "path": ".data/luna-low-2026-10-13/qualitative-review.json",
+      "sha256": "c29dd0f68da0f65db5cf9923bba9455496044191abd9bc7f7ade8c5ec1f32fc1"
+    },
+    "cost_reporter": {
+      "path": "scripts/ai-session-cost-report.mjs",
+      "sha256": "fbfa65fdd82d2c470210265fe474a12bc3d2235b8b8ce522a728bad1fa0b3778"
+    },
+    "criteria_source": {
+      "path": "src/lib/evaluation/conversational-support-needs-scenarios.ts",
+      "sha256": "b574167e55d9dbab5f39b4dd38dfc6cad965ef7a541e42bc5ca7d2134254d773"
+    }
+  },
+  "limitations": [
+    "Constructed synthetic initial responses and scripted/adaptive learner messages; not a student sample or causal learning study.",
+    "Mechanical success is evaluated separately from actual transcript/profile meaning.",
+    "AI review can miss scientific, pedagogical and attribution errors; no expert reference standard is claimed.",
+    "Failed attempts and rejected drafts are retained; unobserved behavior is not counted as passing.",
+    "One run per constructed case with no model-to-model control; these results do not estimate population failure rate, student learning gain or comparative instructional effectiveness.",
+    "Costs reflect these local synthetic records, prompt sizes and observed cache behavior. Real sessions may have different length, retries, caching and model/service rates.",
+    "No transcript bodies, prompts, credentials, response IDs or real identities are included in this portable summary. Raw synthetic sources remain in the ignored evidence directory.",
+    "The cost reporter assigns shared-sidecar records by case_id. This evidence set has exactly one paid attempt per case, so assignment is unambiguous. Repeated attempts of the same case in one shared sidecar require explicit request-index or run attribution before costs can be assigned to each attempt; this report must not be reused for that shape without reconciliation."
+  ]
+}
