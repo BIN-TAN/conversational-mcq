@@ -1,0 +1,1731 @@
+{
+  "version": "luna-medium-blocked-candidate-evidence-summary-v1",
+  "generated_at": "2026-10-13T17:15:50.221Z",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "contains_raw_transcripts": false,
+  "contains_credentials": false,
+  "review_kind": "AI_assisted_engineering_review",
+  "independent_human_pedagogical_validation": false,
+  "classroom_learning_effectiveness_evidence": false,
+  "release_approval": false,
+  "deployment_claim": false,
+  "status": "candidate_not_approved_tutor_scope_recap_and_retained_evidence_transition_failures",
+  "next_test_decision": "A stronger-tutor comparison and an additional USD2 budget are pending user choice; this summary does not authorize additional paid calls.",
+  "pricing": {
+    "model": "gpt-5.6-luna",
+    "currency": "USD",
+    "basis": "standard API text-token rates; not an invoice",
+    "source_checked_at": "2026-10-13",
+    "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+    "per_million": {
+      "input": 0.2,
+      "cached_input": 0.02,
+      "cache_write_input": 0.25,
+      "output": 1.2
+    },
+    "long_context": {
+      "input_tokens_exceeding": 272000,
+      "input_multiplier": 2,
+      "output_multiplier": 1.5
+    }
+  },
+  "cohorts": [
+    {
+      "phase": "baseline_medium",
+      "interpretation": "Reasoning changed to medium while the original prompts and validators were retained. Three of seven mechanically completed; two completed accepted profiles still changed sealed confidence. This is not evidence that medium solves the defects.",
+      "model": "gpt-5.6-luna",
+      "reasoning": "medium",
+      "expected_cases": 7,
+      "executed_cases": 7,
+      "mechanical_passes": 3,
+      "mechanical_failures": 4,
+      "trace_accepted_count": null,
+      "review_complete": true,
+      "overall_release_accepted": false,
+      "source_commit": "962cd4b9a6961c8ce7e5911865f8dad2783f77b3",
+      "source_worktree_dirty": true,
+      "runtime_hash": "a56052b705b0f7b1660000e809f7d6a746897a3b7f02783e1fff67b1b6e7243a",
+      "scenario_sha256": "fe50b3e2534a35de051a11e461df8f443a58414ec61ee42945a34cfcf7f3b0c3",
+      "items_sha256": "c6478e89c512cc562ab4595aadbfd15df13e86d1b242f8b5557436403c2e99e9",
+      "source_files_sha256": {
+        "prisma/ai-student-journey-evaluation.ts": "e81028ace6e4541e6ea48d027b249de843c697a863bd9d875ce2fda1f8c8d645",
+        "src/lib/evaluation/ai-student-scenarios.ts": "6e96e74d1cf5690b5e29f90212ab095a86756ed11daab56aadda39ae4301bfa9",
+        "src/lib/evaluation/conversational-application-scenarios.ts": "d350888e114bfed055dd2fcb94b0df6901677f7abf7fa3488298ddd9f06e516b",
+        "src/lib/evaluation/conversational-support-needs-scenarios.ts": "b574167e55d9dbab5f39b4dd38dfc6cad965ef7a541e42bc5ca7d2134254d773",
+        "src/lib/services/student-assessment/formative-profile.ts": "b5077c790b89576d84751f8b6b1630d51631ce83f02265a3711b451eda55ac6e",
+        "src/lib/services/student-assessment/semantic-item-review.ts": "4114255804e1f49a4d66962817543d1aca1dcc692f94ba17f86d77ada4a7de6a",
+        "src/lib/services/teacher-review/process-data-summary.ts": "b04054e3653a08a2267a8b6f89bf8e6270c92de8c034d63311482bac11be17fc",
+        "src/lib/services/student-assessment/learning-profile-summary.ts": "fdf1d0cbee3c6270214c111d2e0c6f4576767e8c2faae77b3be9cfc812f5d049",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts": "4e755d14381c84c06bfd02fa0ea9d0a2b0d5cff14dee758e2e703af3fc00b213",
+        "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts": "cd9cf84a541d5dc91e790a52b14a8c5c9a6a853ae1c1497f487c25aa31ffda7b",
+        "src/lib/services/student-assessment/formative-conversation/assistance-history.ts": "678f44f9692a4b8ce4f195c6fb99dc9886c8fad5373f5257a83ce36434292b49",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts": "1e84acb6053fc69d679f835793a333b9e39e7c963ecf602f82a4e9aaa8401dc8",
+        "src/lib/services/student-assessment/profile-integration.ts": "a0a36695f607f426181c426437f950b978ef2ce7ceb2393ac2be2bb9aae67557",
+        "src/lib/agents/prompts/student-profiling/v1.ts": "16a93be9b96cd38d8c9449ac0347b8e9a9a026422b2d929a84f874340f23a202",
+        "src/lib/agents/student-profiling/input-builder.ts": "93cb459a255e4782d253d55d460638f800134d77bdfe5b08d7177de6b71d40ad",
+        "src/lib/llm/lossless-profiling-input.ts": "f4446fdd222aab93b913ab35c8d18ad79e3455da295ce2663f8458444650733c",
+        "src/lib/llm/providers/openai-responses-provider.ts": "a3f154ce505677d0ca9e441e4376963b3288ef9cdf646b75c387ce95d223e76a",
+        "src/lib/agents/provider-request.ts": "848520b978a424054041fbf1f6c3947538c39e573ce11fc8d3e3f0be8e8e015c",
+        "src/lib/operational/active-approval-bundle.ts": "7fafcce86970e9567af1a469bc09777fda90585e862af300079af16b735be536",
+        "src/lib/llm/config.ts": "4b40158cee5935f9ecaf9572b55035ac8914cc5cc34cbe15cc5a93369fb068f5",
+        "src/lib/agents/operational/approved-config.ts": "96bd0c80720b06fdad605b7d39ec10d51ca4b1d850618239ccd3c71293460338",
+        "src/lib/operational/guarded-agent-integration.ts": "40159d215f40239f2bccd7bdbfdf3e8b3de1e5a8e953ee89840209578a95fe25",
+        "src/lib/services/student-assessment/student-runtime-live-agent.ts": "a509008d84a9b7b7fb46d1b6ec2ec1ad3743bd183a551ebf7660fcfc7331d5ee",
+        "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts": "ffad76bc1d086bacb5c5f41a94caa2b8ae4692d96a3d40f2a9430688da002f91"
+      },
+      "sources": {
+        "cohort_summary": {
+          "path": ".data/luna-medium-2026-10-13/baseline-summary.json",
+          "sha256": "c5244d0dbbd0c8a1daa172f9e62af727f5e6795de0148a9fa5ab1c1265f9c5ee"
+        },
+        "qualitative_review": {
+          "path": ".data/luna-medium-2026-10-13/qualitative-review.json",
+          "sha256": "9a7570328a324b5ef97afe0c00e6b4d42520ba298de2dfb49b7f18e3469f4b62"
+        },
+        "cost_reconciliation": {
+          "path": ".data/luna-medium-2026-10-13/baseline-cost-reconciliation.json",
+          "sha256": "c7570842405780d1f72163a2b176d8700fd7968504f5f7ecbb0fe790edd013ce"
+        }
+      },
+      "cost": {
+        "application_usd": 0.24319394,
+        "learner_usd": 0.00106135,
+        "combined_usd": 0.24425529,
+        "completed_application_total_usd": 0.17385034,
+        "completed_application_mean_usd": 0.05795011333333333,
+        "completed_application_min_usd": 0.05435398,
+        "completed_application_max_usd": 0.06059733,
+        "failed_application_total_usd": 0.0693436
+      },
+      "cases": [
+        {
+          "case_id": "persistent_prerequisite_confusion",
+          "attempt_id": "baseline-01-persistent",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "blocked_before_formative_dialogue",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "contradictory_sentinel_flags"
+            }
+          ],
+          "requests": 6,
+          "application_usd": 0.02160686,
+          "simulator_learner_usd": 0,
+          "total_usd": 0.02160686,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_267cd315b888/report.json",
+              "sha256": "2ef51781d357f40d212ed14d278de12e27454e0f730775c37609a2ae61fc3b03"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_267cd315b888/persistent_prerequisite_confusion-agent-calls.json",
+              "sha256": "edec0e2394971bd41e07d1a492a90ca5066887b9d639944d63df2261f95f7e8d"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-01-persistent/transport-usage.json",
+              "sha256": "b25999eba10bc91ade6a00bd74584395f0ed2ff9304b5bcfb97c53d06e07326a"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-01-persistent/started.json",
+              "sha256": "5f5776aa1b45e9144e279923773bd8e6a1ac4e048e0dd01ad9f1cc85329566f2"
+            }
+          }
+        },
+        {
+          "case_id": "partial_progress_many_difficulties",
+          "attempt_id": "baseline-02-partial",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "completed_with_semantic_and_scope_concerns",
+          "validation_rejections": [],
+          "requests": 15,
+          "application_usd": 0.06059733,
+          "simulator_learner_usd": 0.00063855,
+          "total_usd": 0.06123588,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_1aac7388c6e4/report.json",
+              "sha256": "1576705a97486d331accbfb4e460818edcf947c4a1d397e776beffd32bb5806e"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_1aac7388c6e4/partial_progress_many_difficulties-agent-calls.json",
+              "sha256": "2ad2078bc50bde9760d6d941218d74c88739c4cc09743ac523d19a70c71ab2e5"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-02-partial/transport-usage.json",
+              "sha256": "5fd2fe410cc622b93e0c0bbe52388df4ad79282adb0380032612c88a6c7eaf22"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-02-partial/started.json",
+              "sha256": "b133a156496775ab7260bad9bdc57fde36dbf311524514eb31da4a0c7920b3df"
+            }
+          }
+        },
+        {
+          "case_id": "guessing_agreement_not_understanding",
+          "attempt_id": "baseline-03-guessing",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "completed_with_profile_fidelity_failure",
+          "validation_rejections": [
+            {
+              "agent": "profile_integration_agent",
+              "status": "invalid_output",
+              "error_category": "profile_integration_validation",
+              "review_category": "lexical_answer_key_guard_rejection"
+            }
+          ],
+          "requests": 15,
+          "application_usd": 0.05889903,
+          "simulator_learner_usd": 0.0001564,
+          "total_usd": 0.05905543,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_06162e7f2aee/report.json",
+              "sha256": "93949de4caa1f658a460eeef0bac51a9b3a73adb9450eefdab5978b89ae65ed4"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_06162e7f2aee/guessing_agreement_not_understanding-agent-calls.json",
+              "sha256": "8c1115a0a8768631b4a57de4248100c79231c543bae9550579450dd71232560a"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-03-guessing/transport-usage.json",
+              "sha256": "7d204197b1c97ba178f9e099a39db6ac5b410f9802f4d4e38b620bbf0225573f"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-03-guessing/started.json",
+              "sha256": "c6e80ce7336c706aaa5275e8a1c9b874e47abb3c431b6aadafa19ac1b3864724"
+            }
+          }
+        },
+        {
+          "case_id": "confident_error_resists_explanation",
+          "attempt_id": "baseline-04-confident",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "blocked_before_formative_dialogue",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "contradictory_sentinel_flags"
+            }
+          ],
+          "requests": 6,
+          "application_usd": 0.02037568,
+          "simulator_learner_usd": 0,
+          "total_usd": 0.02037568,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_494da686a860/report.json",
+              "sha256": "93092fc02a7aff5f8249a5153574cf51a36067527a541f2bc7507a3744f4e0c3"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_494da686a860/confident_error_resists_explanation-agent-calls.json",
+              "sha256": "7238b8eff3b45e79dddccd3a69bc701470276c6bbafb83feedf8b0905b702034"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-04-confident/transport-usage.json",
+              "sha256": "2af841979871323dcb54bef844adb4fbea9da70e9790f199b808aabd001969c9"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-04-confident/started.json",
+              "sha256": "ba9b0fb0465e01355585bc7e114a11f22f513bbd1f8082890f1691747f80d3ed"
+            }
+          }
+        },
+        {
+          "case_id": "overwhelmed_pause_return",
+          "attempt_id": "baseline-05-overwhelmed",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "completed_with_profile_fidelity_failure",
+          "validation_rejections": [],
+          "requests": 14,
+          "application_usd": 0.05435398,
+          "simulator_learner_usd": 0.0002664,
+          "total_usd": 0.05462038,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_1ebca2d8df56/report.json",
+              "sha256": "77c95975631d92f6deba3219f77f4cb99b53dee4ef2507450a7909fbb3a56ba1"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_1ebca2d8df56/overwhelmed_pause_return-agent-calls.json",
+              "sha256": "2218e8d025472890fb0e3a31313515aaaae745f9dca4f2cfae7d5230c13c7eef"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-05-overwhelmed/transport-usage.json",
+              "sha256": "fb3e12552fe1a116b5b1c55ed0df07549b347a56a8274e53fcb5dff85bbeead9"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-05-overwhelmed/started.json",
+              "sha256": "89e0cd9fd252959c825d9a4fdc398c16c73f820a88cd897b5e1745d8cf9614f9"
+            }
+          }
+        },
+        {
+          "case_id": "brief_language_sound_reasoning",
+          "attempt_id": "baseline-06-brief",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "blocked_by_profile_combination_validation",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "unresolved_profile_combination"
+            }
+          ],
+          "requests": 6,
+          "application_usd": 0.01935353,
+          "simulator_learner_usd": 0,
+          "total_usd": 0.01935353,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_452cf90badaf/report.json",
+              "sha256": "0ea02d73e7b61179218b387cf941b48dad780ec0eac9092d04afc67bac3e1b56"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_452cf90badaf/brief_language_sound_reasoning-agent-calls.json",
+              "sha256": "38d61d3bcee34ee5e3faa1a9c691fe382c792786896ed6a2067898b2a8d9751a"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-06-brief/transport-usage.json",
+              "sha256": "6cca2334b9ad74a6dc16c4669536df55ea53745a5ebb161b3484daafdd78b353"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-06-brief/started.json",
+              "sha256": "31bfdf92593c4220710c0952fb50e3aaffa87a11f572b65dffa21c40d8957f8f"
+            }
+          }
+        },
+        {
+          "case_id": "strong_prior_reasoning_comparison",
+          "attempt_id": "baseline-07-strong",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": null,
+          "student_question_coverage_accepted": null,
+          "overall_trace_accepted": null,
+          "qualitative_verdict": "blocked_by_exact_quote_validation",
+          "validation_rejections": [
+            {
+              "agent": "formative_value_and_planning_agent",
+              "status": "invalid_output",
+              "error_category": "student_facing_validation",
+              "review_category": "source_quote_mismatch"
+            }
+          ],
+          "requests": 5,
+          "application_usd": 0.00800753,
+          "simulator_learner_usd": 0,
+          "total_usd": 0.00800753,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_ae2dc791d5a0/report.json",
+              "sha256": "6a2db5ff21a417fc5b18049888389cce307636ccd3447807c37bf0eb3286d75f"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/baseline/source/.data/ai-student-evaluation/cmcq_ai_students_ae2dc791d5a0/strong_prior_reasoning_comparison-agent-calls.json",
+              "sha256": "a12965d41ea9ea1716587d1c63bd56c5a641cee54ef5aec21dc1f839217c2e41"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-07-strong/transport-usage.json",
+              "sha256": "fc2c1b58f697ab719f7304ba98f64574127e39ed8e16832df4f29f31aad5db4d"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/baseline-07-strong/started.json",
+              "sha256": "58c6d3807f6907e6c6cc9ae65c819bb8f353e174c2f7db10ededd7bdef42fa98"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "phase": "fixed_medium_v2",
+      "interpretation": "Stopped after four of seven distinct cases. Three completed; one exhausted bounded semantic repair, and another accepted an unsupported correctness/reasoning mismatch. Remaining three were not dispatched.",
+      "model": "gpt-5.6-luna",
+      "reasoning": "medium",
+      "expected_cases": 7,
+      "executed_cases": 4,
+      "mechanical_passes": 3,
+      "mechanical_failures": 1,
+      "trace_accepted_count": 2,
+      "review_complete": false,
+      "overall_release_accepted": false,
+      "source_commit": "962cd4b9a6961c8ce7e5911865f8dad2783f77b3",
+      "source_worktree_dirty": true,
+      "runtime_hash": "0c78cb66332f4c9bb20f7eb2773d63115f3ad4cfa852758ba25da1cb86706d04",
+      "scenario_sha256": "fe50b3e2534a35de051a11e461df8f443a58414ec61ee42945a34cfcf7f3b0c3",
+      "items_sha256": "c6478e89c512cc562ab4595aadbfd15df13e86d1b242f8b5557436403c2e99e9",
+      "source_files_sha256": {
+        "prisma/ai-student-journey-evaluation.ts": "1d3e2ac118d5e1afab14cc0fb41e06811a875101750a921ceae8bbee092d3a28",
+        "src/lib/evaluation/ai-student-scenarios.ts": "6e96e74d1cf5690b5e29f90212ab095a86756ed11daab56aadda39ae4301bfa9",
+        "src/lib/evaluation/conversational-application-scenarios.ts": "d350888e114bfed055dd2fcb94b0df6901677f7abf7fa3488298ddd9f06e516b",
+        "src/lib/evaluation/conversational-support-needs-scenarios.ts": "b574167e55d9dbab5f39b4dd38dfc6cad965ef7a541e42bc5ca7d2134254d773",
+        "src/lib/services/student-assessment/formative-profile.ts": "b916d6a3a2b12bdcfff270845bfc49dfe4b781dac72e334858f1d0172f835b75",
+        "src/lib/services/student-assessment/semantic-item-review.ts": "4114255804e1f49a4d66962817543d1aca1dcc692f94ba17f86d77ada4a7de6a",
+        "src/lib/services/student-assessment/formative-profile-quote-repair.ts": "56c594d823d126d95d011b29932103a9285a7a1471ec97ca55cb853bc649f259",
+        "src/lib/services/student-assessment/formative-call-attempts.ts": "5a485694eceeb781e933b355e196e83bc84b00f8ddb353d71b7f89dbe2423c66",
+        "src/lib/services/teacher-review/process-data-summary.ts": "b04054e3653a08a2267a8b6f89bf8e6270c92de8c034d63311482bac11be17fc",
+        "src/lib/services/student-assessment/learning-profile-summary.ts": "fdf1d0cbee3c6270214c111d2e0c6f4576767e8c2faae77b3be9cfc812f5d049",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts": "2f7c526c805b6c3234853a4f7dfd5b77bc43e874f2e42cf84269739642d0e421",
+        "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts": "cd9cf84a541d5dc91e790a52b14a8c5c9a6a853ae1c1497f487c25aa31ffda7b",
+        "src/lib/services/student-assessment/formative-conversation/assistance-history.ts": "678f44f9692a4b8ce4f195c6fb99dc9886c8fad5373f5257a83ce36434292b49",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts": "fd40dffd7c23affd928dac7f3659649b61de57dbb7fe71c001a6b6fb0ac5b2d6",
+        "src/lib/services/student-assessment/formative-conversation/question-coverage-policy.ts": "3098e103663a301b25343d312f04622a640a873084b139531ba6a1289c1f0ce8",
+        "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts": "387f8df53ac8d80314b4bffb8e65390089e9d7f751c63f008e268fd7d354987c",
+        "src/lib/services/student-assessment/profile-integration.ts": "a0a36695f607f426181c426437f950b978ef2ce7ceb2393ac2be2bb9aae67557",
+        "src/lib/services/student-assessment/profile-record.ts": "1dc3265d7b7d345577bb656d0c40b75cca5735ee61d72f736ee9f1691cb9aa52",
+        "src/lib/services/student-assessment/activity-runtime-ui.ts": "cabeb8ddef1cc491265675d459b4a0687663f0f2b1c9286c1c318256f91f757f",
+        "src/lib/agents/contracts.ts": "aa936b8ad2c9f77bd9e181d73aaf2b25b882dd4c8ea8e89f3e939bad3ed22b7f",
+        "src/lib/agents/followup-updates/service.ts": "d709244793ab3b62b9ef510fb958b54dd720d6f1a4106b2b4d556d7db48b602a",
+        "src/lib/agents/prompts/student-profiling/v1.ts": "f23949988a3f098299d062ba3c9eb5fde0f1c8750bf5c7ddc0697e35e9419207",
+        "src/lib/agents/student-profiling/input-builder.ts": "701de9b79e23131c4a4cb69913da649b7cb9c00d0d14235d9eeee308bbdb5e60",
+        "src/lib/agents/student-profiling/semantic-validation.ts": "a5716e0a005c7fa2d9b32b402f5f09993b52ae5ff0dfd4f6eafd665f02e30b6b",
+        "src/lib/agents/student-profiling/semantic-repair.ts": "d065318deda70c054f4290fbf6da2dc71ce5916712207db836cd135f27458918",
+        "src/lib/agents/student-profiling/service.ts": "96fcd42df9c3e548620ae5be730c0d546112a225ca2e05296e95f527e9f9072f",
+        "src/lib/llm/lossless-profiling-input.ts": "f4446fdd222aab93b913ab35c8d18ad79e3455da295ce2663f8458444650733c",
+        "src/lib/llm/providers/openai-responses-provider.ts": "a3f154ce505677d0ca9e441e4376963b3288ef9cdf646b75c387ce95d223e76a",
+        "src/lib/llm/providers/mock-provider.ts": "aa3ad74f9a9eb94677a78e0254a9ab2cbe01feeea2163b2da3f1ce807b6fefcc",
+        "src/lib/agents/provider-request.ts": "848520b978a424054041fbf1f6c3947538c39e573ce11fc8d3e3f0be8e8e015c",
+        "src/lib/operational/active-approval-bundle.ts": "270b8cd5db74505bb9739f8c1a1c072c0e71c96ce6764d9c5ae51b1e7ebb4305",
+        "src/lib/operational/luna-low-validation-evidence.ts": "ac221dfb4f02d1487b1e0bb179681a3f6db799d8f77a77257d2464e7fa10009d",
+        "src/lib/operational/luna-profile-fidelity-identity.ts": "5c7fd28eb304ad556bac7ff9e0d196ceac4c587e667fb05ec914611018824f52",
+        "src/lib/llm/config.ts": "4b40158cee5935f9ecaf9572b55035ac8914cc5cc34cbe15cc5a93369fb068f5",
+        "src/lib/agents/operational/approved-config.ts": "80983a0dd13bda91d93751548e0b648e65a4aa8550b9f8cb7c1908c07c2e9ce2",
+        "src/lib/operational/guarded-agent-integration.ts": "40159d215f40239f2bccd7bdbfdf3e8b3de1e5a8e953ee89840209578a95fe25",
+        "src/lib/services/student-assessment/student-runtime-live-agent.ts": "a509008d84a9b7b7fb46d1b6ec2ec1ad3743bd183a551ebf7660fcfc7331d5ee",
+        "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts": "ffad76bc1d086bacb5c5f41a94caa2b8ae4692d96a3d40f2a9430688da002f91"
+      },
+      "sources": {
+        "cohort_summary": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v2-summary.json",
+          "sha256": "51036bb911e5f08ce3d0bdbbadf644ecd02a53201fc8b3cafc4717099f755350"
+        },
+        "qualitative_review": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v2-qualitative-review.json",
+          "sha256": "79747d7eca0d213fa394a9204ac5cf263305586f675efd09362b51e8fb7215fc"
+        },
+        "cost_reconciliation": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v2-cost-reconciliation.json",
+          "sha256": "f3d57254e18dd4f3108c9dd1c1b635e4ddc4df2d1b7fc6fd421cc0513561bfec"
+        }
+      },
+      "cost": {
+        "application_usd": 0.21714267,
+        "learner_usd": 0.0007256,
+        "combined_usd": 0.21786827,
+        "completed_application_total_usd": 0.18520699,
+        "completed_application_mean_usd": 0.06173566333333333,
+        "completed_application_min_usd": 0.05438114,
+        "completed_application_max_usd": 0.06973619,
+        "failed_application_total_usd": 0.03193568
+      },
+      "cases": [
+        {
+          "case_id": "persistent_prerequisite_confusion",
+          "attempt_id": "fixed-01-persistent",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": true,
+          "qualitative_verdict": "accepted_for_this_synthetic_engineering_case_with_stated_limitations",
+          "validation_rejections": [],
+          "requests": 14,
+          "application_usd": 0.06108966,
+          "simulator_learner_usd": 0.0003024,
+          "total_usd": 0.06139206,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_fbf693215ce6/report.json",
+              "sha256": "d612ecbe15c70e029b23076f12225afee28093b731606a9b8f4f97a4aea0c96e"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_fbf693215ce6/persistent_prerequisite_confusion-agent-calls.json",
+              "sha256": "7fe3bab90fdbc80cd2255689e313959830dda66dcb6aba2ff60c84a5d095dba1"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-01-persistent/transport-usage.json",
+              "sha256": "88e058064a6bdd495fe45ad1fd396dce9d87bb296fba04735f458bb9406bacad"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-01-persistent/started.json",
+              "sha256": "37d551c42130a3d163ad2e2b4c7bc2744baeaffd24f299b4edda5e21a6c523f9"
+            }
+          }
+        },
+        {
+          "case_id": "partial_progress_many_difficulties",
+          "attempt_id": "fixed-02-partial",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": false,
+          "student_question_coverage_accepted": false,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "blocked_after_one_semantic_repair_correctly_rejected",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "contradictory_sentinel_flags"
+            },
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "unsupported_correct_answer_weak_reasoning"
+            }
+          ],
+          "requests": 7,
+          "application_usd": 0.03193568,
+          "simulator_learner_usd": 0,
+          "total_usd": 0.03193568,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_9a0e478992d4/report.json",
+              "sha256": "a156f2e2c32311144ad2adf177339fac4426873ec3905658fb6543f3b2b9565f"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_9a0e478992d4/partial_progress_many_difficulties-agent-calls.json",
+              "sha256": "ea29b861b43add2f2f4ff411f02ceb05e507ca0abfc3c0c6d4a7f35b629842e4"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-02-partial/transport-usage.json",
+              "sha256": "e16d0d31c08b0f26562b8436e2a5915d5868ea791dfa83d56e060fb049d171c4"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-02-partial/started.json",
+              "sha256": "abe86a7585d3d89c903d3716dfc9558c32d848150fd91abd2091c5ebd66f3155"
+            }
+          }
+        },
+        {
+          "case_id": "guessing_agreement_not_understanding",
+          "attempt_id": "fixed-03-guessing",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": true,
+          "qualitative_verdict": "accepted_for_this_synthetic_engineering_case_with_stated_limitations",
+          "validation_rejections": [],
+          "requests": 14,
+          "application_usd": 0.05438114,
+          "simulator_learner_usd": 0.0001472,
+          "total_usd": 0.05452834,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_855833be6e5b/report.json",
+              "sha256": "919857755ef1c6d8b3c7cf0a1cc966a7bb4f26210c5d9b99a306ad5f9366e090"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_855833be6e5b/guessing_agreement_not_understanding-agent-calls.json",
+              "sha256": "90412d1d6ab6547a4243015568e70eb4e95aa10e3881ec10bee8b1a8a450cd1c"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-03-guessing/transport-usage.json",
+              "sha256": "892fb49a3d748119f42266e6ad1916b9b9bb220300c29fc40fa416140d1d85c1"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-03-guessing/started.json",
+              "sha256": "25834158d08528077e16ba9f09cb9f2c39b04905e4b00ffd4eae2bf49507f7df"
+            }
+          }
+        },
+        {
+          "case_id": "confident_error_resists_explanation",
+          "attempt_id": "fixed-04-confident",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": false,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "completed_after_audited_repair_with_unresolved_profile_flag_concern",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "ineligible_evidence_reference"
+            }
+          ],
+          "requests": 15,
+          "application_usd": 0.06973619,
+          "simulator_learner_usd": 0.000276,
+          "total_usd": 0.07001219,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_e30fddc5f5bf/report.json",
+              "sha256": "cab245b6fdb82f79ea5dc61d89c0e1fd3a51bae606dff248aee32a5a7e238d5d"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v2/source/.data/ai-student-evaluation/cmcq_ai_students_e30fddc5f5bf/confident_error_resists_explanation-agent-calls.json",
+              "sha256": "520573f444977adbaf562760d74dfa3a80c7dd0f172f4cd6781bfff84b823885"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-04-confident/transport-usage.json",
+              "sha256": "6770d272334ff59ff440321ee33332d7fe950224e06bd142597c4e3583962b5d"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-04-confident/started.json",
+              "sha256": "1accb21ff1146c9783e54655fdd09fe1ca88cd8fcbe14c2d9bf1eaede8727536"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "phase": "fixed_medium_v3",
+      "interpretation": "Final reviewed seven-case cohort with factual binding, one bounded semantic regeneration, conservative request schema constraints, and quote-only initial-planning repair. Mechanical completion and accepted canonical facts are separate from tutor scope and recap quality.",
+      "model": "gpt-5.6-luna",
+      "reasoning": "medium",
+      "expected_cases": 7,
+      "executed_cases": 7,
+      "mechanical_passes": 6,
+      "mechanical_failures": 1,
+      "trace_accepted_count": 3,
+      "review_complete": true,
+      "overall_release_accepted": false,
+      "source_commit": "962cd4b9a6961c8ce7e5911865f8dad2783f77b3",
+      "source_worktree_dirty": true,
+      "runtime_hash": "d60ccab6a2a33976432418a2b808288af596aba6d3c4e7987099cc046b196628",
+      "scenario_sha256": "fe50b3e2534a35de051a11e461df8f443a58414ec61ee42945a34cfcf7f3b0c3",
+      "items_sha256": "c6478e89c512cc562ab4595aadbfd15df13e86d1b242f8b5557436403c2e99e9",
+      "source_files_sha256": {
+        "prisma/ai-student-journey-evaluation.ts": "a7585432c52c58ce9fe4114a6e518d34e0cdd4381b2af1804152b53adceb7709",
+        "src/lib/evaluation/ai-student-scenarios.ts": "6e96e74d1cf5690b5e29f90212ab095a86756ed11daab56aadda39ae4301bfa9",
+        "src/lib/evaluation/conversational-application-scenarios.ts": "d350888e114bfed055dd2fcb94b0df6901677f7abf7fa3488298ddd9f06e516b",
+        "src/lib/evaluation/conversational-support-needs-scenarios.ts": "b574167e55d9dbab5f39b4dd38dfc6cad965ef7a541e42bc5ca7d2134254d773",
+        "src/lib/services/student-assessment/formative-profile.ts": "b916d6a3a2b12bdcfff270845bfc49dfe4b781dac72e334858f1d0172f835b75",
+        "src/lib/services/student-assessment/semantic-item-review.ts": "4114255804e1f49a4d66962817543d1aca1dcc692f94ba17f86d77ada4a7de6a",
+        "src/lib/services/student-assessment/formative-profile-quote-repair.ts": "56c594d823d126d95d011b29932103a9285a7a1471ec97ca55cb853bc649f259",
+        "src/lib/services/student-assessment/formative-call-attempts.ts": "5a485694eceeb781e933b355e196e83bc84b00f8ddb353d71b7f89dbe2423c66",
+        "src/lib/services/teacher-review/process-data-summary.ts": "b04054e3653a08a2267a8b6f89bf8e6270c92de8c034d63311482bac11be17fc",
+        "src/lib/services/student-assessment/learning-profile-summary.ts": "fdf1d0cbee3c6270214c111d2e0c6f4576767e8c2faae77b3be9cfc812f5d049",
+        "src/lib/services/student-assessment/formative-conversation/live-runner-v18r2.ts": "2f7c526c805b6c3234853a4f7dfd5b77bc43e874f2e42cf84269739642d0e421",
+        "src/lib/services/student-assessment/formative-conversation/context-v18r2.ts": "cd9cf84a541d5dc91e790a52b14a8c5c9a6a853ae1c1497f487c25aa31ffda7b",
+        "src/lib/services/student-assessment/formative-conversation/assistance-history.ts": "678f44f9692a4b8ce4f195c6fb99dc9886c8fad5373f5257a83ce36434292b49",
+        "src/lib/services/student-assessment/formative-conversation/interpretation-policy.ts": "fd40dffd7c23affd928dac7f3659649b61de57dbb7fe71c001a6b6fb0ac5b2d6",
+        "src/lib/services/student-assessment/formative-conversation/question-coverage-policy.ts": "3098e103663a301b25343d312f04622a640a873084b139531ba6a1289c1f0ce8",
+        "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts": "387f8df53ac8d80314b4bffb8e65390089e9d7f751c63f008e268fd7d354987c",
+        "src/lib/services/student-assessment/profile-integration.ts": "a0a36695f607f426181c426437f950b978ef2ce7ceb2393ac2be2bb9aae67557",
+        "src/lib/services/student-assessment/profile-record.ts": "1dc3265d7b7d345577bb656d0c40b75cca5735ee61d72f736ee9f1691cb9aa52",
+        "src/lib/services/student-assessment/activity-runtime-ui.ts": "cabeb8ddef1cc491265675d459b4a0687663f0f2b1c9286c1c318256f91f757f",
+        "src/lib/agents/contracts.ts": "aa936b8ad2c9f77bd9e181d73aaf2b25b882dd4c8ea8e89f3e939bad3ed22b7f",
+        "src/lib/agents/followup-updates/service.ts": "d709244793ab3b62b9ef510fb958b54dd720d6f1a4106b2b4d556d7db48b602a",
+        "src/lib/agents/prompts/student-profiling/v1.ts": "a21d3e6fc936e5fa81bf03efb7854f641bd35e8de27e2baed5e81d13a5f8770f",
+        "src/lib/agents/student-profiling/input-builder.ts": "701de9b79e23131c4a4cb69913da649b7cb9c00d0d14235d9eeee308bbdb5e60",
+        "src/lib/agents/student-profiling/semantic-validation.ts": "235862a907650c862c22f6aab8b509baea20c54a64921c2793268e16b5ad79ee",
+        "src/lib/agents/student-profiling/semantic-repair.ts": "d065318deda70c054f4290fbf6da2dc71ce5916712207db836cd135f27458918",
+        "src/lib/agents/student-profiling/output-schema.ts": "75fba00fe86eb975da6844cfaabbb991566ba1ed8d4727347dc7e406a6b9f094",
+        "src/lib/agents/student-profiling/service.ts": "96fcd42df9c3e548620ae5be730c0d546112a225ca2e05296e95f527e9f9072f",
+        "src/lib/llm/lossless-profiling-input.ts": "f4446fdd222aab93b913ab35c8d18ad79e3455da295ce2663f8458444650733c",
+        "src/lib/llm/providers/openai-responses-provider.ts": "a3f154ce505677d0ca9e441e4376963b3288ef9cdf646b75c387ce95d223e76a",
+        "src/lib/llm/providers/mock-provider.ts": "aa3ad74f9a9eb94677a78e0254a9ab2cbe01feeea2163b2da3f1ce807b6fefcc",
+        "src/lib/agents/provider-request.ts": "105bc8385e649a692605a027613c03e7ac04f137d36364d0cbc4b4723e6f03ae",
+        "src/lib/operational/active-approval-bundle.ts": "270b8cd5db74505bb9739f8c1a1c072c0e71c96ce6764d9c5ae51b1e7ebb4305",
+        "src/lib/operational/luna-low-validation-evidence.ts": "ac221dfb4f02d1487b1e0bb179681a3f6db799d8f77a77257d2464e7fa10009d",
+        "src/lib/operational/luna-profile-fidelity-identity.ts": "af8041b62856bee2581e2b20c67ec18e307334606bb3e71e25924e7b06e08986",
+        "src/lib/llm/config.ts": "4b40158cee5935f9ecaf9572b55035ac8914cc5cc34cbe15cc5a93369fb068f5",
+        "src/lib/agents/operational/approved-config.ts": "815b5031071b01406954f1e0d7ec50a110d75bbd4d4f16ba9b24fe86b3b4b1fc",
+        "src/lib/operational/guarded-agent-integration.ts": "40159d215f40239f2bccd7bdbfdf3e8b3de1e5a8e953ee89840209578a95fe25",
+        "src/lib/services/student-assessment/student-runtime-live-agent.ts": "a509008d84a9b7b7fb46d1b6ec2ec1ad3743bd183a551ebf7660fcfc7331d5ee",
+        "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts": "ffad76bc1d086bacb5c5f41a94caa2b8ae4692d96a3d40f2a9430688da002f91"
+      },
+      "sources": {
+        "cohort_summary": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v3-summary.json",
+          "sha256": "66ee57d7594ba39e5880a9ece70703b76670366b8d59dff9b83905ef928150b3"
+        },
+        "qualitative_review": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v3-qualitative-review.json",
+          "sha256": "c07733d967dae0f50e68efd90422d6131193c23bd78f5ce83313e178e3cca462"
+        },
+        "cost_reconciliation": {
+          "path": ".data/luna-medium-2026-10-13/fixed-v3-cost-reconciliation.json",
+          "sha256": "8dd6c91d377f846715f7a570ce03a9c6176146b832f54ddc2c7b2f9402953cee"
+        }
+      },
+      "cost": {
+        "application_usd": 0.41260937,
+        "learner_usd": 0.0022845,
+        "combined_usd": 0.41489387,
+        "completed_application_total_usd": 0.36588627,
+        "completed_application_mean_usd": 0.060981045000000005,
+        "completed_application_min_usd": 0.05316067,
+        "completed_application_max_usd": 0.07105654,
+        "failed_application_total_usd": 0.0467231
+      },
+      "cases": [
+        {
+          "case_id": "persistent_prerequisite_confusion",
+          "attempt_id": "fixed-v3-01-persistent",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": true,
+          "qualitative_verdict": "accepted_after_one_audited_semantic_repair_with_stated_limitations",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "sealed_confidence_mismatch"
+            }
+          ],
+          "requests": 15,
+          "application_usd": 0.07105654,
+          "simulator_learner_usd": 0.0002666,
+          "total_usd": 0.07132314,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_0dff2a84b3ec/report.json",
+              "sha256": "e36def5e49ec48524c92c6585b5722512bf53ac8da3aaadba1822f7e299cbd9b"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_0dff2a84b3ec/persistent_prerequisite_confusion-agent-calls.json",
+              "sha256": "d08aca00f4fb5f28f4a212715d25a9eb0c16cfad4d34248c5ba6089fce48279f"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-01-persistent/transport-usage.json",
+              "sha256": "8b66319cf1a8a6085da5f29a1c33fce1bb7f74f7e0675ab0863950858367827d"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-01-persistent/started.json",
+              "sha256": "e5ed51ce605d23acde79d72be7d6f4e67d27eceddd50efd24071eb166da38bb2"
+            }
+          }
+        },
+        {
+          "case_id": "partial_progress_many_difficulties",
+          "attempt_id": "fixed-v3-02-partial",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": false,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "completed_with_unresolved_student_scope_and_question_classification_failure",
+          "validation_rejections": [],
+          "requests": 15,
+          "application_usd": 0.05736579,
+          "simulator_learner_usd": 0.0006165,
+          "total_usd": 0.05798229,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_bcdc27e5d205/report.json",
+              "sha256": "880b68ba3d0cc6469e89f83e74ba28a0fc86abbac15b1c55f3498952f59d6aab"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_bcdc27e5d205/partial_progress_many_difficulties-agent-calls.json",
+              "sha256": "d4bbc3faa55f0c3eec4c5ca0f7c09485b21c56d8767a399ed75c86fb7fb6bf8c"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-02-partial/transport-usage.json",
+              "sha256": "b91802027134e556939ad33da0a2f12cb2224c0315fd99fb44c11023995aa8ee"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-02-partial/started.json",
+              "sha256": "cc7773c87dd713d6c51d266f143c0d02adc1dfda998dddc5171af6b5002e226b"
+            }
+          }
+        },
+        {
+          "case_id": "guessing_agreement_not_understanding",
+          "attempt_id": "fixed-v3-03-guessing",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": true,
+          "qualitative_verdict": "accepted_with_inherited_synthetic_timing_projection_and_lexical_repair_limitations",
+          "validation_rejections": [
+            {
+              "agent": "profile_integration_agent",
+              "status": "invalid_output",
+              "error_category": "profile_integration_validation",
+              "review_category": "lexical_answer_key_guard_rejection"
+            }
+          ],
+          "requests": 15,
+          "application_usd": 0.05990979,
+          "simulator_learner_usd": 0.0001682,
+          "total_usd": 0.06007799,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_031860c0312f/report.json",
+              "sha256": "f666f2246d7a029184dff0d7efec2aae3f95c6b97c9025f0c691370740539a07"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_031860c0312f/guessing_agreement_not_understanding-agent-calls.json",
+              "sha256": "caf261bcf0b8ac83e51919be2bfb3c79bfb053dfefef78dd0439066a82446ce6"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-03-guessing/transport-usage.json",
+              "sha256": "cbe3fc3c054d616d7e8ff8ddb834968ed7e02d1bd80e4abf2fc4d45b46e79303"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-03-guessing/started.json",
+              "sha256": "f3676eee8907148938fc996e9a95e647cb486d0f6f0211c5d7ce6262fc8cbd13"
+            }
+          }
+        },
+        {
+          "case_id": "confident_error_resists_explanation",
+          "attempt_id": "fixed-v3-04-confident",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "faithful_profile_and_direct_answers_but_inaccurate_closing_history_and_remaining_need_summary",
+          "validation_rejections": [],
+          "requests": 14,
+          "application_usd": 0.05657354,
+          "simulator_learner_usd": 0.0003002,
+          "total_usd": 0.05687374,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_700cb291874d/report.json",
+              "sha256": "9f6bcc06f61de5f1261d0c33b895ab5b7dfb21c622577af698586eb233c9068d"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_700cb291874d/confident_error_resists_explanation-agent-calls.json",
+              "sha256": "10fa69f1b0c3963c6f28debcb33ddbbd719c6fcf1523dbab010db9827613aa3f"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-04-confident/transport-usage.json",
+              "sha256": "1ccb1f3a4253b118856c5a44e863136560612458f55887b517bc745dece43acb"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-04-confident/started.json",
+              "sha256": "cebed91f7b8354d917655cbf091c390e3d018a08d1d3eafd906ebdc9b8e73fd4"
+            }
+          }
+        },
+        {
+          "case_id": "overwhelmed_pause_return",
+          "attempt_id": "fixed-v3-05-overwhelmed",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "faithful_repaired_profile_and_preserved_pause_resume_but_inaccurate_return_recap",
+          "validation_rejections": [
+            {
+              "agent": "student_profiling_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_validation",
+              "review_category": "ineligible_evidence_reference"
+            }
+          ],
+          "requests": 15,
+          "application_usd": 0.06781994,
+          "simulator_learner_usd": 0.0002378,
+          "total_usd": 0.06805774,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_087245f1f1ae/report.json",
+              "sha256": "1e33110233ecf7f8836f50d3776fecbc979595f5edf38214c97d7443ef7497fb"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_087245f1f1ae/overwhelmed_pause_return-agent-calls.json",
+              "sha256": "162623545ff224f503f6c11be33544b35a24e934fd92d9d49ba213b1e1dad8e3"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-05-overwhelmed/transport-usage.json",
+              "sha256": "ea52ec86859d57db1148d7fc4f5a2d35739c2de773523e50476655a9c7687556"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-05-overwhelmed/started.json",
+              "sha256": "210c49d39f5218bd4a256c81ba018be54d1be03b1e65b6fbed36d3ed51517544"
+            }
+          }
+        },
+        {
+          "case_id": "brief_language_sound_reasoning",
+          "attempt_id": "fixed-v3-06-brief",
+          "mechanical_completion": true,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": true,
+          "overall_trace_accepted": true,
+          "qualitative_verdict": "accepted_with_repetition_and_assistance_qualification_limitations",
+          "validation_rejections": [],
+          "requests": 15,
+          "application_usd": 0.05316067,
+          "simulator_learner_usd": 0.0004368,
+          "total_usd": 0.05359747,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_c502202c5e30/report.json",
+              "sha256": "4d978183e3cef22f8c6583c95b244e73807b344834c884939c748ed45125c2bb"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_c502202c5e30/brief_language_sound_reasoning-agent-calls.json",
+              "sha256": "b684b4eb1903f3ee775aeebab1abb812e45a372904e033ee9e19b7b03049ee1a"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-06-brief/transport-usage.json",
+              "sha256": "5522622f544b778758e56dec33c15df2bde225e0a6df852b35742c0955e8785d"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-06-brief/started.json",
+              "sha256": "18772e3e96b3dfc6f71b22095267df25b2f8b3b77dad835fb8ca993727c9f9cd"
+            }
+          }
+        },
+        {
+          "case_id": "strong_prior_reasoning_comparison",
+          "attempt_id": "fixed-v3-07-strong",
+          "mechanical_completion": false,
+          "profile_fidelity_accepted": true,
+          "student_question_coverage_accepted": false,
+          "overall_trace_accepted": false,
+          "qualitative_verdict": "faithful_initial_profile_but_tutor_profile_retention_guard_exhausted_before_full_conversation",
+          "validation_rejections": [
+            {
+              "agent": "formative_conversation_agent",
+              "status": "invalid_output",
+              "error_category": "semantic_regeneration_exhausted",
+              "review_category": "retained_profile_evidence_changed_semantic_regeneration_exhausted"
+            }
+          ],
+          "requests": 11,
+          "application_usd": 0.0467231,
+          "simulator_learner_usd": 0.0002584,
+          "total_usd": 0.0469815,
+          "sources": {
+            "report": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_af34561a136c/report.json",
+              "sha256": "be4dd9c3ea99ee6fe5513cf72d8d437504c71bf541fd5baa54dd922bd5f6d3f5"
+            },
+            "agent_calls": {
+              "path": ".data/luna-medium-2026-10-13/fixed-v3/source/.data/ai-student-evaluation/cmcq_ai_students_af34561a136c/strong_prior_reasoning_comparison-agent-calls.json",
+              "sha256": "dab5e69403d3760702a71979df29cc13ed2ce9643a6c6c767c30bc2d3f40cb29"
+            },
+            "transport_usage": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-07-strong/transport-usage.json",
+              "sha256": "8a98fded021db7b3e10c39bce39199616cf933986cebbec356171747efae905d"
+            },
+            "attempt_started": {
+              "path": ".data/luna-medium-2026-10-13/attempts/fixed-v3-07-strong/started.json",
+              "sha256": "972c3d1a70dedae19c58cf6193fcee930dec80865dd68fb886dd7bd64f455e54"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "medium_experiment_totals": {
+    "requests": 217,
+    "application_usd": 0.87294598,
+    "simulator_learner_usd": 0.00407145,
+    "connectivity_usd": 0,
+    "combined_usd": 0.87701743,
+    "failed_attempt_application_usd": 0.14800238,
+    "missing_usage_records": 0
+  },
+  "remaining_quality_findings": [
+    {
+      "case_id": "partial_progress_many_difficulties",
+      "verdict": "completed_with_unresolved_student_scope_and_question_classification_failure",
+      "issues": [
+        {
+          "location": "Student turns34/36; AgentCalls[11].output_payload.evidence_observations[0] and student_visible_message; ev_a6fea22d1969e7c32c31d1cf",
+          "finding": "After the explicit request to leave SEM for another day, the student only reiterates SEM uncertainty while explaining wellbeing. The tutor labels this uncertainty a new question-addressed event and reopens a substantial SEM explanation. This violates the current policy that deferred-topic uncertainty alone is not a request to return; exact quotation does not establish correct speech-act interpretation."
+        }
+      ]
+    },
+    {
+      "case_id": "confident_error_resists_explanation",
+      "verdict": "faithful_profile_and_direct_answers_but_inaccurate_closing_history_and_remaining_need_summary",
+      "issues": [
+        {
+          "location": "AgentCalls[12].output_payload.student_visible_message; transcript turns27..39",
+          "finding": "The closing says We worked through two distinctions and includes SEM, although no formative tutor or student turn discussed SEM. It omits the actual newly raised alpha/classification-accuracy issue from remaining needs after the student says I am still not sure. This is an inaccurate history and incomplete remaining-need summary; no claim that alpha was resolved is inferred."
+        }
+      ]
+    },
+    {
+      "case_id": "overwhelmed_pause_return",
+      "verdict": "faithful_repaired_profile_and_preserved_pause_resume_but_inaccurate_return_recap",
+      "issues": [
+        {
+          "location": "AgentCalls[11].output_payload.student_visible_message; exported conversation_turns.csv agent turns1..27 and formative turns27..35",
+          "finding": "On return the tutor says We also discussed that SEM describes score uncertainty, although the preceding conversation contains only the SEM assessment item and no SEM explanation. It presents a new topic as past teaching while the learner asked for a brief reminder of the current discussion; the adaptive next turn asks which topic the reminder is about. This is a generated recap/history defect rather than a failed storage resume."
+        }
+      ]
+    },
+    {
+      "case_id": "strong_prior_reasoning_comparison",
+      "verdict": "faithful_initial_profile_but_tutor_profile_retention_guard_exhausted_before_full_conversation",
+      "issues": [
+        {
+          "location": "AgentCalls[8].raw_output.provider_execution_audit.attempts[0..1].invalid_candidate.candidate_json.profile_transition_recommendation; validation_error",
+          "finding": "The next tutor response proposes a profile transition while declaring item_level_evidence retained. The base draft replaces the retained canonical evidence strings with paraphrases and a new application; the sole regeneration copies most strings but inserts the prior profile rationale as an extra item-evidence string. Both violate exact field retention and are rejected as profile_transition_retained_field_changed, exhausting semantic regeneration. The rejection is appropriate and no invalid transition is applied; the scenario remains incomplete."
+        }
+      ]
+    }
+  ],
+  "limitations": [
+    "One synthetic attempt per scenario and configuration; not a student sample, reliability estimate, causal learning study or expert reference standard.",
+    "Mechanical completion is evaluated separately from factual and pedagogical quality.",
+    "Adaptive simulated learners also use medium reasoning, so this is not a controlled tutor-only reasoning comparison.",
+    "Final paid requests are serialized by the local budget guard; latency is not comparable with prior concurrently dispatched cohorts. Actual token-cost accounting remains separate and valid for recorded usage.",
+    "Per-case acceptance is an AI-assisted engineering judgment for the observed trace, not proof that future outputs are error-free.",
+    "The medium baseline, stopped v2 cohort and final v3 cohort differ in safeguards and prompts; their completion counts do not isolate the causal effect of reasoning effort.",
+    "Final v3 paid requests were serialized; prior timing is not directly comparable.",
+    "Costs use each attempt-specific transport sidecar, include rejected and repaired requests, and exclude learner overhead from application-session means. Reasoning tokens are already included in output tokens.",
+    "Cached reads and cache writes use the explicit provider counts and dated rates; long-context multipliers apply per request, not to aggregate session inputs. No usage is silently treated as zero.",
+    "No separate evaluator API was called; AI-assisted review work is outside these application/learner usage totals.",
+    "Mechanical completion does not mean pedagogical acceptance. Completed-session cost includes traces with unresolved quality defects.",
+    "Upstream session engagement in guessing case uses the unchanged rapid/sparse package rule on synthetic timing; this is not human engagement evidence.",
+    "The inherited generic executor can overwrite an earlier transport retry in AgentCall; the passive per-request sidecar supplies complete observed accounting, while semantic repair calls remain separately preserved.",
+    "All original rejected calls and prior cohort artifacts remain retained locally; portable hashes reference those exact bytes without reproducing raw transcripts."
+  ],
+  "candidate": {
+    "application_commit": "1b551d50dfa4005ef88cf9013cca55178f69801b",
+    "pushed_to_evaluation_branch_only": true,
+    "approved": false,
+    "deployed": false,
+    "source_binding": {
+      "native_runtime_paths": 39,
+      "required_paths": 22,
+      "all_raw_matches": true,
+      "all_commit_lf_matches": true,
+      "normalization": "Compare original UTF-8 file bytes for root/snapshot/native report; separately normalize CRLF to LF and compare exact Git commit blob bytes.",
+      "evidence": {
+        "path": ".data/luna-medium-2026-10-13/fixed-v3/candidate-commit-source-verification.json",
+        "sha256": "3c4a7ad64a9de2a5389ee3d58dbd375ae5017ca7380caf1bd476828ba01fbafe"
+      }
+    }
+  },
+  "production_observation": {
+    "checked_at": "2026-10-13T17:10:01.984Z",
+    "service_id": "srv-d987t1vaqgkc73d5l5q0",
+    "application_commit": "3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1",
+    "deploy_id": "dep-db5i593rjlhs73aq23t0",
+    "status": "Live",
+    "source": "Canonical Render dashboard visible links",
+    "production_configuration_changed": false,
+    "medium_candidate_deployed": false,
+    "evidence": {
+      "path": ".data/luna-medium-2026-10-13/production-live-unchanged.json",
+      "sha256": "6a09a6dc2b70645adb5710cebe43fcae209475bd7a0739a68ad4884599aff492"
+    }
+  },
+  "shared_budget_evidence": {
+    "path": ".data/luna-medium-2026-10-13/experiment-run-summary.json",
+    "sha256": "1c2b9914f1b46a517aa318c7b500c5f54ab849db5fefbbbd8cc1ee11c3123254"
+  },
+  "record_verification": {
+    "version": "word-record-final-verification-v1",
+    "checked_at": "2026-10-13T17:28:00.477Z",
+    "document_path": "docs/release-records/Conversational_MCQ_Change_and_Deployment_Record.docx",
+    "document_sha256": "5a1c48a4f7028d371dc2add5ffd1884b28f56b9b6aeb60ec5e4a69843f4dd48f",
+    "source_ledger_sha256": "9217a3f8717fc775644f65404ee4b814539b89d41652ad29b3e4371b5d832147",
+    "rendered_pdf_path": ".data/release-record-render-20261013-medium-final-v3/Conversational_MCQ_Change_and_Deployment_Record.pdf",
+    "rendered_pdf_sha256": "aa110939cc21d8c63197b69308f90380209aa1db116db283905a89377f0c2703",
+    "pages": 127,
+    "visually_inspected_pages": 127,
+    "visual_qa_result": "passed",
+    "issues": [],
+    "final_render_comparison": {
+      "byte_identical_reviewed_pages": 126,
+      "changed_pages_reinspected": [
+        126
+      ],
+      "reason": "Only the new entry reference list was limited to portable repository paths; detailed local provenance remains in preserved evidence. Historical JSON formatting was preserved."
+    },
+    "checks": [
+      {
+        "command": "python scripts/build-change-record.py --check",
+        "result": "passed"
+      },
+      {
+        "command": "python scripts/test-change-record.py",
+        "result": "passed",
+        "tests": 7
+      },
+      {
+        "command": "Windows portable LibreOffice + documents/render_docx.py",
+        "result": "passed"
+      },
+      {
+        "command": "Individual visual review of every page",
+        "result": "passed",
+        "pages": 127
+      }
+    ],
+    "retained_initial_failure": "The first document-reference test rejected an external pricing URL listed as a repository file; it was removed from that list, retained in the committed evidence pricing source, and all seven checks then passed. Ignored local evidence paths were subsequently replaced in the repository reference list by the portable committed evidence summary.",
+    "qa_evidence": [
+      {
+        "path": ".data/release-record-render-20261013-medium-final/visual-qa-pages-1-40.json",
+        "sha256": "b58e295a62722ba87b16f760ad812c1324e889cd04ca43bf4b0e242766a3ec36"
+      },
+      {
+        "path": ".data/luna-medium-2026-10-13/word-qa-medium-final-41-80.json",
+        "sha256": "43087d05e42511395b7105b4b516e92b024f97eb14a56ab1954eee35bc07191a"
+      },
+      {
+        "path": ".data/luna-medium-2026-10-13/word-qa-81-110.json",
+        "sha256": "882b2dac4d3f41f0deb14bf65649fc2771226abe235170db8b92269b181c2b40"
+      },
+      {
+        "path": ".data/luna-medium-2026-10-13/word-qa-medium-final-111-127.json",
+        "sha256": "77ebb2e47d30b2d1348da45c91e253974ebd127c117dfcc0057711292f2871ed"
+      }
+    ],
+    "page_evidence": [
+      {
+        "page": 1,
+        "sha256": "095a86bc6ddbdc82fb63f30ea0385f26a13e42ef28097d5b8de70d1adbda3e0e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 2,
+        "sha256": "b1e80d139817155d063eebe0f08f4ec2bfe709784318d9456033603ce56a72d9",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 3,
+        "sha256": "05ebf73ba9e448a1e0eb1f47c0c9a3271c0c21695b06ba98fe0a564a98d612eb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 4,
+        "sha256": "869a239aa3e5709614283b96f3d44d643285543aeede7d24ea04450e38ce6739",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 5,
+        "sha256": "1722fa619ae7eafc9179310f23eb21bc26c17520ac5c7b9b542ddb49b4cab061",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 6,
+        "sha256": "bcc514bcca2e8c5f3065925cc889dc9ae9a4ec81c457f7c018889462d2d19593",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 7,
+        "sha256": "08ffc2c57dd1b791d3ebab55097f3b074d8d9d3f2eb232c31e71854ec571e36a",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 8,
+        "sha256": "f02502fff56ee5840d278aae5258c8eb20b3df07954205196ad3a6cc14b0a9fb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 9,
+        "sha256": "a5862a8775d2987b1411fe3c52e197fd194575f413b93eaf16af81d94d9c2e3e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 10,
+        "sha256": "a1e3e86243dc7e5ab5b08ce95f032fd58f99e32eb225e40c257f2a1a69a038d0",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 11,
+        "sha256": "194322b02fea8285b5551e1c495ddd056f0a53a6acf2f7e335259633f84536b1",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 12,
+        "sha256": "03f565401a507d0999b33e52ca580e1f3de2c6ab403f2f56969f3d8d3f6529d1",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 13,
+        "sha256": "bcdd806172cbfa73419d10c56e2ca6417a56f93fdc390b8ba062d15e89613cd0",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 14,
+        "sha256": "87941c8b20e75c013270735ec20e35025c13b43f5f75c78dc5489234cc2f902c",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 15,
+        "sha256": "3f81e7bc6f22febadccfa254cae38ed147053da64171a273ad444a95119769de",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 16,
+        "sha256": "4a6d2217ef02e90de1faed1aeb8597e5f647ce0aa6ea6eb491510e5055ca91ab",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 17,
+        "sha256": "29ec147bb376f564e8a61da078dfbc06ee12e7eaeb3ad2c72bc74f709ae3b44b",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 18,
+        "sha256": "4a8de74c9d956d889400f90e808fc14c56348987f978b84597f06ccdb5d03076",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 19,
+        "sha256": "ec954ac63fe7e80519e46bfde61cd9ade64d65599fe27ec0d19c8bfc4777da11",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 20,
+        "sha256": "f62cc483949d0eb3178225c92c1b2ca7391c75b5db6d16e7d281deada40dde34",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 21,
+        "sha256": "aa68a5d762f9d18b84c781abee3fa97bc054f84b75e929263c996e9713c5cd36",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 22,
+        "sha256": "0a41645002500a5e804bad3a1d76fca9a6cda46fa6c37df2b252fca2243fb4a6",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 23,
+        "sha256": "921c6410d7629321b41088d08cd420b406e3c8188097fcbf6e3313a2c4e34ef2",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 24,
+        "sha256": "520480c41cdee5a269bd145a36c40248bd677f13243b5cbb8fba9b44e1d4a8a6",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 25,
+        "sha256": "9ecb89fe31bfbaa392a67932983780f53f8a156da3c9a69803e3bbc6e45cb3f3",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 26,
+        "sha256": "e246534a5de66b3cad13ac79aa2664961ea755694e8c2854374b7dccc45bf3b3",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 27,
+        "sha256": "30e65e5f389babc9de6e47f080fc4cd7927f338fc905fbdd43ef4aae6dbb6a0e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 28,
+        "sha256": "968f34a06b84be85487c330a2867474a3817703ad5e1aa12cce30315e2383e3c",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 29,
+        "sha256": "9e02f9f4d43c91b5549c75fe6f447ffd34864d79110bcb7a9892673b4d0b3ef0",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 30,
+        "sha256": "7dd50eefa8132497719aa7e4378c088d828586efa2a143b0a421b1a4e4e7dc30",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 31,
+        "sha256": "97cd0a75b4cd7fdc06218564730bf66816bd382491bc44e7119528289239408a",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 32,
+        "sha256": "0042d5fd2e6c020d9a3c11d63c2f9ba248c1106e622fc4fdc052b8a37999835f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 33,
+        "sha256": "1dc0e80083555ae11c587b877c13402220a471096bd8c03d136a88b5f7f862e7",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 34,
+        "sha256": "04153b7bc0fb650f438b81c0303346841ed6b378b2ce1e9c84dbc2a3d4568ecc",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 35,
+        "sha256": "4c8a54915f2ea637b0aa426e4b7caa1ec9995b9f446162dfc46c200dbab76f69",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 36,
+        "sha256": "a16714f1892e5e879cfb9faaebe749eed063fff8c79aacda5fb1e82fe281118b",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 37,
+        "sha256": "08c47bba6294fd432581e554bfd65fa6006d422cb2fedb45a8d378ff22fa0b27",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 38,
+        "sha256": "1ccec59e076198b4450a174870ccdcf3aeef63dfbd52dd06b36ffaf013dc5e0e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 39,
+        "sha256": "f0f0ec25a3b602a5b1245a11601e3207dc8162100701189e2c0cc3aae275a2c7",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 40,
+        "sha256": "52d7d616dd7dac592a48d2c80ff63141ec5de3d2776b1273ed2e635a9bd372d3",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 41,
+        "sha256": "c7ffdcd07abed50ef16be7c1cb7f203fdeec4d4d1b554a38ade7669170ad45e4",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 42,
+        "sha256": "996c4e9a8bda5149fcd5d6e9f5f692a285484feab197f155b707eff8e506e15c",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 43,
+        "sha256": "89feb3a9fae7771b6e482e7270e8b60443c0072cf4ee6e654990043ddff6f466",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 44,
+        "sha256": "9e6924f7387cc0f3bc75e337a88b1afb14f00951819c64fb531cd45b0fb2bacb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 45,
+        "sha256": "a2a4edaccf3c481d31fe1e601a983e8ec174fced2bc8d919686192110075f3cb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 46,
+        "sha256": "f85b4f98df845f91a9854ece3226c8b4f5f5466afc47ca0cc7f87e2bad6026b6",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 47,
+        "sha256": "789a73b87cce36e274a2340e6a2a0fcd61d67f36cfb562eaebf4dbb000b99010",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 48,
+        "sha256": "1adf1b4a1e1a09d220a427379a35bd68ef4944925bfcb46792b479136eebb503",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 49,
+        "sha256": "eb057e8e30ea31efa49c24bc3d28f77c1a68c1c4104210da4b2b1785752da0e6",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 50,
+        "sha256": "309ab304ca0b9b985180e62dd8d01aac0fdb16a1bbfb7ebdd907230a84699868",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 51,
+        "sha256": "b0eb42329bfc8ab020b67f29141edee9239d927e51af330656c3ae9277c08c5f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 52,
+        "sha256": "8ac9442900658e76b464ca11f4aa4792e7271f62c2da32c35e6874bab0a9c9d0",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 53,
+        "sha256": "1893a9a4e3b738117fd8cbefa2bc1a97b5ba5840fbebf392a5fe7f31bd76829f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 54,
+        "sha256": "fa623df6297c552b6e7a511ba6faaae2204e920bf0cdbb08b5d2fc1a10e5e5b7",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 55,
+        "sha256": "8bdfcda09ee342cfa319b20ce2685863cf26c860b7fa096799031a8faf6a2a36",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 56,
+        "sha256": "37e1b691bfec114b113e793e07b35ad8f50ca7504dd8af84d18a4ef9258c5f2f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 57,
+        "sha256": "519882a838097746463733c8dfa3c68ad37ebff471dac7236fc1f0495ef72656",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 58,
+        "sha256": "c9731b7d888fb38d2efb5b5d576399049703dd7b3108cb53412a63d2f5a42714",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 59,
+        "sha256": "a37ec8176be974e7f046c9c716ec7fc7eb531b9f41eca00992eb0c6353287152",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 60,
+        "sha256": "c7cb09c269a34c2d9ce762b4f00149a7392035abb524cd051f2ccf5fbad35dcd",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 61,
+        "sha256": "03786a58356ed371f73c4e5327a9df69ae6e14201d1eacaefb11a9fbcc28c510",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 62,
+        "sha256": "e13e90c6c142c8ca07d10d9be4a52b07c780c767c9f7157abef820522bb58807",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 63,
+        "sha256": "e645a8eb2f13bdcc562de416a6f2bd1a8a05ba180f5bae9842a496e1515591f5",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 64,
+        "sha256": "91d81b41f95e52d43e62650f2d493550b9844135bd700c01b0e174e0e0a89428",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 65,
+        "sha256": "454e9aa9f400f687bcad157f51472ad8773c0fd18ef604e2f7e1eadeec508020",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 66,
+        "sha256": "26291e2d26b753ef3417126e9c65122b066b9ee75a7e0e75bd510d0a42ad41cb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 67,
+        "sha256": "ebaaf6868228e86b9d2768293495cfdca95689b941e029fb93aa441f0a4e86fd",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 68,
+        "sha256": "2cefd938846f0108c4a4016fb6b1e57b2f152ba208e69872698f993efaca11b0",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 69,
+        "sha256": "ef87f15a6f79cf665c6429244c197ebe8db53dbee6d3d2f8c062dd682284329b",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 70,
+        "sha256": "ec430790aa437534f5f8017c4e21c1e3f6ff7eea0341574b7621014e082b270e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 71,
+        "sha256": "c0a3d48a26fee19d94880f0450699a700f99a28f8e6cdcebc68394bca127e6f8",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 72,
+        "sha256": "75d12825ee0afd0c6f5361b48c06b1adfb47a2fb264aee05c3e37c530521a010",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 73,
+        "sha256": "a31bafc5aabda10c781f24973341442ac3075f6b4baa7dea92974d20bc0ffd26",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 74,
+        "sha256": "12a7b1af23a98e254d7b142388a19b98d30fb26096492a986fbecc4b570306be",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 75,
+        "sha256": "d8a56453b607c0a25fd868aa0d6b6239b5945c8b4143baf89dfb6da480726a50",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 76,
+        "sha256": "2df980c08ab77cad991b3c94d768e9d6db5e830b5ee2971a63c6c83dad86c23d",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 77,
+        "sha256": "250c6be4fea0192796a325607d391d9c634af6816139698c46bdd65d5111d215",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 78,
+        "sha256": "0673830508a7b17271e9836ab73a5288d54a0d9e9ef336977e6e5bb5b3965b51",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 79,
+        "sha256": "40b2d0a94235be78a8e7f9472ce41cdf65ae4e9ab863c990e4eddeaf44737e00",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 80,
+        "sha256": "475a578cc90b9e778358a54699b1f97bc68666b217dceb41efe475f4eb937a09",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 81,
+        "sha256": "c429619a1b5a5434cb342764bc5fa0e375f8ef355ab375ecbdce76f5bfd22ecc",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 82,
+        "sha256": "df8aa9f7c8acef6ce12de8cc55dd482c28cfb51994d61b83b6c64bfb76702430",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 83,
+        "sha256": "19572074553d6aa164aaccb2264c86612e986cac75f2212980322bca141143d2",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 84,
+        "sha256": "447368a0ae811bbd0050c23a6efee2f99b2b4f25288b333197208178138aa9c5",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 85,
+        "sha256": "0e11e361bee68e3fcc8d481830caf4d3d4c42298d40474de72437a07c2f5c3be",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 86,
+        "sha256": "e026787bd63fccf6e0973b4bf32b2af6a41202d78961d9996e660c768b162bca",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 87,
+        "sha256": "bda9cbcd8da58ec84357653010ddcf28da63b944df9b7f79ae517ec57fb66860",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 88,
+        "sha256": "2ac87ac7132a0554c9ed228d9d3c608eac1819e21e0e93a8b36c45d5c8d352a4",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 89,
+        "sha256": "e523c1dfc7bcdf71f2d1d453f6923eb032a657bf2077074b09835ce18b81b3bd",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 90,
+        "sha256": "2869502adefd17429aea9190240dd00ddfd7e83a05d08c520de0d43b1c94c1af",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 91,
+        "sha256": "b20e0b696848f6a342185d288fbda56ea3fab828151e5cae0b31a17c50122de5",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 92,
+        "sha256": "b4c0d596c809afec94ade43cdb0b81cd207ccc25ad362d545219e6cb53d525f4",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 93,
+        "sha256": "07991458bb5fe424b68e3a3c95b49f3fbb69f32190b94e3423d05e64edb4fdd3",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 94,
+        "sha256": "ef739ea87f936384edef73d64f8b6dc8338f380bd634f1e0d01c0d51b9830670",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 95,
+        "sha256": "3fa44e88cc5014bbdc84ee97a4ce2e61e4c987d8152ac94fd2853d3870a959b2",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 96,
+        "sha256": "28fa4c3c7ad859b938be33b145c6b2919caae6024281a8281d83198b6d5a234e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 97,
+        "sha256": "99026eb3851329eba03ed7e70f89eb819af5df1254511a440c9579713a03d4d3",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 98,
+        "sha256": "278f374756d9220f1abb61dff25656ac86a3487bdc6c2ea1080a31a139743750",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 99,
+        "sha256": "631f6942bad805fbbfe3acc93264edf6e0e22aafcdc22961f873ff3ef0ee2bf9",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 100,
+        "sha256": "cd64ded29cec3eb50b9962bd3d084b25f050859936249e6166a0ce7f56dcd0eb",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 101,
+        "sha256": "abf3aee3e9e2b2a1e3413348fbc9c3f34dcbab75e7ff88ad0a8aa2ba665ceac1",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 102,
+        "sha256": "4580cde079bc63dadd54949d157531d7634d748ddabc7483c5fff3f3d4fe3942",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 103,
+        "sha256": "85e9ebb346ea5510df0c19cd8a778d1bfabf6bdb11b0d03f41537b106a676c4e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 104,
+        "sha256": "39b3fa71053c62717ac0ee25be856e4e704a2dbd9b6e4b12580d7fde9fe48e7c",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 105,
+        "sha256": "6f43ba73255871fb9dc6449b4d0dc400e7d9cf7c8f911b65dfd61224e0164d4f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 106,
+        "sha256": "39c9291dbb827153d515e96092960f9659b514b69f3da63bb9cc13e229e87e66",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 107,
+        "sha256": "53f6b38cf1b368be174cd08700c378ef79275306368c61509369cefaab6204dd",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 108,
+        "sha256": "945f1b97da615fcf19d03a18fbf88073869da6d9bd8bdae5b0d9eb9c7b3bd4b8",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 109,
+        "sha256": "a0fe4825fbe49695b99c7426ea55ad855ea9dc8827aaed35e91fe6c73e3a9e75",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 110,
+        "sha256": "f7ac9825b89bb147e8a907bbd76ee5eaf870fbc2f34e988db9a6062dbca9cb06",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 111,
+        "sha256": "cfdb966eb708c650aeace005b82f7cb15b2d57a96efb6c2448a0b2e7cbd15c9f",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 112,
+        "sha256": "ccb87754a7f095f9bd59c6e4f6a0b8a9a97e20a5bdeb020a950d36960e6259de",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 113,
+        "sha256": "be47e710ab1dfdf225e57407658c3eae840958092fa7b60b653d2d257ad11219",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 114,
+        "sha256": "7a143597c85d5df28a35ca4f0bd2443cf0a5297b2397a15aaf07d9265bc1f2a4",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 115,
+        "sha256": "62cb99b22f60c5e065d6b73198feded361d6456c9f4e6a90280e749aeca99ad9",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 116,
+        "sha256": "fd0963dff8f82501678df3a4d70824d4fe98439576f4254279ac5a6269960450",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 117,
+        "sha256": "5ca4c2b13a20612d6af39e0ea8dee2b809a04e9bbbd1c984c841fa1b60ce95e9",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 118,
+        "sha256": "a3d1c6a247204372cfa4dffa13fdfc80ddbcac6ef93e6b4f26f487cfab25099e",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 119,
+        "sha256": "f883fff06869876614a709b33668c98260f1e145244f1749775ee3670fd700c2",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 120,
+        "sha256": "1bc90aa47171ba034f05921e7f3037651c54aaf62238c4f9f455c4d30bee86ca",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 121,
+        "sha256": "e39de46be5a1ea84318f247c6b2075b72740b358b11ccbc5f7fbad0c66f95c35",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 122,
+        "sha256": "db643f285da24a11460a0b1af03a5e8c559b16600d12b88883bfc1de0f5c2ed2",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 123,
+        "sha256": "e57aaf94c59aacb96477789d6788aa5805021848fcf4ef920c7c430d2658c644",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 124,
+        "sha256": "3c66df0ad4bb08416e6074be716cf83cc41dffa2c96f0c6b9f1a3b260748fe5c",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 125,
+        "sha256": "48a7057fb8143fdfbc583ff91dd312b5a050c4f8bc66ba17abbe6cea11b58cea",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      },
+      {
+        "page": 126,
+        "sha256": "f128ba09cd4a01965ff6c4d16595c4de78c929a11a6d349a69406f1cb4d9ed00",
+        "visual_review": "root_final_page_reinspection"
+      },
+      {
+        "page": 127,
+        "sha256": "d0564a0011b659636e306d4eb3816e062d08f459741afca359c11363c7b6116d",
+        "visual_review": "individually_reviewed_byte_identical_page"
+      }
+    ]
+  }
+}

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-13T09:13:48.050Z",
+  "updated_at": "2026-10-13T17:18:36.685Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -2832,6 +2832,174 @@
         "src/lib/operational/luna-low-validation-evidence.ts",
         "scripts/ai-session-cost-report.mjs",
         "scripts/ai-session-cost-report.test.mjs"
+      ]
+    },
+    {
+      "id": "CMCQ-20261013-02",
+      "date": "2026-10-13",
+      "title": "Luna medium evidence-fidelity repairs; release blocked by remaining tutor failures",
+      "application_commit": "1b551d50dfa4005ef88cf9013cca55178f69801b",
+      "push_status": "Candidate 1b551d50dfa4005ef88cf9013cca55178f69801b committed and pushed to origin/codex/luna-medium-profile-fix; remote SHA verified. Canonical main remains cb10206fe24a53bfa6a62582f679fe5b00f204d3. The candidate was not merged or deployed.",
+      "deployment": {
+        "status": "pending",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": null,
+        "source_commit": "1b551d50dfa4005ef88cf9013cca55178f69801b",
+        "verified_at": null,
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0",
+        "evidence": [
+          "Release blocked: final corrected cohort has six mechanical completions and one guarded failure; three completed cases also failed qualitative review. No approval bundle was activated, environment saved, deployment triggered or production pointer replaced.",
+          "Existing service separately verified Live at 2026-10-13T17:10:01.984Z: application 3ac66f7e10f25f92ccca161aeb13ac4ea1d5b8f1, deployment dep-db5i593rjlhs73aq23t0. This is the unchanged prior release, not evidence that this candidate is Live.",
+          "Existing public health checked 2026-10-13T17:14:45.2748536Z: status ok, database reachable, schema ready and migration readiness ready. No student data was read or written by this health check. No new worker job was created or completed-job behavior verified.",
+          "Read-only preparation verified the existing recursive parent approval chain and 18 roles. Two byte-verified helper versions were staged only in a new isolated /app/.data/luna-medium-release-20261013-1631 directory; neither changed active configuration or called the provider/database. The final helper hash is 2753548d7923120f085def4c15fa71d6df3b88fc70f28c1a7c12c2f9f783ed6e.",
+          "The canonical service tracks main with On Commit deployment and persistent /app/.data storage. No staging service was used. Deployment-specific readiness, deployed-source hashes, runtime dependency scan and preparation-worker checks for this candidate were not run because it was not deployed."
+        ]
+      },
+      "summary": "Medium reasoning alone did not resolve the observed failures: only three of seven baseline synthetic journeys completed. Prospective software changes constrain contradictory profile flags, preserve recorded confidence and quotations, require supported reasoning diagnoses, and permit one separately audited repair. In the final corrected cohort all seven initial canonical profiles validated, six journeys completed, and one tutor update was blocked after both drafts changed retained evidence. Review also rejected a deferred-topic violation and two inaccurate retrospective recaps. The candidate is preserved on an evaluation branch, not approved or published. These small synthetic runs cannot establish a causal reasoning-effort benefit or classroom learning outcomes.",
+      "changes": [
+        {
+          "area": "Model configuration and evidence-gated approval",
+          "problem": "Test all 18 application roles at GPT-5.6 Luna medium without rewriting the preserved low evaluation or treating an untested candidate as approved.",
+          "fix": "Add medium capability and separate medium/corrected candidate identities while retaining low-v1 compatibility. Derive the exact model/effort projection from the verified parent, preserving every token budget and unrelated policy. Corrected approval binds the specific v7/v5 profiling contract, five new deterministic guards, 22 runtime source hashes and seven native reviewed cases.",
+          "impact": "Candidate execution remains limited to explicitly opted-in development mode and isolated loopback synthetic databases. Production activation still requires the full parent chain and accepted native evidence. This changes application role configuration, not Codex settings."
+        },
+        {
+          "area": "Canonical profile fact fidelity and bounded repair",
+          "problem": "Accepted profiles could change recorded confidence, invent skipped fields or label sound concise reasoning weak; contradictory drafts could halt preparation.",
+          "fix": "Introduce production prompt student-profiling-v7/schema student-profile-output-v5 with per-item reasoning_basis, exact source quotes, recorded-confidence equality, explicit skip evidence and support for weak-reasoning flags. Permit one separate audited semantic regeneration using unchanged sealed input. Resume its deterministic key after interruption; an exhausted or ineligible repair fails closed. The final prospective fact-binding-v2 rule rejects a correctness/reasoning mismatch when every sealed item is known incorrect and all corresponding item explanations are explicitly incorrect_explanation; historical V4 remains unchanged. Clarify that wrong-choice-aligned wrong reasoning is not itself such a mismatch and keep recommended follow-up conversational without asking for confidence again.",
+          "impact": "Keep original drafts, errors, raw responses and usage. A successful repair can be reused before profile persistence without paying for another original call. Historical V4 parsing remains supported; prior student profiles are not rewritten."
+        },
+        {
+          "area": "Request-only structural constraints for canonical profiling",
+          "problem": "Fixed-v2 still generated no_clear_pattern together with specific flags; its one repair then asserted correct_answer_weak_reasoning with zero correct items.",
+          "fix": "Compile nested anyOf flag arrays in the actual Responses schema: sentinel appears alone or the array contains specific flags. Exclude correct_answer_weak_reasoning only for nonempty, fully known all-incorrect sealed evidence. Preserve unknown, conflicting duplicate and later-follow-up correctness conservatively; keep empty specific arrays and the stored V5 schema unchanged. Bind student-profile-request-schema-v1 in candidate identity and readiness.",
+          "impact": "This constrains generation prospectively without rewriting output or relaxing semantic checks. Prompt, request guard and source provenance yield a new unapproved candidate; earlier failed runs are retained rather than relabelled as passes."
+        },
+        {
+          "area": "Question-source fidelity and earlier-stage quotation repair",
+          "problem": "Tutor prompts or unmet mastery evidence could be labelled pending student questions. Separately, an earlier planning stage paraphrased a student quote and correctly failed source validation.",
+          "fix": "Bind pending/addressed question observations to exact eligible student-source quotations under host v7.17/interpretation policy v5. At the earlier chat-native profile stage, allow one regeneration only when every failure is one of the two observed quote-mismatch types. Reserve a fixed repair key under the existing topic lock, retain the same model/cap/static prompt/schema, and run all original validators and usage gates.",
+          "impact": "No answer-key or evidence validator is weakened and no quote is silently normalized into acceptance. Repeated failure, restart and concurrent callers cannot create a third automatic quote-repair call. Application-owned transitions and submission logic remain unchanged."
+        },
+        {
+          "area": "Traceable evaluation and deployment preparation",
+          "problem": "Reasoning-effort comparisons and repaired runs must retain failed costs, exact source provenance and clear separation from production evidence.",
+          "fix": "Preserve an immutable medium-only baseline and separate corrected snapshot, per-attempt reports and transport sidecars. Expand native runtime hashes and retain qualitative review. Compile an operator from the reviewed Windows source to verify original Render parent paths and prepare a new isolated approval bundle only after the evidence gate passes. The final native source inventory is linked to the later candidate commit by comparing all 39 executed raw source hashes and all 39 CRLF-to-LF-normalized Git blob hashes, including the 22 required correction paths.",
+          "impact": "All evaluated accounts and responses are synthetic. Rejected attempts and source provenance remain unchanged; the tested snapshot recorded its original 962cd4b9 ancestry before the later commit. Staged helper files do not activate production. The final failed candidate remains blocked."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Medium-only baseline: seven conversational-support-needs scenarios",
+          "result": "Three mechanical completions; four failures",
+          "detail": "Partial progress, guessing/agreement and overwhelmed pause/return completed. Persistent prerequisite confusion and confident error failed no_clear_pattern exclusivity; brief sound reasoning failed a structured profile-combination check; strong prior reasoning failed exact quotations in the earlier planning stage. All seven used one frozen source hash set and runtime a56052b705b0f7b1660000e809f7d6a746897a3b7f02783e1fff67b1b6e7243a. The baseline is source 962cd4b9 plus documented medium-only plumbing, not an unmodified checkout."
+        },
+        {
+          "name": "Baseline qualitative review",
+          "result": "Medium alone did not resolve the defects",
+          "detail": "Guessing/agreement and overwhelmed profiles changed three sealed low confidence values to high. Partial progress and guessing retained questionable pending-question metadata. The guessing run also retained a rejected integration draft and its successful recovery; the observed generic correct-option wording was an overly broad lexical rejection, not an observed answer leak. These are AI-assisted engineering findings, not independent human educational validation."
+        },
+        {
+          "name": "Baseline usage and per-session cost reconciliation",
+          "result": "67 requests accounted for; no missing usage",
+          "detail": "Estimated USD 0.24425529 total: application 0.24319394 and synthetic learner 0.00106135. The three completed application sessions cost 0.06059733, 0.05889903 and 0.05435398 (mean 0.05795011), excluding learner overhead. Four failed application attempts cost 0.02160686, 0.02037568, 0.01935353 and 0.00800753 (total 0.06934360). Conservative guard spend was 0.30974950 under the shared USD 2 ceiling; no medium connectivity request was made. These token-based estimates use the verified pricing record, not an invoice."
+        },
+        {
+          "name": "First corrected medium cohort (fixed-v2)",
+          "result": "Stopped after four of seven: three mechanical completions, one semantic failure; qualitative approval withheld",
+          "detail": "50 paid requests, estimated USD 0.21786827. Partial-progress original sentinel contradiction and its repair's impossible weak-correct-answer flag were rejected. Confident-error completed after audited repair but retained an unsupported correctness_reasoning_mismatch flag; AI-assisted review withheld acceptance. Cases 5–7 were not run after the deliberate stop. Preserve all four native reports, AgentCalls, costs and the rejected incomplete review under runtime 0c78cb66332f4c9bb20f7eb2773d63115f3ad4cfa852758ba25da1cb86706d04."
+        },
+        {
+          "name": "Final corrected fixed-v3 seven-case cohort, qualitative review and cost reconciliation",
+          "result": "Six mechanical completions, one guarded failure; qualitative release approval withheld",
+          "detail": "Seven scenarios ran once under runtime d60ccab6a2a33976432418a2b808288af596aba6d3c4e7987099cc046b196628. All seven initial canonical profiles validated, with retained original confidence/evidence-ID failures repaired where needed. Persistent confusion, partial progress, guessing, confident error, overwhelmed return and brief sound reasoning completed. Strong prior reasoning stopped after the tutor original and one regeneration altered item_level_evidence marked retained; neither invalid transition was applied. Review accepted cases 1, 3 and 6 with documented caveats, rejected case 2 for reopening deferred SEM, and rejected cases 4 and 5 for claiming SEM had been discussed when it had not. A generic correct-option phrase in case 3 triggered an overly broad lexical rejection before recovery, not an observed answer-key disclosure. Mechanical completion is not pedagogical approval."
+        },
+        {
+          "name": "Luna role requests and amendment/isolation/evidence checks",
+          "result": "Passed offline",
+          "detail": "All 18 roles compiled at both low and medium (36 requests; zero paid calls). Amendment checks passed 148 low, 149 medium-only and 165 corrected assertions (462 total), covering preserved budgets, low compatibility, isolated candidate boundaries, production refusal and native evidence requirements."
+        },
+        {
+          "name": "Profile fact binding, canonical restart and question-source checks",
+          "result": "Passed offline",
+          "detail": "Fact-binding/semantic-repair checks include confidence, explicit skips, reasoning support, interruption before repair, successful repair before profile persistence, failed repair reuse and invalid identity. Student question coverage passed 23 checks; interpretation-policy and existing semantic-profiling checks also passed. No provider calls were made by these checks."
+        },
+        {
+          "name": "student:formative-profile-quote-repair-smoke",
+          "result": "Passed: 26 checks",
+          "detail": "20 offline checks and six isolated PostgreSQL checks cover the two exact quote prefixes, unchanged evidence, unchanged validator rejection of paraphrases, bounded repair, usage refusal, restart and pre-read races, locked concurrent reservation and unchanged default retries. The first integration attempt failed in the test cleanup-helper call; its signature was corrected and its single leftover synthetic fixture removed. Final run passed with zero network/provider calls."
+        },
+        {
+          "name": "Flow, export, timing, projection, input and cost regressions",
+          "result": "Focused local checks passed",
+          "detail": "Conversational flow, profile-record projection, both master exports, research timing separation, profiling input compaction, collection learning summary, session cost, semantic profiling validation and v18r2 provider-request checks passed. Preserved logs identify exact invocations. These local synthetic/mock checks are separate from paid candidate evaluation."
+        },
+        {
+          "name": "Typecheck, lint, production build and dependency audits",
+          "result": "Final fixed-v3 typecheck, full lint and production build passed",
+          "detail": "Typecheck and scoped ESLint passed after final schema/identity changes; 462 amendment and 36 role-request checks passed again, as did diff whitespace validation. Root confirmed final fixed-v3 production build exit 0 at approximately 16:59 UTC (build-final-v3.log) and full lint exit 0 with five pre-existing warnings (lint-final-v3.log). Full and production npm audit artifacts each report zero findings; no dependency version changed. One initial scoped lint failure in the new test explicit-any annotation was corrected and rerun successfully. Production build success does not waive pending or rejected qualitative gates."
+        },
+        {
+          "name": "Retained legacy harness failures",
+          "result": "Three failed checks retained; not release passes",
+          "detail": "agent:profiling-smoke failed P2025 after mock readiness blocked on a legacy profiler manifest mismatch; the identical test and failure were reproduced against 962cd4b9 in a separate synthetic database, with no key/provider call. Runtime smoke still expects host v5.3 instead of v5.4, and pipeline smoke expects null instead of synthetic_formative_conversation_execution_failed. The latter two were already reproduced against unmodified cb10206f and recorded in CMCQ-20261013-01; this task reran and retained their failures rather than changing frozen fixtures."
+        },
+        {
+          "name": "student:profiling-request-schema-smoke",
+          "result": "Passed offline: 69 checks",
+          "detail": "Actual Responses compiled JSON schema and production Zod parsing reject mixed/duplicate sentinel and fully known zero-correct weak flags; permit valid specific combinations, singleton sentinel, empty arrays, unknown facts and authoritative follow-up changes. Covers conflicting duplicate orderings and three-record conflicts, unchanged stored V5 parsing, immutable input and fixed metadata guard. No database or provider calls. The first test run exposed a nonexistent synthetic fixture enum name, corrected before the passing result."
+        },
+        {
+          "name": "Final corrected usage and full experiment accounting",
+          "result": "All 217 requests reconciled; no missing usage or pending calls",
+          "detail": "Final cohort: 100 requests, estimated USD 0.41489387 total; application 0.41260937, synthetic learner 0.00228450. Six completed application sessions cost 0.05316067–0.07105654, mean 0.06098105. The failed application attempt cost 0.04672310 separately. All three medium cohorts together cost an estimated USD 0.87701743 (application 0.87294598, learner 0.00407145). Conservative guard settlement 1.14104730 stayed below the shared USD 2 / 240-request cap; 217 requests used, zero pending. Earlier low experiments are excluded from this task budget. No more paid calls were made."
+        },
+        {
+          "name": "Candidate source identity and read-only verification helper",
+          "result": "39 source hashes and committed blobs match; 33 synthetic helper checks passed",
+          "detail": "All 39 final native runtime source files, including the 22 required correction files, matched the executed snapshot and current Windows bytes. Their normalized bytes matched the exact candidate Git blobs. The postdeploy helper passed 33 pure/synthetic checks, including secret-output filtering and fail-closed mismatches. This helper was not executed on the service. A separate real packaging preflight rejected the completed failed qualitative review; this is evidence of release protection, not application approval."
+        },
+        {
+          "name": "Actual candidate approval-evidence packaging gate",
+          "result": "Expected rejection passed; no approval or transfer bundle created",
+          "detail": "Ran verify-v3-packaging-rejection.cjs against the completed actual seven-case review. The real packager exited 2 at qualitative_acceptance and blocked partial-progress, confident-error, overwhelmed-return and strong-reasoning cases. Review, summary, request and regression gates remained unchanged; no new task artifact, network/provider call or approved bundle was created. Review SHA c07733d967dae0f50e68efd90422d6131193c23bd78f5ce83313e178e3cca462, summary SHA 66ee57d7594ba39e5880a9ece70703b76670366b8d59dff9b83905ef928150b3."
+        }
+      ],
+      "data_impact": [
+        "All simulation and test writes were confined to isolated local synthetic databases on this Windows PC. Production student accounts, source responses, scores, permissions and research records were not altered. No schema migration or retrospective backfill.",
+        "The new reasoning_basis and question-source guards apply prospectively to newly generated metadata. Historical V4 profiles remain readable; missing historical fields are not invented. Confidence is preserved as an original recorded value, not remeasured by the tutor.",
+        "Original rejected drafts, separate repair AgentCalls, paid usage, source hashes and failed scenarios remain available. Frozen low research material, the separate medium-only baseline and rejected partial fixed-v2 cohort were preserved byte-exact. Their different runtime identities are historical comparisons, never counted as prior attempts of the final candidate.",
+        "Service-level synthetic results establish only covered software behavior. They do not measure classroom learning gains, diagnostic accuracy, browser reading/typing exposure, or human pause duration.",
+        "An existing package-level rapid/sparse-response rule can classify synthetic engagement differently from individual item labels and the canonical profile. Case 3 has an 8.440-second service-generated package window and two short IDK responses. Source/timestamp analysis explains a permitted rule path; the saved projection omits the complete decision trace, so the exact matched rule is an inference. The computation and integration projection are unchanged from Live 3ac66f7. This is not evidence of a real learner being disengaged."
+      ],
+      "limitations": [
+        "Not a completed production fix: six mechanical passes do not waive the failed tutor transition or three rejected transcript reviews. This candidate was not merged to main, approved, activated or deployed; the prior service remains Live.",
+        "Low effort is not established as the root cause. Medium-only still failed four of seven journeys and allowed fact/metadata errors. New software guards address specific observed failures, while remaining instruction-following and exact-retention failures require further implementation and a separately identified evaluation.",
+        "Potential next work includes keeping immutable profile evidence application-owned, source-bound deferred-topic handling, and checking retrospective summaries against actual conversation turns. A stronger tutor may improve reliability but has not been tested and cannot be promised to eliminate these errors. The user has not yet answered the request to change the all-Luna preference and authorize an additional USD 2 of testing.",
+        "One stochastic run per scenario does not estimate a stable failure rate or causal model effect. Completed-case mixtures differ; the low completed-session mean 0.05356265 and medium-only mean 0.05795011 are descriptive, not a matched estimate of the cost increase. All 18 roles and the adaptive learner used the selected effort, so this was not a tutor-only controlled experiment.",
+        "Costs describe one three-item topic with up to six formative student replies under the existing tests, including application repairs. Longer conversations and multi-topic assessments may cost more. Token estimates are not invoices; exclude hosting, database, authoring, tax and human review. Medium has the same per-token price as low but can consume more reasoning tokens.",
+        "Exact quotes and recorded-fact constraints cannot prove every semantic interpretation or student-facing summary correct. Accepted cases retain pacing/assistance caveats. No classroom effectiveness, psychometric validity or independent human educational review is claimed.",
+        "The generic operational transport/schema retry path can reuse an AgentCall row; per-attempt transport records retain paid requests for cost reconciliation. New semantic and source-quote repairs have separate audited rows. This task does not claim every pre-existing retry path was redesigned.",
+        "Final paid test dispatches were serialized under unchanged conservative price/budget rules. This changes test scheduling and makes latency incomparable with earlier concurrent cohorts, without changing production application concurrency.",
+        "Three legacy regression harness failures remain documented with baseline reproduction. No source migration, retrospective backfill or real student mutation occurred. No final runtime image exists for this blocked candidate; local build success and the old deployment cannot substitute for new Live verification."
+      ],
+      "references": [
+        "docs/ASSESSMENT_FLOW.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/operational/luna-profile-fidelity-identity.ts",
+        "src/lib/operational/luna-low-validation-evidence.ts",
+        "src/lib/agents/student-profiling/semantic-repair.ts",
+        "src/lib/services/student-assessment/formative-profile-quote-repair.ts",
+        "src/lib/services/student-assessment/formative-call-attempts.ts",
+        "src/lib/services/student-assessment/formative-conversation/question-coverage-policy.ts",
+        "prisma/formative-profile-quote-repair-smoke-test.ts",
+        "prisma/student-profiling-fact-binding-smoke-test.ts",
+        "prisma/student-question-coverage-smoke-test.ts",
+        "prisma/ai-student-journey-evaluation.ts",
+        "src/lib/agents/student-profiling/output-schema.ts",
+        "prisma/student-profiling-request-schema-smoke-test.ts",
+        "docs/release-records/evidence/luna-medium-evaluation-20261013.json"
       ]
     }
   ],
