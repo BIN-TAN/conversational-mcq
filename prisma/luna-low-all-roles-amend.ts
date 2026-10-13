@@ -6,6 +6,7 @@ import {
   stageLunaAllRolesCandidateFromManifest
 } from "../src/lib/operational/active-approval-bundle";
 import { argValue } from "./operational-model-upgrade-cli-args";
+import { MIXED_TUTOR_MODEL } from "../src/lib/operational/mixed-tutor-identity";
 
 // Neither mode activates a bundle or sends provider requests.
 loadEnvConfig(process.cwd());
@@ -22,12 +23,20 @@ const profileCorrection = argValue("--profile-correction");
 if (profileCorrection !== undefined && (profileCorrection !== "profile-fidelity-v1" || reasoningEffort !== "medium")) {
   throw new Error("Use --profile-correction profile-fidelity-v1 only with medium reasoning.");
 }
-if (required("--confirm") !== `authorize all application roles gpt-5.6-luna ${reasoningEffort}${profileCorrection ? " and exact profile fidelity correction" : ""}`) {
+const tutorModel = argValue("--tutor-model");
+if (tutorModel !== undefined && (tutorModel !== MIXED_TUTOR_MODEL || reasoningEffort !== "medium" || profileCorrection !== "profile-fidelity-v1")) {
+  throw new Error("Use --tutor-model gpt-6.1-sol only with medium reasoning and the exact profile-fidelity correction.");
+}
+const confirmation = tutorModel
+  ? "authorize gpt-6.1-sol medium tutor and 17 gpt-5.6-luna medium application roles and exact profile fidelity correction"
+  : `authorize all application roles gpt-5.6-luna ${reasoningEffort}${profileCorrection ? " and exact profile fidelity correction" : ""}`;
+if (required("--confirm") !== confirmation) {
   throw new Error("Explicit all-role model and reasoning authorization is required.");
 }
 const common = {
   reasoningEffort: reasoningEffort as "low" | "medium",
   profileCorrection: profileCorrection as "profile-fidelity-v1" | undefined,
+  tutorModel: tutorModel as typeof MIXED_TUTOR_MODEL | undefined,
   outputDirectory: required("--output-directory"),
   authorizationReference: required("--authorization-reference")
 };

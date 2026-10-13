@@ -120,6 +120,7 @@ async function main() {
       "src/lib/agents/provider-request.ts", "src/lib/operational/active-approval-bundle.ts",
       "src/lib/operational/luna-low-validation-evidence.ts",
       "src/lib/operational/luna-profile-fidelity-identity.ts",
+      "src/lib/operational/mixed-tutor-identity.ts",
       "src/lib/llm/config.ts", "src/lib/agents/operational/approved-config.ts",
       "src/lib/operational/guarded-agent-integration.ts", "src/lib/services/student-assessment/student-runtime-live-agent.ts",
       "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts"

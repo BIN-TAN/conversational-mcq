@@ -15,6 +15,22 @@ export const PRICING = Object.freeze({
   long_context: { input_tokens_exceeding: 272000, input_multiplier: 2, output_multiplier: 1.5 }
 });
 
+// Keep the original exported Luna table and report version for historical consumers.
+// Every supported model has its own dated standard-rate table; never default an
+// unrecognized model to Luna or to a discounted/batch price.
+export const PRICING_BY_MODEL = Object.freeze({
+  [PRICING.model]: PRICING,
+  "gpt-6.1-sol": Object.freeze({
+    model: "gpt-6.1-sol",
+    currency: "USD",
+    basis: "standard API text-token rates; not an invoice",
+    source_checked_at: "2026-10-13",
+    source_url: "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+    per_million: Object.freeze({ input: 2, cached_input: 0.10, cache_write_input: 2.50, output: 10 }),
+    long_context: Object.freeze({ input_tokens_exceeding: 272000, input_multiplier: 2, output_multiplier: 1.5 })
+  })
+});
+
 const object = value => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 const integer = value => Number.isSafeInteger(value) && value >= 0;
 const round = value => Number(value.toFixed(12));
@@ -55,21 +71,22 @@ export function normalizeUsage(...sources) {
 
 export function estimateUsageCost(model, usage) {
   const issues = [...usage.issues];
-  if (model !== PRICING.model) issues.push("model_pricing_unavailable");
+  const pricing = Object.hasOwn(PRICING_BY_MODEL, model) ? PRICING_BY_MODEL[model] : null;
+  if (!pricing) issues.push("model_pricing_unavailable");
   if (usage.input_tokens === null || usage.output_tokens === null) issues.push("input_or_output_usage_missing");
   if (issues.length) return { status: "unknown", lower_usd: 0, upper_usd: null, exact_usd: null, issues };
   const input = usage.input_tokens;
   const output = usage.output_tokens;
   const reads = usage.cached_input_tokens;
   const writes = usage.cache_write_input_tokens;
-  const longContext = input > PRICING.long_context.input_tokens_exceeding;
-  const inputMultiplier = longContext ? PRICING.long_context.input_multiplier : 1;
-  const outputMultiplier = longContext ? PRICING.long_context.output_multiplier : 1;
+  const longContext = input > pricing.long_context.input_tokens_exceeding;
+  const inputMultiplier = longContext ? pricing.long_context.input_multiplier : 1;
+  const outputMultiplier = longContext ? pricing.long_context.output_multiplier : 1;
   const price = (readCount, writeCount) => round((
-    ((input - readCount - writeCount) * PRICING.per_million.input
-      + readCount * PRICING.per_million.cached_input
-      + writeCount * PRICING.per_million.cache_write_input) * inputMultiplier
-    + output * PRICING.per_million.output * outputMultiplier
+    ((input - readCount - writeCount) * pricing.per_million.input
+      + readCount * pricing.per_million.cached_input
+      + writeCount * pricing.per_million.cache_write_input) * inputMultiplier
+    + output * pricing.per_million.output * outputMultiplier
   ) / 1_000_000);
   // Missing cache details are unknown, not zero. Reads and writes are disjoint
   // subsets of total input; reasoning is already a subset of total output.
@@ -209,7 +226,9 @@ export function buildSessionCostReport(report, recordsByCase, generatedAt = new 
   const output = {
     version: "ai-session-cost-report-v1", generated_at: generatedAt, synthetic_only: true,
     pricing: PRICING,
+    pricing_by_model: PRICING_BY_MODEL,
     interpretation: [
+      "pricing preserves the original Luna table for compatibility; pricing_by_model records the dated standard-rate table used for each supported model.",
       "Application cost is per synthetic three-item assessment session, including preparation and the recorded dialogue; it excludes the learner simulator.",
       "Failed/rejected records and semantic-regeneration attempts are included. Missing earlier transport usage produces an unknown upper bound.",
       "Cached reads and cache writes partition input; reasoning is part of output and is never added again.",

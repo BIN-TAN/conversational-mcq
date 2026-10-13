@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { analyzeAgentCall, buildSessionCostReport, estimateUsageCost, normalizeUsage, PRICING } from "./ai-session-cost-report.mjs";
+import { analyzeAgentCall, buildSessionCostReport, estimateUsageCost, normalizeUsage, PRICING, PRICING_BY_MODEL } from "./ai-session-cost-report.mjs";
 
 const usage = (input = 1000, output = 100, cached = 500, writes = 0) => ({
   input_tokens: input, output_tokens: output, total_tokens: input + output,
@@ -27,6 +27,70 @@ test("cached input is priced once and reasoning stays within output", () => {
 
 test("cache writes replace regular input at the 1.25 multiplier", () => {
   assert.equal(estimateUsageCost(PRICING.model, normalizeUsage(usage(1000, 100, 200, 300))).exact_usd, 0.000299);
+});
+
+test("Sol uses dated standard prices while preserving the historical Luna table and report version", () => {
+  assert.deepEqual(PRICING.per_million, { input: 0.20, cached_input: 0.02, cache_write_input: 0.25, output: 1.20 });
+  assert.equal(PRICING_BY_MODEL[PRICING.model], PRICING);
+  const sol = PRICING_BY_MODEL["gpt-6.1-sol"];
+  assert.deepEqual(sol.per_million, { input: 2, cached_input: 0.10, cache_write_input: 2.50, output: 10 });
+  assert.equal(sol.source_checked_at, "2026-10-13");
+  assert.equal(sol.source_url, "https://developers.openai.com/api/docs/models/gpt-6.1-sol");
+  const report = buildSessionCostReport(fixture(), new Map([["demo", [row({ model_name: sol.model })]]]));
+  assert.equal(report.version, "ai-session-cost-report-v1");
+  assert.equal(report.pricing, PRICING);
+  assert.equal(report.pricing_by_model[sol.model], sol);
+  assert.equal(report.application_total.cost.exact_usd, 0.00205);
+  assert.equal(report.simulator_learner_total.cost.exact_usd, 0.00023);
+  assert.equal(report.combined_recorded_total.cost.exact_usd, 0.00228);
+});
+
+test("Sol partitions cache writes and reads without charging reasoning twice", () => {
+  const parsed = normalizeUsage(usage(1000, 100, 200, 300));
+  assert.equal(estimateUsageCost("gpt-6.1-sol", parsed).exact_usd, 0.00277);
+  assert.equal(estimateUsageCost("gpt-6.1-sol", { ...parsed, reasoning_tokens: 100 }).exact_usd, 0.00277);
+  const missing = estimateUsageCost("gpt-6.1-sol", normalizeUsage({ input_tokens: 1000, output_tokens: 100 }));
+  assert.equal(missing.lower_usd, 0.0011);
+  assert.equal(missing.upper_usd, 0.0035);
+  assert.equal(missing.exact_usd, null);
+  assert.deepEqual(missing.issues, ["cached_input_split_missing", "cache_write_split_missing"]);
+  for (const unknown of ["gpt-6.1-sol-unverified", "toString", "__proto__"]) {
+    const cost = estimateUsageCost(unknown, parsed);
+    assert.equal(cost.upper_usd, null);
+    assert.deepEqual(cost.issues, ["model_pricing_unavailable"]);
+  }
+});
+
+test("Sol long-context rates apply to the whole request including cached reads and writes only above 272K", () => {
+  const at = estimateUsageCost("gpt-6.1-sol", normalizeUsage(usage(272000, 100, 100000, 72000)));
+  const above = estimateUsageCost("gpt-6.1-sol", normalizeUsage(usage(272001, 100, 100000, 72000)));
+  assert.equal(at.exact_usd, 0.391);
+  assert.equal(at.long_context_multiplier_applied, false);
+  assert.equal(above.exact_usd, 0.781504);
+  assert.equal(above.long_context_multiplier_applied, true);
+});
+
+test("mixed-model transport prices both rejected and repaired Sol calls once while retaining Luna overhead", () => {
+  const ledger = { version: "ai-session-transport-usage-v1", requests: [
+    { request_index: 1, case_id: "demo", category: "application", model_name: PRICING.model, status: "completed", usage: usage() },
+    { request_index: 2, case_id: "demo", category: "application", model_name: "gpt-6.1-sol", status: "failed", usage: usage(1000, 100, 200, 300) },
+    { request_index: 3, case_id: "demo", category: "application", model_name: "gpt-6.1-sol", status: "completed", usage: usage(1000, 100, 200, 300) },
+    { request_index: 4, case_id: "demo", category: "simulator_learner", model_name: PRICING.model, status: "completed", usage: usage() }
+  ] };
+  const records = new Map([["demo", [row({ model_name: "gpt-6.1-sol", retry_count: 1 })]]]);
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 4 }), records, "test", ledger);
+  assert.equal(report.provider_dispatch_reconciliation.status, "matched");
+  assert.equal(report.sessions[0].agent_call_recorded_usage.cost.upper_usd, null);
+  assert.deepEqual(report.sessions[0].application.models, [PRICING.model, "gpt-6.1-sol"]);
+  assert.equal(report.application_total.recorded_usage_units, 3);
+  assert.equal(report.application_total.cost.exact_usd, 0.00577);
+  assert.equal(report.simulator_learner_total.cost.exact_usd, 0.00023);
+  assert.equal(report.combined_recorded_total.cost.exact_usd, 0.006);
+  ledger.requests[1].usage = null;
+  const missing = buildSessionCostReport(fixture({ provider_dispatches: 4 }), records, "test", ledger);
+  assert.equal(missing.application_total.cost.upper_usd, null);
+  assert.equal(missing.application_total.tokens.input_tokens.records_missing, 1);
+  assert.equal(missing.combined_recorded_total.cost.upper_usd, null);
 });
 
 test("missing cache/read/write splits form ranges instead of fabricated zero", () => {

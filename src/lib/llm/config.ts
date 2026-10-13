@@ -3,6 +3,7 @@ import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "./connectivity-budget";
+import { MIXED_TUTOR_MODEL, MIXED_TUTOR_ROLE } from "../operational/mixed-tutor-identity";
 import {
   type ApprovedCandidateManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
@@ -367,6 +368,11 @@ function approvalBoundary(role: LiveModelRole): RoleModelReadiness["approval_bou
 }
 
 function modelCapabilityFor(modelName: string) {
+  if (modelName === MIXED_TUTOR_MODEL) {
+    // https://developers.openai.com/api/docs/models/gpt-6.1-sol
+    // Capabilities do not authorize a different effort in a pinned candidate.
+    return new Set<ReasoningEffort>(["low", "medium", "high", "xhigh", "max"]);
+  }
   if (/^gpt-5\.6-luna$/u.test(modelName)) {
     // Official model documentation also supports medium; candidate approval
     // still binds the exact effort independently of this capability check.
@@ -392,6 +398,7 @@ function roleAllowsModel(role: LiveModelRole, modelName: string) {
   // The all-role Luna candidate still has to satisfy the active bundle's exact
   // model, effort, token-budget and approval checks below.
   if (modelName === "gpt-5.6-luna") return true;
+  if (modelName === MIXED_TUTOR_MODEL) return role === MIXED_TUTOR_ROLE;
   if (!modelName.startsWith("gpt-5.6-")) {
     return true;
   }

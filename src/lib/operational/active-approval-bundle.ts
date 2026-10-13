@@ -14,6 +14,8 @@ import {
   modelUpgradeCandidateRuntimeSnapshot
 } from "./model-upgrade-candidate-identity";
 import { stableHash } from "./stable-hash";
+import { MIXED_TUTOR_MODEL, MIXED_TUTOR_CANDIDATE_VERSION, MIXED_TUTOR_AMENDMENT_VERSION,
+  lunaCandidateModelForRole } from "./mixed-tutor-identity";
 import { ScopedFeedbackBudgetSchema, type ScopedFeedbackBudget } from "./scoped-feedback-budget";
 import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "../llm/connectivity-budget";
 import { verifyLunaValidation, type LunaCandidateReasoningEffort } from "./luna-low-validation-evidence";
@@ -296,7 +298,8 @@ const LocalLunaLowCandidateRecordSchema = z.object({
 const LocalLunaCandidateRecordSchema = z.union([
   LocalLunaLowCandidateRecordSchema,
   LocalLunaLowCandidateRecordSchema.extend({ version: z.literal("luna-medium-all-roles-candidate-v1") }).strict(),
-  LocalLunaLowCandidateRecordSchema.extend({ version: z.literal(LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION) }).strict()
+  LocalLunaLowCandidateRecordSchema.extend({ version: z.literal(LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION) }).strict(),
+  LocalLunaLowCandidateRecordSchema.extend({ version: z.literal(MIXED_TUTOR_CANDIDATE_VERSION) }).strict()
 ]);
 
 const ActiveBundleRecordSchema = z.union([
@@ -457,7 +460,7 @@ export function verifyApprovedCandidateArtifacts(input: {
             : evidence.approval_command_version === SOL_LOW_REASONING_AMENDMENT_VERSION
               ? solLowReasoningAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
               : [LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION, LUNA_MEDIUM_ALL_ROLES_AMENDMENT_VERSION,
-                LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION].includes(evidence.approval_command_version)
+                LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION, MIXED_TUTOR_AMENDMENT_VERSION].includes(evidence.approval_command_version)
                 ? lunaLowAllRolesAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
         : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
@@ -967,10 +970,14 @@ export function buildLunaLowAllRolesCandidateManifest(parent: ApprovedCandidateM
 }
 
 export function buildLunaAllRolesCandidateManifest(parent: ApprovedCandidateManifest, reasoningEffort: LunaCandidateReasoningEffort,
-  profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION) {
+  profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION, tutorModel?: typeof MIXED_TUTOR_MODEL) {
   z.enum(["low", "medium"]).parse(reasoningEffort);
   if (profileCorrection !== undefined && (profileCorrection !== LUNA_PROFILE_FIDELITY_CORRECTION || reasoningEffort !== "medium")) {
     throw new Error("The exact profile-fidelity correction is authorized only for the separate medium candidate.");
+  }
+  if (tutorModel !== undefined && (tutorModel !== MIXED_TUTOR_MODEL || reasoningEffort !== "medium" ||
+      profileCorrection !== LUNA_PROFILE_FIDELITY_CORRECTION)) {
+    throw new Error("The mixed tutor candidate requires the exact GPT-6.1 Sol medium tutor and profile-fidelity correction.");
   }
   const manifest = ApprovedCandidateManifestSchema.parse(structuredClone(parent));
   assertExactRoleInventory(manifest);
@@ -978,7 +985,7 @@ export function buildLunaAllRolesCandidateManifest(parent: ApprovedCandidateMani
     throw new Error("Luna-low requires all 18 explicit parent roles; historical aliases must not be promoted implicitly.");
   }
   for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
-    manifest.roles[role]!.model_name = "gpt-5.6-luna";
+    manifest.roles[role]!.model_name = lunaCandidateModelForRole(role, tutorModel);
     manifest.roles[role]!.reasoning_effort = reasoningEffort;
   }
   if (profileCorrection) applyLunaProfileFidelityCorrection(manifest);
@@ -1006,6 +1013,7 @@ function lunaLowLineage(parent: ActiveDerivedOperationalApproval, expectedParent
 export function stageLunaAllRolesCandidate(input: {
   reasoningEffort: LunaCandidateReasoningEffort;
   profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION;
+  tutorModel?: typeof MIXED_TUTOR_MODEL;
   parent: ActiveDerivedOperationalApproval;
   expectedParentHash: string;
   outputDirectory: string;
@@ -1017,7 +1025,7 @@ export function stageLunaAllRolesCandidate(input: {
     parentManifest: verified.manifest, parentManifestReference: lineage.parent_manifest,
     parentRuntimeHash: lineage.parent_runtime_hash, parentApprovalVerification: "verified_locally",
     outputDirectory: input.outputDirectory, authorizationReference: input.authorizationReference,
-    reasoningEffort: input.reasoningEffort, profileCorrection: input.profileCorrection
+    reasoningEffort: input.reasoningEffort, profileCorrection: input.profileCorrection, tutorModel: input.tutorModel
   });
 }
 
@@ -1026,6 +1034,7 @@ export function stageLunaAllRolesCandidate(input: {
 export function stageLunaAllRolesCandidateFromManifest(input: {
   reasoningEffort: LunaCandidateReasoningEffort;
   profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION;
+  tutorModel?: typeof MIXED_TUTOR_MODEL;
   parentManifestPath: string;
   expectedParentManifestSha256: string;
   expectedParentRuntimeHash: string;
@@ -1046,13 +1055,14 @@ export function stageLunaAllRolesCandidateFromManifest(input: {
     parentManifestReference: { path: parentManifestPath, sha256: input.expectedParentManifestSha256 },
     parentRuntimeHash: input.expectedParentRuntimeHash, parentApprovalVerification: "not_reverified_locally",
     outputDirectory: input.outputDirectory, authorizationReference: input.authorizationReference,
-    reasoningEffort: input.reasoningEffort, profileCorrection: input.profileCorrection
+    reasoningEffort: input.reasoningEffort, profileCorrection: input.profileCorrection, tutorModel: input.tutorModel
   });
 }
 
 function writeLunaLowCandidate(input: {
   reasoningEffort: LunaCandidateReasoningEffort;
   profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION;
+  tutorModel?: typeof MIXED_TUTOR_MODEL;
   parentManifest: ApprovedCandidateManifest;
   parentManifestReference: z.infer<typeof FileReferenceSchema>;
   parentRuntimeHash: string;
@@ -1060,7 +1070,7 @@ function writeLunaLowCandidate(input: {
   outputDirectory: string;
   authorizationReference: string;
 }) {
-  const manifest = buildLunaAllRolesCandidateManifest(input.parentManifest, input.reasoningEffort, input.profileCorrection);
+  const manifest = buildLunaAllRolesCandidateManifest(input.parentManifest, input.reasoningEffort, input.profileCorrection, input.tutorModel);
   const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES);
   const directory = path.resolve(input.outputDirectory);
   mkdirSync(directory, { recursive: false, mode: 0o700 });
@@ -1068,7 +1078,7 @@ function writeLunaLowCandidate(input: {
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
   const candidatePath = path.join(directory, "candidate-evaluation.json");
   writeFileSync(candidatePath, JSON.stringify({
-    version: input.profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION : `luna-${input.reasoningEffort}-all-roles-candidate-v1`,
+    version: input.tutorModel ? MIXED_TUTOR_CANDIDATE_VERSION : input.profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION : `luna-${input.reasoningEffort}-all-roles-candidate-v1`,
     active_kind: "local_candidate_evaluation",
     validation_pending: true,
     production_activation_permitted: false,
@@ -1087,17 +1097,18 @@ function lunaLowAllRolesAmendmentIssues(
   evidence: OperationalApprovalEvidence,
   depth: number
 ) {
-  const profileCorrection = evidence.approval_command_version === LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION ? LUNA_PROFILE_FIDELITY_CORRECTION : undefined;
+  const tutorModel = evidence.approval_command_version === MIXED_TUTOR_AMENDMENT_VERSION ? MIXED_TUTOR_MODEL : undefined;
+  const profileCorrection = tutorModel || evidence.approval_command_version === LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION ? LUNA_PROFILE_FIDELITY_CORRECTION : undefined;
   const reasoningEffort = evidence.approval_command_version === LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION ? "low" : "medium";
   const amendment = LunaLowLineageSchema.extend({ validation_evidence: FileReferenceSchema }).strict()
-    .parse(evidence[profileCorrection ? "luna_medium_profile_fidelity_amendment" : `luna_${reasoningEffort}_all_roles_amendment`]);
+    .parse(evidence[tutorModel ? "mixed_tutor_profile_fidelity_amendment" : profileCorrection ? "luna_medium_profile_fidelity_amendment" : `luna_${reasoningEffort}_all_roles_amendment`]);
   const parent = verifyLunaLowLineage(amendment, depth);
-  const expected = buildLunaAllRolesCandidateManifest(parent.manifest, reasoningEffort, profileCorrection);
-  verifyLunaValidation(amendment.validation_evidence, evidence.runtime_candidate_hash, reasoningEffort, profileCorrection);
+  const expected = buildLunaAllRolesCandidateManifest(parent.manifest, reasoningEffort, profileCorrection, tutorModel);
+  verifyLunaValidation(amendment.validation_evidence, evidence.runtime_candidate_hash, reasoningEffort, profileCorrection, tutorModel);
   const review = evidence.human_review;
   return [
     ...(stableHash(expected) !== stableHash(manifest) ? ["luna_low_changed_other_settings"] : []),
-    ...(review.decision !== "approve" || review.scope !== (profileCorrection ? "all_application_roles_medium_and_exact_profile_fidelity_correction" : "all_application_roles_model_and_reasoning_only") ||
+    ...(review.decision !== "approve" || review.scope !== (tutorModel ? "mixed_sol_tutor_luna_medium_and_exact_profile_fidelity_correction" : profileCorrection ? "all_application_roles_medium_and_exact_profile_fidelity_correction" : "all_application_roles_model_and_reasoning_only") ||
       review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
       review.synthetic_engineering_results_reviewed !== true ||
       typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
@@ -1113,6 +1124,7 @@ function lunaLowAllRolesAmendmentIssues(
 export function prepareLunaAllRolesAmendment(input: {
   reasoningEffort: LunaCandidateReasoningEffort;
   profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION;
+  tutorModel?: typeof MIXED_TUTOR_MODEL;
   parent: ActiveDerivedOperationalApproval;
   expectedParentHash: string;
   validationEvidencePath: string;
@@ -1121,12 +1133,12 @@ export function prepareLunaAllRolesAmendment(input: {
 }) {
   if (!input.authorizationReference.trim()) throw new Error("Explicit operator authorization is required.");
   const { lineage, verified } = lunaLowLineage(input.parent, input.expectedParentHash);
-  const manifest = buildLunaAllRolesCandidateManifest(verified.manifest, input.reasoningEffort, input.profileCorrection);
-  const amendmentVersion = input.profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION :
+  const manifest = buildLunaAllRolesCandidateManifest(verified.manifest, input.reasoningEffort, input.profileCorrection, input.tutorModel);
+  const amendmentVersion = input.tutorModel ? MIXED_TUTOR_AMENDMENT_VERSION : input.profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION :
     input.reasoningEffort === "low" ? LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION : LUNA_MEDIUM_ALL_ROLES_AMENDMENT_VERSION;
   const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES);
   const sourceValidationPath = path.resolve(input.validationEvidencePath);
-  verifyLunaValidation({ path: sourceValidationPath, sha256: sha256File(sourceValidationPath) }, runtimeHash, input.reasoningEffort, input.profileCorrection);
+  verifyLunaValidation({ path: sourceValidationPath, sha256: sha256File(sourceValidationPath) }, runtimeHash, input.reasoningEffort, input.profileCorrection, input.tutorModel);
   const directory = path.resolve(input.outputDirectory);
   mkdirSync(directory, { recursive: false, mode: 0o700 });
   const manifestPath = path.join(directory, "approved-candidate-manifest.json");
@@ -1135,15 +1147,17 @@ export function prepareLunaAllRolesAmendment(input: {
   const amendment = { ...lineage,
     validation_evidence: { path: validationPath, sha256: sha256File(validationPath) } };
   const identity = {
-    source_provider_run_id: `luna-${input.reasoningEffort}${input.profileCorrection ? "-profile-fidelity" : ""}:${amendment.validation_evidence.sha256}`,
+    source_provider_run_id: `${input.tutorModel ? "mixed-gpt61-sol-tutor-luna-medium-profile-fidelity" : `luna-${input.reasoningEffort}${input.profileCorrection ? "-profile-fidelity" : ""}`}:${amendment.validation_evidence.sha256}`,
     derived_evaluation_id: `${amendmentVersion}:${runtimeHash}`,
     runtime_candidate_hash: runtimeHash,
     source_evaluation_protocol_hash: verified.evidence.evaluation_protocol_hash,
     evaluation_protocol_hash: stableHash(amendment),
-    human_review: { decision: "approve", scope: input.profileCorrection ? "all_application_roles_medium_and_exact_profile_fidelity_correction" : "all_application_roles_model_and_reasoning_only",
+    human_review: { decision: "approve", scope: input.tutorModel ? "mixed_sol_tutor_luna_medium_and_exact_profile_fidelity_correction" : input.profileCorrection ? "all_application_roles_medium_and_exact_profile_fidelity_correction" : "all_application_roles_model_and_reasoning_only",
       operator_authorized: true, semantic_review_confirmed: false, synthetic_engineering_results_reviewed: true,
       authorization_reference: input.authorizationReference,
-      limitations: input.profileCorrection
+      limitations: input.tutorModel
+        ? "Operator-authorized GPT-6.1 Sol medium for the formative conversation tutor only; the other 17 application roles use Luna medium with the exact profile-fidelity correction. All seven native synthetic scenarios received explicit overall engineering acceptance, including profile fidelity and question coverage. This is not independent human validation, diagnostic accuracy or classroom learning evidence. Budgets, unrelated fingerprints, runtime policies and historical records retain their parent configuration."
+        : input.profileCorrection
         ? "Operator-authorized Luna medium for all 18 application roles plus the exact v7/v5 profile-fidelity prompt, schema, consistency and bounded repair correction. Native synthetic results and each case's profile fidelity and student-question coverage were reviewed as engineering evidence only, not independent human validation, diagnostic accuracy or classroom learning evidence. Budgets, unrelated fingerprints, runtime policies and historical records retain their parent configuration."
         : `Operator-authorized model/reasoning change to gpt-5.6-luna ${input.reasoningEffort} for all 18 application roles. Recorded live synthetic engineering results were reviewed; this is not independent human validation, diagnostic accuracy or classroom learning evidence. Budgets, prompts, contracts, guards and historical records retain their parent configuration.` }
   };
@@ -1152,7 +1166,7 @@ export function prepareLunaAllRolesAmendment(input: {
     approved_at: new Date().toISOString(), source_artifact_sha256: amendment.validation_evidence.sha256,
     approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
     rollback_hash: verified.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath,
-    [input.profileCorrection ? "luna_medium_profile_fidelity_amendment" : `luna_${input.reasoningEffort}_all_roles_amendment`]: amendment
+    [input.tutorModel ? "mixed_tutor_profile_fidelity_amendment" : input.profileCorrection ? "luna_medium_profile_fidelity_amendment" : `luna_${input.reasoningEffort}_all_roles_amendment`]: amendment
   };
   const evidencePath = path.join(directory, "approval-evidence.json");
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
@@ -1164,13 +1178,13 @@ export function prepareLunaAllRolesAmendment(input: {
 }
 
 // Low-v1 entry points remain fixed to low, including their artifact identities.
-export function stageLunaLowAllRolesCandidate(input: Omit<Parameters<typeof stageLunaAllRolesCandidate>[0], "reasoningEffort" | "profileCorrection">) {
+export function stageLunaLowAllRolesCandidate(input: Omit<Parameters<typeof stageLunaAllRolesCandidate>[0], "reasoningEffort" | "profileCorrection" | "tutorModel">) {
   return stageLunaAllRolesCandidate({ ...input, reasoningEffort: "low" });
 }
-export function stageLunaLowAllRolesCandidateFromManifest(input: Omit<Parameters<typeof stageLunaAllRolesCandidateFromManifest>[0], "reasoningEffort" | "profileCorrection">) {
+export function stageLunaLowAllRolesCandidateFromManifest(input: Omit<Parameters<typeof stageLunaAllRolesCandidateFromManifest>[0], "reasoningEffort" | "profileCorrection" | "tutorModel">) {
   return stageLunaAllRolesCandidateFromManifest({ ...input, reasoningEffort: "low" });
 }
-export function prepareLunaLowAllRolesAmendment(input: Omit<Parameters<typeof prepareLunaAllRolesAmendment>[0], "reasoningEffort" | "profileCorrection">) {
+export function prepareLunaLowAllRolesAmendment(input: Omit<Parameters<typeof prepareLunaAllRolesAmendment>[0], "reasoningEffort" | "profileCorrection" | "tutorModel">) {
   return prepareLunaAllRolesAmendment({ ...input, reasoningEffort: "low" });
 }
 
@@ -1232,9 +1246,10 @@ function resolveLocalLunaLowCandidate(
   const parentPath = assertFileHash(record.parent_manifest, bundlePath, "local_candidate_parent_integrity_mismatch");
   const manifest = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
   const parent = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync(parentPath, "utf8")));
-  const profileCorrection = record.version === LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION ? LUNA_PROFILE_FIDELITY_CORRECTION : undefined;
+  const tutorModel = record.version === MIXED_TUTOR_CANDIDATE_VERSION ? MIXED_TUTOR_MODEL : undefined;
+  const profileCorrection = tutorModel || record.version === LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION ? LUNA_PROFILE_FIDELITY_CORRECTION : undefined;
   const reasoningEffort = record.version === "luna-low-all-roles-candidate-v1" ? "low" : "medium";
-  const expected = buildLunaAllRolesCandidateManifest(parent, reasoningEffort, profileCorrection);
+  const expected = buildLunaAllRolesCandidateManifest(parent, reasoningEffort, profileCorrection, tutorModel);
   if (modelUpgradeCandidateRuntimeHash(parent, approvedOperationalRoleNamesForManifest(parent)) !== record.parent_runtime_hash ||
       stableHash(expected) !== stableHash(manifest) ||
       modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES) !== record.runtime_candidate_hash ||

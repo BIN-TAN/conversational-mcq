@@ -30,22 +30,28 @@ import { LUNA_LOW_REQUIRED_SCENARIOS, verifyLunaLowValidation, verifyLunaValidat
 import { applyLunaProfileFidelityCorrection, LUNA_PROFILE_FIDELITY_CORRECTION,
   LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION, LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION,
   LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION, LUNA_PROFILE_FIDELITY_SOURCE_FILES } from "../src/lib/operational/luna-profile-fidelity-identity";
+import { MIXED_TUTOR_MODEL, MIXED_TUTOR_CANDIDATE_VERSION, MIXED_TUTOR_AMENDMENT_VERSION,
+  MIXED_TUTOR_VALIDATION_VERSION, MIXED_TUTOR_SOURCE_FILES, lunaCandidateModelForRole } from "../src/lib/operational/mixed-tutor-identity";
 
 // These records exercise verification code only. They are not real approval or provider evidence.
 globalThis.fetch = async () => { throw new Error("network_not_allowed_in_offline_smoke"); };
 
-async function main(reasoningEffort: "low" | "medium", profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION) {
-const validationVersion = profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION :
+async function main(reasoningEffort: "low" | "medium", profileCorrection?: typeof LUNA_PROFILE_FIDELITY_CORRECTION,
+  tutorModel?: typeof MIXED_TUTOR_MODEL) {
+const sourceFiles = tutorModel ? MIXED_TUTOR_SOURCE_FILES : LUNA_PROFILE_FIDELITY_SOURCE_FILES;
+const modelForRole = (role: string) => lunaCandidateModelForRole(role, tutorModel);
+const modelCounts = (count = 1): Record<string, number> => tutorModel ? { "gpt-5.6-luna": 2 * count, [tutorModel]: count } : { "gpt-5.6-luna": 3 * count };
+const validationVersion = tutorModel ? MIXED_TUTOR_VALIDATION_VERSION : profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION :
   reasoningEffort === "low" ? LUNA_LOW_ALL_ROLES_VALIDATION_VERSION : LUNA_MEDIUM_ALL_ROLES_VALIDATION_VERSION;
 const otherEffort = reasoningEffort === "low" ? "medium" : "low";
 const buildCandidate = (parent: Parameters<typeof buildLunaAllRolesCandidateManifest>[0]) =>
-  reasoningEffort === "low" ? buildLunaLowAllRolesCandidateManifest(parent) : buildLunaAllRolesCandidateManifest(parent, reasoningEffort, profileCorrection);
+  reasoningEffort === "low" ? buildLunaLowAllRolesCandidateManifest(parent) : buildLunaAllRolesCandidateManifest(parent, reasoningEffort, profileCorrection, tutorModel);
 const stageCandidate = (input: Parameters<typeof stageLunaLowAllRolesCandidate>[0]) =>
-  reasoningEffort === "low" ? stageLunaLowAllRolesCandidate(input) : stageLunaAllRolesCandidate({ ...input, reasoningEffort, profileCorrection });
+  reasoningEffort === "low" ? stageLunaLowAllRolesCandidate(input) : stageLunaAllRolesCandidate({ ...input, reasoningEffort, profileCorrection, tutorModel });
 const stageExported = (input: Parameters<typeof stageLunaLowAllRolesCandidateFromManifest>[0]) =>
-  reasoningEffort === "low" ? stageLunaLowAllRolesCandidateFromManifest(input) : stageLunaAllRolesCandidateFromManifest({ ...input, reasoningEffort, profileCorrection });
+  reasoningEffort === "low" ? stageLunaLowAllRolesCandidateFromManifest(input) : stageLunaAllRolesCandidateFromManifest({ ...input, reasoningEffort, profileCorrection, tutorModel });
 const prepareAmendment = (input: Parameters<typeof prepareLunaLowAllRolesAmendment>[0]) =>
-  reasoningEffort === "low" ? prepareLunaLowAllRolesAmendment(input) : prepareLunaAllRolesAmendment({ ...input, reasoningEffort, profileCorrection });
+  reasoningEffort === "low" ? prepareLunaLowAllRolesAmendment(input) : prepareLunaAllRolesAmendment({ ...input, reasoningEffort, profileCorrection, tutorModel });
 const directory = mkdtempSync(path.join(tmpdir(), "luna-low-offline-fixture-"));
 const save = (name: string, value: unknown) => {
   const file = path.join(directory, name);
@@ -128,7 +134,7 @@ try {
   check(() => assert.equal(Object.keys(candidate.roles).length, 18));
   for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
     check(() => assert.deepEqual(candidate.roles[role], {
-      ...parent.manifest.roles[role], model_name: "gpt-5.6-luna", reasoning_effort: reasoningEffort
+      ...parent.manifest.roles[role], model_name: modelForRole(role), reasoning_effort: reasoningEffort
     }));
   }
   check(() => assert.deepEqual(candidate.runtime_policy, parent.manifest.runtime_policy));
@@ -143,11 +149,22 @@ try {
       check(() => assert.throws(() => buildCandidate(unsupported), /parent/));
     }
   }
+  if (tutorModel) {
+    check(() => assert.throws(() => buildLunaAllRolesCandidateManifest(parent.manifest, "low", undefined, tutorModel)));
+    check(() => assert.throws(() => buildLunaAllRolesCandidateManifest(parent.manifest, "medium", undefined, tutorModel)));
+    check(() => assert.throws(() => buildLunaAllRolesCandidateManifest(parent.manifest, "medium", profileCorrection, "unapproved" as typeof tutorModel)));
+    const allLuna = buildLunaAllRolesCandidateManifest(parent.manifest, "medium", profileCorrection);
+    const withoutTutorUpgrade = structuredClone(candidate);
+    withoutTutorUpgrade.roles.formative_conversation_agent!.model_name = "gpt-5.6-luna";
+    check(() => assert.deepEqual(withoutTutorUpgrade, allLuna));
+    check(() => assert.notEqual(modelUpgradeCandidateRuntimeHash(candidate, APPROVED_OPERATIONAL_ROLE_NAMES),
+      modelUpgradeCandidateRuntimeHash(allLuna, APPROVED_OPERATIONAL_ROLE_NAMES)));
+  }
   check(() => assert.equal(stableHash(parent.manifest), parentObjectBefore));
   const common = { parent, expectedParentHash: parentHash, authorizationReference: "OFFLINE FIXTURE ONLY" };
   const staged = stageCandidate({ ...common, outputDirectory: path.join(directory, "candidate") });
   check(() => assert.equal(JSON.parse(readFileSync(staged.candidatePath, "utf8")).version,
-    profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION : `luna-${reasoningEffort}-all-roles-candidate-v1`));
+    tutorModel ? MIXED_TUTOR_CANDIDATE_VERSION : profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION : `luna-${reasoningEffort}-all-roles-candidate-v1`));
   check(() => assert.notEqual(staged.runtime_candidate_hash,
     modelUpgradeCandidateRuntimeHash(buildLunaAllRolesCandidateManifest(parent.manifest, otherEffort), APPROVED_OPERATIONAL_ROLE_NAMES)));
   check(() => assert.equal(staged.status, "candidate_not_approved"));
@@ -168,6 +185,14 @@ try {
   const resolveCandidate = (env: Record<string, string | undefined>) =>
     resolveActiveOperationalApproval({ bundlePath: staged.candidatePath, env });
   check(() => assert.equal(resolveCandidate(candidateEnv)?.kind, "local_candidate_evaluation"));
+  if (tutorModel) {
+    const candidateBytes = readFileSync(staged.candidatePath, "utf8");
+    const mislabeled = JSON.parse(candidateBytes) as { version: string };
+    mislabeled.version = LUNA_MEDIUM_PROFILE_FIDELITY_CANDIDATE_VERSION;
+    writeFileSync(staged.candidatePath, JSON.stringify(mislabeled));
+    check(() => assert.throws(() => resolveCandidate(candidateEnv), /identity/));
+    writeFileSync(staged.candidatePath, candidateBytes);
+  }
   check(() => assert.equal(resolveApprovedOperationalRuntimeRequirement({ requestedHash: staged.runtime_candidate_hash,
     bundlePath: staged.candidatePath, env: candidateEnv }).approved_bundle_complete, false));
   for (const changed of [
@@ -230,14 +255,15 @@ try {
   const artifacts: Array<{ case_id: typeof LUNA_LOW_REQUIRED_SCENARIOS[number]; artifact: ReturnType<typeof bound> }> = [];
   const results = LUNA_LOW_REQUIRED_SCENARIOS.map((case_id, index) => {
     const calls = ["student_profiling_agent", "formative_conversation_agent"].map((agent_name, callIndex) => ({
-      agent_name, provider: "openai", model_name: "gpt-5.6-luna", reasoning_effort: reasoningEffort,
+      agent_name, provider: "openai", model_name: modelForRole(agent_name), reasoning_effort: reasoningEffort,
       output_validated: true, call_status: "succeeded", input_tokens: 10, output_tokens: 5,
       provider_response_id: `OFFLINE-FAKE-response-${index}-${callIndex}`,
       raw_output: { fixture_notice: "OFFLINE UNIT FIXTURE ONLY; no provider call or educational review occurred." }
     }));
     artifacts.push({ case_id, artifact: bound(save(`${case_id}-agent-calls.json`, calls)) });
     for (const [callIndex, category] of ["application", "application", "simulator_learner"].entries()) {
-      requests.push({ request_index: requests.length + 1, case_id, category, model_name: "gpt-5.6-luna",
+      const agent_name = callIndex === 0 ? "student_profiling_agent" : callIndex === 1 ? "formative_conversation_agent" : null;
+      requests.push({ request_index: requests.length + 1, case_id, category, agent_name, model_name: modelForRole(agent_name ?? ""),
         status: "completed", usage: { input_tokens: 10, output_tokens: 5, total_tokens: 15 },
         provider_response_id: `OFFLINE-FAKE-response-${index}-${callIndex}` });
     }
@@ -253,9 +279,9 @@ try {
   const report = { version: "ai-student-journeys-v3", suite: "conversational-support-needs", synthetic_only: true,
     real_student_records_used: false, runtime_hash: staged.runtime_candidate_hash, source_commit: "d".repeat(40),
     source_files_sha256: { "OFFLINE-FAKE-SOURCE.ts": "e".repeat(64),
-      ...Object.fromEntries(LUNA_PROFILE_FIDELITY_SOURCE_FILES.map(file => [file, fileHash(file)])) },
+      ...Object.fromEntries(sourceFiles.map(file => [file, fileHash(file)])) },
     student_model: { model_name: "gpt-5.6-luna", reasoning_effort: reasoningEffort },
-    provider_dispatches: requests.length, provider_models: { "gpt-5.6-luna": requests.length },
+    provider_dispatches: requests.length, provider_models: modelCounts(results.length),
     finished_at: new Date().toISOString(), results,
     fixture_notice: "OFFLINE VERIFICATION FIXTURE; no provider call or real simulation occurred." };
   const reportPath = save("offline-native-report.json", report);
@@ -263,9 +289,11 @@ try {
   const transportPath = save("offline-transport.json", transport);
   const validation = { version: validationVersion, synthetic_only: true,
     ...(profileCorrection ? {
-      corrected_source_files_sha256: Object.fromEntries(LUNA_PROFILE_FIDELITY_SOURCE_FILES.map(file => [file, fileHash(file)])),
+      corrected_source_files_sha256: Object.fromEntries(sourceFiles.map(file => [file, fileHash(file)])),
+      ...(tutorModel ? { overall_release_accepted: true } : {}),
       case_reviews: LUNA_LOW_REQUIRED_SCENARIOS.map(case_id => ({ case_id, profile_fidelity_accepted: true,
-        student_question_coverage_accepted: true, limitations: ["OFFLINE UNIT FIXTURE ONLY; no real provider or educational review."] }))
+        student_question_coverage_accepted: true, ...(tutorModel ? { overall_release_accepted: true } : {}),
+        limitations: ["OFFLINE UNIT FIXTURE ONLY; no real provider or educational review."] }))
     } : {}),
     real_student_data_used: false, provider: "openai", runtime_candidate_hash: staged.runtime_candidate_hash,
     all_role_configs_checked: true, regression_passed: true, results_reviewed: true,
@@ -285,12 +313,20 @@ try {
   check(() => assert.equal(prepared.evidence.human_review.semantic_review_confirmed, false));
   check(() => assert.equal(prepared.evidence.human_review.operator_authorized, true));
   check(() => assert.equal(prepared.evidence.approval_command_version,
-    profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION : `luna-${reasoningEffort}-all-roles-amendment-v1`));
+    tutorModel ? MIXED_TUTOR_AMENDMENT_VERSION : profileCorrection ? LUNA_MEDIUM_PROFILE_FIDELITY_AMENDMENT_VERSION : `luna-${reasoningEffort}-all-roles-amendment-v1`));
   check(() => assert.throws(() => verifyLunaValidation(bound(validationPath), staged.runtime_candidate_hash, otherEffort)));
   if (reasoningEffort === "medium") check(() => assert.throws(() => verifyLunaLowValidation(bound(validationPath), staged.runtime_candidate_hash)));
   check(() => assert.equal(prepared.evidence.rollback_hash, parent.evidence.rollback_hash));
   check(() => assert.equal(existsSync(path.join(directory, "offline-final-approval", "active-approval-bundle.json")), false));
   const invalidValidations = [
+    ...(tutorModel ? [
+      { ...validation, overall_release_accepted: false },
+      { ...validation, overall_release_accepted: undefined },
+      { ...validation, case_reviews: validation.case_reviews!.map((row, index) => index === 0 ? { ...row, overall_release_accepted: false } : row) },
+      { ...validation, case_reviews: validation.case_reviews!.map((row, index) => index === 0 ? { ...row, overall_release_accepted: undefined } : row) },
+      { ...validation, version: LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION },
+      { ...validation, corrected_source_files_sha256: Object.fromEntries(LUNA_PROFILE_FIDELITY_SOURCE_FILES.map(file => [file, fileHash(file)])) }
+    ] : []),
     ...(profileCorrection ? [
       { ...validation, corrected_source_files_sha256: {} },
       { ...validation, case_reviews: validation.case_reviews!.slice(0, 6) },
@@ -328,8 +364,16 @@ try {
   const verifyFixture = (fixture: typeof validation) => {
     const file = save("native-fixture-under-test.json", fixture);
     return reasoningEffort === "low" ? verifyLunaLowValidation(bound(file), staged.runtime_candidate_hash) :
-      verifyLunaValidation(bound(file), staged.runtime_candidate_hash, reasoningEffort, profileCorrection);
+      verifyLunaValidation(bound(file), staged.runtime_candidate_hash, reasoningEffort, profileCorrection, tutorModel);
   };
+  if (tutorModel) {
+    check(() => assert.throws(() => verifyLunaValidation(bound(validationPath), staged.runtime_candidate_hash,
+      "medium", profileCorrection)));
+    check(() => assert.throws(() => verifyLunaValidation(bound(validationPath), staged.runtime_candidate_hash,
+      "low", profileCorrection, tutorModel)));
+    check(() => assert.throws(() => verifyLunaValidation(bound(validationPath), staged.runtime_candidate_hash,
+      "medium", undefined, tutorModel)));
+  }
   for (const mutate of [
     (copy: typeof report) => { copy.results.pop(); },
     (copy: typeof report) => { copy.results[0].outcome = "failed"; },
@@ -349,7 +393,7 @@ try {
   save(path.basename(reportPath), report);
   const firstCallsPath = artifacts[0].artifact.path;
   const firstCalls = JSON.parse(readFileSync(firstCallsPath, "utf8")) as Array<Record<string, unknown>>;
-  for (const patch of [ { model_name: "gpt-5.6-sol" }, { reasoning_effort: otherEffort }, { output_validated: false },
+  for (const patch of [ { model_name: "gpt-5.6-sol" }, { model_name: MIXED_TUTOR_MODEL }, { reasoning_effort: otherEffort }, { output_validated: false },
     { call_status: "failed" }, { input_tokens: 0 }, { provider: "mock" }, { provider_response_id: "unrelated" },
     { agent_name: "not_a_profile" } ]) {
     const calls = structuredClone(firstCalls); Object.assign(calls[0], patch); save(path.basename(firstCallsPath), calls);
@@ -357,6 +401,20 @@ try {
     check(() => assert.throws(() => verifyFixture(wrapper)));
   }
   save(path.basename(firstCallsPath), firstCalls);
+  if (tutorModel) {
+    const calls = structuredClone(firstCalls); calls[1].model_name = "gpt-5.6-luna";
+    save(path.basename(firstCallsPath), calls);
+    const wrapper = structuredClone(validation); wrapper.journey_runs[0].agent_calls[0].artifact = bound(firstCallsPath);
+    check(() => assert.throws(() => verifyFixture(wrapper), /model\/reasoning mismatch/));
+    save(path.basename(firstCallsPath), firstCalls);
+    for (const patch of [{ agent_name: null }, { agent_name: "student_profiling_agent" }, { category: "simulator_learner" }]) {
+      const copy = structuredClone(transport); Object.assign(copy.requests[1], patch);
+      save(path.basename(transportPath), copy);
+      const wrapper = structuredClone(validation); wrapper.transport_usage = bound(transportPath);
+      check(() => assert.throws(() => verifyFixture(wrapper), /transport model/));
+    }
+    save(path.basename(transportPath), transport);
+  }
   for (const patch of [ { model_name: "gpt-5.6-sol" }, { status: "unknown" }, { usage: null },
     { provider_response_id: "unrelated" }, { category: "unknown" }, { request_index: 2 }, { case_id: "connectivity_probe" } ]) {
     const copy = structuredClone(transport); Object.assign(copy.requests[0], patch); save(path.basename(transportPath), copy);
@@ -368,7 +426,7 @@ try {
   const separate = structuredClone(validation);
   separate.journey_runs = results.map((result, index) => ({
     report: bound(save(`offline-single-report-${index}.json`, { ...report, results: [result],
-      provider_dispatches: 3, provider_models: { "gpt-5.6-luna": 3 } })),
+      provider_dispatches: 3, provider_models: modelCounts() })),
     agent_calls: [artifacts[index]], transport_request_indices: [index * 3 + 1, index * 3 + 2, index * 3 + 3]
   }));
   check(() => assert(verifyFixture(separate)));
@@ -397,12 +455,12 @@ try {
   save(path.basename(firstCallsPath), recoveredCalls);
   const recoveredReport = structuredClone(report);
   recoveredReport.provider_dispatches++;
-  recoveredReport.provider_models["gpt-5.6-luna"]++;
+  recoveredReport.provider_models[modelForRole("formative_conversation_agent")]++;
   Object.assign(recoveredReport.results[0].application_usage, { calls: 3, input_tokens: 30, output_tokens: 15,
     rejected_or_failed_calls: [{ agent_name: "formative_conversation_agent", call_status: "failed" }] });
   save(path.basename(reportPath), recoveredReport);
   const recoveredTransport = structuredClone(transport);
-  recoveredTransport.requests.push({ ...requests[0], request_index: 22, status: "failed",
+  recoveredTransport.requests.push({ ...requests[1], request_index: 22, status: "failed",
     provider_response_id: "OFFLINE-FAKE-recovered-draft" });
   save(path.basename(transportPath), recoveredTransport);
   const recovered = structuredClone(validation);
@@ -445,7 +503,7 @@ try {
   check(() => assert.equal(fileHash(parent.manifest_path), parentFileBefore));
   check(() => assert.equal(fileHash(parent.approval_evidence_path), parentEvidenceBefore));
   check(() => assert.equal(fileHash(historicalPath), historicalBefore));
-  console.log(JSON.stringify({ checks, reasoning_effort: reasoningEffort, profile_correction: profileCorrection ?? null, status: "passed", provider_calls: 0,
+  console.log(JSON.stringify({ checks, reasoning_effort: reasoningEffort, profile_correction: profileCorrection ?? null, tutor_model: tutorModel ?? null, status: "passed", provider_calls: 0,
     scope: "Offline approval and candidate-boundary verification only; not evidence of live simulation success." }, null, 2));
 } finally {
   process.env = originalEnv;
@@ -458,4 +516,5 @@ try {
 }
 
 main("low").then(() => main("medium")).then(() => main("medium", LUNA_PROFILE_FIDELITY_CORRECTION))
+  .then(() => main("medium", LUNA_PROFILE_FIDELITY_CORRECTION, MIXED_TUTOR_MODEL))
   .catch(error => { console.error(error); process.exitCode = 1; });
