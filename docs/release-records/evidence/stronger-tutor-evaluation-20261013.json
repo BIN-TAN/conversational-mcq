@@ -1,0 +1,689 @@
+{
+  "version": "mixed-tutor-final-evaluation-summary-v1",
+  "release_record_id": "CMCQ-20261013-03",
+  "generated_at": "2026-10-13T19:15:46.929Z",
+  "status": "seven_case_engineering_review_accepted_exact_production_deployment_verified",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "contains_raw_transcripts": false,
+  "contains_credentials": false,
+  "review_kind": "AI_assisted_engineering_review",
+  "independent_human_pedagogical_validation": false,
+  "classroom_learning_effectiveness_evidence": false,
+  "review_complete": true,
+  "overall_trace_acceptance": true,
+  "production_activation_approved": true,
+  "deployment": {
+    "status": "verified_live",
+    "service": "conversational-mcq",
+    "service_id": "srv-d987t1vaqgkc73d5l5q0",
+    "deployment_id": "dep-db782llbedkc7388svrg",
+    "source_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+    "verified_at": "2026-10-13T19:13:21.857Z",
+    "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db782llbedkc7388svrg",
+    "evidence": [
+      "Canonical Render Live observation at 2026-10-13T19:12:57.844Z and main remote verification at 2026-10-13T19:08:15.7446282Z bind application 3aaf605567e19cd3784625e320c793e1287a0cb3.",
+      "Read-only postdeploy verification passed at 2026-10-13T19:13:21.857Z: application build and RENDER_GIT_COMMIT match, runtime e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8, exact 18-role mixed policy and 26 deployed source files match.",
+      "HTTP 200 health, reachable/schema-ready database, migration readiness and exactly one preparation worker were verified. Model/auth probes used Models GET only; no generation call or student job was created.",
+      "Actual runtime scan found no braces or build-only dependencies across 32 package directories. This filesystem check is separate from the earlier zero-finding full and production audits."
+    ]
+  },
+  "candidate": {
+    "application_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+    "runtime_hash": "e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8",
+    "source_ancestry_commit": "7525cbdf5cddd54a38b26b5be2179757644074e3",
+    "source_worktree_dirty_at_execution": true,
+    "source_binding": {
+      "native_files": 40,
+      "required_files": 26,
+      "raw_windows_snapshot_matches": true,
+      "normalized_git_blobs_match": true,
+      "proof": {
+        "path": ".data/stronger-tutor-2026-10-13/commit-source-verification.json",
+        "sha256": "86fe98e63814644e19d788159a49b159ca0e3847391f6402ecce5bafd8e753c6"
+      }
+    },
+    "approved": true,
+    "deployed": true,
+    "pushed_to_main": true
+  },
+  "role_policy": {
+    "tutor_role": "formative_conversation_agent",
+    "tutor_model": "gpt-6.1-sol",
+    "tutor_reasoning_effort": "medium",
+    "tutor_max_output_tokens": 7000,
+    "other_application_roles": 17,
+    "other_model": "gpt-5.6-luna",
+    "other_reasoning_effort": "medium",
+    "synthetic_learner_model": "gpt-5.6-luna",
+    "synthetic_learner_reasoning_effort": "medium",
+    "comparison_reference": "Corrected all-Luna medium v3 candidate; prompts, guards and per-role caps unchanged relative to that reference, not relative to production."
+  },
+  "unit": "One new synthetic three-item assessment session plus six formative student replies and seven tutor turns including opening and closing.",
+  "cases": [
+    {
+      "case_id": "persistent_prerequisite_confusion",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Changed plain-language explanations, supplied the requested worked example, answered the validity and SEM concerns, and offered accurate teacher-help wording without claiming learning. One canonical confidence/reference draft was rejected and repaired.",
+      "rejected_drafts": [
+        {
+          "role": "student_profiling_agent",
+          "scope": "canonical_profile",
+          "reason": "Three sealed confidence mismatches and an ineligible combined evidence reference.",
+          "repair_accepted": true
+        }
+      ],
+      "cost": {
+        "application_usd": 0.40146833,
+        "learner_usd": 0.000225,
+        "total_usd": 0.40169333,
+        "dispatches": 15,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "79a247d5e1c0de1b3b500ae0fd61861e22a211a410aff925c064eeeaa3170ceb",
+        "agent_calls": "50164d7bf7cd68abf42f0dd2cd7c67b8fc964b2a0d808f27d6a41a6956448b4c",
+        "transport": "53b485d25f5563e240d2fb0739146ecb4db5ef72d1f84fcd8fa80ad50700fb9b",
+        "cost_report": "f65b653908c008fd642ab44998841edac801608454e51c2fdd108b19dfbe63a7",
+        "qualitative_review": "2528e65f9d4d5817281478c02b73626f13f2fa8df5235a7f94edd3099fc5236f"
+      },
+      "limitations": [
+        "A contextual statement of SEM confusion was interpreted as a clarification request; quote validation does not determine speech-act category.",
+        "Some worked explanations are lengthy."
+      ]
+    },
+    {
+      "case_id": "partial_progress_many_difficulties",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Respected SEM deferral, addressed the actual reliability-validity ambiguity and preserved unresolved needs. One canonical evidence-reference draft was rejected and repaired; no independent learning transition inferred.",
+      "rejected_drafts": [
+        {
+          "role": "student_profiling_agent",
+          "scope": "canonical_profile",
+          "reason": "Combined evidence_reference is not a single eligible canonical baseline evidence ID.",
+          "repair_accepted": true
+        }
+      ],
+      "cost": {
+        "application_usd": 0.43054376,
+        "learner_usd": 0.0008603,
+        "total_usd": 0.43140406,
+        "dispatches": 16,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "68bfbe9738c97669147385450dcd986e6d72d821e64985d9fcfbd905ed20f7ec",
+        "agent_calls": "df4e44f946a566a7abe77abb4eaa44c95fe59abab978cbb664f097f6afc9cd7a",
+        "transport": "5a190a7824c0e6a9c5db9352fd6fff2b4e532f40af306a314a8221790d7b4ced",
+        "cost_report": "4b8fa5b3d92b994a0f8d21590c75c20350bbd072abf4f049ae064c51bb6bdfee",
+        "qualitative_review": "04a7f63a894cacebaf29073cdd36aad1750e261f61f28526c3638225ffd8dc41"
+      },
+      "limitations": [
+        "Adaptive wording repeated the SEM deferral more explicitly than the prior all-Luna trace; this is not an exact paired model replay.",
+        "Upstream profile was regenerated and needed repair."
+      ]
+    },
+    {
+      "case_id": "guessing_agreement_not_understanding",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Grounded weak reasoning in explicit guesses, kept participation separate from knowledge, honored explanation-only support and never treated agreement as understanding. No rejected call or tutor draft.",
+      "rejected_drafts": [],
+      "cost": {
+        "application_usd": 0.36706116,
+        "learner_usd": 0.0002574,
+        "total_usd": 0.36731856,
+        "dispatches": 14,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "c5e26491184d5e87a22a008502d4316731cc01df825085f5da5f5ff2befb7266",
+        "agent_calls": "b44a6f23f426f1b9cffb0f9bddb8419ac880a6235ff5d6e2fee708c725e8f53e",
+        "transport": "00840208624c1b2e4967d370b8e6323e2bbf3404acea6012aee8855d72ae9672",
+        "cost_report": "f6abb54eab03a550ade6ac2ac69c20f4cd6300ea3982715251e0a6bc66d35332",
+        "qualitative_review": "ba3d1efa687cddf2006ed88494677ec020435173ba99d641af3da21388ebfac7"
+      },
+      "limitations": [
+        "Upstream planning declines a firm misconception diagnosis while canonical profiling retains a possible guess-based indication.",
+        "Synthetic script sometimes requests no question when the tutor already avoided testing."
+      ]
+    },
+    {
+      "case_id": "confident_error_resists_explanation",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Answered alpha-versus-validity concerns and closed on the topics actually discussed, without falsely claiming an earlier SEM lesson. One nested closing draft failed quotation format and its single regeneration passed.",
+      "rejected_drafts": [
+        {
+          "role": "formative_conversation_agent",
+          "scope": "nested_tutor_draft",
+          "reason": "See hash-bound retained review",
+          "repair_accepted": true
+        }
+      ],
+      "cost": {
+        "application_usd": 0.49817303,
+        "learner_usd": 0.0004098,
+        "total_usd": 0.49858283,
+        "dispatches": 15,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "d1b72211615e0133049643598c4522b6ffbcce52a674d227a4649c18ec2c71f3",
+        "agent_calls": "d1c3e0fdab9578a1bde8485137c576ff0165cde81afb9497d3d6c75cf1303089",
+        "transport": "0ce043fa3e5aa812c3c2708042aadca6baf2d6cbb996b30c40db65892de503cf",
+        "cost_report": "eb287b16615aa70a82ad8960ba6ac8eb0a931d4488883d3fad75544d16e1dd91",
+        "qualitative_review": "3d42044882ec58a9f829bce68e97d31508cae0fc0e8cf04f45669a5377cd73b5"
+      },
+      "limitations": [
+        "Final AgentCall success contains a retained rejected base draft; it must not be reported as zero tutor failures.",
+        "The original unaddressed SEM concern remains in the profile although the closing correctly focuses on actual discussion."
+      ]
+    },
+    {
+      "case_id": "overwhelmed_pause_return",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Honored brevity, no-question, pause and stop requests. Return recap distinguished prior reliability-validity discussion from deferred SEM. One unsupported correctness/reasoning-mismatch profile was rejected and repaired.",
+      "rejected_drafts": [
+        {
+          "role": "student_profiling_agent",
+          "scope": "canonical_profile",
+          "reason": "Unsupported correctness_reasoning_mismatch with all incorrect answers and matching incorrect explanations.",
+          "repair_accepted": true
+        }
+      ],
+      "cost": {
+        "application_usd": 0.38406523,
+        "learner_usd": 0.0002708,
+        "total_usd": 0.38433603,
+        "dispatches": 15,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "02c0723ddc881b5e18e4f4de0f210a4c024a833c885e079fd185e32b33fb1913",
+        "agent_calls": "70a315690ec83b72fac59fcb0006721c0f730624f55a9da45682eccf79b230b6",
+        "transport": "363bd2880afc87c6c6820e7871506135104979f37721fd58d9c9095b3fb5e57c",
+        "cost_report": "7b1f6fd6ff1d573fc2310e2912a7f121225e7b1b21d5493a7fdeb47d4830a583",
+        "qualitative_review": "cb7e6f64aa9a290cde2a0ef14c83fab86d3ed92f3dda71920dcc2f13acf31fb0"
+      },
+      "limitations": [
+        "Pause/resume intervals were service-generated milliseconds, not evidence of a human break.",
+        "Deferred SEM reminder can still add topic load; it was explicitly marked as future work."
+      ]
+    },
+    {
+      "case_id": "brief_language_sound_reasoning",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Credited every concise correct explanation, preserved low confidence, used simple language and distinguished learner-supplied population reasoning from repetition of tutor-supplied content. No rejected call or tutor draft.",
+      "rejected_drafts": [],
+      "cost": {
+        "application_usd": 0.34596166,
+        "learner_usd": 0.000526,
+        "total_usd": 0.34648766,
+        "dispatches": 15,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "615f88423ab76d76cebf9cef974f35ec3c9ed36a5517c3a40f6d4f3e35916e3a",
+        "agent_calls": "916acdb476aecd96204b29cc396f96b468cc7f016b335142982a5330d587237b",
+        "transport": "3a35f1b7ce44f44bc618566df5130eeae9af1d97a5ce6cb04b62f57865cfe63f",
+        "cost_report": "91514b560fee1964423d7b6036d982046042e116b21a1b1c3994e3113c5b60ba",
+        "qualitative_review": "b1fb58f94137d8a67d881c710c8db67273814d8ed195607f5f797b26e12fcc42"
+      },
+      "limitations": [
+        "Upstream integration remains more conservative than the canonical profile; no diagnostic agreement claim.",
+        "Adaptive replies are more fluent and longer than the initial short script, limiting language-support realism."
+      ]
+    },
+    {
+      "case_id": "strong_prior_reasoning_comparison",
+      "mechanical_pass": true,
+      "profile_fidelity_accepted": true,
+      "student_question_coverage_accepted": true,
+      "overall_trace_accepted": true,
+      "summary": "Completed an actual persisted profile transition: all twelve declared retained fields matched and item evidence was explicitly updated from eligible new reasoning. No rejected call or draft; broad transfer remains untested.",
+      "rejected_drafts": [],
+      "cost": {
+        "application_usd": 0.39556053,
+        "learner_usd": 0.00087195,
+        "total_usd": 0.39643248,
+        "dispatches": 15,
+        "usage_missing": false
+      },
+      "source_hashes": {
+        "report": "9bd311c6a0bb33c05b6c44abd449f93a772527974f68ecbb86ae77ebb5fb36a5",
+        "agent_calls": "d8c147724fcf3db9eef16ee024829f43d9c5625eadfb6b1c21a30fc99f4bfd53",
+        "transport": "336552d80c9ceb44a3054e383ae9a773476f26dc5e987e028f3605a99fcad8c5",
+        "cost_report": "102f4fea299106606d55e2df1e12dc2fa4448e239b609d9fe905f3955de2035f",
+        "qualitative_review": "83f8ef284243cb5405a811164db036e2549cf93c5239315001c01cccb9a819e1"
+      },
+      "limitations": [
+        "Initial upstream fragility qualifier differs from the prior all-Luna trace; it does not establish genuine learner weakness.",
+        "One successful supported transition does not prove every retention/update path defect-free."
+      ]
+    }
+  ],
+  "accounting": {
+    "provider_dispatches": 105,
+    "application_dispatches": 95,
+    "synthetic_learner_dispatches": 10,
+    "connectivity_dispatches": 0,
+    "missing_usage": 0,
+    "unsettled_requests": 0,
+    "application_usd": 2.8228337,
+    "synthetic_learner_usd": 0.00342125,
+    "total_usd": 2.82625495,
+    "completed_application_sessions": {
+      "count": 7,
+      "total_usd": 2.8228337,
+      "mean_usd": 0.403261957143,
+      "min_usd": 0.34596166,
+      "max_usd": 0.49817303
+    },
+    "failed_session_count": 0,
+    "by_model": {
+      "gpt-5.6-luna": {
+        "requests": 55,
+        "cost": 0.18149425
+      },
+      "gpt-6.1-sol": {
+        "requests": 50,
+        "cost": 2.6447607
+      }
+    },
+    "tokens": {
+      "input": 2013231,
+      "cached": 620362,
+      "write": 1386672,
+      "output": 81785,
+      "reasoning_subset": 19857
+    },
+    "recovered_rejections": {
+      "canonical_profiler_drafts": 3,
+      "tutor_nested_base_drafts": 1,
+      "all_recorded_usage_included_once": true
+    },
+    "method": "Transport records are primary, include all rejected and repair dispatches once, and are not added again to AgentCall totals. Reasoning is a subset of output; cache reads/writes partition input. These are dated token estimates, not invoices."
+  },
+  "pricing": {
+    "gpt-5.6-luna": {
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-5.6-luna",
+      "verified_at": "2026-10-13",
+      "standard_usd_per_million": {
+        "input": 0.2,
+        "cached_input": 0.02,
+        "cache_write": 0.25,
+        "output": 1.2
+      },
+      "long_context": {
+        "input_tokens_exceeding": 272000,
+        "whole_request_input_and_cache_multiplier": 2,
+        "whole_request_output_multiplier": 1.5
+      }
+    },
+    "gpt-6.1-sol": {
+      "source_url": "https://developers.openai.com/api/docs/models/gpt-6.1-sol",
+      "verified_at": "2026-10-13",
+      "standard_usd_per_million": {
+        "input": 2,
+        "cached_input": 0.1,
+        "cache_write": 2.5,
+        "output": 10
+      },
+      "long_context": {
+        "input_tokens_exceeding": 272000,
+        "whole_request_input_and_cache_multiplier": 2,
+        "whole_request_output_multiplier": 1.5
+      }
+    }
+  },
+  "budget": {
+    "initial_additional_usd": 2,
+    "final_user_authorized_total_usd": 4,
+    "conservative_guard_settlement_usd": 3.108880496,
+    "remaining_guard_usd": 0.891119504,
+    "all_paid_calls_stopped": true,
+    "guard_history": [
+      {
+        "version": "mixed-tutor-payload-budget-serialized-v2",
+        "sha256": "be82242a77d52619bec18ff11e17d308ca330ec53ae884222af58de7c33386a9",
+        "reason": "Initial conservative serialized guard"
+      },
+      {
+        "version": "mixed-tutor-payload-budget-serialized-v3",
+        "sha256": "18d458aa439cd9441b94e0676f02eb22941f7c5aa24e3b894e3d14b894677cc9",
+        "reason": "v2-to-v3-bound-breach-before-cache-validation"
+      },
+      {
+        "version": "mixed-tutor-payload-budget-serialized-v4",
+        "sha256": "90770306bed20981276a6a1348ef7020cd786145d8a4c39d22f46e1cfb8189a6",
+        "reason": "explicit-user-total-cap2-to4"
+      }
+    ],
+    "note": "Ignored test guard reserves payload/schema/framing and output conservatively, with cache-write/long-context and 10% regional allowance. This reserve is separate from standard-rate cost; it is not a provider-certified token bound. Earlier medium experiment is excluded from this additional budget."
+  },
+  "descriptive_comparison": [
+    {
+      "cohort": "all_luna_low",
+      "attempted": 7,
+      "mechanical_completions": 4,
+      "failed_attempts": 3,
+      "explicit_reviewed_trace_acceptance": null,
+      "requests": 76,
+      "application_usd": 0.27240694,
+      "learner_usd": 0.00137315,
+      "connectivity_usd": 0.0000242,
+      "total_usd": 0.27380429,
+      "completed_app_mean_usd": 0.053562655,
+      "completed_app_range_usd": [
+        0.05206623,
+        0.05486863
+      ],
+      "failed_application_usd": 0.05815632,
+      "runtime_hashes": [
+        "a4013c6fc0422313c2a8dfcfb920440d3716e2d99631e125796a1b18750e552b"
+      ]
+    },
+    {
+      "cohort": "baseline_medium",
+      "attempted": 7,
+      "mechanical_completions": 3,
+      "failed_attempts": 4,
+      "explicit_reviewed_trace_acceptance": null,
+      "requests": 67,
+      "application_usd": 0.24319394,
+      "learner_usd": 0.00106135,
+      "connectivity_usd": 0,
+      "total_usd": 0.24425529,
+      "completed_app_mean_usd": 0.05795011333333333,
+      "completed_app_range_usd": [
+        0.05435398,
+        0.06059733
+      ],
+      "failed_application_usd": 0.0693436,
+      "runtime_hashes": [
+        "a56052b705b0f7b1660000e809f7d6a746897a3b7f02783e1fff67b1b6e7243a"
+      ]
+    },
+    {
+      "cohort": "fixed_medium_v2",
+      "attempted": 4,
+      "mechanical_completions": 3,
+      "failed_attempts": 1,
+      "explicit_reviewed_trace_acceptance": 2,
+      "requests": 50,
+      "application_usd": 0.21714267,
+      "learner_usd": 0.0007256,
+      "connectivity_usd": 0,
+      "total_usd": 0.21786827,
+      "completed_app_mean_usd": 0.06173566333333333,
+      "completed_app_range_usd": [
+        0.05438114,
+        0.06973619
+      ],
+      "failed_application_usd": 0.03193568,
+      "runtime_hashes": [
+        "0c78cb66332f4c9bb20f7eb2773d63115f3ad4cfa852758ba25da1cb86706d04"
+      ]
+    },
+    {
+      "cohort": "fixed_medium_v3",
+      "attempted": 7,
+      "mechanical_completions": 6,
+      "failed_attempts": 1,
+      "explicit_reviewed_trace_acceptance": 3,
+      "requests": 100,
+      "application_usd": 0.41260937,
+      "learner_usd": 0.0022845,
+      "connectivity_usd": 0,
+      "total_usd": 0.41489387,
+      "completed_app_mean_usd": 0.060981045000000005,
+      "completed_app_range_usd": [
+        0.05316067,
+        0.07105654
+      ],
+      "failed_application_usd": 0.0467231,
+      "runtime_hashes": [
+        "d60ccab6a2a33976432418a2b808288af596aba6d3c4e7987099cc046b196628"
+      ]
+    },
+    {
+      "cohort": "mixed_v1_final",
+      "attempted": 7,
+      "mechanical_completions": 7,
+      "failed_attempts": 0,
+      "explicit_reviewed_trace_acceptance": 7,
+      "requests": 105,
+      "application_usd": 2.8228337,
+      "learner_usd": 0.00342125,
+      "connectivity_usd": 0,
+      "total_usd": 2.82625495,
+      "completed_app_mean_usd": 0.403261957143,
+      "completed_app_range_usd": [
+        0.34596166,
+        0.49817303
+      ],
+      "failed_application_usd": 0,
+      "runtime_hashes": [
+        "e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8"
+      ]
+    }
+  ],
+  "verification": {
+    "offline_model_and_approval_assertions": 656,
+    "role_requests_compiled": 54,
+    "roles": 18,
+    "typecheck": "passed",
+    "production_build": "passed_locally",
+    "full_lint": {
+      "errors": 0,
+      "preexisting_warnings": 5
+    },
+    "full_dependency_audit_vulnerabilities": 0,
+    "production_dependency_audit_vulnerabilities": 0,
+    "cost_accounting_tests": 19,
+    "flow_exports_timing_dependency_smoke": "passed",
+    "pending_candidate_gate": "Actual incomplete-review package rejected before final seven-case completion; no approval artifact created by that negative test.",
+    "production_verifier": "73 pure/synthetic helper checks passed; actual read-only deployed verification subsequently passed on the exact release.",
+    "native_cases_reviewed": 7,
+    "required_deployed_sources": 26,
+    "byte_exact_transferred_files": 62
+  },
+  "retained_baseline_harness_failures": [
+    {
+      "name": "agent:profiling-smoke",
+      "failure": "P2025 after legacy profiler manifest mismatch blocked mock readiness",
+      "baseline_reproduction": "Identical fixture and failure reproduced on 962cd4b9 in isolated mock DB; retained, not a pass.",
+      "source_sha256": "563a1f585d716fc674cf9a4ce04e4cab93921a2ef2358cb247e6a27708ac0f83"
+    },
+    {
+      "name": "student:formative-conversation-runtime-smoke",
+      "failure": "Expected host v5.3 versus actual v5.4",
+      "baseline_reproduction": "Reproduced on unmodified cb10206f; retained, not a pass.",
+      "source_sha256": "f14a0c767772d428927d54f4d217d15169d1f75cf6debf779470bacddaac9b91"
+    },
+    {
+      "name": "operational:formative-conversation-v18r2-pipeline-runtime-smoke",
+      "failure": "Expected null versus synthetic_formative_conversation_execution_failed",
+      "baseline_reproduction": "Reproduced on unmodified cb10206f; retained, not a pass.",
+      "source_sha256": "f14a0c767772d428927d54f4d217d15169d1f75cf6debf779470bacddaac9b91"
+    }
+  ],
+  "backward_compatibility": {
+    "method": "Read-only source and existing test inspection; no database or provider calls",
+    "ordinary_resume_blocker_found": false,
+    "compatibility_guaranteed": false,
+    "historical_v4_profile_parser_retained": true,
+    "new_generation_profile_schema": "student-profile-output-v5",
+    "no_historical_backfill": true,
+    "source_review": {
+      "path": ".data/stronger-tutor-2026-10-13/backward-compatibility-source-review.json",
+      "sha256": "841ba4327fdc1281a222681cbd81d32619480078c50e3f1ba81ab2c0a4f1b31e"
+    },
+    "limits": [
+      "No test here upgrades an actual in-progress production attempt from 3ac66f7 to 3aaf605.",
+      "The seven paid comparison sessions are newly created synthetic sessions.",
+      "New tutor calls in a resumed old conversation use the new approved model while prior AgentCalls and prompt versions remain historical; one session may therefore span model versions.",
+      "No production student records were inspected and no claim is made about the count or state of in-flight real sessions."
+    ]
+  },
+  "data_impact": {
+    "production_student_records_read": false,
+    "production_student_mutations": 0,
+    "production_schema_migrations": 0,
+    "retrospective_backfills": 0,
+    "synthetic_database_writes": true,
+    "raw_rejected_records_preserved": true,
+    "historical_cohorts_preserved": true,
+    "remote_isolated_operator_evidence_approval_writes": true,
+    "safe_service_configuration_changes": true
+  },
+  "limitations": [
+    "One stochastic synthetic trace per scenario/configuration, not a stable failure-rate estimate, psychometric validation, classroom learning effect or independent human pedagogical review.",
+    "Upstream profiles, adaptive learner responses and cache paths differ. Descriptive completion/cost comparisons do not isolate a causal tutor-model benefit.",
+    "Quotation/fact guards establish limited consistency and provenance, not every subjective interpretation, summary, speech act or teaching effect.",
+    "Three canonical profile drafts and one tutor draft still needed repair; final success must not be described as zero generation failures.",
+    "The seven cases are fresh sessions. Source inspection finds ordinary compatibility paths, but no actual in-progress production attempt was upgraded in these tests; future calls in old sessions may span model versions.",
+    "Generic operational transport/schema retries can reuse an AgentCall row; passive transport sidecars preserve all dispatch costs. New semantic/quotation repairs use separate audited identities.",
+    "Costs cover this short assessment unit, exclude hosting/tax/human review, and can rise for longer or multi-topic conversations. Serialized test latency is not human or production timing.",
+    "Live verification did not run a paid production conversation, create a worker job or inspect a real student attempt. Worker process presence is not verification of a completed real job."
+  ],
+  "local_source_artifacts": {
+    "qualitative-review.json": "ce1eec82fb6fcca4f0bdb5001bfd8bc91e70b92ce43030a31f13f844248d3b31",
+    "cost-comparison.json": "8fca9c4c9ca10f7bb99cbca421a2b220016ab3fb422022675789eef54b8ef263",
+    "independent-cost-reconciliation.json": "afb6e368154503dbfff722b191f37de76475a044e6291808360dbac106dc42ad",
+    "closed-run-proof.json": "be510ad2bf0b59cf30f32147339026a76c900b8ffd6a355bc1a3c11118eaa115",
+    "closed-transport-usage.json": "d10e135afaae43065155f29a02ca3a0a3186eca7b7b901caadfd48e42b200889",
+    "closed-budget-ledger.json": "e09b993bb08698e5f06ef5085f4dce7cd4e20f17beca13e75245ab9ecb45b19b",
+    "commit-source-verification.json": "86fe98e63814644e19d788159a49b159ca0e3847391f6402ecce5bafd8e753c6",
+    "backward-compatibility-source-review.json": "841ba4327fdc1281a222681cbd81d32619480078c50e3f1ba81ab2c0a4f1b31e",
+    "plumbing-verification.json": "29abba80c9c97672e9ce547cc0e0d8985dfd4f2fe79f3de5d386a933c0a165e0",
+    "build-and-lint-verification.json": "8747a625d3e5ac0e83805e551306322f4bb5f0a24f7537fae9fc08f3b7cac75e",
+    "offline-regressions.json": "0d31a814098218e8bd503c6dd06533dfe38324e0046f968c1ca0194a6acadba5",
+    "root-checks.json": "e965cc43a0b7b90c75cd9ec74cc4fae71fef42ba545139c0fb78fb9f5a8fc97e",
+    "packaging-boundary-verification.json": "89f2195b775ebbfb4e1afd2582e85f7b4a698c0658aff2f66d7831e50d4a6166",
+    "postdeploy-verifier-offline-checks.json": "354d50fa73dd51add24f5bf4a873723ad55d52dd99d000a8b8c191bf8d8a5af6",
+    "evidence-final-draft.json": "6f9394e3d67a59cc5927843c43f74adb4129de8aaa2ceb527d0b5997f0aa3df1",
+    "release-entry-final-draft.json": "54ee307894b1dd9dccbf5a14c43065f0b5867aea92397b2dc92e7f0e2152a20f",
+    "main-push-verification.json": "edf25fee3f07cd8f8b2843a64d5e01f9cffc95619028ef48cd804b8f7a4d39fd",
+    "production-live-after.json": "7775208495cce7830e04973155a520f2289ddcd76c3d0c6fa4605a8229a25bac",
+    "production-postdeploy-verification.json": "2fba0019672f2b3205d7730449c1cd82bc47ffaaa754d8a1d579f8a08ba4f442",
+    "operator-next-requests/render-prepare-receipt.json": "2fce9cf4569131731b666450f77d326f0d4cd4d8120539b7fc890b3be0081cae",
+    "operator-next-requests/render-stage-receipt.json": "e07b755f576d9c1792113afabf480412108619e339dc05b0741d67769276914a",
+    "operator-next-requests/render-ready-receipt.json": "f1f0fb9a4981b355f44cc9836d4e487d6fbe34b7037bfb05fed9ca1e24461ece",
+    "render-settings-saved.json": "4bb745b1862a307e510da125e87169e3893145f043e3f77d4511bed3d6329d50",
+    "evidence-upload-v1/render-extracted-receipt.json": "973e353abdd1a80a66d0e77a4360293bb9e9f955a20c7164545fb4621b7ebd11",
+    "word_record_qa": {
+      "path": ".data/stronger-tutor-2026-10-13/word-final-verification.json",
+      "sha256": "3afb1ea460863aeb11e2f9666315f5f013789572d2d8fa0a263628a0e978eeef"
+    }
+  },
+  "committed_evidence_destination": "docs/release-records/evidence/stronger-tutor-evaluation-20261013.json",
+  "first_production_scope": {
+    "includes_previously_held_profile_and_question_fixes": true,
+    "prior_held_record": "CMCQ-20261013-02",
+    "profile_prompt": "student-profiling-v7",
+    "profile_prompt_hash": "bb0f774fc237805eb534cee8afefb181052e272bf624170903b05cc8d4525203",
+    "profile_schema": "student-profile-output-v5",
+    "guards": {
+      "student_profile_fact_binding": "student-profile-fact-binding-v2",
+      "student_profile_semantic_repair": "student-profile-semantic-repair-v1",
+      "student_question_source_quote": "student-question-source-quote-v1",
+      "formative_profile_source_quote_repair": "formative-profile-source-quote-repair-v1",
+      "student_profile_request_schema": "student-profile-request-schema-v1"
+    },
+    "scope": "Recorded confidence/skip fidelity and exact reasoning quotes; supported flags; request-schema constraints; one audited semantic or eligible quotation repair with restart-safe identities; source-bound question metadata. Application retains state/submission authority and answer-key protection.",
+    "publication_verified_at": "2026-10-13T19:13:21.857Z"
+  },
+  "production_verification": {
+    "checked_at": "2026-10-13T19:13:21.857Z",
+    "status": "passed",
+    "application_git_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+    "runtime_hash": "e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8",
+    "application_build_and_render_commit_match": true,
+    "deployed_source_files_matched": 26,
+    "configuration": {
+      "valid": true,
+      "role_count": 18,
+      "exact_mixed_role_policy": true
+    },
+    "health": {
+      "http_status": 200,
+      "database_reachable": true,
+      "database_schema_ready": true,
+      "migration_readiness": "ready",
+      "healthy": true
+    },
+    "preparation_worker_processes": 1,
+    "tutor_model_access": {
+      "model": "gpt-6.1-sol",
+      "accessible": true,
+      "method": "models_get",
+      "generation_calls": 0
+    },
+    "runtime_dependencies": {
+      "braces": "absent",
+      "build_only_nodes": "absent",
+      "package_directories_scanned": 32
+    },
+    "student_records_read": false,
+    "student_writes": false,
+    "response_generation_calls": 0,
+    "worker_jobs_created": 0,
+    "completed_real_worker_job_verified": false
+  },
+  "remote_operations": {
+    "isolated_operator_and_evidence_files_written": true,
+    "student_database_writes": false,
+    "synthetic_evidence_files_extracted_byte_exactly": 62,
+    "approved_runtime_hash": "e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8",
+    "prepare_status": "mixed_approved_artifacts_prepared_not_activated",
+    "stage_status": "new_isolated_mixed_bundle_staged_current_pointer_unchanged",
+    "compiled_ready_status": "compiled_mixed_configuration_ready",
+    "safe_settings_saved": 35,
+    "settings_save_action": "Save only",
+    "credential_fields_included": false,
+    "note": "Remote writes were confined to an isolated operator/evidence/approval directory and safe service configuration. Existing approval artifacts and historical records were preserved. These deployment writes are distinct from the read-only postdeploy check and do not modify student records."
+  },
+  "word_record_verification": {
+    "document_path": "docs/release-records/Conversational_MCQ_Change_and_Deployment_Record.docx",
+    "document_sha256": "86190ab67699a4b9ddc59f805cf53150719b7a91a5c19c8f0a73176450075b0c",
+    "source_ledger_sha256": "9564133d79b40f462c89d2909b7202613416587bb5bcda982b54982ea234378f",
+    "pages": 130,
+    "visual_qa_result": "passed",
+    "byte_identical_previously_reviewed_pages": 123,
+    "new_or_changed_pages_visually_reviewed": 7,
+    "checks": [
+      {
+        "name": "build-change-record.py --check",
+        "result": "passed"
+      },
+      {
+        "name": "test-change-record.py",
+        "result": "passed",
+        "tests": 7
+      },
+      {
+        "name": "Windows portable LibreOffice and documents render_docx.py",
+        "result": "passed"
+      }
+    ],
+    "method": "Every page accounted for: 123 full-file byte-identical pages retain prior verified individual review; root inspected pages1/2 at original resolution in first render and proved identical in final; independent agent inspected126-130 individually at original resolution in final."
+  }
+}

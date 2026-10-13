@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-13T17:18:36.685Z",
+  "updated_at": "2026-10-13T19:15:46.988Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3000,6 +3000,106 @@
         "src/lib/agents/student-profiling/output-schema.ts",
         "prisma/student-profiling-request-schema-smoke-test.ts",
         "docs/release-records/evidence/luna-medium-evaluation-20261013.json"
+      ]
+    },
+    {
+      "id": "CMCQ-20261013-03",
+      "date": "2026-10-13",
+      "title": "Profile safeguards and stronger tutoring verified in seven simulations",
+      "application_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+      "push_status": "Application 3aaf605567e19cd3784625e320c793e1287a0cb3 fast-forwarded and pushed to origin/main; ls-remote confirmed the exact SHA at 2026-10-13T19:08:15.7446282Z. Documentation-only follow-up is recorded separately.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-db782llbedkc7388svrg",
+        "source_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+        "verified_at": "2026-10-13T19:13:21.857Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-db782llbedkc7388svrg",
+        "evidence": [
+          "Canonical Render Live observation at 2026-10-13T19:12:57.844Z and main remote verification at 2026-10-13T19:08:15.7446282Z bind application 3aaf605567e19cd3784625e320c793e1287a0cb3.",
+          "Read-only postdeploy verification passed at 2026-10-13T19:13:21.857Z: application build and RENDER_GIT_COMMIT match, runtime e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8, exact 18-role mixed policy and 26 deployed source files match.",
+          "HTTP 200 health, reachable/schema-ready database, migration readiness and exactly one preparation worker were verified. Model/auth probes used Models GET only; no generation call or student job was created.",
+          "Actual runtime scan found no braces or build-only dependencies across 32 package directories. This filesystem check is separate from the earlier zero-finding full and production audits."
+        ]
+      },
+      "summary": "Seven new synthetic sessions completed and passed AI-assisted profile/dialogue review with retained caveats. The formative conversation tutor uses GPT-6.1 Sol medium; the other 17 application roles use Luna medium. Compared with the corrected all-Luna candidate, only that tutor model changes. This verified release also first brings the previously held profile-fidelity and bounded-repair fixes to production. No classroom learning or causal model-effect claim.",
+      "changes": [
+        {
+          "area": "Faithful profiles and bounded repairs first published",
+          "problem": "Earlier candidates changed recorded confidence, fabricated missing evidence, generated unsupported flags and failed exact source quotations.",
+          "fix": "Publish the held v7/V5 profile contract: exact sealed confidence/skip facts and reasoning quotes, supported reasoning classifications, conservative flag constraints, and one separate audited semantic repair. Preserve restart identity and fail closed after exhausted repair. Eligible earlier quote mismatches receive one separately audited repair; question metadata binds exact student-source text.",
+          "impact": "No silent correction of rejected output, validator weakening, new confidence rating or historical backfill. V4 profiles remain readable. Details and failed earlier cohorts remain in CMCQ-20261013-02."
+        },
+        {
+          "area": "Stronger tutor with an exact approval boundary",
+          "problem": "Corrected all-Luna traces still reopened a deferred topic, misstated prior discussion, or changed evidence declared retained.",
+          "fix": "Use GPT-6.1 Sol medium only for formative_conversation_agent, retaining the corrected candidate's prompts, guards and 7000-token tutor cap. The distinct mixed approval requires all seven reviewed native cases, exact model/effort policy and 26 required source hashes.",
+          "impact": "Other 17 roles remain Luna medium. Pending candidates cannot activate on production; application-owned submission, answer-key protection and transitions remain intact."
+        },
+        {
+          "area": "Auditable comparison and complete costs",
+          "problem": "Successful final rows can conceal rejected drafts, and model/cache prices differ.",
+          "fix": "Price each physical request using model-specific input, cached-read, cache-write and output usage; keep reasoning within output and learner overhead separate. Preserve all historical and rejected records plus source-bound qualitative reviews.",
+          "impact": "All 105 dispatches reconcile. The ignored serialized budget guard stayed within the user-expanded USD 4 total; no additional paid calls are authorized or needed."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Final seven-case synthetic review",
+          "result": "7/7 mechanical completion and reviewed trace acceptance",
+          "detail": "Persistent confusion, partial progress, guessing/agreement, confident error, overwhelmed pause/return, brief sound reasoning and strong prior reasoning all completed. Deferral, actual-discussion recap, simple-language support, no-quiz/stop requests and assistance attribution passed detailed review. Three Luna profile drafts and one nested Sol closing draft were rejected then recovered; final success is not zero initial errors."
+        },
+        {
+          "name": "Actual profile transition",
+          "result": "Accepted and persisted in the strong-prior case",
+          "detail": "All twelve declared retained fields matched; updated item evidence referenced eligible new reasoning and appeared in the next stored profile. This exercises the prior failing path, but one success does not establish universal correction or broad learning transfer."
+        },
+        {
+          "name": "Usage and budget",
+          "result": "105 requests; complete usage and all calls settled",
+          "detail": "Estimated USD 2.82625495 total: application 2.82283370 (95 calls), synthetic learner 0.00342125 (10 calls). Mean application session 0.40326196; range 0.34596166–0.49817303. Conservative guard settlement 3.108880496 stayed below USD 4; all paid execution stopped. Costs include every rejected/repair dispatch and are not invoices."
+        },
+        {
+          "name": "Build, model gates and focused regressions",
+          "result": "Passed locally; five existing lint warnings",
+          "detail": "Production build, typecheck, full lint, flow, both master exports, research timing and dependency smoke passed; full/production audits each returned zero vulnerabilities. Amendment/isolation checks: 656 assertions; all 18 roles compiled in three configurations (54 requests). Cost tests: 19. The 26 quote-repair and 69 request-schema checks and fact/restart/question checks are retained in the prior correction record."
+        },
+        {
+          "name": "Retained legacy harness failures",
+          "result": "Three baseline failures remain; not release passes",
+          "detail": "agent:profiling-smoke P2025 follows a legacy manifest mismatch and was reproduced on 962cd4b9. Runtime smoke expects host v5.3 instead of v5.4; pipeline smoke expects null instead of synthetic_formative_conversation_execution_failed. Both were reproduced on unmodified cb10206f. Preserve these limits; no frozen fixture was changed merely to pass."
+        },
+        {
+          "name": "Source and compatibility verification",
+          "result": "40 native sources match; no ordinary resume blocker found by inspection",
+          "detail": "All frozen Windows hashes and normalized Git blobs match 3aaf6055, including 26 required sources. V4 parsing and existing transcript reuse remain; repairs retain bounded identities. The seven paid sessions are fresh, so this is not a cross-deployment test of a real in-progress attempt. Exact deployed source, runtime and readiness verification subsequently passed."
+        },
+        {
+          "name": "Isolated approval transfer and exact deployed verification",
+          "result": "Passed on the exact Live application",
+          "detail": "62 synthetic evidence files transferred byte-exactly; isolated prepare, stage and compiled-ready checks passed without provider or database calls. Saved 35 non-secret service settings. The verifier had 73 offline checks; its actual 2026-10-13T19:13:21.857Z result confirms exact SHA/runtime, 26 source hashes, all 18 role policies, model access, schema health and one worker, with no generation/student writes."
+        }
+      ],
+      "data_impact": [
+        "Zero production student-record reads or mutations by this evaluation; writes occurred only in isolated synthetic Windows databases. No schema migration, retrospective backfill, answer/score change or historical deletion.",
+        "Original responses, confidence, rejected drafts, repair calls and past low/medium cohorts remain unchanged. New profile/question metadata applies prospectively. Resumed historical sessions can contain old and new model calls with their original version provenance.",
+        "Service-generated timings and millisecond pause/resume checks verify workflow only; they are not human reading, deliberation or classroom learning observations.",
+        "Deployment wrote isolated operator/evidence/approval files and safe Render settings. Those operational writes are not student-record changes; verification used read-only model/health checks and created no worker job."
+      ],
+      "limitations": [
+        "Seven single synthetic traces support only the covered engineering behavior. Regenerated profiles/adaptive replies differ from earlier runs; improved outcomes cannot be attributed causally to the tutor model.",
+        "Upstream interpretation still varies: cautionary fragility or developing labels can be more conservative than adequate canonical reasoning. Quote/fact checks do not prove every subjective judgment or teaching effect.",
+        "No actual in-progress production session was upgraded in these tests. Old V4 readability is not retrospective validation under V5 guards; an interrupted old profiling invocation may require a new audited version.",
+        "Three recovered profile failures and one recovered tutor draft remain part of the result. Costs reflect one three-item topic plus six learner replies, not a whole course; longer assessments can cost more. Live verification used no paid production conversation or real student attempt; the worker was observed, not given a real job."
+      ],
+      "references": [
+        "docs/release-records/evidence/stronger-tutor-evaluation-20261013.json",
+        "docs/release-records/evidence/luna-medium-evaluation-20261013.json",
+        "src/lib/operational/mixed-tutor-identity.ts",
+        "src/lib/operational/luna-profile-fidelity-identity.ts",
+        "src/lib/agents/student-profiling/semantic-repair.ts",
+        "scripts/ai-session-cost-report.mjs"
       ]
     }
   ],
