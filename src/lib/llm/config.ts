@@ -386,6 +386,9 @@ function modelCapabilityFor(modelName: string) {
 }
 
 function roleAllowsModel(role: LiveModelRole, modelName: string) {
+  // The all-role Luna candidate still has to satisfy the active bundle's exact
+  // model, effort, token-budget and approval checks below.
+  if (modelName === "gpt-5.6-luna") return true;
   if (!modelName.startsWith("gpt-5.6-")) {
     return true;
   }
@@ -504,7 +507,7 @@ function resolveOperationalApprovalForModelResolution(
 ) {
   try {
     const active = resolveActiveOperationalApproval();
-    if (active?.kind === "derived_approval") {
+    if (active?.kind === "derived_approval" || active?.kind === "local_candidate_evaluation") {
       if (
         options.require_approved_hash_match !== false &&
         process.env.OPERATIONAL_APPROVED_CONFIG_HASH !== active.record.runtime_candidate_hash

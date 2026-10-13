@@ -159,7 +159,7 @@ export async function executeStudentRuntimeLiveAgent<TInput, TOutput>(input: {
   }
 
   const activeApproval = resolveActiveOperationalApproval();
-  if (activeApproval?.kind === "derived_approval") {
+  if (activeApproval?.kind === "derived_approval" || activeApproval?.kind === "local_candidate_evaluation") {
     const readiness = await evaluateOperationalExecutionReadiness({
       agentName: input.role,
       operationalContext: {

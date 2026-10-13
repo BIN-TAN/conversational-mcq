@@ -2506,7 +2506,7 @@ async function callProviderOrMock(input: {
       if (liveCallAllowed) {
         modelConfig = resolveAgentModelConfig(CHAT_NATIVE_PROFILE_AGENT_NAME);
         const approval = resolveActiveOperationalApproval();
-        if (approval?.kind === "derived_approval") {
+        if (approval?.kind === "derived_approval" || approval?.kind === "local_candidate_evaluation") {
           const session = await prisma.assessmentSession.findUniqueOrThrow({
             where: { id: input.assessment_session_db_id },
             select: { user_db_id: true, assessment_db_id: true }

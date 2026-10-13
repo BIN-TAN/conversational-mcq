@@ -3,6 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "llm:luna-low-request-smoke": "node --import tsx prisma/luna-low-role-request-smoke-test.ts",
+    "llm:luna-low-amendment-smoke": "node --import tsx prisma/luna-low-all-roles-amendment-smoke-test.ts",
+    "llm:luna-low-amend": "node --import tsx prisma/luna-low-all-roles-amend.ts",
+    "classroom:session-cost": "node scripts/ai-session-cost-report.mjs",
+    "classroom:session-cost-smoke": "node --test scripts/ai-session-cost-report.test.mjs",
     "classroom:audit": "node scripts/classroom-audit.mjs",
     "classroom:ai-students": "node --import tsx prisma/ai-student-journey-evaluation.ts",
     "classroom:ai-students:audit": "node scripts/audit-ai-student-research.mjs",

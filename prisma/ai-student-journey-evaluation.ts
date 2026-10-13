@@ -45,7 +45,7 @@ async function main() {
   const runtime = JSON.parse(readFileSync(path.resolve(option("--runtime-env")!), "utf8")) as Record<string, string>;
   // Reuse approved role configuration, never the source environment's database or secrets.
   for (const [key, value] of Object.entries(runtime)) {
-    if (/^(OPENAI_(MODEL_|REASONING_EFFORT_|MAX_OUTPUT_TOKENS_|REQUEST_TIMEOUT_MS$|MAX_RETRIES$)|OPERATIONAL_|FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED$)/.test(key)) process.env[key] = value;
+    if (/^(OPENAI_(MODEL_|REASONING_EFFORT_|MAX_OUTPUT_TOKENS_|REQUEST_TIMEOUT_MS$|MAX_RETRIES$)|OPERATIONAL_|FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED$|LUNA_LOW_LOCAL_CANDIDATE_EVALUATION$)/.test(key)) process.env[key] = value;
   }
   const database = `cmcq_ai_students_${randomBytes(6).toString("hex")}`;
   const localUrl = new URL(originalUrl);
@@ -87,6 +87,7 @@ async function main() {
     learner_method: "Fixed initial responses, explicitly identified scripted edge-case messages and adaptive AI replies from student-visible conversation only; no hidden profiles or keys given to learner generator.",
     database, output_directory: output, started_at: new Date().toISOString(),
     source_commit: spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
+    source_worktree_dirty: spawnSync("git", ["status", "--porcelain"], { encoding: "utf8" }).stdout.trim().length > 0,
     scenarios_sha256: hash(scenarios), items_sha256: hash(scenarioItems), scenarios: selected,
     source_files_sha256: Object.fromEntries([
       "prisma/ai-student-journey-evaluation.ts", "src/lib/evaluation/ai-student-scenarios.ts",
@@ -104,6 +105,8 @@ async function main() {
       "src/lib/agents/student-profiling/input-builder.ts",
       "src/lib/llm/lossless-profiling-input.ts", "src/lib/llm/providers/openai-responses-provider.ts",
       "src/lib/agents/provider-request.ts", "src/lib/operational/active-approval-bundle.ts",
+      "src/lib/llm/config.ts", "src/lib/agents/operational/approved-config.ts",
+      "src/lib/operational/guarded-agent-integration.ts", "src/lib/services/student-assessment/student-runtime-live-agent.ts",
       "src/lib/services/student-assessment/formative-conversation/evidence-identity-validator-v18.ts"
     ].map(file => [file, createHash("sha256").update(readFileSync(file)).digest("hex")])),
     runtime_hash: process.env.OPERATIONAL_APPROVED_CONFIG_HASH, student_model: studentModel,
@@ -352,7 +355,9 @@ async function main() {
               })).count;
             }
             const records = await db.agentCall.findMany({ where: { assessment_session: { session_public_id: result.session_public_id } }, select: {
-              agent_name: true, model_name: true, reasoning_effort: true, max_output_tokens: true, token_usage: true,
+              agent_name: true, provider: true, model_name: true, reasoning_effort: true, max_output_tokens: true, token_usage: true,
+              retry_count: true, total_tokens: true, usage_guard_snapshot: true,
+              provider_request_id: true, provider_response_id: true,
               output_validated: true, validation_error: true, error_category: true,
               call_status: true, input_tokens: true, output_tokens: true, latency_ms: true,
               input_payload: true, output_payload: true, raw_output: true

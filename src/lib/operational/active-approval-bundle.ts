@@ -16,6 +16,8 @@ import {
 import { stableHash } from "./stable-hash";
 import { ScopedFeedbackBudgetSchema, type ScopedFeedbackBudget } from "./scoped-feedback-budget";
 import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "../llm/connectivity-budget";
+import { verifyLunaLowValidation } from "./luna-low-validation-evidence";
+export { LUNA_LOW_ALL_ROLES_VALIDATION_VERSION, LunaLowAllRolesValidationSchema } from "./luna-low-validation-evidence";
 
 export const ACTIVE_APPROVAL_BUNDLE_VERSION = "operational-active-approval-bundle-v1";
 export const ACTIVE_APPROVAL_RESOLVER_VERSION = "operational-active-approval-resolver-v1";
@@ -26,6 +28,7 @@ export const GLOBAL_FEEDBACK_BUDGET_AMENDMENT_VERSION = "global-initial-feedback
 export const CONNECTIVITY_BUDGET_AMENDMENT_VERSION = "synthetic-connectivity-budget-amendment-v1";
 export const SOL_LOW_REASONING_AMENDMENT_VERSION = "sol-low-feedback-conversation-amendment-v1";
 export const SOL_LOW_REASONING_ROLES = ["formative_value_and_planning_agent", "formative_conversation_agent"] as const;
+export const LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION = "luna-low-all-roles-amendment-v1";
 const PROFILING_V5_HASH = "c6dcc59c6698b2c9eb8082080bde122b3f29be7e2c7632066b9acbbbbbdaf626";
 export const PROFILING_V6_HASH = "d9778ba1809c54f84ceb0d91c9f36e22897e8f9a9113768f42a5c728ce1430e8";
 export const LOCAL_APPROVED_RUNTIME_MATERIALIZATION_VERSION =
@@ -273,7 +276,22 @@ const LegacyBundleRecordSchema = z.object({
   }).strict()
 }).strict();
 
-const ActiveBundleRecordSchema = z.union([DerivedBundleRecordSchema, LegacyBundleRecordSchema]);
+const LocalLunaLowCandidateRecordSchema = z.object({
+  version: z.literal("luna-low-all-roles-candidate-v1"),
+  active_kind: z.literal("local_candidate_evaluation"),
+  validation_pending: z.literal(true),
+  production_activation_permitted: z.literal(false),
+  runtime_candidate_hash: z.string().length(64),
+  candidate_manifest: FileReferenceSchema,
+  parent_manifest: FileReferenceSchema,
+  parent_runtime_hash: z.string().length(64),
+  parent_approval_verification: z.enum(["verified_locally", "not_reverified_locally"]),
+  operator_authorization_reference: z.string().trim().min(1)
+}).strict();
+
+const ActiveBundleRecordSchema = z.union([
+  DerivedBundleRecordSchema, LegacyBundleRecordSchema, LocalLunaLowCandidateRecordSchema
+]);
 export type ActiveOperationalApprovalRecord = z.infer<typeof ActiveBundleRecordSchema>;
 
 export type ApprovedOperationalRuntimeResolution = {
@@ -378,7 +396,8 @@ export function verifyApprovedCandidateArtifacts(input: {
   requireEvidenceManifestPathMatch?: boolean;
   approvalDepth?: number;
 }) {
-  if ((input.approvalDepth ?? 0) > 4) {
+  // Preserve the four historical amendments and permit one prospective model-only amendment.
+  if ((input.approvalDepth ?? 0) > 5) {
     throw new Error("Approval amendment ancestry is too deep.");
   }
   const manifest = ApprovedCandidateManifestSchema.parse(
@@ -427,6 +446,8 @@ export function verifyApprovedCandidateArtifacts(input: {
             ? connectivityBudgetAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
             : evidence.approval_command_version === SOL_LOW_REASONING_AMENDMENT_VERSION
               ? solLowReasoningAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
+              : evidence.approval_command_version === LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION
+                ? lunaLowAllRolesAmendmentIssues(manifest, evidence, input.approvalDepth ?? 0)
         : !humanReviewApproved(evidence.human_review) ? ["human_approval_missing"] : [])
   ];
   if (issues.length > 0) {
@@ -905,6 +926,206 @@ export function prepareConnectivityBudgetAmendment(input: {
   return { manifestPath, evidencePath, evidence };
 }
 
+const LunaLowLineageSchema = z.object({
+  parent_manifest: FileReferenceSchema,
+  parent_evidence: FileReferenceSchema,
+  parent_runtime_hash: z.string().length(64),
+  parent_protocol_hash: z.string().length(64),
+  parent_approval_hash: z.string().length(64)
+}).strict();
+
+function verifyLunaLowLineage(lineage: z.infer<typeof LunaLowLineageSchema>, depth = 0) {
+  for (const reference of [lineage.parent_manifest, lineage.parent_evidence]) {
+    if (!path.isAbsolute(reference.path) || sha256File(reference.path) !== reference.sha256) {
+      throw new Error("Luna-low parent evidence integrity mismatch.");
+    }
+  }
+  return verifyApprovedCandidateArtifacts({
+    approvedManifestPath: lineage.parent_manifest.path,
+    approvalEvidencePath: lineage.parent_evidence.path,
+    expectedRuntimeHash: lineage.parent_runtime_hash,
+    expectedEvaluationProtocolHash: lineage.parent_protocol_hash,
+    expectedApprovalEvidenceHash: lineage.parent_approval_hash,
+    approvalDepth: depth + 1
+  });
+}
+
+// This pure projection is not approval or activation. Historical parents remain exact.
+export function buildLunaLowAllRolesCandidateManifest(parent: ApprovedCandidateManifest) {
+  const manifest = ApprovedCandidateManifestSchema.parse(structuredClone(parent));
+  assertExactRoleInventory(manifest);
+  if (APPROVED_OPERATIONAL_ROLE_NAMES.some(role => !manifest.roles[role])) {
+    throw new Error("Luna-low requires all 18 explicit parent roles; historical aliases must not be promoted implicitly.");
+  }
+  for (const role of APPROVED_OPERATIONAL_ROLE_NAMES) {
+    manifest.roles[role]!.model_name = "gpt-5.6-luna";
+    manifest.roles[role]!.reasoning_effort = "low";
+  }
+  return manifest;
+}
+
+function lunaLowLineage(parent: ActiveDerivedOperationalApproval, expectedParentHash: string) {
+  if (parent.record.runtime_candidate_hash !== expectedParentHash) {
+    throw new Error("Luna-low expected parent hash does not match.");
+  }
+  const lineage = {
+    parent_manifest: { path: parent.manifest_path, sha256: sha256File(parent.manifest_path) },
+    parent_evidence: { path: parent.approval_evidence_path, sha256: sha256File(parent.approval_evidence_path) },
+    parent_runtime_hash: parent.record.runtime_candidate_hash,
+    parent_protocol_hash: parent.record.evaluation_protocol_hash,
+    parent_approval_hash: parent.record.approval_evidence_hash
+  };
+  const verified = verifyLunaLowLineage(lineage);
+  if (stableHash(verified.manifest) !== stableHash(parent.manifest)) {
+    throw new Error("Luna-low in-memory parent differs from verified artifacts.");
+  }
+  return { lineage, verified };
+}
+
+export function stageLunaLowAllRolesCandidate(input: {
+  parent: ActiveDerivedOperationalApproval;
+  expectedParentHash: string;
+  outputDirectory: string;
+  authorizationReference: string;
+}) {
+  if (!input.authorizationReference.trim()) throw new Error("Explicit operator authorization is required.");
+  const { lineage, verified } = lunaLowLineage(input.parent, input.expectedParentHash);
+  return writeLunaLowCandidate({
+    parentManifest: verified.manifest, parentManifestReference: lineage.parent_manifest,
+    parentRuntimeHash: lineage.parent_runtime_hash, parentApprovalVerification: "verified_locally",
+    outputDirectory: input.outputDirectory, authorizationReference: input.authorizationReference
+  });
+}
+
+// An exported manifest is sufficient for isolated testing, never for final approval.
+// Final approval still recursively verifies the complete original evidence chain.
+export function stageLunaLowAllRolesCandidateFromManifest(input: {
+  parentManifestPath: string;
+  expectedParentManifestSha256: string;
+  expectedParentRuntimeHash: string;
+  outputDirectory: string;
+  authorizationReference: string;
+}) {
+  if (!input.authorizationReference.trim()) throw new Error("Explicit operator authorization is required.");
+  const parentManifestPath = path.resolve(input.parentManifestPath);
+  if (sha256File(parentManifestPath) !== input.expectedParentManifestSha256) {
+    throw new Error("Exported Luna-low parent manifest integrity mismatch.");
+  }
+  const parentManifest = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync(parentManifestPath, "utf8")));
+  if (modelUpgradeCandidateRuntimeHash(parentManifest, approvedOperationalRoleNamesForManifest(parentManifest)) !== input.expectedParentRuntimeHash) {
+    throw new Error("Exported Luna-low parent runtime hash mismatch.");
+  }
+  return writeLunaLowCandidate({
+    parentManifest,
+    parentManifestReference: { path: parentManifestPath, sha256: input.expectedParentManifestSha256 },
+    parentRuntimeHash: input.expectedParentRuntimeHash, parentApprovalVerification: "not_reverified_locally",
+    outputDirectory: input.outputDirectory, authorizationReference: input.authorizationReference
+  });
+}
+
+function writeLunaLowCandidate(input: {
+  parentManifest: ApprovedCandidateManifest;
+  parentManifestReference: z.infer<typeof FileReferenceSchema>;
+  parentRuntimeHash: string;
+  parentApprovalVerification: "verified_locally" | "not_reverified_locally";
+  outputDirectory: string;
+  authorizationReference: string;
+}) {
+  const manifest = buildLunaLowAllRolesCandidateManifest(input.parentManifest);
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES);
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false, mode: 0o700 });
+  const manifestPath = path.join(directory, "candidate-manifest.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  const candidatePath = path.join(directory, "candidate-evaluation.json");
+  writeFileSync(candidatePath, JSON.stringify({
+    version: "luna-low-all-roles-candidate-v1",
+    active_kind: "local_candidate_evaluation",
+    validation_pending: true,
+    production_activation_permitted: false,
+    runtime_candidate_hash: runtimeHash,
+    candidate_manifest: { path: manifestPath, sha256: sha256File(manifestPath) },
+    parent_manifest: input.parentManifestReference,
+    parent_runtime_hash: input.parentRuntimeHash,
+    parent_approval_verification: input.parentApprovalVerification,
+    operator_authorization_reference: input.authorizationReference
+  }, null, 2) + "\n", { flag: "wx" });
+  return { status: "candidate_not_approved" as const, manifestPath, candidatePath, runtime_candidate_hash: runtimeHash };
+}
+
+function lunaLowAllRolesAmendmentIssues(
+  manifest: ApprovedCandidateManifest,
+  evidence: OperationalApprovalEvidence,
+  depth: number
+) {
+  const amendment = LunaLowLineageSchema.extend({ validation_evidence: FileReferenceSchema }).strict()
+    .parse(evidence.luna_low_all_roles_amendment);
+  const parent = verifyLunaLowLineage(amendment, depth);
+  const expected = buildLunaLowAllRolesCandidateManifest(parent.manifest);
+  verifyLunaLowValidation(amendment.validation_evidence, evidence.runtime_candidate_hash);
+  const review = evidence.human_review;
+  return [
+    ...(stableHash(expected) !== stableHash(manifest) ? ["luna_low_changed_other_settings"] : []),
+    ...(review.decision !== "approve" || review.scope !== "all_application_roles_model_and_reasoning_only" ||
+      review.operator_authorized !== true || review.semantic_review_confirmed !== false ||
+      review.synthetic_engineering_results_reviewed !== true ||
+      typeof review.authorization_reference !== "string" || !review.authorization_reference.trim()
+      ? ["luna_low_authorization_missing"] : []),
+    ...(evidence.source_artifact_sha256 !== amendment.validation_evidence.sha256 ||
+      evidence.source_evaluation_protocol_hash !== parent.evidence.evaluation_protocol_hash ||
+      evidence.rollback_hash !== parent.evidence.rollback_hash ||
+      evidence.evaluation_protocol_hash !== stableHash(amendment)
+      ? ["luna_low_provenance_mismatch"] : [])
+  ];
+}
+
+export function prepareLunaLowAllRolesAmendment(input: {
+  parent: ActiveDerivedOperationalApproval;
+  expectedParentHash: string;
+  validationEvidencePath: string;
+  outputDirectory: string;
+  authorizationReference: string;
+}) {
+  if (!input.authorizationReference.trim()) throw new Error("Explicit operator authorization is required.");
+  const { lineage, verified } = lunaLowLineage(input.parent, input.expectedParentHash);
+  const manifest = buildLunaLowAllRolesCandidateManifest(verified.manifest);
+  const runtimeHash = modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES);
+  const sourceValidationPath = path.resolve(input.validationEvidencePath);
+  verifyLunaLowValidation({ path: sourceValidationPath, sha256: sha256File(sourceValidationPath) }, runtimeHash);
+  const directory = path.resolve(input.outputDirectory);
+  mkdirSync(directory, { recursive: false, mode: 0o700 });
+  const manifestPath = path.join(directory, "approved-candidate-manifest.json");
+  const validationPath = path.join(directory, "synthetic-validation.json");
+  copyFileSync(sourceValidationPath, validationPath);
+  const amendment = { ...lineage,
+    validation_evidence: { path: validationPath, sha256: sha256File(validationPath) } };
+  const identity = {
+    source_provider_run_id: `luna-low:${amendment.validation_evidence.sha256}`,
+    derived_evaluation_id: `${LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION}:${runtimeHash}`,
+    runtime_candidate_hash: runtimeHash,
+    source_evaluation_protocol_hash: verified.evidence.evaluation_protocol_hash,
+    evaluation_protocol_hash: stableHash(amendment),
+    human_review: { decision: "approve", scope: "all_application_roles_model_and_reasoning_only",
+      operator_authorized: true, semantic_review_confirmed: false, synthetic_engineering_results_reviewed: true,
+      authorization_reference: input.authorizationReference,
+      limitations: "Operator-authorized model/reasoning change to gpt-5.6-luna low for all 18 application roles. Recorded live synthetic engineering results were reviewed; this is not independent human validation, diagnostic accuracy or classroom learning evidence. Budgets, prompts, contracts, guards and historical records retain their parent configuration." }
+  };
+  const evidence: OperationalApprovalEvidence = {
+    ...identity, approval_command_version: LUNA_LOW_ALL_ROLES_AMENDMENT_VERSION,
+    approved_at: new Date().toISOString(), source_artifact_sha256: amendment.validation_evidence.sha256,
+    approval_evidence_hash: stableHash(identity), exact_operational_approved_config_hash: runtimeHash,
+    rollback_hash: verified.evidence.rollback_hash, approved_manifest_artifact_path: manifestPath,
+    luna_low_all_roles_amendment: amendment
+  };
+  const evidencePath = path.join(directory, "approval-evidence.json");
+  writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n", { flag: "wx" });
+  writeFileSync(evidencePath, JSON.stringify(evidence, null, 2) + "\n", { flag: "wx" });
+  verifyApprovedCandidateArtifacts({ approvedManifestPath: manifestPath, approvalEvidencePath: evidencePath,
+    expectedRuntimeHash: runtimeHash, expectedEvaluationProtocolHash: evidence.evaluation_protocol_hash,
+    expectedApprovalEvidenceHash: evidence.approval_evidence_hash });
+  return { manifestPath, evidencePath, evidence };
+}
+
 export type ActiveDerivedOperationalApproval = {
   kind: "derived_approval";
   bundle_path: string;
@@ -923,10 +1144,63 @@ export type ActiveLegacyOperationalApproval = {
   manifest_path: string;
 };
 
+export type ActiveLocalCandidateEvaluation = {
+  kind: "local_candidate_evaluation";
+  bundle_path: string;
+  record: z.infer<typeof LocalLunaLowCandidateRecordSchema>;
+  manifest_path: string;
+  manifest: ApprovedCandidateManifest;
+  runtime_snapshot: ReturnType<typeof modelUpgradeCandidateRuntimeSnapshot>;
+};
+
+function assertLocalLunaLowCandidateContext(env: Record<string, string | undefined>) {
+  let localDatabase = false;
+  try {
+    const database = new URL(env.DATABASE_URL ?? "");
+    localDatabase = ["postgres:", "postgresql:"].includes(database.protocol) &&
+      ["localhost", "127.0.0.1", "[::1]"].includes(database.hostname) &&
+      /^\/cmcq_ai_students_[a-f0-9]{12}$/.test(database.pathname) &&
+      !database.searchParams.has("host") && !database.searchParams.has("hostaddr");
+  } catch { /* Invalid or absent database context cannot authorize candidate execution. */ }
+  if (env.LUNA_LOW_LOCAL_CANDIDATE_EVALUATION !== "1" || env.APP_ENV !== "development" ||
+      !localDatabase || env.RENDER === "true" || Boolean(env.RENDER_SERVICE_ID) ||
+      env.OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE === "true") {
+    throw new OperationalApprovalBundleError("local_candidate_evaluation_forbidden",
+      "A pending Luna-low candidate is allowed only in an explicitly enabled fresh local synthetic evaluation database.");
+  }
+}
+
+function resolveLocalLunaLowCandidate(
+  record: z.infer<typeof LocalLunaLowCandidateRecordSchema>,
+  bundlePath: string,
+  env: Record<string, string | undefined>
+): ActiveLocalCandidateEvaluation {
+  assertLocalLunaLowCandidateContext(env);
+  if (env.OPERATIONAL_APPROVAL_EVIDENCE_PATH?.trim()) {
+    throw new OperationalApprovalBundleError("local_candidate_approval_evidence_conflict",
+      "Pending candidate evaluation must not assert production approval evidence.");
+  }
+  const manifestPath = assertFileHash(record.candidate_manifest, bundlePath, "local_candidate_manifest_integrity_mismatch");
+  const parentPath = assertFileHash(record.parent_manifest, bundlePath, "local_candidate_parent_integrity_mismatch");
+  const manifest = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync(manifestPath, "utf8")));
+  const parent = ApprovedCandidateManifestSchema.parse(JSON.parse(readFileSync(parentPath, "utf8")));
+  const expected = buildLunaLowAllRolesCandidateManifest(parent);
+  if (modelUpgradeCandidateRuntimeHash(parent, approvedOperationalRoleNamesForManifest(parent)) !== record.parent_runtime_hash ||
+      stableHash(expected) !== stableHash(manifest) ||
+      modelUpgradeCandidateRuntimeHash(manifest, APPROVED_OPERATIONAL_ROLE_NAMES) !== record.runtime_candidate_hash ||
+      env.OPERATIONAL_APPROVED_CONFIG_HASH !== record.runtime_candidate_hash ||
+      (env.OPERATIONAL_APPROVED_MANIFEST_PATH?.trim() && path.resolve(env.OPERATIONAL_APPROVED_MANIFEST_PATH) !== manifestPath)) {
+    throw new OperationalApprovalBundleError("local_candidate_identity_mismatch",
+      "Pending candidate evaluation identity does not match its exact parent and model-only projection.");
+  }
+  return { kind: "local_candidate_evaluation", bundle_path: bundlePath, record, manifest_path: manifestPath, manifest,
+    runtime_snapshot: modelUpgradeCandidateRuntimeSnapshot(manifest, APPROVED_OPERATIONAL_ROLE_NAMES) };
+}
+
 export function resolveActiveOperationalApproval(input: {
   env?: Record<string, string | undefined>;
   bundlePath?: string;
-} = {}): ActiveDerivedOperationalApproval | ActiveLegacyOperationalApproval | null {
+} = {}): ActiveDerivedOperationalApproval | ActiveLegacyOperationalApproval | ActiveLocalCandidateEvaluation | null {
   const env = input.env ?? process.env;
   const configuredBundlePath = env.OPERATIONAL_APPROVAL_BUNDLE_PATH?.trim();
   const configuredManifestPath = env.OPERATIONAL_APPROVED_MANIFEST_PATH?.trim();
@@ -948,6 +1222,9 @@ export function resolveActiveOperationalApproval(input: {
   }
 
   const record = ActiveBundleRecordSchema.parse(JSON.parse(readFileSync(bundlePath, "utf8")));
+  if (record.active_kind === "local_candidate_evaluation") {
+    return resolveLocalLunaLowCandidate(record, bundlePath, env);
+  }
   if (record.active_kind === "legacy_gpt54_baseline") {
     if (configuredManifestPath || configuredEvidencePath) {
       throw new OperationalApprovalBundleError(
@@ -1105,6 +1382,20 @@ export function resolveApprovedOperationalRuntimeRequirement(input: {
           : []),
         "legacy_bundle_cannot_satisfy_approved_runtime_requirement"
       ],
+      bundle_path: active.bundle_path
+    };
+  }
+
+  if (active.kind === "local_candidate_evaluation") {
+    return {
+      requested_hash: input.requestedHash,
+      resolved_hash: active.record.runtime_candidate_hash,
+      resolution_source: "none",
+      approved_bundle_complete: false,
+      role_count: Object.keys(active.manifest.roles).length,
+      missing_roles: [],
+      duplicate_roles: [],
+      mismatch_reasons: ["local_candidate_validation_pending"],
       bundle_path: active.bundle_path
     };
   }

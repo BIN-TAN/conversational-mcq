@@ -139,10 +139,10 @@ export type OperationalAgentIntegrationReadiness = {
   typed_blocking_reasons: OperationalExecutionBlockReason[];
   readiness_snapshot: SanitizedReadinessSnapshot;
   sanitized_warnings: string[];
-  evidence_status: "manifest_verified" | "not_checked" | "not_required_for_disabled";
+  evidence_status: "manifest_verified" | "not_checked" | "not_required_for_disabled" | "local_candidate_validation_pending";
   config: ReturnType<typeof guardedOperationalAgentIntegrationConfig>;
   approved_evaluation: {
-    source: "phase8a_manifest" | "derived_approval_bundle" | "invalid_active_approval_bundle";
+    source: "phase8a_manifest" | "derived_approval_bundle" | "invalid_active_approval_bundle" | "local_candidate_validation_pending";
     model_snapshot: string;
     reasoning_effort: string;
     semantic_validator_version: string;
@@ -357,14 +357,14 @@ export function activeAgentVersionSnapshot() {
   const snapshot = activeOperationalAgentConfigSnapshot();
   const approvedConfig = readActiveApprovedOperationalRuntimeConfig();
 
-  if (approvedConfig.kind === "derived_approval") {
+  if (approvedConfig.kind === "derived_approval" || approvedConfig.kind === "local_candidate_evaluation") {
     return Object.fromEntries(Object.entries(snapshot.agents).map(([agentName, agent]) => [
       agentName,
       {
         ...agent,
-        prompt_matches_evaluated: true,
-        schema_matches_evaluated: true,
-        prompt_hash_matches_evaluated: true
+        prompt_matches_evaluated: approvedConfig.kind !== "local_candidate_evaluation",
+        schema_matches_evaluated: approvedConfig.kind !== "local_candidate_evaluation",
+        prompt_hash_matches_evaluated: approvedConfig.kind !== "local_candidate_evaluation"
       }
     ]));
   }
@@ -444,6 +444,11 @@ function evidenceFromApprovedManifest(input: {
   canaryContextValid: boolean;
   forceMissing?: boolean;
 }) {
+  if (input.manifest.kind === "local_candidate_evaluation") {
+    // The resolver already enforced the explicit fresh-local-database boundary.
+    // This run exists to obtain evidence; it must not report that evidence as found.
+    return { required: false, found: false, source: "local_candidate_validation_pending" };
+  }
   if (!input.config.evaluation_evidence_required) {
     return {
       required: false,
@@ -590,6 +595,8 @@ export async function evaluateOperationalExecutionReadiness(input: {
       : "unavailable_due_to_invalid_environment";
   const blockingReasons: OperationalExecutionBlockReason[] = [];
   const warnings = [
+    ...(manifest.kind === "local_candidate_evaluation"
+      ? ["Pending candidate: isolated synthetic evaluation only; no production approval or educational validation."] : []),
     ...(config.configuration_error
       ? [
           `Operational LLM configuration is invalid: ${config.configuration_error.issues
@@ -763,7 +770,7 @@ export async function evaluateOperationalExecutionReadiness(input: {
     provider: config.provider,
     live_calls_enabled: config.live_calls_enabled,
     api_key_configured: config.openai_key_configured,
-    approved_manifest_valid: manifestVerification.valid,
+    approved_manifest_valid: manifest.kind !== "local_candidate_evaluation" && manifestVerification.valid,
     approved_config_hash_configured: config.operational_approved_config_hash_configured,
     approved_config_hash_matches:
       config.operational_approved_config_hash_configured &&
@@ -831,7 +838,8 @@ export async function getGuardedOperationalAgentIntegrationReadiness(
     typed_blocking_reasons: snapshot.typed_blocking_reasons,
     readiness_snapshot: snapshot,
     sanitized_warnings: snapshot.sanitized_warnings,
-    evidence_status: config.mode === "disabled" ? "not_required_for_disabled" : "manifest_verified",
+    evidence_status: config.mode === "disabled" ? "not_required_for_disabled"
+      : manifest?.kind === "local_candidate_evaluation" ? "local_candidate_validation_pending" : "manifest_verified",
     config,
     approved_evaluation: manifest === null
       ? {
@@ -847,9 +855,9 @@ export async function getGuardedOperationalAgentIntegrationReadiness(
           approval_evidence_hash: null,
           classroom_validity: false
         }
-      : manifest.kind === "derived_approval"
+      : manifest.kind === "derived_approval" || manifest.kind === "local_candidate_evaluation"
       ? {
-          source: "derived_approval_bundle",
+          source: manifest.kind === "local_candidate_evaluation" ? "local_candidate_validation_pending" : "derived_approval_bundle",
           model_snapshot: "role_specific_gpt-5.6",
           reasoning_effort: "role_specific",
           semantic_validator_version: manifest.semantic_validator_version,

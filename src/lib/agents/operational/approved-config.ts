@@ -14,6 +14,7 @@ import { getServerEnv } from "@/lib/env";
 import { stableHash } from "@/lib/operational/stable-hash";
 import {
   type ActiveDerivedOperationalApproval,
+  type ActiveLocalCandidateEvaluation,
   type ApprovedCandidateManifest,
   type ApprovedOperationalRoleName,
   APPROVED_OPERATIONAL_ROLE_NAMES,
@@ -74,7 +75,7 @@ const approvedConfigSchema = z.object({
 export type ApprovedOperationalAgentConfig = z.infer<typeof approvedConfigSchema>;
 
 export type ApprovedOperationalConfigVerification = {
-  approval_kind: "phase8a_legacy" | "derived_approval";
+  approval_kind: "phase8a_legacy" | "derived_approval" | "local_candidate_evaluation";
   valid: boolean;
   manifest_hash: string;
   approved_hash: string;
@@ -250,10 +251,52 @@ export type ActiveApprovedOperationalRuntimeConfig =
       };
       legacy_manifest: ApprovedOperationalAgentConfig;
       active_bundle: ActiveDerivedOperationalApproval;
+    }
+  | {
+      kind: "local_candidate_evaluation";
+      manifest_version: string;
+      approved_active_configuration_hash: string;
+      config_hash: string;
+      semantic_validator_version: string;
+      safety_validator_version: string;
+      effective_result_version: string;
+      effective_validator_version: string;
+      roles: Record<ApprovedOperationalRoleName, AgentModelConfig>;
+      runtime_policy: ApprovedCandidateManifest["runtime_policy"];
+      evaluation_evidence: {
+        source: "local_candidate_validation_pending";
+        found: false;
+        source_provider_run_id: null;
+        derived_evaluation_id: null;
+        evaluation_protocol_hash: null;
+        approval_evidence_hash: null;
+      };
+      legacy_manifest: ApprovedOperationalAgentConfig;
+      active_bundle: ActiveLocalCandidateEvaluation;
     };
 
 export function readActiveApprovedOperationalRuntimeConfig(): ActiveApprovedOperationalRuntimeConfig {
   const activeApproval = resolveActiveOperationalApproval();
+  if (activeApproval?.kind === "local_candidate_evaluation") {
+    const fingerprint = activeApproval.manifest.configuration_fingerprint;
+    return {
+      kind: "local_candidate_evaluation",
+      manifest_version: activeApproval.manifest.manifest_version,
+      approved_active_configuration_hash: activeApproval.record.runtime_candidate_hash,
+      config_hash: activeApproval.record.candidate_manifest.sha256,
+      semantic_validator_version: fingerprint.semantic_validator_version,
+      safety_validator_version: fingerprint.safety_validator_version,
+      effective_result_version: fingerprint.effective_result_version,
+      effective_validator_version: fingerprint.effective_validator_version,
+      roles: Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map(role =>
+        [role, approvedCandidateRoleConfig(activeApproval.manifest, role)])) as Record<ApprovedOperationalRoleName, AgentModelConfig>,
+      runtime_policy: activeApproval.manifest.runtime_policy,
+      evaluation_evidence: { source: "local_candidate_validation_pending", found: false,
+        source_provider_run_id: null, derived_evaluation_id: null,
+        evaluation_protocol_hash: null, approval_evidence_hash: null },
+      legacy_manifest: readApprovedOperationalAgentConfig(), active_bundle: activeApproval
+    };
+  }
   if (activeApproval?.kind === "derived_approval") {
     const fingerprint = activeApproval.manifest.configuration_fingerprint;
     const roles = Object.fromEntries(APPROVED_OPERATIONAL_ROLE_NAMES.map((role) => [
@@ -350,7 +393,7 @@ function activeAgentsFromDerivedManifest(manifest: ApprovedCandidateManifest) {
 
 export function activeOperationalAgentConfigSnapshot() {
   const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
-  if (activeRuntime.kind === "derived_approval") {
+  if (activeRuntime.kind === "derived_approval" || activeRuntime.kind === "local_candidate_evaluation") {
     return {
       model_snapshot: "role_specific",
       reasoning_effort: "role_specific",
@@ -419,7 +462,7 @@ export function activeOperationalAgentConfigSnapshot() {
 
 export function activeOperationalConfigHash() {
   const activeRuntime = readActiveApprovedOperationalRuntimeConfig();
-  if (activeRuntime.kind === "derived_approval") {
+  if (activeRuntime.kind === "derived_approval" || activeRuntime.kind === "local_candidate_evaluation") {
     return activeRuntime.approved_active_configuration_hash;
   }
   return stableHash(activeOperationalAgentConfigSnapshot());
@@ -464,7 +507,7 @@ function explicitlyConfigured(name: string) {
 }
 
 function verifyDerivedApprovedOperationalConfig(
-  activeRuntime: Extract<ActiveApprovedOperationalRuntimeConfig, { kind: "derived_approval" }>,
+  activeRuntime: Exclude<ActiveApprovedOperationalRuntimeConfig, { kind: "phase8a_legacy" }>,
   options: ApprovedOperationalConfigVerificationOptions
 ): ApprovedOperationalConfigVerification {
   const env = getServerEnv();
@@ -498,7 +541,7 @@ function verifyDerivedApprovedOperationalConfig(
         ? approved.max_output_tokens
         : override.max_output_tokens,
       source: override?.source ?? (
-        approvalResolution.compatibility_used
+        activeRuntime.kind === "local_candidate_evaluation" ? "local_candidate_evaluation" : approvalResolution.compatibility_used
           ? "active_approval_bundle_legacy_topic_dialogue_compatibility"
           : "active_approval_bundle"
       )
@@ -618,10 +661,12 @@ function verifyDerivedApprovedOperationalConfig(
   }
 
   return {
-    approval_kind: "derived_approval",
+    approval_kind: activeRuntime.kind,
     valid: issues.length === 0,
-    manifest_hash: activeRuntime.active_bundle.record.approved_manifest.sha256,
-    approved_hash: activeRuntime.active_bundle.record.approval_evidence_hash,
+    manifest_hash: activeRuntime.kind === "local_candidate_evaluation"
+      ? activeRuntime.active_bundle.record.candidate_manifest.sha256 : activeRuntime.active_bundle.record.approved_manifest.sha256,
+    approved_hash: activeRuntime.kind === "local_candidate_evaluation"
+      ? "not-approved-validation-pending" : activeRuntime.active_bundle.record.approval_evidence_hash,
     issues,
     active_configuration_hash: activeRuntime.approved_active_configuration_hash,
     active_agents: activeAgents,
@@ -680,7 +725,7 @@ export function verifyApprovedOperationalAgentConfig(
       effective_validator_version: manifest.effective_validator_version
     };
   }
-  if (activeRuntime.kind === "derived_approval") {
+  if (activeRuntime.kind === "derived_approval" || activeRuntime.kind === "local_candidate_evaluation") {
     return verifyDerivedApprovedOperationalConfig(activeRuntime, options);
   }
   const env = getServerEnv();
