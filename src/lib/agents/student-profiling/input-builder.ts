@@ -397,6 +397,7 @@ export async function buildInitialStudentProfilingInput(
     profile_type: "initial",
     profiling_constraints: {
       fact_binding_version: STUDENT_PROFILE_FACT_BINDING_VERSION,
+      strong_partial_reasoning_support: "Current V6 requires explicit source-bound correct-component support for incorrect_answer_strong_partial_reasoning; an exact quote alone does not establish conceptual truth. Keep the array empty when that flag is absent.",
       sealed_response_facts: "The sealed package is authoritative for correctness, submitted confidence and explicit skipped booleans. Do not infer or replace these facts. Quote reasoning exactly from the submitted item response.",
       reasoning_scope: "Concise accurate reasoning can be adequate for the administered item. Brevity, low confidence, recognition alone and untested transfer do not establish a reasoning defect. A weak-reasoning flag needs a specific observed conceptual or explanatory limitation, not a missing additional test.",
       profile_layers: [

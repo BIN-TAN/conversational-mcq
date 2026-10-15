@@ -159,6 +159,13 @@ function main() {
       JSON.stringify(compiledFormative.text),
       /profile_transition_recommendation/u
     );
+    const compiledSchema = record(record(record(compiledFormative.text).format).schema);
+    const compiledProperties = Object.keys(record(compiledSchema.properties));
+    assert.equal(compiledProperties[0], "pre_reply_plan");
+    assert(compiledProperties.indexOf("student_visible_message") > 0);
+    assert.equal(compiledProperties.at(-1), "post_reply_review");
+    assert(!compiledProperties.includes("conversation_review"));
+    assert.match(JSON.stringify(compiledSchema), /conversation-pre-reply-plan-v2/u);
     const repairContext = v18r2TestContext({ student_turn_count: 3,
       current_profile_evidence_cutoff_sequence_index: 4 });
     const repairBase = { ...formativeRequest, input: repairContext };
@@ -186,8 +193,10 @@ function main() {
       && entry.source_sequence_index! > 4).map(entry => entry.evidence_id);
     assert(expected.length > 0 && expected.length < catalog.length);
     assert.deepEqual(repair.input.semantic_regeneration.updated_field_eligible_evidence_ids, expected);
-    assert.match(repair.instructions, /original_context.current_profile.canonical_profile/u);
-    assert.match(repair.instructions, /not from the invalid candidate/u);
+    assert.match(repair.instructions, /send NO\s+changed_fields value/u);
+    assert.match(repair.instructions, /pre_reply_plan first, then student_visible_message/u);
+    assert.match(repair.instructions, /invalid candidate is immutable/u);
+    assert(!repair.instructions.includes("For every retained_evidence_remains_valid field, copy the value exactly"));
     assert.equal(JSON.stringify({ repairContext, invalidAttempt }), original, "Retry construction must not repair or mutate evidence.");
     const foreign = catalog.find(entry => expected.includes(entry.evidence_id))!;
     foreign.conversation_public_id = "different-conversation";

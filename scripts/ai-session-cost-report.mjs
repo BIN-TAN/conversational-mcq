@@ -124,27 +124,116 @@ export function analyzeAgentCall(record) {
   let retryCoverageUnknown = false;
   let units;
   if (attempts.length) {
-    // Audit entries replace, rather than supplement, the aggregate AgentCall.
-    units = attempts.map(attempt => {
+    // Price each dispatched tutor and review request at its own recorded model.
+    // These units replace the aggregate AgentCall, which includes both kinds.
+    const auditUnits = (attempt, attemptModel, usage, kind, rawResponse = {}) => {
       const requests = integer(attempt.http_request_count) ? attempt.http_request_count : null;
       const retries = integer(attempt.transport_retry_count) ? attempt.transport_retry_count : null;
+      if (attempt.dispatch_accounting_complete === false || attempt.usage_accounting_complete === false) {
+        warnings.push(`${kind}_accounting_incomplete`);
+        retryCoverageUnknown = true;
+      }
+      if (Object.hasOwn(attempt, "physical_usage")) {
+        const physical = object(attempt.physical_usage);
+        const rows = Array.isArray(physical.attempts) ? physical.attempts : [];
+        const responseIds = rows.map(entry => entry?.provider_response_id).filter(id => id !== null);
+        const shapeValid = physical.version === "provider-physical-usage-v1" && Array.isArray(physical.attempts)
+          && rows.length <= 3 && rows.every((entry, index) => entry && typeof entry === "object"
+            && entry.adapter_attempt_index === index + 1 && typeof entry.client_request_id === "string"
+            && entry.client_request_id.length > 0 && [true, false, null].includes(entry.fetch_invoked)
+            && (entry.provider_response_id === null || (typeof entry.provider_response_id === "string"
+              && entry.provider_response_id.length > 0)))
+          && new Set(rows.map(entry => entry.client_request_id)).size === rows.length
+          && new Set(responseIds).size === responseIds.length;
+        if (shapeValid) {
+          const dispatched = rows.filter(entry => entry.fetch_invoked !== false);
+          const counted = requests ?? dispatched.length;
+          requestCount += counted;
+          missingAttempts += Math.max(0, counted - dispatched.length);
+          const inconsistent = requests === null || requests !== rows.filter(entry => entry.fetch_invoked === true).length
+            || !integer(attempt.provider_attempt_count) || attempt.provider_attempt_count !== rows.length
+            || physical.usage_accounting_complete !== true || rows.some(entry => entry.fetch_invoked === null
+              || (entry.fetch_invoked === true && entry.provider_response_id === null));
+          if (inconsistent) {
+            warnings.push(`${kind}_physical_accounting_incomplete`);
+            retryCoverageUnknown = true;
+          }
+          return rows.map(entry => {
+            // Supplement cache details only from this exact physical response.
+            // Never borrow the final response's usage for an earlier request.
+            const ownRaw = entry.provider_response_id && rawResponse.id === entry.provider_response_id
+              ? object(rawResponse.usage) : {};
+            const recorded = normalizeUsage(entry, ownRaw);
+            const rawTokens = normalizeUsage(ownRaw);
+            const tokenConflict = ["input_tokens", "output_tokens", "total_tokens"].some(field =>
+              rawTokens[field] !== null && recorded[field] !== null && rawTokens[field] !== recorded[field]);
+            if (tokenConflict) recorded.issues.push("physical_response_usage_mismatch");
+            if (entry.fetch_invoked === false && [recorded.input_tokens, recorded.output_tokens, recorded.total_tokens]
+              .every(value => value === null || value === 0)) {
+              return { model: safeModel(attemptModel), usage: recorded,
+                cost: { status: "not_dispatched", lower_usd: 0, upper_usd: 0, exact_usd: 0, issues: [] },
+                dispatched: false, kind };
+            }
+            if (entry.fetch_invoked === false) recorded.issues.push("physical_usage_without_dispatch");
+            if (recorded.input_tokens === null || recorded.output_tokens === null || recorded.total_tokens === null
+              || recorded.issues.length) {
+              retryCoverageUnknown = true;
+              warnings.push(`${kind}_physical_usage_incomplete`);
+            }
+            return unit(attemptModel, recorded, { dispatched: true, kind });
+          });
+        }
+        warnings.push(`${kind}_physical_audit_invalid`);
+        retryCoverageUnknown = true;
+      }
+      if (requests === 0 && (usage.input_tokens ?? 0) === 0 && (usage.output_tokens ?? 0) === 0) {
+        return [{ model: safeModel(attemptModel), usage,
+          cost: { status: "not_dispatched", lower_usd: 0, upper_usd: 0, exact_usd: 0, issues: [] }, dispatched: false, kind }];
+      }
+      const counted = requests ?? (retries === null ? 1 : retries + 1);
+      requestCount += counted;
+      missingAttempts += Math.max(0, counted - 1);
+      if (requests === null && retries === null) retryCoverageUnknown = true;
+      if (requests === 0) {
+        warnings.push(`${kind}_usage_without_dispatch`);
+        retryCoverageUnknown = true;
+      }
+      return [unit(attemptModel, usage, { dispatched: true, kind })];
+    };
+    let reviewLogicalCalls = 0;
+    units = attempts.flatMap(attempt => {
       const raw = object(object(record.raw_output).accepted_output);
       const acceptedRaw = object(raw.provider_raw_output ?? raw);
       const matchingRaw = attempt.provider_response_id && acceptedRaw.id === attempt.provider_response_id
         ? object(acceptedRaw.usage) : {};
-      const usage = normalizeUsage(attempt.token_usage, attempt.usage, matchingRaw, attempt);
-      if (requests === 0 && usage.input_tokens === null && usage.output_tokens === null) {
-        return { model, usage, cost: { status: "not_dispatched", lower_usd: 0, upper_usd: 0, exact_usd: 0, issues: [] }, dispatched: false };
-      }
-      requestCount += requests ?? 1;
-      missingAttempts += Math.max(0, (requests ?? (retries === null ? 1 : retries + 1)) - 1);
-      if (requests === null && retries === null) retryCoverageUnknown = true;
-      return unit(model, usage, { dispatched: true });
+      const parent = auditUnits(attempt, model,
+        normalizeUsage(attempt.token_usage, attempt.usage, matchingRaw, attempt), "tutor", acceptedRaw);
+      if (!Object.hasOwn(attempt, "pre_delivery_review")) return parent;
+      const review = object(attempt.pre_delivery_review);
+      if (review.logical_call_entered === true) reviewLogicalCalls++;
+      const reviewRaw = object(review.raw_output);
+      const usage = normalizeUsage(review.token_usage, review.usage, review,
+        object(reviewRaw.usage), object(object(reviewRaw.provider_raw_output).usage));
+      const childRaw = object(reviewRaw.provider_raw_output ?? reviewRaw);
+      return [...parent, ...auditUnits(review, safeModel(review.model_name), usage, "delivery_review", childRaw)];
     });
+    if (audit.dispatch_accounting_complete === false || audit.usage_accounting_complete === false) {
+      warnings.push("execution_audit_accounting_incomplete");
+      retryCoverageUnknown = true;
+    }
+    if (integer(audit.review_logical_calls_entered) && audit.review_logical_calls_entered !== reviewLogicalCalls) {
+      warnings.push("delivery_review_receipt_count_mismatch");
+      retryCoverageUnknown = true;
+    }
+    if (integer(audit.http_requests_dispatched) && audit.http_requests_dispatched !== requestCount) {
+      warnings.push("aggregate_dispatches_do_not_match_attempts");
+      retryCoverageUnknown = true;
+    }
     const recorded = normalizeUsage(record.token_usage, record);
+    const dispatched = units.filter(entry => entry.dispatched !== false);
     for (const field of ["input_tokens", "output_tokens"]) {
-      if (recorded[field] !== null && units.every(entry => entry.usage[field] !== null)
-        && recorded[field] !== units.reduce((sum, entry) => sum + entry.usage[field], 0)) {
+      if (recorded[field] !== null && dispatched.every(entry => entry.usage[field] !== null)
+        && recorded[field] !== dispatched.reduce((sum, entry) => sum + entry.usage[field], 0)) {
         warnings.push(`aggregate_${field}_does_not_match_attempts`);
         retryCoverageUnknown = true;
       }
@@ -234,7 +323,7 @@ export function buildSessionCostReport(report, recordsByCase, generatedAt = new 
       "Cached reads and cache writes partition input; reasoning is part of output and is never added again.",
       "Cache/write detail absence produces a range. Missing usage or unsupported model prices remain unknown, not zero.",
       "Dispatch counts are execution evidence, not proof of billing. Ranges apply to standard text-token prices only; taxes, discounts, tools and nonstandard service tiers are excluded.",
-      "No separate evaluator is invoked by this journey harness. Manual pedagogical review is unpriced; these simulations are not classroom learning evidence."
+      "Delivery-review calls are application requests priced at their own recorded model in both retained child receipts and transport-based accounting. Manual pedagogical review is unpriced; these simulations are not classroom learning evidence."
     ],
     provider_dispatch_reconciliation: { reported_dispatches: dispatches, accounted_request_count: accountedRequests,
       unallocated_dispatches: extra, status: reconciled ? "matched" : "unreconciled" },

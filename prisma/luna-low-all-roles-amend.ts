@@ -7,6 +7,7 @@ import {
 } from "../src/lib/operational/active-approval-bundle";
 import { argValue } from "./operational-model-upgrade-cli-args";
 import { MIXED_TUTOR_MODEL } from "../src/lib/operational/mixed-tutor-identity";
+import { LUNA_CONVERSATION_REPAIR, LUNA_SOL_DELIVERY_REVIEW_MODEL } from "../src/lib/operational/luna-conversation-repair-identity";
 
 // Neither mode activates a bundle or sends provider requests.
 loadEnvConfig(process.cwd());
@@ -27,7 +28,21 @@ const tutorModel = argValue("--tutor-model");
 if (tutorModel !== undefined && (tutorModel !== MIXED_TUTOR_MODEL || reasoningEffort !== "medium" || profileCorrection !== "profile-fidelity-v1")) {
   throw new Error("Use --tutor-model gpt-6.1-sol only with medium reasoning and the exact profile-fidelity correction.");
 }
-const confirmation = tutorModel
+const conversationRepair = argValue("--conversation-repair");
+if (conversationRepair !== undefined && (conversationRepair !== LUNA_CONVERSATION_REPAIR ||
+    reasoningEffort !== "medium" || profileCorrection !== "profile-fidelity-v1" || tutorModel !== undefined)) {
+  throw new Error("Use --conversation-repair conversation-reliability-v1 only with all-Luna medium and profile-fidelity-v1.");
+}
+const deliveryReviewModel = argValue("--delivery-review-model");
+if (deliveryReviewModel !== undefined && (deliveryReviewModel !== LUNA_SOL_DELIVERY_REVIEW_MODEL ||
+    conversationRepair !== LUNA_CONVERSATION_REPAIR)) {
+  throw new Error("Use --delivery-review-model gpt-6.1-sol only with the exact all-Luna conversation-reliability scope.");
+}
+const confirmation = deliveryReviewModel
+  ? "authorize 18 gpt-5.6-luna medium primary roles and gpt-6.1-sol medium delivery review with exact conversation reliability corrections"
+  : conversationRepair
+  ? "authorize all application roles gpt-5.6-luna medium and exact profile fidelity and conversation reliability corrections"
+  : tutorModel
   ? "authorize gpt-6.1-sol medium tutor and 17 gpt-5.6-luna medium application roles and exact profile fidelity correction"
   : `authorize all application roles gpt-5.6-luna ${reasoningEffort}${profileCorrection ? " and exact profile fidelity correction" : ""}`;
 if (required("--confirm") !== confirmation) {
@@ -37,6 +52,8 @@ const common = {
   reasoningEffort: reasoningEffort as "low" | "medium",
   profileCorrection: profileCorrection as "profile-fidelity-v1" | undefined,
   tutorModel: tutorModel as typeof MIXED_TUTOR_MODEL | undefined,
+  conversationRepair: conversationRepair as typeof LUNA_CONVERSATION_REPAIR | undefined,
+  deliveryReviewModel: deliveryReviewModel as typeof LUNA_SOL_DELIVERY_REVIEW_MODEL | undefined,
   outputDirectory: required("--output-directory"),
   authorizationReference: required("--authorization-reference")
 };

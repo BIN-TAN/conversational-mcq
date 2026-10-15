@@ -184,7 +184,7 @@ function productionRequest(context: FormativeConversationV18R2AgentInput) {
 }
 
 function completedResult(input: {
-  request: StructuredAgentRequest<unknown, FormativeConversationV18R2AgentOutput>;
+  request: StructuredAgentRequest<unknown, unknown>;
   output: FormativeConversationV18R2AgentOutput;
   provider_attempt_count?: number;
   transport_retry_count?: number;
@@ -261,7 +261,7 @@ async function assertRecoveryAndFailSafe() {
     outcome: "largely_improved_understanding"
   });
   const requests: Array<
-    StructuredAgentRequest<unknown, FormativeConversationV18R2AgentOutput>
+    StructuredAgentRequest<unknown, unknown>
   > = [];
   const recovered = await executeFormativeConversationV18R2({
     base_request: request,

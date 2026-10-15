@@ -3,6 +3,7 @@ import { stableHash } from "@/lib/operational/stable-hash";
 import { providerRetryDelayMs } from "./provider-recovery";
 import type {
   LlmProvider,
+  LlmUsage,
   OpenAITransportMilestone,
   StructuredAgentRequest,
   StructuredAgentResult
@@ -438,6 +439,8 @@ export type ProviderAttemptBudgetSnapshot = {
 };
 
 export type ProviderTransportAttemptTrace = {
+  // Numeric provider usage only; no raw response or hidden reasoning is copied.
+  usage?: LlmUsage;
   tracing_policy_version: typeof PROVIDER_REQUEST_TRACING_POLICY_VERSION;
   logical_call_id: string;
   canonical_request_hash: string;
@@ -492,6 +495,64 @@ export type ProviderTransportExecutionResult<TOutput> = {
   semantic_regeneration_count: 0;
   final_classification: ProviderFailureClassification | null;
 };
+
+export const PROVIDER_PHYSICAL_USAGE_VERSION = "provider-physical-usage-v1" as const;
+export type ProviderPhysicalUsageAttempt = {
+  adapter_attempt_index: number;
+  client_request_id: string;
+  provider_response_id: string | null;
+  fetch_invoked: boolean | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  cached_input_tokens: number | null;
+  reasoning_tokens: number | null;
+};
+export type ProviderPhysicalUsageAudit = {
+  version: typeof PROVIDER_PHYSICAL_USAGE_VERSION;
+  attempts: ProviderPhysicalUsageAttempt[];
+  usage_accounting_complete: boolean;
+};
+
+export function isProviderPhysicalUsageComplete(attempts: ProviderPhysicalUsageAttempt[]) {
+  return attempts.every(attempt => attempt.fetch_invoked === false
+    ? [attempt.input_tokens, attempt.output_tokens, attempt.total_tokens].every(value => value === null || value === 0)
+    : attempt.fetch_invoked === true && attempt.input_tokens !== null && attempt.output_tokens !== null &&
+      attempt.total_tokens !== null && attempt.input_tokens + attempt.output_tokens === attempt.total_tokens);
+}
+
+function recordedTokens(value: number | undefined) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+export function providerPhysicalUsageFromTransport(
+  traces: ProviderTransportAttemptTrace[]
+): ProviderPhysicalUsageAudit {
+  const attempts = traces.map(attempt => ({
+    adapter_attempt_index: attempt.adapter_attempt_index,
+    client_request_id: attempt.x_client_request_id,
+    provider_response_id: attempt.provider_response_id,
+    fetch_invoked: attempt.transport_milestones?.fetch_invoked ?? null,
+    input_tokens: recordedTokens(attempt.usage?.input_tokens),
+    output_tokens: recordedTokens(attempt.usage?.output_tokens),
+    total_tokens: recordedTokens(attempt.usage?.total_tokens),
+    cached_input_tokens: recordedTokens(attempt.usage?.cached_input_tokens),
+    reasoning_tokens: recordedTokens(attempt.usage?.reasoning_tokens)
+  }));
+  return { version: PROVIDER_PHYSICAL_USAGE_VERSION, attempts,
+    usage_accounting_complete: isProviderPhysicalUsageComplete(attempts) };
+}
+
+// Known usage remains a lower bound when any possibly dispatched attempt lacks
+// usage. It must not be replaced with zero or presented as an exact total.
+export function sumProviderPhysicalUsage(audit: ProviderPhysicalUsageAudit): LlmUsage {
+  const sum = (field: "input_tokens" | "output_tokens" | "total_tokens" | "cached_input_tokens" | "reasoning_tokens") => {
+    const values = audit.attempts.filter(attempt => attempt.fetch_invoked !== false).map(attempt => attempt[field]);
+    return values.every(value => value === null) ? undefined : values.reduce<number>((total, value) => total + (value ?? 0), 0);
+  };
+  return { input_tokens: sum("input_tokens"), output_tokens: sum("output_tokens"), total_tokens: sum("total_tokens"),
+    cached_input_tokens: sum("cached_input_tokens"), reasoning_tokens: sum("reasoning_tokens") };
+}
 
 export function canonicalStructuredAgentRequestHash<TInput, TOutput>(
   request: StructuredAgentRequest<TInput, TOutput>
@@ -659,6 +720,11 @@ export async function executeWithBoundedProviderTransportRetry<TInput, TOutput>(
       : null;
     const canRetry = eligibleRetry && backoffMs !== null;
     traces.push({
+      usage: result.usage ? {
+        input_tokens: result.usage.input_tokens, output_tokens: result.usage.output_tokens,
+        total_tokens: result.usage.total_tokens, cached_input_tokens: result.usage.cached_input_tokens,
+        reasoning_tokens: result.usage.reasoning_tokens
+      } : undefined,
       tracing_policy_version: PROVIDER_REQUEST_TRACING_POLICY_VERSION,
       logical_call_id: input.logical_call_id,
       canonical_request_hash: canonicalRequestHash,

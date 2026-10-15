@@ -1,5 +1,112 @@
 # Assessment Flow Specification
 
+## Student-informed support and closure (prospective reliability revision)
+
+The tutor carries student requests to defer a topic, avoid a quiz or use brief
+explanations across turns and pause/resume. New uncertainty alone does not revoke
+a deferral. The complete transcript remains available; recaps distinguish prior
+tutor explanations, the student's own contributions, and remaining needs.
+
+An ongoing reply receives a separate review against the visible dialogue and the
+student's exact initial written reasoning before
+delivery. This check can reject invented history or an agenda that conflicts with
+the student's request, while allowing relevant new explanations and requested
+topic changes. It also checks material teaching
+errors, including an analogy that contradicts its own premise or a conclusion
+whose necessary assumptions no longer hold in the student's example. Sound simple
+explanations do not require exhaustive technical caveats. The prospective fifth
+version retains one ordered assessment for every application-defined draft block
+before its verdict, including implied conclusions and their premises. Earlier tutor messages establish
+conversation history, not factual truth. Initial reasoning can support an attribution
+to the earlier assessment; it does not establish current beliefs or factual accuracy.
+Only reasoning from administered items is included, without selected answers,
+correctness, keys or a background assessment profile. The review adds no student
+step, and leaves the existing one-regeneration limit intact. All review calls and
+failed drafts count toward recorded usage; a model review is not a guarantee.
+
+The prospective mixed-review candidate keeps Luna-medium for the eighteen primary
+application roles and uses Sol-medium only for this bounded delivery review. The
+review model, purpose, prompt/schema identity and 4,000-output-token ceiling are
+part of the approved runtime manifest. The application resolves that policy before
+creating the request and its audit record; an environment-only override cannot
+silently change the reviewer. The tutor still writes any permitted repair.
+
+Prospective review V8 also examines the candidate's proposed learning judgments
+before a profile can be saved. A separate, lossless projection includes evidence
+observations, proposed outcome/rationale, actually changed profile assertions and
+resolved-claim evidence summaries, with exact cited student sources. These are
+untrusted claims to check against the dialogue, not additional evidence. Whole
+prior profiles, retained values, answer keys and hidden correctness remain excluded.
+The reviewer compares the student's contribution with the reasoning already supplied
+by the tutor, including when a source has no earlier assistance annotation. A new
+substantive distinction or application can support a narrow improvement; restating
+a supplied solution alone cannot. The same bounded review and single tutor repair
+apply before delivery and persistence. No quiz, student step or automatic profile
+correction is added. A draft-only review cannot approve a hidden profile proposal.
+Private findings group claims with the same evidentiary problem under shared exact
+source quotations, while accounting for every unsupported block exactly once.
+Short audit explanations and claim anchors reduce repeated output without omitting
+claims from review. The increased output ceiling provides reasoning/report headroom;
+usage records count actual tokens. An incomplete review still blocks delivery and
+persistence, and does not add an automatic retry. Historical V7 reviews retain their
+original schema and 2,500-token limit.
+
+Current support annotations can refer explicitly to the complete reply that the
+application binds byte-for-byte. This removes redundant copying of formatted
+text from the generation contract. It changes no visible message or learning
+judgment. Such a reference establishes the source reply, not the truth of a
+support claim. Prospective earlier-tutor references similarly select an exact prior
+turn, whose full text and hash are supplied by the application. Student quotations
+still require exact sources, and the separate delivery and evidence checks remain
+in force. References cannot select future, student or other-conversation turns.
+
+When a preference already exists, the tutor selects its stable ID and explicitly
+declares retention or a source-supported change. In pre-reply plan V2, stored
+retention contains only `preference_id` and `decision: "retain"`; the application
+preserves its exact identity, status and source without a new preference update.
+It cannot reactivate a released preference. Activation and release still require
+current student evidence, and history-derived retention has a separate exact-source
+branch. Extra fields on stored retention are rejected, not stripped or repaired.
+Historical plans and failures retain their original interpretation.
+
+When a student narrows a broad deferral, the tutor must explicitly retain the
+remaining boundary and relink affected needs. The application checks every
+resulting deferred need, including unchanged ones, against an active deferral.
+An inconsistent proposal receives precise feedback within the existing single
+repair; the application does not infer consent or rewrite historical records.
+
+Support annotations distinguish a preference respected as a constraint from a
+topic being taught. A reply can explain validity while honoring a request to
+leave SEM for later. Explicit links record that distinction; unknown references,
+teaching an actively deferred topic or need, and unwanted practice remain invalid.
+The visible-dialogue review independently checks the reply against the student's
+actual boundary, rather than treating a model-authored link as proof of compliance.
+
+Before suggesting successful completion, the tutor considers the student's current
+report of understanding and readiness, remaining requests and identified
+misconceptions. Feeling understood informs support but does not establish mastery.
+Explanations, examples and optional practice respond to the student's needs; they
+are not a fixed checklist or a compulsory test. If an explanation fails, the tutor
+changes its approach or clarifies the difficulty. Instructor help is the final
+resort when suitable conversational support cannot meet the need, or when the
+student requests it or an issue specifically needs instructor authority.
+
+Students may pause or stop with unresolved needs. The existing 30-student-message
+maximum remains a workflow boundary, not evidence of learning or grounds for
+automatic referral. At the boundary the tutor can close honestly without a new
+profile judgment. Existing end/finish controls and application-owned transitions
+remain authoritative. No per-topic spending limit is added.
+
+An explicit request such as "stop for today" can describe an immediate stop and
+a pause for later. Both exit classifications require the same current student
+source; disagreement between those two labels alone does not reject the reply.
+Similarly, a current report of being ready to finish or pause may accompany a
+voluntary exit; readiness to begin or continue an activity is not exit intent.
+Neither interpretation proves mastery or resolves an outstanding support need.
+The application preserves the authored labels, lifecycle recommendation and
+unresolved needs. A brief, accurate recap of the completed discussion is allowed
+when closing, without a new topic, exercise or demand for a reply.
+
 ## Conversation Closure and Attempt Completion (2026-09-27)
 
 `planning_completed` is the persisted feedback-ready phase, not assessment
@@ -13,6 +120,13 @@ sealed initial package, completed initial administration, a closed conversation,
 and saved tutor responses for every receipt. Active conversations, pending or
 failed feedback, and platform-failure closures cannot use this completion path.
 Students retain Retry/contact-teacher recovery for feedback failures.
+
+The successful final-reply message-limit closure is a workflow boundary rather
+than a platform failure. Its exact lifecycle reason permits Finish only with a
+completed saved receipt, matching latest student and tutor turns, and the
+succeeded, validated final-allowed-turn call that produced that reply. The reason
+string alone is insufficient. The same all-topic checks still apply; other
+platform closures stay blocked. Unresolved needs remain unchanged.
 
 Finish is an explicit, owner-authorized, transactionally serialized action.
 Concurrent retries create one completion event and preserve the original
@@ -657,12 +771,32 @@ reasoning and untested transfer do not by themselves establish weak reasoning.
 The model still interprets the meaning of evidence; source checks do not prove
 that its substantive diagnosis is correct.
 
+Prospective profiling v9 / output v6 requires explicit evidence whenever the
+model asserts strong partial reasoning behind an incorrect answer. It identifies
+the incorrect item, an eligible exact student-reasoning source, the claimed
+correct component and the remaining error. Without the flag, this support list
+must be empty. Source checks make the rationale reviewable; they cannot establish
+that the model's conceptual judgment is sound. Earlier V4/V5 profiles remain
+readable and are not backfilled or relabeled.
+
+Prospective profiling v10 retains output v6 and asks the model to evaluate each
+item's reasoning before selecting package-level pattern flags. The provider
+request places item evidence and strong-partial support before summary judgments.
+An incorrect answer with an incorrect explanation is not, by itself, a mismatch
+between correctness and reasoning. A wrong answer with sound reasoning can still
+support a mismatch; the application does not ban that interpretation globally.
+
 The current profiling request also restricts structurally impossible pattern
 combinations before generation. `no_clear_pattern` must stand alone, and a
 correct-answer weakness flag is unavailable when sealed item correctness is
 fully known and no item is correct. Unknown or conflicting correctness does not
 justify that restriction. The application does not rewrite a returned flag to
 make it pass; all semantic evidence checks still apply.
+The prospective profiling request also offers only eligible baseline evidence IDs
+from the current catalog for structured citations. This prevents copying an unknown
+identifier without changing the saved profile format or supplying an interpretation.
+The application still checks what the source says and whether it supports the claim;
+it never guesses a replacement for an invalid returned ID.
 
 A schema-valid but semantically invalid initial profile receives at most one
 targeted regeneration from unchanged student evidence. Both semantic attempts
@@ -670,6 +804,11 @@ remain separate agent-call records. A restart resumes the same repair identity
 or reuses its validated result. A failed or blocked repair requires review;
 an invalid profile is not silently relabeled as a valid fallback. Existing
 provider transport/schema retry limits are unchanged.
+The v2 semantic repair also supplies bounded rejected-field diagnostics so the
+model can identify a contradiction between its item-level analysis and flags.
+Prior model judgments remain rejected draft data, not new student evidence.
+The model must produce a complete corrected profile; the application neither
+removes an unsupported flag silently nor changes reasoning to make a flag pass.
 
 The earlier chat-native formative profile has a separate one-attempt repair
 only when an otherwise schema-valid response fails exclusively the verbatim
@@ -683,3 +822,18 @@ question is not a pending student question, and no-question status is omitted.
 This is internal evidence metadata, not a new student action or message format.
 The source check establishes provenance and exact-quote consistency, not the
 quality of an answer. Historical transcripts and profile versions remain intact.
+
+Prospective host v7.19 and learning-summary policy v2 preserve earlier and
+current assistance qualifications in closing messages. Recognition of reasoning
+already supplied by the tutor cannot by itself support a positive learning
+summary. An earlier comparison source cannot make a recognition-only later
+response count as new progress. A natural assisted recap remains available;
+the student does not need to answer another question to pause or finish.
+Genuinely new reasoning or an explicit source-bound reconsideration of a prior
+interpretation remains possible, with substantive judgment still reviewed.
+
+The V6 delivery reviewer checks unsupported learning claims in headings, praise
+and recaps against the actual earlier tutor help and later student reasoning.
+Its input remains the same source-only conversation and initial reasoning; no
+hidden profile, answer key or new student data is added. Review rejection uses
+the existing single regeneration, not an extra retry allowance.

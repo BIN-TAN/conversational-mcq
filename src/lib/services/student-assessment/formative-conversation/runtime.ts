@@ -26,6 +26,7 @@ import {
 } from "./agent-contract-v18";
 import {
   FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
+  FormativeConversationV18R2AgentInputSchema,
   FormativeConversationV18R2AgentOutputSchema,
   type FormativeConversationV18R2AgentInput,
   type FormativeConversationV18R2AgentOutput
@@ -76,6 +77,7 @@ import {
 } from "./execution-v18r2";
 import {
   closeFormativeConversationAtStudentTurnLimit,
+  FormativeConversationFoundationError,
   persistFormativeConversationAssistantMessage,
   persistFormativeConversationLifecycleHandoff,
   prepareFormativeConversationAssistantResponseAttempt,
@@ -90,6 +92,7 @@ import {
   recordFormativeConversationLifecycleEvent,
   recordFormativeConversationTurnTelemetry
 } from "./telemetry";
+import { FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION } from "./profile-update-proposal";
 
 const FormativeConversationAgentIdentitySchema = z
   .object({
@@ -101,7 +104,8 @@ const FormativeConversationAgentIdentitySchema = z
     schema_version: z.union([
       z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
       z.literal(FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION),
-      z.literal(FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION)
+      z.literal(FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION),
+      z.literal(FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION)
     ]),
     prompt_hash: z.string().min(1),
     reasoning_effort: z.string().min(1).nullable().optional(),
@@ -169,7 +173,8 @@ export interface FormativeConversationV18AgentRunner {
 
 export interface FormativeConversationV18R2AgentRunner {
   identity: Omit<FormativeConversationAgentIdentity, "schema_version"> & {
-    schema_version: typeof FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION;
+    schema_version: typeof FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION |
+      typeof FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION;
   };
   execute(input: {
     agent_call_db_id: string;
@@ -203,10 +208,7 @@ function isV18Runner(
 function isV18R2Runner(
   runner: AnyFormativeConversationAgentRunner
 ): runner is FormativeConversationV18R2AgentRunner {
-  return (
-    runner.identity.schema_version ===
-    FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
-  );
+  return isV18R2SchemaVersion(runner.identity.schema_version);
 }
 
 function isV18SchemaVersion(schemaVersion: string) {
@@ -214,7 +216,8 @@ function isV18SchemaVersion(schemaVersion: string) {
 }
 
 function isV18R2SchemaVersion(schemaVersion: string) {
-  return schemaVersion === FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION;
+  return schemaVersion === FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION ||
+    schemaVersion === FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION;
 }
 
 function parseOutputForSchema(schemaVersion: string, value: unknown) {
@@ -1539,6 +1542,36 @@ export async function processFormativeConversationStudentMessage(
             orderBy: { evidence_observation_index: "asc" }
           })
         : []);
+    // The assistant receipt commits before the operational cap closure. Resume
+    // that final step after an interruption without generating another reply or
+    // treating a null profile transition as a learning outcome.
+    const originalContext = FormativeConversationV18R2AgentInputSchema.safeParse(existingCall?.input_payload);
+    const originalStudentTurn = originalContext.success
+      ? originalContext.data.visible_transcript.filter(turn => turn.actor === "student").at(-1) : null;
+    if (existingCall && existingOutput?.success && responseReceipt.status === "assistant_turn_persisted" &&
+        existingCall.formative_conversation_message_receipt_db_id === responseReceipt.id &&
+        existingOutput.data.student_visible_message === responseReceipt.assistant_turn.message_text &&
+        originalContext.success && originalContext.data.conversation_public_id === input.conversation_public_id &&
+        originalContext.data.formative_lifecycle.final_allowed_turn &&
+        originalStudentTurn?.sequence_index === studentTurn.sequence_index &&
+        originalStudentTurn.message_text === studentTurn.message_text &&
+        existingContext?.context.contract_version ===
+        FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
+        (existingContext.context as FormativeConversationV18R2AgentInput).formative_lifecycle.final_allowed_turn) {
+      try {
+        await closeFormativeConversationAtStudentTurnLimit({
+          conversation_public_id: input.conversation_public_id,
+          client_message_id: input.client_message_id,
+          agent_call_db_id: existingCall.id,
+          source: "platform_turn_limit_after_tutor_reply",
+          reason_code: "final_allowed_turn_reply_recorded"
+        });
+      } catch (error) {
+        // An explicit student/session closure may have won the race. Preserve
+        // it; every other persistence or phase failure must remain observable.
+        if (!(error instanceof FormativeConversationFoundationError) || error.code !== "conversation_not_active") throw error;
+      }
+    }
     return {
       receipt: responseReceipt,
       student_turn: studentTurn,
@@ -1765,8 +1798,8 @@ export async function processFormativeConversationStudentMessage(
       conversation_public_id: input.conversation_public_id,
       client_message_id: input.client_message_id,
       agent_call_db_id: agentResult.agent_call.id,
-      source: "llm_terminal_recommendation",
-      reason_code: "final_allowed_turn_terminal_recommendation_recorded"
+      source: "platform_turn_limit_after_tutor_reply",
+      reason_code: "final_allowed_turn_reply_recorded"
     });
   }
 

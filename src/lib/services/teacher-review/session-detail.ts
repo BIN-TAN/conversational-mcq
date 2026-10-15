@@ -597,7 +597,8 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           conversation.status === "active" &&
           studentFormativeTurnCount <
             maxStudentTurns,
-        lifecycle_termination_source: platformLifecycleHandoff
+        lifecycle_termination_source: platformLifecycleHandoff ||
+          conversation.lifecycle_reason?.startsWith("platform_turn_limit_after_tutor_reply:")
           ? "platform_lifecycle"
           : conversation.lifecycle_reason?.startsWith(
                 "llm_terminal_recommendation:"

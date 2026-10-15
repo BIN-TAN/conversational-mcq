@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "student:private-learning-review-smoke": "node --import tsx prisma/formative-private-learning-review-smoke-test.ts",
     "student:profiling-fact-binding-smoke": "node --import tsx prisma/student-profiling-fact-binding-smoke-test.ts",
     "student:question-coverage-smoke": "node --import tsx prisma/student-question-coverage-smoke-test.ts",
     "student:formative-profile-quote-repair-smoke": "node --import tsx prisma/formative-profile-quote-repair-smoke-test.ts --database",

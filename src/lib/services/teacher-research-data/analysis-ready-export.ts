@@ -1905,7 +1905,8 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
           conversation.status === "active" &&
           studentFormativeTurnCount <
             maxStudentTurns,
-        lifecycle_termination_source: platformLifecycleHandoff
+        lifecycle_termination_source: platformLifecycleHandoff ||
+          conversation.lifecycle_reason?.startsWith("platform_turn_limit_after_tutor_reply:")
           ? "platform_lifecycle"
           : conversation.lifecycle_reason?.startsWith(
                 "llm_terminal_recommendation:"
@@ -2367,7 +2368,7 @@ function formativeConversationDataDictionaryRows() {
       return "Whether the platform lifecycle can accept another unique formative student message.";
     }
     if (variable === "lifecycle_termination_source") {
-      return "Source of conversation closure, distinguishing an LLM terminal recommendation from a platform lifecycle handoff or student/session lifecycle action.";
+      return "Source of conversation closure: legacy LLM terminal recommendation, platform length-limit closure (after a successful tutor reply or failure handoff), or student/session lifecycle action. A platform closure is not a learning judgment.";
     }
     if (variable === "lifecycle_termination_reason") {
       return "Typed lifecycle reason; it is operational provenance and not a learning-state judgment.";

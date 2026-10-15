@@ -92,3 +92,66 @@ review evidence, not an independent classroom comparison of learning outcomes.
 The first command can additionally accept saved synthetic agent-call JSON files
 to verify exact reconstruction of real-shaped request data. Never commit
 identifiable student payloads as fixtures.
+
+## Prospective readable tutor input
+
+The current v18r2 tutor request can explicitly select `formative-tutor-input-v1`.
+This is a role-specific provider representation, not a new stored evidence shape.
+Other roles and historical request encodings retain the codec described above.
+
+The tutor reads named sections rather than generic `$input_ref` dictionaries or
+`$input_rows` tables. Each distinct canonical profile appears once in
+`canonical_profiles`; current and initial profile metadata select it by name.
+If the entire initial and current profile states are equal, an explicit
+`same_as_current_profile` marker represents that equality. Distinct baseline
+profiles, cutoffs, outcomes, limitations and history remain separate. Claim
+catalogs similarly retain their complete original identities in named catalogs.
+
+Evidence records retain literal `evidence_id` and `content` fields. Identical
+scope metadata is declared once for all records, or for a particular evidence
+kind. Eligibility that differs within a kind remains on each record. Process
+observations use shared scalar metadata with full ordered records; repetitions,
+timestamps, nulls and observed zeroes remain distinct. Complete visible transcript,
+responses, assistance qualifications, continuity input when present, lifecycle,
+teacher guidance and safety boundaries remain unchanged. No quote is summarized,
+no historical turn is dropped, and no student-understanding judgment is computed.
+
+Prospective whole-reply receipts marked `conversation-current-reply-source-v1`
+or `conversation-prior-tutor-source-v1`
+remain expanded in stored continuity and audit records. At the provider boundary
+only, a matching support-history or need-support quote may use `quote_source`
+with `kind: tutor_turn`, its exact tutor sequence index and reply SHA-256. The
+complete message still appears in `visible_transcript`. Compaction requires a
+unique tutor turn, exact full-text equality and the SHA-256 of its original UTF-8
+bytes; unknown markers or unavailable/mismatching sources retain literal text.
+Student quotes and unmarked historical excerpts are never converted. Conflicting
+source layout markers cause unchanged plain-JSON fallback. The decoder verifies
+the reference and restores the original full quote before the mandatory complete
+round-trip comparison. Whole-reply binding establishes source identity, not the
+semantic truth of each support claim or evidence of learning.
+
+Typed support preference relationships, when present, remain literal and unchanged
+through this projection. `honored_constraint` and `topic_of_support` are distinct
+authored relationships; sharing a whole-reply quote never converts one into the
+other or derives a relationship from text similarity. Legacy unmarked preference
+IDs remain unchanged as well.
+
+Semantic regeneration retains the rejected draft and diagnostics. Catalog and
+lifecycle fields identical to the original context use explicit named context
+links; differing repair fields remain literal. The provider instructions explain
+this layout and retain the boundary between rejected drafts and student evidence.
+
+Every projected input is exactly reconstructed and compared with recursively
+key-sorted source JSON before dispatch. Unknown/legacy shapes or conflicting
+source layout fields retain plain JSON instead of guessing at their meaning.
+Saved `input_payload`, validation input, transcript, exports and research records
+remain expanded originals. The existing provider audit records projection version,
+source/wire SHA-256 hashes, byte lengths, distinct profile/catalog counts and
+`roundtrip_verified`; it adds no student text. The explicit request encoding also
+participates in the canonical request hash.
+
+Run `node --import tsx prisma/formative-tutor-input-smoke-test.ts`, optionally
+followed by saved **synthetic** AgentCall JSON files, to verify source preservation
+and compare byte sizes with the earlier codec. The helper makes no provider calls.
+Byte savings are not token/cost savings or evidence of improved tutoring; actual
+model comprehension and conversation quality require separately labeled evaluation.

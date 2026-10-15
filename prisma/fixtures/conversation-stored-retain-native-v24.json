@@ -1,0 +1,2520 @@
+{
+  "version": "conversation-stored-retain-native-fixture-v1",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "source": {
+    "path": ".data/luna-conversation-repair-2026-10-13/cohort-v24/source/.data/ai-student-evaluation/cmcq_ai_students_d34aaab8d551/partial_progress_many_difficulties-agent-calls.json",
+    "sha256": "900c72e3ac67e116e8afd139dcb936779ea4dc5437efc519cd05d0bb0d338b36",
+    "agent_call_index_zero_based": 12,
+    "student_sequence_index": 38
+  },
+  "scope": "Exact synthetic final input and two rejected candidate values only. No provider telemetry, credentials or new student evidence. Historical failures remain rejected; prospective controls must be authored separately.",
+  "input": {
+    "memory": null,
+    "context_version": "formative-conversation-context-v4",
+    "current_profile": {
+      "outcome": "not_yet_determined",
+      "profile_version": "f8aa5e1d-636d-4abc-99bb-55eee8314fb4",
+      "evidence_summary": [
+        "The student completed every requested response component and supplied explanations that consistently support two identifiable conceptual misunderstandings: treating consistency as sufficient validity evidence and treating SEM as a signed error to subtract for an exact true score. The repeated reliability-validity claim across Items 1 and 3 provides sufficient engagement and convergent evidence for a formative misconception profile. Low confidence is consistent with the three incorrect responses and is therefore well calibrated, though transfer remains untested.",
+        "All three items included concise student explanations. Each explanation was interpretable but conceptually incorrect for the administered item. Items 1 and 3 show a repeated reliability-validity conflation; Item 2 shows a distinct SEM misconception. No item demonstrated a correct conceptual component or transfer-ready reasoning."
+      ],
+      "canonical_profile": {
+        "rationale": "There are three sealed responses with authoritative correctness, recorded low confidence, and student-authored reasoning. The reasoning is specific enough to identify the misconceptions, and the student completed the full initial package without revisions or skipped required evidence. The profile should remain limited to the assessed concepts and contexts because no transfer evidence was collected.",
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "engagement_profile": "adequate_engagement",
+        "engagement_summary": "The student completed all three items and supplied the requested answer, explanation, low-confidence rating, and tempting-option response for each. This is evidence of adequate participation and candid uncertainty, although correctness and low confidence alone do not determine engagement.",
+        "profile_confidence": "high",
+        "item_level_evidence": [
+          "correctness: incorrect",
+          "item public id: item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "assessment: incorrect_explanation",
+          "source quote: I think getting consistent scores means the hiring test measures the right thing.",
+          "diagnostic limitation: The explanation provides evidence of a reliability-validity misconception for this item, but does not establish how the student would reason about other forms of validity evidence.",
+          "evidence summary: The student selected option B, which was incorrect, and supplied the explanation: \"I think getting consistent scores means the hiring test measures the right thing.\" The student explicitly treated score consistency as sufficient evidence that the hiring test measures the intended construct, rather than distinguishing reliability from intended-use validity.",
+          "confidence rating: low",
+          "reasoning quality: The explanation is conceptually incorrect and directly supports the reliability-validity conflation.",
+          "item public id: item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source quote: I subtract three to remove the error and find the exact true score.",
+          "diagnostic limitation: This supports a specific misunderstanding of SEM in the administered item; it does not show whether the student understands uncertainty intervals under stated assumptions.",
+          "evidence summary: The student selected option A, which was incorrect, and supplied the explanation: \"I subtract three to remove the error and find the exact true score.\" The student interpreted SEM as a known signed error that can be subtracted to identify an exact individual true score.",
+          "reasoning quality: The explanation is conceptually incorrect: SEM represents score uncertainty and is not a determinate amount to subtract from one observed score to obtain an exact true score.",
+          "item public id: item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source quote: The scores are consistent, so it must measure wellbeing.",
+          "diagnostic limitation: The repeated statement supports a recurring candidate misconception, but the package does not test whether the student can apply the distinction to a substantially novel context.",
+          "evidence summary: The student selected option A, which was incorrect, and supplied the explanation: \"The scores are consistent, so it must measure wellbeing.\" The student explicitly endorsed consistency as sufficient to support interpreting the questionnaire as measuring wellbeing, despite the competing reading-skill explanation.",
+          "reasoning quality: The explanation is conceptually incorrect and repeats the reliability-validity conflation observed on Item 1."
+        ],
+        "confidence_alignment": "well_calibrated",
+        "evidence_sufficiency": "adequate",
+        "ability_pattern_flags": [
+          "misconception_indicator_present",
+          "conceptual_error_possible"
+        ],
+        "engagement_pattern_flags": [
+          "sustained_engagement"
+        ],
+        "misconception_indicators": [
+          "Consistent scores by themselves establish that a hiring test measures the right thing for the intended hiring decision.",
+          "Consistent scores by themselves establish that a wellbeing questionnaire measures wellbeing.",
+          "Subtracting the SEM from an observed score identifies the individual's exact true score."
+        ],
+        "reasoning_quality_summary": "All three items included concise student explanations. Each explanation was interpretable but conceptually incorrect for the administered item. Items 1 and 3 show a repeated reliability-validity conflation; Item 2 shows a distinct SEM misconception. No item demonstrated a correct conceptual component or transfer-ready reasoning.",
+        "recommended_next_evidence": [
+          "reason: Ask the student to explain, in their own words, why a reliable or consistent score can still fail to support an intended interpretation, using both a hiring-test and wellbeing example.",
+          "evidence type: student_explanation",
+          "item public id: item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "reason: Present a short SEM scenario and ask the student to describe what the SEM permits one to say about score uncertainty without calculating an exact true score.",
+          "evidence type: focused_application",
+          "item public id: item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "reason: Use a new measurement context requiring the student to distinguish reliability, validity, and score uncertainty, to determine whether the identified distinctions transfer beyond the initial item wording.",
+          "evidence type: novel_transfer_item"
+        ],
+        "integrated_profile_rationale": "The student completed every requested response component and supplied explanations that consistently support two identifiable conceptual misunderstandings: treating consistency as sufficient validity evidence and treating SEM as a signed error to subtract for an exact true score. The repeated reliability-validity claim across Items 1 and 3 provides sufficient engagement and convergent evidence for a formative misconception profile. Low confidence is consistent with the three incorrect responses and is therefore well calibrated, though transfer remains untested.",
+        "independence_interpretability": "independent_understanding_likely",
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "process_interpretation_cautions": [
+          "The available process evidence shows completion of all requested response components, with no recorded page switching, long pauses, revisions, or invalid help requests.",
+          "Response timing is available, but reasoning-start timestamps were not captured reliably; timing should not be treated as evidence of a particular strategy or motivation.",
+          "The initial package does not include a novel transfer item, so generalization beyond these administered contexts remains untested."
+        ]
+      },
+      "unresolved_evidence": [],
+      "evidence_limitations": [
+        "Evidence sufficiency is adequate."
+      ],
+      "misconception_claim_catalog": {
+        "indicators": [
+          {
+            "claims": [
+              {
+                "claim_id": "mc_30433ca322457e11a1732ebb",
+                "claim_text": "Consistent scores by themselves establish that a hiring test measures the right thing for the intended hiring decision.",
+                "source_evidence_refs": [
+                  "ev_00ad8802bad2b56190fef771"
+                ]
+              },
+              {
+                "claim_id": "mc_26a35abeea9fe0b8e7a2ac7b",
+                "claim_text": "Consistent scores by themselves establish that a wellbeing questionnaire measures wellbeing.",
+                "source_evidence_refs": [
+                  "ev_28899131555058668f5bc38a"
+                ]
+              }
+            ],
+            "indicator_id": "mi_99cb5539260eaa9f3cfe3387",
+            "indicator_text": "Reliability or score consistency automatically establishes validity for the intended interpretation or decision.",
+            "indicator_rationale": "On Item 1, the student selected option B and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected option A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely quoted option text, and they support the same current stance across two items.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_00ad8802bad2b56190fef771",
+              "ev_28899131555058668f5bc38a"
+            ]
+          },
+          {
+            "claims": [
+              {
+                "claim_id": "mc_c5487ee6f4b23fdb87dcbe46",
+                "claim_text": "Subtracting the SEM from an observed score identifies the individual's exact true score.",
+                "source_evidence_refs": [
+                  "ev_42c1552bdd7c84ac762733d6"
+                ]
+              }
+            ],
+            "indicator_id": "mi_6f553848f19a68b8ba3b8483",
+            "indicator_text": "SEM is a known signed error that can be subtracted from an observed score to identify an individual's exact true score.",
+            "indicator_rationale": "On Item 2, the student selected option A and explained, \"I subtract three to remove the error and find the exact true score.\" This student-explained reasoning directly endorses subtracting the SEM as though it were a determinate individual error.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_42c1552bdd7c84ac762733d6"
+            ]
+          }
+        ],
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_ad7560ac61a513f05e08976b"
+      },
+      "evidence_cutoff_sequence_index": 0
+    },
+    "initial_profile": {
+      "outcome": "not_yet_determined",
+      "profile_version": "f8aa5e1d-636d-4abc-99bb-55eee8314fb4",
+      "evidence_summary": [
+        "The student completed every requested response component and supplied explanations that consistently support two identifiable conceptual misunderstandings: treating consistency as sufficient validity evidence and treating SEM as a signed error to subtract for an exact true score. The repeated reliability-validity claim across Items 1 and 3 provides sufficient engagement and convergent evidence for a formative misconception profile. Low confidence is consistent with the three incorrect responses and is therefore well calibrated, though transfer remains untested.",
+        "All three items included concise student explanations. Each explanation was interpretable but conceptually incorrect for the administered item. Items 1 and 3 show a repeated reliability-validity conflation; Item 2 shows a distinct SEM misconception. No item demonstrated a correct conceptual component or transfer-ready reasoning."
+      ],
+      "canonical_profile": {
+        "rationale": "There are three sealed responses with authoritative correctness, recorded low confidence, and student-authored reasoning. The reasoning is specific enough to identify the misconceptions, and the student completed the full initial package without revisions or skipped required evidence. The profile should remain limited to the assessed concepts and contexts because no transfer evidence was collected.",
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "engagement_profile": "adequate_engagement",
+        "engagement_summary": "The student completed all three items and supplied the requested answer, explanation, low-confidence rating, and tempting-option response for each. This is evidence of adequate participation and candid uncertainty, although correctness and low confidence alone do not determine engagement.",
+        "profile_confidence": "high",
+        "item_level_evidence": [
+          "correctness: incorrect",
+          "item public id: item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "assessment: incorrect_explanation",
+          "source quote: I think getting consistent scores means the hiring test measures the right thing.",
+          "diagnostic limitation: The explanation provides evidence of a reliability-validity misconception for this item, but does not establish how the student would reason about other forms of validity evidence.",
+          "evidence summary: The student selected option B, which was incorrect, and supplied the explanation: \"I think getting consistent scores means the hiring test measures the right thing.\" The student explicitly treated score consistency as sufficient evidence that the hiring test measures the intended construct, rather than distinguishing reliability from intended-use validity.",
+          "confidence rating: low",
+          "reasoning quality: The explanation is conceptually incorrect and directly supports the reliability-validity conflation.",
+          "item public id: item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source quote: I subtract three to remove the error and find the exact true score.",
+          "diagnostic limitation: This supports a specific misunderstanding of SEM in the administered item; it does not show whether the student understands uncertainty intervals under stated assumptions.",
+          "evidence summary: The student selected option A, which was incorrect, and supplied the explanation: \"I subtract three to remove the error and find the exact true score.\" The student interpreted SEM as a known signed error that can be subtracted to identify an exact individual true score.",
+          "reasoning quality: The explanation is conceptually incorrect: SEM represents score uncertainty and is not a determinate amount to subtract from one observed score to obtain an exact true score.",
+          "item public id: item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source quote: The scores are consistent, so it must measure wellbeing.",
+          "diagnostic limitation: The repeated statement supports a recurring candidate misconception, but the package does not test whether the student can apply the distinction to a substantially novel context.",
+          "evidence summary: The student selected option A, which was incorrect, and supplied the explanation: \"The scores are consistent, so it must measure wellbeing.\" The student explicitly endorsed consistency as sufficient to support interpreting the questionnaire as measuring wellbeing, despite the competing reading-skill explanation.",
+          "reasoning quality: The explanation is conceptually incorrect and repeats the reliability-validity conflation observed on Item 1."
+        ],
+        "confidence_alignment": "well_calibrated",
+        "evidence_sufficiency": "adequate",
+        "ability_pattern_flags": [
+          "misconception_indicator_present",
+          "conceptual_error_possible"
+        ],
+        "engagement_pattern_flags": [
+          "sustained_engagement"
+        ],
+        "misconception_indicators": [
+          "Consistent scores by themselves establish that a hiring test measures the right thing for the intended hiring decision.",
+          "Consistent scores by themselves establish that a wellbeing questionnaire measures wellbeing.",
+          "Subtracting the SEM from an observed score identifies the individual's exact true score."
+        ],
+        "reasoning_quality_summary": "All three items included concise student explanations. Each explanation was interpretable but conceptually incorrect for the administered item. Items 1 and 3 show a repeated reliability-validity conflation; Item 2 shows a distinct SEM misconception. No item demonstrated a correct conceptual component or transfer-ready reasoning.",
+        "recommended_next_evidence": [
+          "reason: Ask the student to explain, in their own words, why a reliable or consistent score can still fail to support an intended interpretation, using both a hiring-test and wellbeing example.",
+          "evidence type: student_explanation",
+          "item public id: item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "reason: Present a short SEM scenario and ask the student to describe what the SEM permits one to say about score uncertainty without calculating an exact true score.",
+          "evidence type: focused_application",
+          "item public id: item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "reason: Use a new measurement context requiring the student to distinguish reliability, validity, and score uncertainty, to determine whether the identified distinctions transfer beyond the initial item wording.",
+          "evidence type: novel_transfer_item"
+        ],
+        "integrated_profile_rationale": "The student completed every requested response component and supplied explanations that consistently support two identifiable conceptual misunderstandings: treating consistency as sufficient validity evidence and treating SEM as a signed error to subtract for an exact true score. The repeated reliability-validity claim across Items 1 and 3 provides sufficient engagement and convergent evidence for a formative misconception profile. Low confidence is consistent with the three incorrect responses and is therefore well calibrated, though transfer remains untested.",
+        "independence_interpretability": "independent_understanding_likely",
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "process_interpretation_cautions": [
+          "The available process evidence shows completion of all requested response components, with no recorded page switching, long pauses, revisions, or invalid help requests.",
+          "Response timing is available, but reasoning-start timestamps were not captured reliably; timing should not be treated as evidence of a particular strategy or motivation.",
+          "The initial package does not include a novel transfer item, so generalization beyond these administered contexts remains untested."
+        ]
+      },
+      "unresolved_evidence": [],
+      "evidence_limitations": [
+        "Evidence sufficiency is adequate."
+      ],
+      "misconception_claim_catalog": {
+        "indicators": [
+          {
+            "claims": [
+              {
+                "claim_id": "mc_30433ca322457e11a1732ebb",
+                "claim_text": "Consistent scores by themselves establish that a hiring test measures the right thing for the intended hiring decision.",
+                "source_evidence_refs": [
+                  "ev_00ad8802bad2b56190fef771"
+                ]
+              },
+              {
+                "claim_id": "mc_26a35abeea9fe0b8e7a2ac7b",
+                "claim_text": "Consistent scores by themselves establish that a wellbeing questionnaire measures wellbeing.",
+                "source_evidence_refs": [
+                  "ev_28899131555058668f5bc38a"
+                ]
+              }
+            ],
+            "indicator_id": "mi_99cb5539260eaa9f3cfe3387",
+            "indicator_text": "Reliability or score consistency automatically establishes validity for the intended interpretation or decision.",
+            "indicator_rationale": "On Item 1, the student selected option B and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected option A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely quoted option text, and they support the same current stance across two items.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_00ad8802bad2b56190fef771",
+              "ev_28899131555058668f5bc38a"
+            ]
+          },
+          {
+            "claims": [
+              {
+                "claim_id": "mc_c5487ee6f4b23fdb87dcbe46",
+                "claim_text": "Subtracting the SEM from an observed score identifies the individual's exact true score.",
+                "source_evidence_refs": [
+                  "ev_42c1552bdd7c84ac762733d6"
+                ]
+              }
+            ],
+            "indicator_id": "mi_6f553848f19a68b8ba3b8483",
+            "indicator_text": "SEM is a known signed error that can be subtracted from an observed score to identify an individual's exact true score.",
+            "indicator_rationale": "On Item 2, the student selected option A and explained, \"I subtract three to remove the error and find the exact true score.\" This student-explained reasoning directly endorses subtracting the SEM as though it were a determinate individual error.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_42c1552bdd7c84ac762733d6"
+            ]
+          }
+        ],
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_ad7560ac61a513f05e08976b"
+      },
+      "evidence_cutoff_sequence_index": 0
+    },
+    "profile_history": [
+      {
+        "outcome": "not_yet_determined",
+        "created_at": "2026-10-15T00:20:49.812Z",
+        "evidence_source": "student_profiling_agent",
+        "profile_version": "f8aa5e1d-636d-4abc-99bb-55eee8314fb4"
+      }
+    ],
+    "safety_boundary": {
+      "boundary_version": "formative-conversation-safety-boundary-v1",
+      "credentials_excluded": true,
+      "hidden_prompts_excluded": true,
+      "raw_teacher_notes_excluded": true,
+      "administered_item_public_ids": [
+        "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5"
+      ],
+      "unadministered_item_protection_required": true
+    },
+    "contract_version": "formative-conversation-agent-contract-v4",
+    "teacher_guidance": [],
+    "telemetry_summary": {
+      "latest_activity_at": "2026-10-15T00:23:19.447Z",
+      "total_input_tokens": 216005,
+      "total_output_tokens": 10471,
+      "lifecycle_event_count": 25,
+      "observable_tutor_turn_count": 6,
+      "observable_student_turn_count": 6
+    },
+    "administered_items": [
+      {
+        "options": [
+          {
+            "text": "Consistency alone does not establish validity for the intended hiring decision.",
+            "label": "A"
+          },
+          {
+            "text": "High reliability proves that the hiring decision is valid.",
+            "label": "B"
+          },
+          {
+            "text": "A weak relationship with job performance proves the scores are unreliable.",
+            "label": "C"
+          },
+          {
+            "text": "Reliability and validity always provide the same evidence.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A hiring test produces highly consistent scores, but its scores have little relationship with job performance. Which conclusion is best supported?",
+        "item_number": 1,
+        "administered": true,
+        "correct_answer": "A",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "student_answer": "B",
+        "concise_explanation": "Option A states the relevant relationship: Consistency alone does not establish validity for the intended hiring decision."
+      },
+      {
+        "options": [
+          {
+            "text": "The exact true score is 73 because the error can be subtracted.",
+            "label": "A"
+          },
+          {
+            "text": "The exact true score is 79 because the error can be added.",
+            "label": "B"
+          },
+          {
+            "text": "An estimate of score uncertainty, not identification of the exact true score.",
+            "label": "C"
+          },
+          {
+            "text": "Proof that the student answered exactly three questions incorrectly.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A student has an observed score of 76 and a standard error of measurement (SEM) of 3. What does the SEM support?",
+        "item_number": 2,
+        "administered": true,
+        "correct_answer": "C",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "student_answer": "A",
+        "concise_explanation": "Option C states the relevant relationship: An estimate of score uncertainty, not identification of the exact true score."
+      },
+      {
+        "options": [
+          {
+            "text": "Yes, consistent scores establish that wellbeing is being measured.",
+            "label": "A"
+          },
+          {
+            "text": "No, the wellbeing interpretation needs relevant validity evidence beyond consistency.",
+            "label": "B"
+          },
+          {
+            "text": "No, evidence about reading skill proves the scores have no reliability.",
+            "label": "C"
+          },
+          {
+            "text": "Yes, giving it twice would establish the intended interpretation without other evidence.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A wellbeing questionnaire has highly consistent scores in a stated population, but a study suggests its scores mainly reflect reading skill. Does consistency alone support interpreting them as wellbeing?",
+        "item_number": 3,
+        "administered": true,
+        "correct_answer": "B",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "student_answer": "A",
+        "concise_explanation": "Option B states the relevant relationship: No, the wellbeing interpretation needs relevant validity evidence beyond consistency."
+      }
+    ],
+    "assistance_history": {
+      "version": "conversation-assistance-history-v1",
+      "observations": [
+        {
+          "observation": "The student distinguishes the possible construct measured by the hiring score from the job skill relevant to the hiring decision and identifies comparison with job performance as relevant. This closely matches reasoning already supplied in earlier tutor support, so it is recognition of that explanation rather than new independent application.",
+          "evidence_ids": [
+            "ev_76d5362270d53d191e043c73"
+          ],
+          "evidence_type": "supported_recognition",
+          "source_agent_call_public_id": "cmv8sndsj001nikmsvdtrr82g",
+          "source_tutor_sequence_index": 33
+        },
+        {
+          "observation": "The student explains that stable reading skill could produce consistent questionnaire scores even when the intended wellbeing interpretation is not supported. This is consistent with the distinction developed in the preceding tutor explanation, so it supports recognition of that explanation rather than new independent application.",
+          "evidence_ids": [
+            "ev_8faa8a84514b0faeb549ecb4"
+          ],
+          "evidence_type": "supported_recognition",
+          "source_agent_call_public_id": "cmv8soo3e002jikms11r3b86d",
+          "source_tutor_sequence_index": 37
+        }
+      ]
+    },
+    "visible_transcript": [
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:20:58.030Z",
+        "message_text": "You reasoned that if scores are consistent, a hiring test or wellbeing questionnaire must be measuring the right thing. Consistency is important, but it answers a different question: **reliability** asks whether scores are reasonably consistent, while **validity** asks whether the evidence supports the intended interpretation and use.\n\nFor example, a questionnaire could measure reading skill very consistently rather than wellbeing. Its consistency would support reliability, but the reading-skill evidence would weaken the interpretation that it measures wellbeing.\n\nYour assessment also raised a separate question about SEM: an SEM of 3 is not a known error that can simply be subtracted from a score to reveal an exact true score. We can focus first on the reliability-versus-validity distinction, or on what SEM tells us about score uncertainty.",
+        "sequence_index": 27
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:20:58.333Z",
+        "message_text": "There are too many things I got wrong. Please help me with just the hiring question first.",
+        "sequence_index": 28
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:21:26.723Z",
+        "message_text": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea that consistent scores matter is correct as far as it goes. Consistent scores provide evidence of **reliability**: the test tends to produce similar results under similar conditions.\n\nBut the hiring question asks a different thing: whether the scores support using the test to make decisions about job performance. That is a question of **validity**. A test could measure something consistently—such as reading speed, test-taking skill, or familiarity with a particular format—without measuring the abilities that actually matter for the job.\n\nSo the key distinction is:\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the intended interpretation and use—in this case, making hiring decisions?\n\nReliability is useful evidence, but it is not sufficient by itself to establish validity. The weak relationship with job performance is evidence that the intended hiring interpretation is not well supported; it does not automatically mean the scores are unreliable.",
+        "sequence_index": 29
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:21:28.763Z",
+        "message_text": "I’m still not sure how a test can be consistent but not correct. Could you give me a simple example of that distinction?",
+        "sequence_index": 30
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:21:52.019Z",
+        "message_text": "A simple example is a clock that is always 10 minutes fast.\n\nIf you check it several times, it gives the same time pattern each time. That makes it **consistent**, or reliable. But it is not **correct**, because it does not show the actual time.\n\nA hiring test can work similarly. Imagine a test that gives very similar scores every time, but the scores mainly reflect reading speed. If the job depends on problem-solving and teamwork, the test may be reliable because it is consistent, but the evidence does not support using it to judge those job abilities.\n\nSo:\n\n- **Reliability:** Does the test give reasonably consistent results?\n- **Validity:** Do those results support the intended interpretation and use?\n\nConsistency is useful, but it does not by itself show that the test is measuring what matters for the hiring decision.",
+        "sequence_index": 31
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:21:52.099Z",
+        "message_text": "The hiring score could keep measuring reading skill instead of job skill. We need to compare it with relevant job performance. But I still think subtracting SEM gives the exact true score.",
+        "sequence_index": 32
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:22:24.308Z",
+        "message_text": "Your hiring reasoning is on the right track: a test could consistently measure reading skill rather than job skill, so evidence about relevant job performance matters for the hiring interpretation.\n\nThe SEM works differently from a known error. If an observed score is written as\n\n`X = T + E`\n\nthen `E` is the particular error for that one score, but the SEM describes the typical spread of such errors across comparable measurements. We do not know whether this person's particular error is positive, negative, or close to zero.\n\nSo, for an observed score of 76 and an SEM of 3, `76 − 3 = 73` is not the exact true score. The SEM supports a statement about score uncertainty; it does not reveal the direction or exact size of this individual's error. A specific uncertainty interval would also require stated assumptions and a confidence level.",
+        "sequence_index": 33
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:22:24.394Z",
+        "message_text": "Please leave SEM for another day. How does the hiring idea connect to the wellbeing question?",
+        "sequence_index": 34
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:22:49.435Z",
+        "message_text": "The hiring and wellbeing questions use the **same basic distinction**, but they use different evidence for the intended interpretation.\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the interpretation we want to make?\n\nFor the hiring test, the intended interpretation is about **job performance**. So we would need evidence that the scores relate to relevant job abilities or later job performance. A test could consistently measure reading skill instead.\n\nFor the wellbeing questionnaire, the intended interpretation is about **wellbeing**. We would need evidence that the scores reflect wellbeing rather than something else, such as reading skill. The questionnaire could give highly consistent scores while repeatedly measuring reading ability instead of wellbeing.\n\nSo the connection is: in both cases, consistency supports reliability, but it does not by itself show that the test measures the right thing for its intended use. The relevant comparison changes—from job performance in the hiring example to evidence about wellbeing in the questionnaire.",
+        "sequence_index": 35
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:22:52.095Z",
+        "message_text": "So, a wellbeing questionnaire could give consistent scores because people’s reading skill stays similar, even if it is not really measuring wellbeing. That would make it reliable but not necessarily valid for wellbeing. I understand that connection better, but I’m still unsure about the SEM and whether subtracting it can show the true score.",
+        "sequence_index": 36
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T00:23:19.362Z",
+        "message_text": "Yes—that explanation captures the connection: a questionnaire can be reliable because it produces consistent scores while still lacking enough validity evidence for interpreting those scores as wellbeing.\n\nWe’ll leave SEM for another day, as you requested earlier. Your uncertainty about it does not reopen that topic by itself. We can continue with the reliability-and-validity distinction whenever you’re ready.",
+        "sequence_index": 37
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T00:23:19.447Z",
+        "message_text": "That is enough today. Please sum up what I explained and what I still need help with.",
+        "sequence_index": 38
+      }
+    ],
+    "formative_lifecycle": {
+      "max_student_turns": 30,
+      "final_allowed_turn": false,
+      "student_turn_index": 6,
+      "another_student_turn_available": true
+    },
+    "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+    "intervention_history": [],
+    "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+    "conversation_public_id": "cmv8slnzp000bikms9q4b7egy",
+    "latest_student_message": "That is enough today. Please sum up what I explained and what I still need help with.",
+    "conversation_continuity": {
+      "needs": [
+        {
+          "kind": "support_request",
+          "source": {
+            "quote": "Please help me with just the hiring question first.",
+            "evidence_id": "ev_5f478aef588ad6cffba0b9c5"
+          },
+          "status": "addressed",
+          "need_id": "need_hiring_question_first",
+          "support": [
+            {
+              "quote": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea that consistent scores matter is correct as far as it goes. Consistent scores provide evidence of **reliability**: the test tends to produce similar results under similar conditions.\n\nBut the hiring question asks a different thing: whether the scores support using the test to make decisions about job performance. That is a question of **validity**. A test could measure something consistently—such as reading speed, test-taking skill, or familiarity with a particular format—without measuring the abilities that actually matter for the job.\n\nSo the key distinction is:\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the intended interpretation and use—in this case, making hiring decisions?\n\nReliability is useful evidence, but it is not sufficient by itself to establish validity. The weak relationship with job performance is evidence that the intended hiring interpretation is not well supported; it does not automatically mean the scores are unreliable.",
+              "source_binding": {
+                "version": "conversation-current-reply-source-v1",
+                "reply_sha256": "050a5868c75040f173a8c4a3588e3d5f4ed18f6c80ce8e3d2e992b103fa0a519"
+              },
+              "tutor_sequence_index": 29
+            }
+          ],
+          "description": "Please help me with just the hiring question first.",
+          "deferred_by_preference_id": null,
+          "source_agent_call_public_id": "cmv8sm8c4000vikmsk2o9vjt8",
+          "source_tutor_sequence_index": 29
+        },
+        {
+          "kind": "confusion",
+          "source": {
+            "quote": "But I still think subtracting SEM gives the exact true score.",
+            "evidence_id": "ev_76d5362270d53d191e043c73"
+          },
+          "status": "deferred",
+          "need_id": "need_sem_exact_true_score",
+          "support": [
+            {
+              "quote": "Yes—that explanation captures the connection: a questionnaire can be reliable because it produces consistent scores while still lacking enough validity evidence for interpreting those scores as wellbeing.\n\nWe’ll leave SEM for another day, as you requested earlier. Your uncertainty about it does not reopen that topic by itself. We can continue with the reliability-and-validity distinction whenever you’re ready.",
+              "source_binding": {
+                "version": "conversation-current-reply-source-v1",
+                "reply_sha256": "855cd5bf795b789b2919aba9552d7c77470169fa738bd1edabcc754cc14b8f23"
+              },
+              "tutor_sequence_index": 37
+            }
+          ],
+          "description": "But I still think subtracting SEM gives the exact true score.",
+          "deferred_by_preference_id": "pref_defer_sem",
+          "source_agent_call_public_id": "cmv8soo3e002jikms11r3b86d",
+          "source_tutor_sequence_index": 37
+        },
+        {
+          "kind": "support_request",
+          "source": {
+            "quote": "How does the hiring idea connect to the wellbeing question?",
+            "evidence_id": "ev_b50285c909a60e830d11ac6d"
+          },
+          "status": "addressed",
+          "need_id": "need_hiring_wellbeing_connection",
+          "support": [
+            {
+              "quote": "The hiring and wellbeing questions use the **same basic distinction**, but they use different evidence for the intended interpretation.\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the interpretation we want to make?\n\nFor the hiring test, the intended interpretation is about **job performance**. So we would need evidence that the scores relate to relevant job abilities or later job performance. A test could consistently measure reading skill instead.\n\nFor the wellbeing questionnaire, the intended interpretation is about **wellbeing**. We would need evidence that the scores reflect wellbeing rather than something else, such as reading skill. The questionnaire could give highly consistent scores while repeatedly measuring reading ability instead of wellbeing.\n\nSo the connection is: in both cases, consistency supports reliability, but it does not by itself show that the test measures the right thing for its intended use. The relevant comparison changes—from job performance in the hiring example to evidence about wellbeing in the questionnaire.",
+              "source_binding": {
+                "version": "conversation-current-reply-source-v1",
+                "reply_sha256": "cdb4bd71bbfe1b6f7c7921f367e401b8d65e82fe3d6d59e4796f64a7d21c767c"
+              },
+              "tutor_sequence_index": 35
+            }
+          ],
+          "description": "How does the hiring idea connect to the wellbeing question?",
+          "deferred_by_preference_id": null,
+          "source_agent_call_public_id": "cmv8so2pp0023ikms1t7qo0kj",
+          "source_tutor_sequence_index": 35
+        }
+      ],
+      "version": "conversation-continuity-v1",
+      "preferences": [
+        {
+          "kind": "defer_topic",
+          "source": {
+            "quote": "Please leave SEM for another day.",
+            "evidence_id": "ev_b50285c909a60e830d11ac6d"
+          },
+          "status": "active",
+          "description": "The student wants to leave SEM for another day.",
+          "preference_id": "pref_defer_sem",
+          "source_agent_call_public_id": "cmv8so2pp0023ikms1t7qo0kj",
+          "source_tutor_sequence_index": 35
+        }
+      ],
+      "support_history": [
+        {
+          "kind": "explanation",
+          "quote": "You reasoned that if scores are consistent, a hiring test or wellbeing questionnaire must be measuring the right thing. Consistency is important, but it answers a different question: **reliability** asks whether scores are reasonably consistent, while **validity** asks whether the evidence supports the intended interpretation and use.\n\nFor example, a questionnaire could measure reading skill very consistently rather than wellbeing. Its consistency would support reliability, but the reading-skill evidence would weaken the interpretation that it measures wellbeing.\n\nYour assessment also raised a separate question about SEM: an SEM of 3 is not a known error that can simply be subtracted from a score to reveal an exact true score. We can focus first on the reliability-versus-validity distinction, or on what SEM tells us about score uncertainty.",
+          "topic": "Distinguishing score consistency from evidence supporting an intended interpretation",
+          "need_ids": [],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "ad471fd2b4480c483ad1c3f0a3b7cc6d33547475bb5637b6c090ca171a062940"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8sm1rp000jikms93l9erfk",
+          "source_tutor_sequence_index": 27
+        },
+        {
+          "kind": "explanation",
+          "quote": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea that consistent scores matter is correct as far as it goes. Consistent scores provide evidence of **reliability**: the test tends to produce similar results under similar conditions.\n\nBut the hiring question asks a different thing: whether the scores support using the test to make decisions about job performance. That is a question of **validity**. A test could measure something consistently—such as reading speed, test-taking skill, or familiarity with a particular format—without measuring the abilities that actually matter for the job.\n\nSo the key distinction is:\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the intended interpretation and use—in this case, making hiring decisions?\n\nReliability is useful evidence, but it is not sufficient by itself to establish validity. The weak relationship with job performance is evidence that the intended hiring interpretation is not well supported; it does not automatically mean the scores are unreliable.",
+          "topic": "Why score consistency does not by itself establish validity for a hiring decision",
+          "need_ids": [
+            "need_hiring_question_first"
+          ],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "050a5868c75040f173a8c4a3588e3d5f4ed18f6c80ce8e3d2e992b103fa0a519"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8sm8c4000vikmsk2o9vjt8",
+          "source_tutor_sequence_index": 29
+        },
+        {
+          "kind": "explanation",
+          "quote": "A simple example is a clock that is always 10 minutes fast.\n\nIf you check it several times, it gives the same time pattern each time. That makes it **consistent**, or reliable. But it is not **correct**, because it does not show the actual time.\n\nA hiring test can work similarly. Imagine a test that gives very similar scores every time, but the scores mainly reflect reading speed. If the job depends on problem-solving and teamwork, the test may be reliable because it is consistent, but the evidence does not support using it to judge those job abilities.\n\nSo:\n\n- **Reliability:** Does the test give reasonably consistent results?\n- **Validity:** Do those results support the intended interpretation and use?\n\nConsistency is useful, but it does not by itself show that the test is measuring what matters for the hiring decision.",
+          "topic": "A simple example distinguishing consistent results from correct or valid interpretation in a hiring context.",
+          "need_ids": [],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "c8b4cab2b4b6121ce86167bd9cf114a00f584aad8aa8b60409622f1325ee4635"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8smvsu0019ikmsb91wezc1",
+          "source_tutor_sequence_index": 31
+        },
+        {
+          "kind": "explanation",
+          "quote": "Your hiring reasoning is on the right track: a test could consistently measure reading skill rather than job skill, so evidence about relevant job performance matters for the hiring interpretation.\n\nThe SEM works differently from a known error. If an observed score is written as\n\n`X = T + E`\n\nthen `E` is the particular error for that one score, but the SEM describes the typical spread of such errors across comparable measurements. We do not know whether this person's particular error is positive, negative, or close to zero.\n\nSo, for an observed score of 76 and an SEM of 3, `76 − 3 = 73` is not the exact true score. The SEM supports a statement about score uncertainty; it does not reveal the direction or exact size of this individual's error. A specific uncertainty interval would also require stated assumptions and a confidence level.",
+          "topic": "Why SEM cannot be subtracted to identify an exact individual true score",
+          "need_ids": [
+            "need_sem_exact_true_score"
+          ],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "34df173ce3b5d5c5e4ed8a5b9f02a91d82a6f152d9b4dd0d331acaf398a26303"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8sndsj001nikmsvdtrr82g",
+          "source_tutor_sequence_index": 33
+        },
+        {
+          "kind": "explanation",
+          "quote": "The hiring and wellbeing questions use the **same basic distinction**, but they use different evidence for the intended interpretation.\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the interpretation we want to make?\n\nFor the hiring test, the intended interpretation is about **job performance**. So we would need evidence that the scores relate to relevant job abilities or later job performance. A test could consistently measure reading skill instead.\n\nFor the wellbeing questionnaire, the intended interpretation is about **wellbeing**. We would need evidence that the scores reflect wellbeing rather than something else, such as reading skill. The questionnaire could give highly consistent scores while repeatedly measuring reading ability instead of wellbeing.\n\nSo the connection is: in both cases, consistency supports reliability, but it does not by itself show that the test measures the right thing for its intended use. The relevant comparison changes—from job performance in the hiring example to evidence about wellbeing in the questionnaire.",
+          "topic": "Connection between the hiring-test and wellbeing-question examples",
+          "need_ids": [
+            "need_hiring_wellbeing_connection"
+          ],
+          "preference_ids": [
+            "pref_defer_sem"
+          ],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "cdb4bd71bbfe1b6f7c7921f367e401b8d65e82fe3d6d59e4796f64a7d21c767c"
+          },
+          "preference_linkage": {
+            "links": [
+              {
+                "relationship": "honored_constraint",
+                "preference_id": "pref_defer_sem"
+              }
+            ],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8so2pp0023ikms1t7qo0kj",
+          "source_tutor_sequence_index": 35
+        },
+        {
+          "kind": "acknowledgment",
+          "quote": "Yes—that explanation captures the connection: a questionnaire can be reliable because it produces consistent scores while still lacking enough validity evidence for interpreting those scores as wellbeing.\n\nWe’ll leave SEM for another day, as you requested earlier. Your uncertainty about it does not reopen that topic by itself. We can continue with the reliability-and-validity distinction whenever you’re ready.",
+          "topic": "Reliability versus validity in the wellbeing questionnaire example",
+          "need_ids": [],
+          "preference_ids": [
+            "pref_defer_sem"
+          ],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "855cd5bf795b789b2919aba9552d7c77470169fa738bd1edabcc754cc14b8f23"
+          },
+          "preference_linkage": {
+            "links": [
+              {
+                "relationship": "honored_constraint",
+                "preference_id": "pref_defer_sem"
+              }
+            ],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8soo3e002jikms11r3b86d",
+          "source_tutor_sequence_index": 37
+        }
+      ],
+      "last_student_state": {
+        "readiness": "not_reported",
+        "understanding": "mixed",
+        "readiness_source": null,
+        "understanding_source": {
+          "quote": "I understand that connection better, but I’m still unsure about the SEM and whether subtracting it can show the true score.",
+          "evidence_id": "ev_8faa8a84514b0faeb549ecb4"
+        },
+        "source_agent_call_public_id": "cmv8soo3e002jikms11r3b86d",
+        "source_tutor_sequence_index": 37
+      },
+      "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+    },
+    "allowed_evidence_catalog": {
+      "evidence": [
+        {
+          "content": "Selected option B; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_f6b56c3c8750bc773bad2656",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "I think getting consistent scores means the hiring test measures the right thing.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_00ad8802bad2b56190fef771",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_e70ca830e8851e4810de0b15",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_53d9a32ce8e88148d887f959",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Selected option A; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_8f3a38e0029c5ecd4e2332ba",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "I subtract three to remove the error and find the exact true score.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_42c1552bdd7c84ac762733d6",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_e7f519b249fbee28047466ef",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_00218a05583965fa1072ede7",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Selected option A; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_a071c643a88df130d41a23f6",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "The scores are consistent, so it must measure wellbeing.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_28899131555058668f5bc38a",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_090759d5e9ab899462209ab0",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_a9678f83e7a29e737e1c9f65",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T00:19:46.649Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_00ac15924e62241a0a9fdc9c",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:46.649Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_baca4b608aebf692e6d341c0",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T00:19:46.714Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_d3f1c2b83517045d08c8c99e",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T00:19:46.716Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_bbd798d911ef3dd9629d3841",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:46.718Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_0b123f7a1822507a80c6deb2",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T00:19:50.207Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_d4dc40b6a8c283a37e4f0b75",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T00:19:50.210Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_c043535ac00efcd384e41750",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:50.212Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_7160c28708b3a9475c392355",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T00:19:50.251Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_3d23b313e039932d44efeeb1",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T00:19:50.252Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_fc90b49bce390746c9c24255",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:50.253Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_9b60f2de3cc919973cb7917f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T00:19:50.296Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_dcec52fb5c8cf130582aea4f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T00:19:50.299Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_8d4259767f2f29fc4edd0699",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T00:19:50.316Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_2bb6c685395dffea55fd8360",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:50.317Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_1e7366657b250959c6bb74cf",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T00:19:50.344Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_716c8e2e2542b9125f78dada",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T00:19:50.346Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_208604af2f6801c4c573d641",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:50.347Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_1a243797c97ff6340bec9d08",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T00:19:52.922Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_a75d01fd6f743928664065bd",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T00:19:52.925Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_9b1a1b8479ffdcc42b9608bb",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:52.926Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_7d12dec0a744c61219d750b4",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T00:19:52.976Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_ac2866a4bd192f516e51c768",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T00:19:52.978Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_6ec22384aea4c807310170fe",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:52.979Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_caef7875ecd70e0be8cd34bd",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T00:19:53.017Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_d4090de8a5ab6c6d8c0b9bff",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T00:19:53.020Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_8364bb8a681650446cd0da11",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T00:19:53.037Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_f1cbf6e4dbec3262118bb5e6",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:53.038Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_94ca622dd45ec483340c68fd",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T00:19:53.066Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_b9c6a4cce46f6b7eb2708bcb",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T00:19:53.068Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_a591903a5ccb8c234150c265",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:53.069Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_0ce8dfbf4021b235c7db7b8e",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T00:19:58.148Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_dea726ec84ba895de72a1e81",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T00:19:58.151Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_2e29001320a2ba11ce659c55",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:58.152Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_eb362c4bf82b2a80631046e0",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T00:19:58.197Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_af58cd627ed7a338c2002041",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T00:19:58.199Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_07a54c3593eba9bddbb799ef",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:58.200Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_22334d288091cea1f99010f2",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T00:19:58.236Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_f1bf338bc6afb782315abe1a",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T00:19:58.239Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_0753ff10b9ddbfbc350e526a",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed package_review_opened (initial_administration, backend) at 2026-10-15T00:19:58.254Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_82c01216d445dda096b9e160",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T00:19:58.256Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_4f0688333ad8a669ee3ebc64",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed package_submitted (initial_administration, backend) at 2026-10-15T00:19:58.269Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_d94a5869dc442af5004e088b",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": null
+        },
+        {
+          "content": "There are too many things I got wrong. Please help me with just the hiring question first.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_5f478aef588ad6cffba0b9c5",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 28,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        },
+        {
+          "content": "I’m still not sure how a test can be consistent but not correct. Could you give me a simple example of that distinction?",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_c43affdd54e991da14f89d93",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 30,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        },
+        {
+          "content": "The hiring score could keep measuring reading skill instead of job skill. We need to compare it with relevant job performance. But I still think subtracting SEM gives the exact true score.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_76d5362270d53d191e043c73",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 32,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        },
+        {
+          "content": "Please leave SEM for another day. How does the hiring idea connect to the wellbeing question?",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_b50285c909a60e830d11ac6d",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 34,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        },
+        {
+          "content": "So, a wellbeing questionnaire could give consistent scores because people’s reading skill stays similar, even if it is not really measuring wellbeing. That would make it reliable but not necessarily valid for wellbeing. I understand that connection better, but I’m still unsure about the SEM and whether subtracting it can show the true score.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_8faa8a84514b0faeb549ecb4",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 36,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        },
+        {
+          "content": "That is enough today. Please sum up what I explained and what I still need help with.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_d5ddc84859f1a9eef6bf6034",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_58f6ba7009a80568053e42c4",
+          "assessment_public_id": "asmt_7986c5fd-9edd-45d6-b976-780be2a7ddf7",
+          "source_sequence_index": 38,
+          "concept_unit_public_id": "cu_45030881-92c8-45d0-88fb-03e411c935cf",
+          "conversation_public_id": "cmv8slnzp000bikms9q4b7egy"
+        }
+      ],
+      "identity_version": "canonical-evidence-identity-v2",
+      "evidence_scope_id": "es_58f6ba7009a80568053e42c4"
+    },
+    "assessment_specification": {
+      "boundaries": {
+        "pedagogy_owner": "formative_conversation_agent",
+        "administered_items_only": true,
+        "raw_teacher_notes_must_not_be_quoted": true,
+        "legacy_activity_routing_authoritative": false,
+        "unadministered_item_content_protected": true,
+        "administered_answer_discussion_allowed": true
+      },
+      "schema_version": "formative-conversation-assessment-specification-v1",
+      "assessment_title": "Synthetic measurement evaluation",
+      "diagnostic_focus": null,
+      "concept_unit_title": "Reliability and score interpretation",
+      "learning_objective": "Distinguish reliability, validity, SEM and population-specific score evidence.",
+      "administered_item_guidance": [
+        {
+          "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+          "target_reasoning_note": "Consistency and evidence supporting the intended hiring interpretation are different kinds of evidence.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "Consistency and evidence supporting the intended hiring interpretation are different kinds of evidence.",
+          "plain_language_distractor_diagnostic_notes": "Option B: Consistency alone does not establish intended-use validity. Option C: Weak external association does not negate score consistency. Option D: Reliability and validity answer different evidential questions."
+        },
+        {
+          "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+          "target_reasoning_note": "SEM describes measurement uncertainty, not the signed error of an individual's score. A specific interval needs additional assumptions.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "SEM describes measurement uncertainty, not the signed error of an individual's score. A specific interval needs additional assumptions.",
+          "plain_language_distractor_diagnostic_notes": "Option A: SEM is not the known signed error to subtract. Option B: SEM is not the known signed error to add. Option D: SEM is not a count of incorrectly answered questions."
+        },
+        {
+          "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+          "target_reasoning_note": "Score consistency alone does not establish the intended wellbeing interpretation reading skill is a competing explanation to investigate.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "Score consistency alone does not establish the intended wellbeing interpretation reading skill is a competing explanation to investigate.",
+          "plain_language_distractor_diagnostic_notes": "Option A: Consistency is not sufficient validity evidence. Option C: A validity concern does not by itself negate reliability. Option D: Repeated administration alone cannot establish the wellbeing interpretation."
+        }
+      ],
+      "related_concept_description": "Score consistency alone does not establish intended-use validity. SEM represents uncertainty. Reliability is population-specific."
+    },
+    "assessment_process_evidence": [
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T00:19:46.649Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:46.649Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T00:19:46.714Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T00:19:46.716Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:46.718Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T00:19:50.207Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T00:19:50.210Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:50.212Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T00:19:50.251Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T00:19:50.252Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:50.253Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T00:19:50.296Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T00:19:50.299Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T00:19:50.316Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:50.317Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T00:19:50.344Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T00:19:50.346Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:50.347Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T00:19:52.922Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T00:19:52.925Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:52.926Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T00:19:52.976Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T00:19:52.978Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:52.979Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T00:19:53.017Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T00:19:53.020Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T00:19:53.037Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:53.038Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T00:19:53.066Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T00:19:53.068Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:53.069Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T00:19:58.148Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T00:19:58.151Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:58.152Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T00:19:58.197Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T00:19:58.199Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:58.200Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T00:19:58.236Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T00:19:58.239Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "package_review_opened",
+        "occurred_at": "2026-10-15T00:19:58.254Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T00:19:58.256Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "package_submitted",
+        "occurred_at": "2026-10-15T00:19:58.269Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      }
+    ],
+    "assessment_response_evidence": [
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_b0a49cfa-87bb-469e-a8ac-76f16bb3a9c5",
+        "selected_option": "B",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "I think getting consistent scores means the hiring test measures the right thing.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 3591,
+          "response_time_answer_ms": 6,
+          "response_time_reasoning_ms": 3493,
+          "response_time_confidence_ms": 44
+        },
+        "tempting_option_reason": null
+      },
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_09ffab33-66cd-4cd9-bb73-1aefd4142222",
+        "selected_option": "A",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "I subtract three to remove the error and find the exact true score.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 2679,
+          "response_time_answer_ms": 3,
+          "response_time_reasoning_ms": 2578,
+          "response_time_confidence_ms": 54
+        },
+        "tempting_option_reason": null
+      },
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_9656d145-6c39-4238-a9ac-9e98ebde5725",
+        "selected_option": "A",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "The scores are consistent, so it must measure wellbeing.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 5177,
+          "response_time_answer_ms": 4,
+          "response_time_reasoning_ms": 5082,
+          "response_time_confidence_ms": 49
+        },
+        "tempting_option_reason": null
+      }
+    ],
+    "allowed_misconception_claim_catalog": {
+      "indicators": [
+        {
+          "claims": [
+            {
+              "claim_id": "mc_30433ca322457e11a1732ebb",
+              "claim_text": "Consistent scores by themselves establish that a hiring test measures the right thing for the intended hiring decision.",
+              "source_evidence_refs": [
+                "ev_00ad8802bad2b56190fef771"
+              ]
+            },
+            {
+              "claim_id": "mc_26a35abeea9fe0b8e7a2ac7b",
+              "claim_text": "Consistent scores by themselves establish that a wellbeing questionnaire measures wellbeing.",
+              "source_evidence_refs": [
+                "ev_28899131555058668f5bc38a"
+              ]
+            }
+          ],
+          "indicator_id": "mi_99cb5539260eaa9f3cfe3387",
+          "indicator_text": "Reliability or score consistency automatically establishes validity for the intended interpretation or decision.",
+          "indicator_rationale": "On Item 1, the student selected option B and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected option A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely quoted option text, and they support the same current stance across two items.",
+          "indicator_confidence": "high",
+          "source_evidence_refs": [
+            "ev_00ad8802bad2b56190fef771",
+            "ev_28899131555058668f5bc38a"
+          ]
+        },
+        {
+          "claims": [
+            {
+              "claim_id": "mc_c5487ee6f4b23fdb87dcbe46",
+              "claim_text": "Subtracting the SEM from an observed score identifies the individual's exact true score.",
+              "source_evidence_refs": [
+                "ev_42c1552bdd7c84ac762733d6"
+              ]
+            }
+          ],
+          "indicator_id": "mi_6f553848f19a68b8ba3b8483",
+          "indicator_text": "SEM is a known signed error that can be subtracted from an observed score to identify an individual's exact true score.",
+          "indicator_rationale": "On Item 2, the student selected option A and explained, \"I subtract three to remove the error and find the exact true score.\" This student-explained reasoning directly endorses subtracting the SEM as though it were a determinate individual error.",
+          "indicator_confidence": "high",
+          "source_evidence_refs": [
+            "ev_42c1552bdd7c84ac762733d6"
+          ]
+        }
+      ],
+      "identity_version": "misconception-claim-identity-v1",
+      "profile_scope_id": "mp_ad7560ac61a513f05e08976b"
+    }
+  },
+  "attempts": [
+    {
+      "kind": "base",
+      "source_attempt_index_zero_based": 0,
+      "original_candidate_text_sha256": null,
+      "wire": {
+        "outcome": "continue_conversation",
+        "pre_reply_plan": {
+          "version": "conversation-pre-reply-plan-v1",
+          "current_focus": {
+            "source": {
+              "quote": "Please sum up what I explained and what I still need help with.",
+              "evidence_id": "ev_d5ddc84859f1a9eef6bf6034"
+            },
+            "description": "The student wants a summary of what they explained and the remaining help they need."
+          },
+          "student_state": {
+            "readiness": "pause",
+            "understanding": "not_reported",
+            "readiness_source": {
+              "quote": "That is enough today.",
+              "evidence_id": "ev_d5ddc84859f1a9eef6bf6034"
+            },
+            "understanding_source": null
+          },
+          "preference_comparisons": [
+            {
+              "prior": {
+                "origin": "stored_preference"
+              },
+              "decision": "retain",
+              "change_basis": "uncertainty_only",
+              "preference_id": "pref_defer_sem",
+              "current_source": {
+                "quote": "I understand that connection better, but I’m still unsure about the SEM and whether subtracting it can show the true score.",
+                "evidence_id": "ev_8faa8a84514b0faeb549ecb4"
+              }
+            }
+          ]
+        },
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "post_reply_review": {
+          "closure": {
+            "reason": "student_pause",
+            "rationale": "That is enough today.",
+            "instructor_support": null
+          },
+          "need_updates": [
+            {
+              "kind": "confusion",
+              "source": {
+                "quote": "But I still think subtracting SEM gives the exact true score.",
+                "evidence_id": "ev_76d5362270d53d191e043c73"
+              },
+              "status": "deferred",
+              "need_id": "need_sem_exact_true_score",
+              "support": [
+                {
+                  "kind": "current_reply"
+                }
+              ],
+              "description": "But I still think subtracting SEM gives the exact true score.",
+              "deferred_by_preference_id": "pref_defer_sem"
+            }
+          ],
+          "recap_claims": [
+            {
+              "current_source": {
+                "kind": "current_reply"
+              },
+              "earlier_support": [
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 29
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 31
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 35
+                }
+              ]
+            },
+            {
+              "current_source": {
+                "kind": "current_reply"
+              },
+              "earlier_support": [
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 33
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 37
+                }
+              ]
+            }
+          ],
+          "current_support": [
+            {
+              "kind": "summary",
+              "topic": "Summary of the reliability-validity connection across the hiring and wellbeing examples",
+              "source": {
+                "kind": "current_reply"
+              },
+              "need_ids": [
+                "need_hiring_wellbeing_connection"
+              ],
+              "preference_links": [
+                {
+                  "relationship": "honored_constraint",
+                  "preference_id": "pref_defer_sem"
+                }
+              ]
+            },
+            {
+              "kind": "summary",
+              "topic": "SEM remains unresolved and deferred for another day",
+              "source": {
+                "kind": "current_reply"
+              },
+              "need_ids": [
+                "need_sem_exact_true_score"
+              ],
+              "preference_links": [
+                {
+                  "relationship": "honored_constraint",
+                  "preference_id": "pref_defer_sem"
+                }
+              ]
+            }
+          ]
+        },
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student still needs help with the SEM distinction. Their latest substantive explanation says they understand the reliability-validity connection better but remain unsure whether subtracting SEM can show the true score.",
+            "evidence_ids": [
+              "ev_8faa8a84514b0faeb549ecb4"
+            ],
+            "evidence_type": "learning_summary_remaining"
+          }
+        ],
+        "student_visible_message": "You connected the hiring-test and wellbeing examples through the same distinction: consistent scores can support **reliability**, but consistency alone does not show that the scores measure the intended thing. You explained that a wellbeing questionnaire might consistently reflect reading skill rather than wellbeing, so it could be reliable without having enough validity evidence for a wellbeing interpretation.\n\n**Still worth working on**\n\nThe remaining issue is SEM. You still need help distinguishing an SEM from a known, signed error: subtracting an SEM from an observed score does not identify an individual's exact true score. We will leave that topic for another day, as you requested.\n\nThat is a good stopping point for today.",
+        "lifecycle_recommendation": "pause",
+        "profile_transition_recommendation": null,
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      },
+      "validation_issue_paths": [
+        "conversation_plan.preference_comparisons.pref_defer_sem:current_source_invalid",
+        "conversation_plan.preference_comparisons.pref_defer_sem:uncertainty_requires_current_source"
+      ],
+      "expected_acceptance": false
+    },
+    {
+      "kind": "semantic_regeneration",
+      "source_attempt_index_zero_based": 1,
+      "original_candidate_text_sha256": null,
+      "wire": {
+        "outcome": "continue_conversation",
+        "pre_reply_plan": {
+          "version": "conversation-pre-reply-plan-v1",
+          "current_focus": {
+            "source": {
+              "quote": "Please sum up what I explained and what I still need help with.",
+              "evidence_id": "ev_d5ddc84859f1a9eef6bf6034"
+            },
+            "description": "The student wants a summary of what they explained and the remaining help they need before pausing."
+          },
+          "student_state": {
+            "readiness": "pause",
+            "understanding": "not_reported",
+            "readiness_source": {
+              "quote": "That is enough today.",
+              "evidence_id": "ev_d5ddc84859f1a9eef6bf6034"
+            },
+            "understanding_source": null
+          },
+          "preference_comparisons": [
+            {
+              "prior": {
+                "origin": "stored_preference"
+              },
+              "decision": "retain",
+              "change_basis": "uncertainty_only",
+              "preference_id": "pref_defer_sem",
+              "current_source": null
+            }
+          ]
+        },
+        "contract_version": "formative-conversation-agent-contract-v4",
+        "post_reply_review": {
+          "closure": {
+            "reason": "student_pause",
+            "rationale": "That is enough today. The student requested a summary and a pause, while the SEM question remains deliberately deferred.",
+            "instructor_support": null
+          },
+          "need_updates": [
+            {
+              "kind": "confusion",
+              "source": {
+                "quote": "But I still think subtracting SEM gives the exact true score.",
+                "evidence_id": "ev_76d5362270d53d191e043c73"
+              },
+              "status": "deferred",
+              "need_id": "need_sem_exact_true_score",
+              "support": [
+                {
+                  "kind": "current_reply"
+                }
+              ],
+              "description": "But I still think subtracting SEM gives the exact true score.",
+              "deferred_by_preference_id": "pref_defer_sem"
+            }
+          ],
+          "recap_claims": [
+            {
+              "current_source": {
+                "kind": "current_reply"
+              },
+              "earlier_support": [
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 29
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 31
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 35
+                }
+              ]
+            },
+            {
+              "current_source": {
+                "kind": "current_reply"
+              },
+              "earlier_support": [
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 33
+                },
+                {
+                  "kind": "prior_tutor_turn",
+                  "tutor_sequence_index": 37
+                }
+              ]
+            }
+          ],
+          "current_support": [
+            {
+              "kind": "summary",
+              "topic": "Summary of the reliability-versus-validity distinction across the hiring and wellbeing examples",
+              "source": {
+                "kind": "current_reply"
+              },
+              "need_ids": [
+                "need_hiring_wellbeing_connection"
+              ],
+              "preference_links": [
+                {
+                  "relationship": "honored_constraint",
+                  "preference_id": "pref_defer_sem"
+                }
+              ]
+            },
+            {
+              "kind": "summary",
+              "topic": "SEM remains unresolved and is being left for another day",
+              "source": {
+                "kind": "current_reply"
+              },
+              "need_ids": [
+                "need_sem_exact_true_score"
+              ],
+              "preference_links": [
+                {
+                  "relationship": "honored_constraint",
+                  "preference_id": "pref_defer_sem"
+                }
+              ]
+            }
+          ]
+        },
+        "teaching_artifact": null,
+        "evidence_observations": [
+          {
+            "observation": "The student accurately stated that consistent scores can reflect reading skill rather than wellbeing and that this supports reliability without necessarily supporting validity for the intended interpretation. This matches the distinction developed in prior tutor support, so it is treated as recognition of that explanation rather than new independent application.",
+            "evidence_ids": [
+              "ev_8faa8a84514b0faeb549ecb4"
+            ],
+            "evidence_type": "supported_recognition"
+          },
+          {
+            "observation": "The student still needs help with whether SEM can be subtracted to identify an exact true score, and explicitly requested that topic be left for another day.",
+            "evidence_ids": [
+              "ev_8faa8a84514b0faeb549ecb4",
+              "ev_b50285c909a60e830d11ac6d"
+            ],
+            "evidence_type": "learning_summary_remaining"
+          }
+        ],
+        "student_visible_message": "You explained the reliability–validity connection using both examples: scores can be consistent because they repeatedly reflect something like reading skill, while still not supporting the intended interpretation—job performance in the hiring case or wellbeing in the questionnaire. Consistency supports reliability, but it does not by itself establish validity for the intended use.\n\n**Still worth working on**\n\nYou still want help with SEM. In particular, the remaining question is why an SEM is not a known signed error that can be subtracted from an observed score to reveal an individual's exact true score. We are leaving that question for another day, as you requested.\n\nThat is enough for today. We can return to the SEM question later without reopening it now.",
+        "lifecycle_recommendation": "pause",
+        "profile_transition_recommendation": null,
+        "teacher_assistance_recommendation": {
+          "reason_code": null,
+          "recommended": false
+        }
+      },
+      "validation_issue_paths": [
+        "conversation_plan.preference_comparisons.pref_defer_sem:uncertainty_requires_current_source"
+      ],
+      "expected_acceptance": false
+    }
+  ]
+}

@@ -19,6 +19,7 @@ import {
 import { normalizeOpenAIResponsesResult } from "@/lib/llm/openai-responses-normalizer";
 import { prepareLosslessProfilingInput, PROFILING_INPUT_ENCODING, prepareLosslessAgentInput,
   AGENT_INPUT_ENCODING, usesLosslessAgentInput } from "@/lib/llm/lossless-profiling-input";
+import { FORMATIVE_TUTOR_INPUT_ENCODING, prepareFormativeTutorInput } from "@/lib/llm/formative-tutor-input";
 import type {
   LlmProvider,
   OpenAITransportMilestone,
@@ -241,6 +242,10 @@ function initialMilestones(): OpenAITransportMilestone {
 }
 
 function projectRequestInput<TInput, TOutput>(request: StructuredAgentRequest<TInput, TOutput>) {
+  if (request.input_encoding === FORMATIVE_TUTOR_INPUT_ENCODING &&
+      request.agent_name === "formative_conversation_agent") {
+    return prepareFormativeTutorInput(request.input);
+  }
   return request.input_encoding === AGENT_INPUT_ENCODING && usesLosslessAgentInput(request.agent_name)
     ? prepareLosslessAgentInput(request.input)
     : request.input_encoding === PROFILING_INPUT_ENCODING && request.agent_name === "student_profiling_agent"

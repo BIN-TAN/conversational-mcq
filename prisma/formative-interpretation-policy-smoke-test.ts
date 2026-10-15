@@ -9,6 +9,7 @@ import { profileRecordProvenance } from "../src/lib/services/student-assessment/
 import { validateFormativeConversationStudentOutputFormat } from "../src/lib/services/student-assessment/formative-conversation/output-format";
 import { createSingleAttemptFormativeConversationV18R2Execution, executeFormativeConversationV18R2 } from "../src/lib/services/student-assessment/formative-conversation/execution-v18r2";
 import { buildFormativeConversationV18R2ProductionRequest } from "../src/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
+import { buildConversationDeliveryDraftBlocks, CONVERSATION_DELIVERY_REVIEW_VERSION, ConversationDeliveryReviewInputSchema } from "../src/lib/services/student-assessment/formative-conversation/conversation-continuity";
 import { v18r2TestContext, v18r2TestTerminalOutput } from "./formative-conversation-v18r2-test-fixtures";
 
 const context = v18r2TestContext({ student_turn_count: 1 });
@@ -246,14 +247,28 @@ assert.equal(profileRecordProvenance({ ...profile, based_on_agent_call: null }).
 console.log("PASS interpretation policy: transfer provenance, confidence scope, supported reasoning, immutable normalization, citation safety, historical compatibility");
 
 async function auditRoundTrip() {
-  const request = buildFormativeConversationV18R2ProductionRequest({ context,
+  const executionContext = { ...context, administered_items: context.assessment_response_evidence.map((item, index) => ({
+    item_public_id: item.item_public_id, item_number: index + 1, item_stem: "Synthetic administered item.",
+    options: [{ label: "A", text: "Synthetic option A." }, { label: "B", text: "Synthetic option B." }],
+    student_answer: item.selected_option, correct_answer: "A", concise_explanation: "Private synthetic key not forwarded.", administered: true as const
+  })) };
+  const request = buildFormativeConversationV18R2ProductionRequest({ context: executionContext,
     model_config: { model_name: "gpt-5.6-sol", reasoning_effort: "medium", max_output_tokens: 10000 },
     client_request_id: "synthetic-projection-audit", timeout_ms: 120000, invocation_key: "synthetic-projection-audit" });
   const execution = await executeFormativeConversationV18R2({ base_request: request,
     validate_candidate: candidate => validateFormativeInterpretation({ candidate, context }),
     execute_logical_generation: async ({ request: logicalRequest, sequence }) =>
       createSingleAttemptFormativeConversationV18R2Execution({ logical_call_id: `synthetic-${sequence}`, request: logicalRequest,
-        result: prepareFormativeInterpretationResult(result(sequence === 1 ? unknown : mislabeled), context) })
+        result: prepareFormativeInterpretationResult(result(sequence === 1 ? unknown : mislabeled), context) }),
+    execute_delivery_review: async ({ request: reviewRequest, sequence }) =>
+      createSingleAttemptFormativeConversationV18R2Execution({ logical_call_id: `synthetic-review-${sequence}`, request: reviewRequest,
+        result: { provider: "mock", status: "completed", client_request_id: reviewRequest.client_request_id,
+          parsed_output: { version: CONVERSATION_DELIVERY_REVIEW_VERSION,
+            teaching_block_audit: buildConversationDeliveryDraftBlocks(ConversationDeliveryReviewInputSchema.parse(reviewRequest.input).draft_message).map(block => ({
+              block_id: block.block_id, assessment: "no_teaching_claims", check: "Authored offline projection fixture verdict; no semantic model judgment is asserted."
+            })), verdict: "pass", findings: [] },
+          raw_output: { authored_offline_fixture: true },
+          usage: { input_tokens: 0, output_tokens: 0, total_tokens: 0 }, latency_ms: 0 } })
   });
   assert.equal(execution.audit.semantic_regeneration_calls, 1);
   assert.deepEqual(execution.audit.attempts[0].invalid_candidate?.candidate_json, unknown, "Rejected original survives a successful regeneration");
@@ -261,6 +276,8 @@ async function auditRoundTrip() {
   assert(execution.audit.attempts[1].interpretation_projection?.fields.includes("confidence_alignment"));
   assert.deepEqual(execution.result.parsed_output.profile_transition_recommendation!.updated_profile, mislabeled.profile_transition_recommendation!.updated_profile);
   assert.equal(execution.audit.http_requests_dispatched, 0);
+  assert.equal(execution.audit.attempts[0].pre_delivery_review, undefined, "Rejected interpretation does not enter delivery review");
+  assert.equal(execution.audit.attempts[1].pre_delivery_review?.status, "passed", "Accepted interpretation retains its authored offline delivery review");
   console.log("PASS projection audit: original rejected candidate and both mechanical projections retained across regeneration; no provider calls");
 }
 auditRoundTrip().catch(error => { console.error(error); process.exitCode = 1; });

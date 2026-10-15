@@ -1,0 +1,89 @@
+{
+  "version": "conversation-physical-usage-native-v21-v1",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "sources": {
+    "agent_calls": {
+      "path": ".data/luna-conversation-repair-2026-10-13/cohort-v21/source/.data/ai-student-evaluation/cmcq_ai_students_d02870ec2c2d/student_understood_ready-agent-calls.json",
+      "sha256": "7db5c061fff58952544adeaf837403744ac126faddacc3bacb7379270332b715"
+    },
+    "transport_usage": {
+      "path": ".data/luna-conversation-repair-2026-10-13/attempts/repair-e2e-v21-ready-01/transport-usage.json",
+      "sha256": "88c26483952940f88a23c9b7abfce7751e0674f8682e169b422dd892cf61a33e"
+    }
+  },
+  "projection": "Exact accounting fields from the original opening audit and exact two transport rows; no student text or provider raw content is included.",
+  "original_audit": {
+    "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v2",
+    "dispatch_accounting_complete": true,
+    "usage_accounting_complete": true,
+    "logical_calls_entered": 1,
+    "tutor_logical_calls_entered": 1,
+    "review_logical_calls_entered": 0,
+    "http_requests_dispatched": 2,
+    "provider_responses_completed": 1,
+    "provider_attempts": 2,
+    "transport_retries": 1,
+    "pre_dispatch_request_rejections": 0,
+    "attempt": {
+      "provider_response_id": "resp_0b9a7a46ef20f207016acf1ed588b887d095061f7115a83ee2",
+      "http_request_count": 2,
+      "provider_response_completed_count": 1,
+      "provider_attempt_count": 2,
+      "transport_retry_count": 1,
+      "pre_dispatch_request_rejection_count": 0,
+      "input_tokens": 30260,
+      "output_tokens": 434,
+      "total_tokens": 30694
+    }
+  },
+  "transport_requests": [
+    {
+      "request_index": 674,
+      "attempt_id": "repair-e2e-v21-ready-01",
+      "experiment_phase": "luna-sol-review-candidate-v21",
+      "case_id": "student_understood_ready",
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "agent_name_source": "metadata.approved_execution_role",
+      "model_name": "gpt-5.6-luna",
+      "status": "failed",
+      "usage": null,
+      "provider_response_id": null,
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "candidate_context_extension_sha256": "b458d3709ba928267d1c3fd398c91f0010f5722b8d60b61c727b2763a3bec42a",
+      "runtime_hash": "e26c8b00a190c4a20b679700bbd1691b7d45bbb3d3a109a1b3a014baa2e2b305",
+      "source_snapshot_sha256": "153d34add8dca805cc344dc082bf12c99db8c39e1ccbbe1546a129c5bfde185c"
+    },
+    {
+      "request_index": 675,
+      "attempt_id": "repair-e2e-v21-ready-01",
+      "experiment_phase": "luna-sol-review-candidate-v21",
+      "case_id": "student_understood_ready",
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "agent_name_source": "metadata.approved_execution_role",
+      "model_name": "gpt-5.6-luna",
+      "status": "completed",
+      "usage": {
+        "input_tokens": 30260,
+        "input_tokens_details": {
+          "cache_write_tokens": 30257,
+          "cached_tokens": 0
+        },
+        "output_tokens": 434,
+        "output_tokens_details": {
+          "reasoning_tokens": 64
+        },
+        "total_tokens": 30694
+      },
+      "provider_response_id": "resp_0b9a7a46ef20f207016acf1ed588b887d095061f7115a83ee2",
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "candidate_context_extension_sha256": "b458d3709ba928267d1c3fd398c91f0010f5722b8d60b61c727b2763a3bec42a",
+      "runtime_hash": "e26c8b00a190c4a20b679700bbd1691b7d45bbb3d3a109a1b3a014baa2e2b305",
+      "source_snapshot_sha256": "153d34add8dca805cc344dc082bf12c99db8c39e1ccbbe1546a129c5bfde185c"
+    }
+  ]
+}

@@ -1403,7 +1403,7 @@ export async function persistFormativeConversationAssistantMessage(input: {
 }
 
 export const FORMATIVE_CONVERSATION_LIFECYCLE_HANDOFF_MESSAGE =
-  "We've reached the end of this conversation. It may help to ask your instructor for another explanation or work through this concept with them." as const;
+  "We've reached the conversation length limit, but I couldn't complete the final response. Your submitted responses are saved. This does not mean that all your questions have been answered or that you have mastered the topic." as const;
 
 export async function persistFormativeConversationLifecycleHandoff(input: {
   conversation_public_id: string;
@@ -1628,7 +1628,7 @@ export async function closeFormativeConversationAtStudentTurnLimit(input: {
   conversation_public_id: string;
   client_message_id: string;
   agent_call_db_id: string;
-  source: "llm_terminal_recommendation";
+  source: "llm_terminal_recommendation" | "platform_turn_limit_after_tutor_reply";
   reason_code: string;
 }) {
   const now = new Date();

@@ -302,10 +302,14 @@ Learning-profile evolution in this phase is append-only. The conversation agent
 authors learning observations, evidence interpretation, and any recommended
 outcome (`sound`, `largely_improved`, or
 `teacher_assistance_recommended`). A terminal recommendation includes one
-complete canonical updated profile and field-level provenance that distinguishes
+canonical updated profile and field-level provenance that distinguishes
 conversation-supported changes from unchanged fields whose earlier evidence
-remains valid. The platform must not create an updated profile by copying stale
-fields from the prior version. It validates and persists the prior and updated
+remains valid. The prospective generation contract may express this as a version-bound
+proposal containing only changed field values, with an explicit updated/retained
+disposition for every field. The platform carries forward only explicitly retained
+fields from that exact prior profile; it must not invent dispositions, fill missing
+proposals, copy from another version, or silently repair contradictory evidence.
+It reconstructs and fully validates the canonical snapshot and persists the prior and updated
 profiles, source turns, source agent call, evidence references, transition
 timestamp, outcome, and initial assessment profile; it does not infer an
 outcome from activity completion, conversation status, profile pointers, or
@@ -337,3 +341,70 @@ profile change exists rather than deriving a learning outcome heuristically.
 Research exports retain the phase-separated raw assessment evidence, observable
 formative telemetry, safe agent metadata, and append-only transition provenance
 needed for reproducible analysis.
+
+### Support and student-informed closure
+
+The tutor should help the student feel understood and address the identified learning
+needs through appropriate explanations, examples, alternative representations, direct
+answers and optional practice. These are available forms of support, not a required
+sequence or an obligation to exhaust every imaginable exercise. When support is not
+helping, clarify the difficulty and change the approach rather than repeat the same reply.
+
+A tutor-initiated successful closing considers the student's current expressed
+understanding/readiness together with the actual unresolved questions and misconception
+evidence. Self-reported understanding is retained as a self-report, not substituted for
+demonstrated understanding or a new confidence calibration. A student may decline
+practice, defer a topic, pause or finish without proving mastery. Preserve unresolved
+needs honestly; do not reclassify them as resolved to permit departure.
+
+Keep background assessment concerns separate from the student's current question.
+A closing recap should reflect the actual discussion and remaining concern, without
+introducing an undiscussed or deferred topic as though it were the current focus.
+Mentioning continued uncertainty does not by itself cancel a request to defer a topic.
+
+Check proposed ongoing replies against the visible conversation and exact
+student-authored initial reasoning separately from the background assessment
+interpretation. The initial reasoning supports accurate attribution to the initial
+assessment, not a claim that it remains the student's current view. Do not supply
+selected answers, correctness, hidden profiles or teacher notes to this reviewer.
+This review must not invent history,
+replace the tutor's message, or own assessment transitions. Rejection may consume
+the existing single regeneration. Record the extra model usage and retain failed
+review evidence. Permit relevant new teaching and explicitly requested topic
+changes; absence from earlier turns is not itself a defect.
+
+The application divides the entire draft into ordered adjacent blocks and requires
+the reviewer to assess every block in the context of the complete draft and dialogue.
+This prevents the reviewer from selecting only convenient statements to audit;
+it does not guarantee coverage of every assertion within a block. The review checks
+concrete teaching claims and necessary premises as well as conversation fidelity.
+Repetition in earlier tutor replies is not evidence that
+an explanation is correct. Keep simple, useful teaching possible without demanding
+irrelevant technical caveats, and preserve the distinction between a review's
+acceptance and demonstrated learning or guaranteed factual accuracy.
+
+Instructor referral is a final resort when a meaningful barrier remains and appropriate
+available support cannot address it. A student's explicit request for instructor help
+or a concern requiring instructor authority can justify an earlier referral. Neither
+a wrong answer, short response, declined exercise nor the conversation length limit
+alone establishes that referral is needed. No message is sent to an instructor.
+
+The existing maximum of 30 student-authored formative turns remains. Reaching it ends
+the conversation as a workflow boundary, without forcing a new profile outcome,
+misconception resolution or instructor referral. No per-topic spending limit is added.
+Luna at medium reasoning is the preferred deployment candidate when the current
+information and output contracts meet the quality and reliability checks.
+The prospective mixed-review candidate retains Luna-medium for all eighteen
+primary roles, with a separate Sol-medium check of ongoing tutor replies. This
+child review must be explicitly approved with its purpose, model, prompt/schema
+and output ceiling bound to the runtime identity. Its usage is included in the
+application's session cost; it adds no student action and owns no assessment
+transition. Diagnostic model comparisons do not themselves approve deployment.
+
+Closing summaries must preserve the help a student received. A restatement of a
+supplied explanation can be acknowledged positively as reasoning worked through
+together; it must not be relabeled demonstrated understanding or independent
+application merely because the student asks for a summary. Review headings and
+praise as well as factual explanations. A student can pause or finish without
+providing stronger evidence, and the system must not require another exercise
+to make the closing possible.

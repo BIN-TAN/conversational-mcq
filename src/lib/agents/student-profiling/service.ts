@@ -4,7 +4,7 @@ import {
   type ExecuteOperationalAgentInput,
   type OperationalAgentExecutionResult
 } from "@/lib/agents/operational/executor";
-import { ProductionStudentProfilingInput, ProductionStudentProfileOutputV5,
+import { ProductionStudentProfilingInput, ProductionStudentProfileOutputV6,
   type AgentOutputByName } from "@/lib/agents/contracts";
 import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
@@ -201,7 +201,7 @@ async function executeValidatedProfiling(
       if (!prior || prior.call_status !== "invalid_output" || prior.error_category !== "semantic_validation") return null;
       const prompt = getPromptForAgent("student_profiling_agent");
       const providerInput = ProductionStudentProfilingInput.safeParse(prior.input_payload);
-      const output = ProductionStudentProfileOutputV5.safeParse(prior.output_payload);
+      const output = ProductionStudentProfileOutputV6.safeParse(prior.output_payload);
       const eligible = prior.agent_name === "student_profiling_agent" && !prior.output_validated &&
         prior.assessment_session_db_id === request.operationalContext.assessment_session_db_id &&
         prior.concept_unit_session_db_id === request.operationalContext.concept_unit_session_db_id &&

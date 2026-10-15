@@ -729,8 +729,11 @@ The research dataset ZIP contains:
 | `formative_conversation_data_dictionary.csv` | One row per formative-conversation export variable | Identifies raw observable fields versus derived/validated profile fields and states interpretation cautions. |
 
 Formative profile evolution is append-only. A validated terminal recommendation
-from `formative_conversation_agent` supplies a complete canonical updated
-profile and field-level evidence dispositions. Changed fields must cite
+from `formative_conversation_agent` yields a complete canonical updated
+profile and field-level evidence dispositions. New profile-proposal calls supply
+version-bound changed values and explicit retained/updated dispositions; the
+application reconstructs the complete snapshot before canonical validation.
+Changed fields must cite
 conversation evidence; unchanged fields may be retained only when the
 recommendation states that their earlier evidence remains valid. Persistence
 creates a new `StudentProfile` version and a
@@ -744,6 +747,258 @@ updated profile fields, the complete canonical snapshot, profile timestamps,
 and aligned supporting-turn sequence, actor, and evidence-role columns so the
 profile timeline can be reconstructed without exporting hidden prompts or raw
 provider payloads.
+
+### Prospective conversation reliability records
+
+The `formative-conversation-profile-proposal-output-v1` provider schema is distinct
+from the existing canonical v4 output reader. Its non-null
+`formative-profile-update-proposal-v1` recommendation names the exact prior profile
+version. Every canonical field has exactly one explicit disposition; only updated
+fields have values in `changed_fields`. The application copies explicitly retained
+values from that version and validates the complete canonical snapshot with the
+existing evidence and ownership checks. Missing dispositions, unknown/duplicate
+fields and stale prior versions fail validation. This is bookkeeping, not an
+application-authored diagnosis. Raw proposal, provider response, reconstruction
+status, issue paths and before/after hashes remain in the call audit. A rejected
+proposal remains evidence of a failed attempt; the existing single semantic
+regeneration allowance is unchanged.
+
+New accepted tutor outputs also contain `conversation-review-v1`: source-linked
+interpretations of student preferences, unresolved requests, support actually
+provided, recaps, student-reported understanding/readiness and the closing reason.
+Student sources retain exact canonical evidence IDs and quotes. Tutor sources use
+exact visible text and conversation-local sequence indexes. A tutor explanation,
+student agreement, self-report or request to stop is not new mastery evidence.
+Provenance validation establishes source presence and declared-state consistency;
+it cannot establish the semantic truth of a model interpretation.
+
+The provider first emits a versioned `pre_reply_plan` containing source-linked
+preference comparisons, current student-reported state and a concise current
+focus. Earlier boundaries and a newer request to change them have separate source
+references. Renewed uncertainty is not itself permission to release a boundary.
+The application reconstructs the canonical review from this plan and the
+`post_reply_review`; the original wire response and reconstruction audit remain
+available. This split uses one provider generation, not an additional hidden
+conversation or an application-authored teaching decision.
+
+The prospective `conversation-stored-preference-transition-v1` wire branch uses
+the existing preference ID and `prior: {origin: "stored_preference"}` without
+repeating its kind or description. Those immutable fields come from the exact
+same-conversation continuity snapshot. The projection records the version and
+`stored_preference_bindings` hashes; release and reactivation still
+require the applicable status, chronology and student-source checks. New and
+history-bootstrap branches retain their authored identities and cannot replace
+an existing ID's fields. This is exact reconstruction, not interpretation of a
+new preference or silent repair of a contradictory one.
+
+Prospective `conversation-pre-reply-plan-v2` uses the strict stored-retention
+branch `{preference_id, decision: "retain"}`. The application resolves one existing
+preference, validates its historical source and preserves its exact status,
+identity and provenance without emitting a preference update. The audit records
+`stored_preference_retention_version=conversation-stored-preference-retention-v1`
+and the complete ordered stored-binding inventory. Extra authored source or
+change fields fail schema validation; they are never silently discarded. The
+separate activation/release and history-bootstrap branches retain their source
+requirements. Historical V1 wire and rejected candidates remain unchanged.
+
+`conversation-deferred-need-link-v1` checks every deferred need in the resulting
+state after preference and need updates, including unchanged needs. Its controller
+must still be an active `defer_topic` preference. The existing single repair may
+receive `deferred_need_link_feedback`, version `conversation-resulting-state-feedback-v1`,
+with at most twelve exact need/preference IDs, resulting status/kind and an omitted
+issue count. This describes a structural inconsistency, not student intent. Tutor
+v7.20 and proposal regeneration v4 introduced the requirement for any narrower replacement and relinking
+to be authored from existing student sources; the application does not infer consent,
+reactivate preferences or rewrite historical state. Original rejected candidates
+and all delivery checks remain retained. Proposal regeneration v5 additionally
+explains the strict V2 retention branch within the same single repair; it adds no
+feedback evidence, retry or automatic state change.
+
+The prospective `conversation-current-source-activation-projection-v1` audit
+handles one redundant source designation: an absent stored preference ID with an
+already-authored `activate` / `explicit_change` decision may label the same exact
+latest student source as both its earlier and current source. Only when the
+catalog entry, visible turn, preference ID and byte-exact source are unambiguous
+does the application project that `prior` to null. The decision, kind,
+description, current source and teaching text remain unchanged. Retention,
+release, stored-ID conflicts and every non-exact or non-current match retain
+their existing rejection rules. `current_source_activation_projection_version`
+and `current_source_activation_bindings` record the comparison path, preference
+ID, actual source sequence, source-object hash and original/projected comparison
+hashes; source-object hashing orders `evidence_id` then `quote`, while comparison
+hashes preserve the raw object's key order. Original wire and output hashes
+remain available. Historical audits may omit these additive fields and retain
+their original disposition. Source timing is mechanically established; the
+student's intent and the reply still require the existing semantic and delivery
+checks. No model-authored retain/release decision is changed into activation.
+
+For prospective current-reply receipts, the wire uses an explicit `current_reply`
+reference instead of asking the model to copy its own formatted message. The
+application binds that reference to the exact, unchanged whole reply. The
+canonical receipt records `source_binding` with version
+`conversation-current-reply-source-v1` and the SHA-256 of the reply's exact UTF-8
+bytes. The projection audit retains `current_reply_source_version` and each
+`current_reply_bindings` path/hash, alongside the original wire and projected
+output hashes. This applies to current support, current need-support sources and
+the current side of recap claims.
+
+Prospective earlier-tutor receipts use `prior_tutor_turn` and an exact prior tutor
+sequence index for need support, recap history and instructor-referral support.
+The application supplies that turn's unchanged full text and a
+`conversation-prior-tutor-source-v1` source binding. The projection records
+`prior_tutor_source_version` and `prior_tutor_bindings`, including each field path,
+sequence index and UTF-8 reply hash. Missing, duplicate, future, student or
+other-conversation sources fail; no approximate matching or substitute quote is
+accepted. The whole-turn source remains a coarse attribution, not a judgment
+that its teaching or the model's support claim is correct.
+
+These explicitly marked whole-reply receipts allow up to the existing
+12,000-character message limit and require exact equality plus the binding hash.
+Unmarked literal quotes keep their existing 1,200-character bound and exact
+source checks. Persisted whole-reply bindings must still match the correct prior
+tutor turn when carried into later context. Student quotations, historical tutor
+excerpts, messages, need statuses and profile judgments are not normalized or
+repaired. Historical rejected Markdown-copy attempts remain rejected records.
+
+Whole-reply binding is deliberately coarser than a model-selected quotation: it
+establishes which reply a support or recap annotation concerns, not which words
+prove the annotation or whether its interpretation is correct. Independent
+delivery review and the existing semantic/evidence checks still apply. A
+lossless provider-input projection may reference the already included exact
+tutor turn for these marked receipts; stored records remain expanded, and exact
+round-trip reconstruction is required. This provenance change adds no student
+action, outcome measure, migration or retrospective annotation.
+
+Prospective current support uses `preference_links` with an explicit
+`honored_constraint` or `topic_of_support` relationship. The projection stores
+`preference_linkage`, version `conversation-support-preference-links-v1`, and
+derives the existing `preference_ids` from exactly those authored links. Its
+audit records `support_preference_link_version` and each
+`support_preference_link_bindings` path/link list. Unique link/ID parity and known
+references are required; an honored constraint must still be active. Honoring a deferred constraint does not assert teaching
+its topic; teaching an actively deferred topic or need remains invalid. The
+global no-quiz check and independent visible-dialogue review remain applicable.
+Earlier unmarked receipts retain their original meaning and validation behavior;
+failed V12 drafts are not retroactively accepted or rewritten.
+
+The prospective wire review omits the redundant unresolved-need ID list. The
+application derives the canonical list by applying the model's need updates to
+the previously recorded needs and selecting the IDs still marked `open`.
+Unmentioned open needs remain open; addressed and deferred needs are excluded.
+The audit records the prior-needs hash and derived list. Need statuses, source
+quotes and reply text are not rewritten, and invalid or duplicate need updates
+still fail validation. Historical canonical reviews retain their original list
+and validation requirements.
+
+Before delivering a generated reply in an ongoing conversation, a separate
+review compares the draft with the full visible conversation and
+latest student message. Version five also receives `initial_student_reasoning`:
+the exact `item_public_id` and nullable `written_reasoning` from each administered
+initial response. This can establish an attribution to the earlier assessment,
+but does not prove the reasoning correct or still endorsed. Its findings can
+reference an exact initial-reasoning quote separately from a visible-turn quote.
+Out-of-scope item IDs, duplicate sources and invented quotations fail validation.
+It does not receive selected answers, correctness, the assessment profile, item catalog,
+answer keys or the tutor's private interpretation. Its findings concern unsupported
+conversation-history or pause-agenda claims, misattributed student requests and
+conflicts with explicit boundaries. Prospective `conversation-delivery-review-v2`
+adds `teaching_accuracy_error` for a concrete factual, conceptual or logical error,
+including contradictory analogies and an edge case that invalidates a rule's
+necessary assumptions. The review uses general subject knowledge with the visible
+case evidence. Sound simple
+teaching is not rejected for omitting irrelevant advanced qualifications.
+`conversation-delivery-review-v3` records bounded, reviewer-selected teaching-claim
+checks. Prospective `conversation-delivery-review-v4` replaces that selection with
+an application-generated ordered partition of the exact draft into at most twelve
+adjacent blocks. Each nonblank physical line initially forms a unit with its
+adjacent blank space; excess units are merged in order without dropping text.
+The input retains each block's ID, text and UTF-8 hash plus
+the entire draft and visible dialogue. The reviewer returns one ordered assessment
+and concise rationale per block; it does not echo the hashes. Findings identify a
+block and an exact quote within it. Missing, duplicate, reordered or inconsistent
+coverage fails validation. A material-error assessment requires a matching teaching
+accuracy finding, and uncertainty alone does not reject a reply. Block coverage
+does not prove that every assertion was checked or that the explanation is true.
+Prior tutor statements are conversational provenance, not factual authority.
+Historical versions retain their original scope and raw output: version-one passes
+are not evidence of accuracy review, and earlier versions are not backfilled with
+the new block audit. A new explanation is not invalid merely
+because it was not mentioned before. The reviewer does not write a replacement
+reply or decide profile or lifecycle changes.
+
+For approval verification, the retained review-output hash is checked against JSON
+parsed from the original completed provider message. That parsed value must also
+deeply equal the persisted parsed output, including all values and array order.
+Database JSONB may reorder object keys; that alone is not changed evidence.
+Missing, ambiguous or invalid raw provider text and changed values still fail.
+The original provider response, receipt hash and any earlier verification failure
+remain unchanged; no historical evidence is rewritten to pass this check.
+
+Each child review retains its exact input binding, provider response, validation
+result, model, reasoning effort, output ceiling, usage and timing alongside the
+corresponding tutor draft. If the review context cannot be constructed, the
+application retains the already-generated tutor draft and its usage, marks the
+review unreliable and not entered, and leaves the review input/hash null. It
+does not fabricate an empty context or dispatch a review against invalid sources.
+The prospective mixed-review policy explicitly binds
+Sol-medium with a 2,500-output-token ceiling to this purpose and the exact review
+prompt/schema in the approved runtime manifest. Primary-role AgentCall identity
+remains Luna-medium; the child receipt records the actual review identity before
+request hashing and execution. Historical inherited-model reviews retain their
+original identities, and model-only diagnostics are not candidate approval evidence.
+Its usage is included in the same call-accounting audit and transport records.
+Current tutor attempts and paid review receipts retain a versioned
+`physical_usage` audit for every provider adapter attempt, including retries.
+Each entry records dispatch status, request/response identifiers and observed
+token counts; missing usage remains null. Logical totals sum the known physical
+usage and are only lower bounds when any possibly dispatched attempt has unknown
+usage. A successful final response does not establish usage for an earlier failed
+request. Dispatch and usage completeness are recorded separately. Current selected
+release evidence requires every dispatched request to have matching transport
+usage; historical incomplete attempts remain preserved with their original
+reservation and disposition. Runtime approval pins `provider-physical-usage-v1`
+and the retry implementation source. No historical records are backfilled.
+Offline cost reports price each child at its own recorded model and include
+rejected reviews and repairs without also charging the parent aggregate. Missing
+model, usage or retry coverage remains unknown; transport records replace rather
+than supplement the retained AgentCall accounting when available. This does not
+populate historical unknown database cost columns or expand ordinary exports with
+raw review payloads. A grounded
+rejection can use the existing single tutor regeneration, followed by another
+review; missing, failed or invalid review evidence cannot count as acceptance.
+These are additional fallible model judgments, not proof of semantic correctness
+or student learning. Historical calls without this instrumentation stay unchanged.
+
+For historical conversations with no structured preference history, an optional
+`bootstrap_preference_origins` record can preserve an earlier active preference
+and a distinct later release source. The source, chronology, stable identity and
+declared change must validate together. An unknown release without that provenance
+still fails. These are prospective interpretations of retained sources, not
+backfilled past events or proof that the student intended a change.
+
+The provider writes its student reply before the source-bearing review. If literal quote
+binding fails, the existing single regeneration can receive deduplicated exact
+source text and the mismatched field paths in `quote_binding_feedback`. These are
+diagnostics, not automatic quotation repairs or new learning evidence. Invalid
+source references receive no substitute text; the original rejected draft and
+the regenerated output retain their separate provenance.
+
+`conversation-continuity-v1` is rebuilt only from succeeded, validated calls with
+an exact matching displayed receipt in the same conversation. It carries the latest
+preference/need state and a bounded reminder of support, alongside the full
+unaltered transcript. Omitted historical reviews mean unrecorded, not no needs or
+no support. No migration or backfill adds new labels to historical records. These
+private records remain inside existing restricted call payloads; ordinary research
+exports do not gain raw transcripts, prompts, credentials or these internal quotes.
+
+A `ready` recommendation needs current student-reported understanding/readiness
+and no declared unresolved support needs or misconception claims. A student can
+pause or stop with unresolved needs. The existing maximum ends the workflow using
+`platform_turn_limit_after_tutor_reply:final_allowed_turn_reply_recorded`, without
+forcing a profile transition or instructor recommendation. An unsuccessful final
+generation keeps its failure provenance and does not count as successful support.
+Historical lifecycle reasons retain their original meaning. Simulated tests of
+these rules are software evidence, not classroom learning evidence.
 
 The persisted profile-transition outcome is the sole authoritative
 teacher-assistance decision. A compatibility recommendation in the agent output
@@ -1789,6 +2044,12 @@ with `reason=student_confirmed_finish_after_learning_conversation` and
 metadata only; `learning_outcome_generated=false` documents that no final
 profile or improvement evidence is fabricated by this action.
 
+The exact successful final-reply turn-limit lifecycle reason may satisfy Finish
+eligibility only when its completed receipt, latest student/tutor turns and
+validated final-allowed-turn AgentCall match. This reads existing evidence; it
+creates no inferred receipt, new learning outcome, mastery label or retrospective
+profile update. Other platform-failure closures remain ineligible.
+
 ## Browser Response-Stage Observations (V4)
 
 See [Process and Product Analytics Guide](PROCESS_PRODUCT_ANALYTICS_GUIDE.md)
@@ -2336,12 +2597,50 @@ observed limitation is claimed. These are model-derived annotations stored in
 existing JSON, not additional student responses or validated learning outcomes.
 Historical V4 and earlier records remain readable without backfilling this field.
 
-`student-profile-request-schema-v1` restricts the current provider request's
-pattern arrays using their existing exclusivity rules and fully known sealed
-correctness. It changes the set of outputs the provider may generate, not the
-stored V5 shape or historical readers. Raw outputs are not coerced or relabeled;
+The prospective `student-profiling-v8` prompt retains the same V5 schema and
+clarifies evidence for `incorrect_answer_strong_partial_reasoning`. The model
+must identify substantial correct conceptual content in the existing item
+`evidence_summary`, quote the student's words and state the remaining limitation.
+Relevant terminology, consistency alone or low confidence is insufficient.
+This is an instruction for model interpretation, not a new deterministic
+judgment or a validated measure. Neither a wrong answer nor an
+`incorrect_explanation` label automatically excludes a correct component.
+Historical flags and profiles are not rewritten. This prompt-only V8 approach
+was insufficient in retained simulations; prospective V9/V6 adds the explicit
+support contract below rather than retroactively accepting those outputs.
+
+`student-profiling-v9` / `student-profile-output-v6` requires
+`strong_partial_reasoning_support`, empty exactly when
+`incorrect_answer_strong_partial_reasoning` is absent. Each support object records
+`item_public_id`, `source_evidence_id`, an exact `source_quote`, the model's
+`correct_component` interpretation, and its `remaining_error`. The application
+checks unique items, sealed incorrectness, and an eligible `assessment_reasoning`
+catalog source for the same item. An unsupported flag or extraneous support fails
+validation and can use only the existing single semantic repair. A matching quote
+proves source identity, not conceptual correctness or learning. These are new
+model-derived JSON annotations, not new student responses, a new assessment step,
+or a retrospective measure. V4/V5 readers and original profiles remain unchanged;
+missing historical support is unknown, not an empty observed support list.
+This array belongs to the original initial-profiler AgentCall output and retained
+provider audit. It is not a nineteenth mutable StudentProfile dimension and is
+not copied into the current profile as continuing proof when later flags change.
+The existing eighteen profile dimensions and formative field-evidence validation
+remain separate; the initial source-call annotation remains available with its
+own provenance and collection time. Ordinary teacher research and master exports
+continue to omit raw agent input/output payloads; this change does not expand
+that disclosure boundary. Full synthetic AgentCall test exports retain the new
+annotation for engineering review and are not ordinary classroom exports.
+
+The earlier `student-profile-request-schema-v1` restricted the V5 provider
+request's pattern arrays using existing exclusivity rules and fully known sealed
+correctness. Those request constraints did not change the stored V5 shape or
+historical readers. Raw outputs are not coerced or relabeled;
 semantic validation remains a separate gate. Missing or conflicting correctness
 does not permit an inferred restriction on correct-answer pattern flags.
+The earlier `student-profile-request-schema-v2` applies the same request-time
+pattern restrictions to the prospective V6 shape. `student-profile-fact-binding-v3`
+adds the explicit strong-partial-reasoning support checks to the existing fact
+binding rules; it does not replace conceptual review with a source-match test.
 
 `student-profile-fact-binding-v2` checks submitted confidence, explicit skip
 booleans, item coverage and reasoning-source provenance. A weak-reasoning flag
@@ -2379,3 +2678,76 @@ messages, raw student products, timing definitions, export columns or historical
 observations. Different excerpts and substantive question-answer quality still
 require human review. Synthetic evaluation evidence must be labeled separately
 from classroom learning evidence.
+
+Prospective `student-profiling-v10` retains `student-profile-output-v6` and
+`student-profile-fact-binding-v3`. Its `student-profile-request-schema-v3` places
+item reasoning and strong-partial support before aggregate judgments in the
+provider's output schema. The stored V6 shape and allowed interpretations remain
+unchanged. This ordering encourages evidence-first generation; it is not a
+guarantee of semantic correctness and does not weaken validation.
+Prospective `student-profile-request-schema-v4` retains that order and binds the
+three profile citation fields to the current catalog's eligible baseline student
+evidence IDs before request hashing. The provider schema constrains generation;
+it does not replace a mistyped ID, rewrite an old output, or prove that the chosen
+source supports the claim. Missing or invalid catalogs fail before dispatch. A
+valid catalog with no eligible baseline evidence permits no misconception or
+strong-partial citations; those collections must be empty while an honest
+insufficient-evidence profile remains available. Exact quotation, same-item
+support, sealed-fact and interpretation checks
+remain unchanged, as do the V10 prompt, stored V6 shape and single semantic repair.
+`student-profile-semantic-repair-v2` adds bounded rejected-field diagnostics to
+the existing single regeneration. Sealed correctness is kept separate from the
+rejected model's reasoning classifications and pattern flags. The diagnostics
+are audit/repair context, not student evidence or a new profile measurement.
+Original failed outputs, usage and exact repair input remain on their AgentCall
+records. Historical records are neither rewritten nor newly validated by this
+prospective change. A repeated contradiction still fails closed.
+
+Prospective `learning-summary-evidence-v2` validates positive summary observations
+against retained and current recognition/support qualifications. It preserves
+the original observations and does not infer understanding from paraphrasing,
+word count or student fluency. The source-bound reconsideration path records an
+explicit new interpretation; quote or ID matching alone does not establish that
+its explanation is substantively valid. Earlier qualified comparison evidence
+can remain in a before/after account without laundering a qualified later reply.
+
+`conversation-delivery-review-v6` adds `unsupported_learning_claim` to the review
+of visible draft text. The reviewer receives the same sources as V5 and must
+ground the finding in actual tutor assistance and student reasoning; its verdict
+cannot change a profile or assessment state. V5 receipts retain their original
+version and verdict, including a preserved synthetic false negative. Rejected
+drafts, regeneration, review usage and latency remain auditable. This introduces
+no new classroom measurement, export column or retrospective learning outcome.
+
+Prospective `conversation-delivery-review-v7` additionally records a separate
+`conversation-private-learning-review-v1` projection of the validated candidate's
+learning judgments before delivery or profile persistence. It binds the canonical
+candidate hash, ordered exact claim paths and values, losslessly grouped block
+hashes, and each cited student source. Changed fields are derived from actual
+prior/candidate value comparison; a model-authored retained label cannot hide a
+changed assertion. The projection includes proposed outcome/rationale, evidence
+observations, changed assertions and resolved-claim evidence summaries. Whole prior
+profiles, retained values, keys and hidden correctness are excluded. Sources outside
+the reviewer view are explicitly marked unavailable without their content; such
+markers cannot establish learning. Unknown or ambiguous references still fail.
+
+The reviewer supplies a complete ordered private-claim block audit, separate from
+the visible-message block audit. Private findings bind exact claim paths/quotes
+and student/tutor sources, without inventing a visible-message quotation. A failed
+review uses the existing single tutor regeneration and re-review before any profile
+change is saved. It never silently removes or corrects a proposal. Empty first-use
+assistance history is not proof that the student received no help. Historical V6
+inputs and verdicts retain their original scope. These additive audit records are
+not new learning measurements and do not rewrite earlier profiles or exports.
+
+Prospective `conversation-delivery-review-v8` retains that lossless input projection
+and uses compact output: private findings share at most three source quotations
+per evidentiary cause, with at most six targets across all findings. Every block
+marked unsupported must have exactly one target; duplicates, omissions and targets
+for supported blocks fail validation. Audit explanations and exact claim anchors
+are bounded to avoid repeating lengthy evidence. The approved reviewer output
+ceiling is 4,000 tokens, with actual usage recorded. The preserved V7 synthetic
+probe exhausted its 2,500-token ceiling before returning a complete verdict; its
+partial text is not a valid review or learning result. Incomplete reviews retain
+their known usage and fail without persistence or a further automatic retry.
+Historical V7 inputs, output schema, limits and unsuccessful receipts are preserved.

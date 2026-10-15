@@ -12,9 +12,10 @@ import {
 } from "./opening-contract";
 import { validateFormativeConversationStudentOutputFormat } from "./output-format";
 import { validateFormativeConversationSafetyBoundary } from "./safety-boundary";
+import { conversationContinuityIssues } from "./conversation-continuity";
 
 export const FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION =
-  "formative-conversation-v18r2-candidate-acceptance-v4" as const;
+  "formative-conversation-v18r2-candidate-acceptance-v5" as const;
 
 export type FormativeConversationV18R2CandidateValidation = {
   valid: boolean;
@@ -77,6 +78,11 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
         parsed.data.student_visible_message
       )
     : [];
+  const continuityIssues = conversationContinuityIssues(parsed.data, input.context);
+  if (continuityIssues.length) {
+    return invalid({ status: "semantic_contract_invalid", paths: continuityIssues,
+      non_blocking_review_signals: nonBlockingReviewSignals, output: parsed.data });
+  }
   if (
     input.context.contract_version !==
       FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION ||
@@ -159,7 +165,9 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
 
   if (
     input.context.formative_lifecycle.final_allowed_turn &&
-    parsed.data.outcome === "continue_conversation"
+    parsed.data.outcome === "continue_conversation" &&
+    !(parsed.data.conversation_review?.closure.reason === "turn_limit" &&
+      parsed.data.lifecycle_recommendation === "complete")
   ) {
     return invalid({
       status: "semantic_contract_invalid",
@@ -236,7 +244,8 @@ export function validateFormativeConversationV18R2CandidateAcceptance(input: {
       (parsed.data.outcome === "sound_understanding" ||
        (parsed.data.lifecycle_recommendation === "complete" &&
         input.context.formative_lifecycle.another_student_turn_available &&
-        parsed.data.outcome !== "teacher_assistance_recommended"))) {
+        parsed.data.outcome !== "teacher_assistance_recommended" &&
+        parsed.data.conversation_review?.closure.reason !== "student_stop"))) {
     return invalid({
       status: "semantic_contract_invalid",
       paths: ["lifecycle_recommendation:unresolved_misconceptions_require_continued_support"],

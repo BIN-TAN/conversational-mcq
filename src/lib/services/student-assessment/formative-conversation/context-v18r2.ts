@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { projectAssistanceHistory } from "./assistance-history";
+import { buildConversationContinuity, emptyConversationContinuity } from "./conversation-continuity";
 import {
   FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
   FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION,
@@ -39,6 +40,7 @@ function v18R2Context(
     ...source,
     contract_version: FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
     context_version: FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION,
+    conversation_continuity: emptyConversationContinuity(source.conversation_public_id),
     formative_lifecycle: formativeConversationV18R2LifecycleFromTranscript(
       source.visible_transcript, maxStudentTurns
     )
@@ -73,16 +75,30 @@ export async function compilePersistedFormativeConversationV18R2Context(
   const calls = await prisma.agentCall.findMany({
     where: {
       formative_conversation_session: { conversation_public_id: input.conversation_public_id },
-      agent_name: "formative_conversation_agent", call_status: "succeeded", output_validated: true,
-      formative_conversation_profile_evidence_references: { some: {} }
+      agent_name: "formative_conversation_agent", call_status: "succeeded", output_validated: true
     },
     select: {
       agent_call_public_id: true, output_payload: true,
+      formative_conversation_message_receipt: {
+        select: { status: true, assistant_turn: { select: { sequence_index: true, message_text: true } } }
+      },
       formative_conversation_profile_evidence_references: {
         where: { formative_conversation_session: { conversation_public_id: input.conversation_public_id } },
         select: { evidence_observation_index: true, source_tutor_turn: { select: { sequence_index: true } } }
       }
     }
+  });
+  result.context.conversation_continuity = buildConversationContinuity({
+    context: result.context,
+    records: calls.flatMap(call => {
+      const receipt = call.formative_conversation_message_receipt;
+      const payload = call.output_payload as { student_visible_message?: unknown; conversation_review?: unknown } | null;
+      // Only a successful call whose exact message was displayed can supply memory.
+      if (receipt?.status !== "assistant_turn_persisted" || !receipt.assistant_turn ||
+          payload?.student_visible_message !== receipt.assistant_turn.message_text) return [];
+      return [{ source_agent_call_public_id: call.agent_call_public_id,
+        source_tutor_sequence_index: receipt.assistant_turn.sequence_index, review: payload.conversation_review }];
+    })
   });
   result.context.assistance_history = projectAssistanceHistory({
     catalog: result.context.allowed_evidence_catalog,

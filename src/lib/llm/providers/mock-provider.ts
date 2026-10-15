@@ -853,8 +853,10 @@ export class MockLlmProvider implements LlmProvider {
 
     if (request.agent_name === "student_profiling_agent") {
       const input = request.input as Record<string, unknown>;
-      const usesFactBinding = request.schema_name === "student_profile_output_v5";
-      if (usesFactBinding) output.schema_version = "student-profile-output-v5";
+      const usesCurrentSupport = ["student_profile_output_v6", "student-profile-output-v6"].includes(request.schema_name);
+      const usesFactBinding = usesCurrentSupport || ["student_profile_output_v5", "student-profile-output-v5"].includes(request.schema_name);
+      if (usesFactBinding) output.schema_version = usesCurrentSupport ? "student-profile-output-v6" : "student-profile-output-v5";
+      if (usesCurrentSupport) output.strong_partial_reasoning_support = [];
       const responseItems = profilingResponseItems(input);
       const correctCount = responseItems.filter(
         (item) => item.correctness === "correct"
@@ -901,7 +903,7 @@ export class MockLlmProvider implements LlmProvider {
                 "misconception_indicator_present",
                 "distractor_aligned_reasoning"
               ]
-            : ["incorrect_answer_strong_partial_reasoning"];
+            : usesCurrentSupport ? ["no_clear_pattern"] : ["incorrect_answer_strong_partial_reasoning"];
       output.integrated_diagnostic_profile = noGroundedItems
         ? "insufficient_evidence_for_formative_decision"
         : allCorrect

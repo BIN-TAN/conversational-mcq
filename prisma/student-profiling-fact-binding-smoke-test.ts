@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import type { AgentInputByName, AgentOutputByName } from "../src/lib/agents/contracts";
 import { ProductionStudentProfileOutput, ProductionStudentProfileOutputV5, StoredStudentProfileOutput } from "../src/lib/agents/contracts";
-import { STUDENT_PROFILE_FACT_BINDING_VERSION, validateStudentProfileOutputSemantics } from "../src/lib/agents/student-profiling/semantic-validation";
+import { validateStudentProfileOutputSemantics } from "../src/lib/agents/student-profiling/semantic-validation";
 import { executeStudentProfileWithSemanticRepair, studentProfileReusableInvocationKeys, studentProfileSealedInputMatches } from "../src/lib/agents/student-profiling/semantic-repair";
 
 type Input = AgentInputByName["student_profiling_agent"];
@@ -12,7 +12,7 @@ function fixture() {
       { item_public_id: "synthetic_item", correctness: "correct", reasoning_text: "Consistent scores can measure the wrong skill.",
         confidence_rating: "low", skipped_reasoning: false, skipped_confidence: false }
     ] } }, previous_profile: null, followup_evidence_package: null,
-    profiling_constraints: { fact_binding_version: STUDENT_PROFILE_FACT_BINDING_VERSION } };
+    profiling_constraints: { fact_binding_version: "student-profile-fact-binding-v2" } };
   const output: Output = {
     agent_name: "student_profiling_agent", agent_version: "7-draft", prompt_version: "student-profiling-v7",
     schema_version: "student-profile-output-v5", output_status: "ok", warnings: [], profile_type: "initial",

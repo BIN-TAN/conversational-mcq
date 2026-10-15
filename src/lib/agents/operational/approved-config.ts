@@ -8,6 +8,24 @@ import { STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION } from "@/lib/agents/student-pr
 import { QUESTION_COVERAGE_POLICY_VERSION } from "@/lib/services/student-assessment/formative-conversation/question-coverage-policy";
 import { FORMATIVE_PROFILE_QUOTE_REPAIR_VERSION } from "@/lib/services/student-assessment/formative-profile-quote-repair";
 import { STUDENT_PROFILE_REQUEST_SCHEMA_VERSION } from "@/lib/agents/student-profiling/output-schema";
+import { FORMATIVE_TUTOR_INPUT_ENCODING } from "@/lib/llm/formative-tutor-input";
+import { EVIDENCE_ID_REQUEST_SCHEMA_VERSION } from "@/lib/llm/evidence-id-request-schema";
+import { CONVERSATION_PRIVATE_LEARNING_REVIEW_VERSION } from "@/lib/services/student-assessment/formative-conversation/private-learning-review";
+import { PROVIDER_PHYSICAL_USAGE_VERSION } from "@/lib/llm/provider-transport-retry";
+import { FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION, FORMATIVE_CONVERSATION_V18R2_PROMPT_HASH } from "@/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
+import { FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION, FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION } from "@/lib/services/student-assessment/formative-conversation/agent-contract-v18r2";
+import { FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION } from "@/lib/services/student-assessment/formative-conversation/candidate-validation-v18r2";
+import { FORMATIVE_PROFILE_UPDATE_PROPOSAL_VERSION, FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION } from "@/lib/services/student-assessment/formative-conversation/profile-update-proposal";
+import { CONVERSATION_CONTINUITY_VERSION, CONVERSATION_REVIEW_VERSION, CONVERSATION_PRE_REPLY_PLAN_VERSION,
+  CONVERSATION_DELIVERY_REVIEW_VERSION, CONVERSATION_DELIVERY_REVIEW_PROMPT_HASH,
+  CONVERSATION_CURRENT_REPLY_SOURCE_VERSION, CONVERSATION_SUPPORT_PREFERENCE_LINK_VERSION,
+  CONVERSATION_PRIOR_TUTOR_SOURCE_VERSION, CONVERSATION_STORED_PREFERENCE_TRANSITION_VERSION,
+  CONVERSATION_CURRENT_SOURCE_ACTIVATION_PROJECTION_VERSION,
+  CONVERSATION_DEFERRED_NEED_LINK_VERSION, CONVERSATION_STORED_PREFERENCE_RETENTION_VERSION } from "@/lib/services/student-assessment/formative-conversation/conversation-continuity";
+import { FORMATIVE_CONVERSATION_DELIVERY_REVIEW_ACCOUNTING_VERSION, FORMATIVE_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS } from "@/lib/services/student-assessment/formative-conversation/execution-v18r2";
+import { FORMATIVE_INTERPRETATION_POLICY_VERSION } from "@/lib/services/student-assessment/formative-conversation/interpretation-policy";
+import { LEARNING_SUMMARY_POLICY_VERSION } from "@/lib/services/student-assessment/formative-conversation/learning-summary-policy";
+import { FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import {
   liveModelRoleEnvSources,
   modelConfigCompatibilityIssues,
@@ -16,6 +34,7 @@ import {
 } from "@/lib/llm/config";
 import { getServerEnv } from "@/lib/env";
 import { stableHash } from "@/lib/operational/stable-hash";
+import { LUNA_SOL_DELIVERY_REVIEW_MODEL, LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION } from "@/lib/operational/luna-conversation-repair-identity";
 import {
   type ActiveDerivedOperationalApproval,
   type ActiveLocalCandidateEvaluation,
@@ -510,6 +529,76 @@ function explicitlyConfigured(name: string) {
   return typeof value === "string" && value.trim().length > 0;
 }
 
+// Only the new explicit conversation-reliability scope requires these additional
+// fingerprints. Historical approval identities are neither rewritten nor relabeled.
+export function conversationRepairRuntimeFingerprintIssues(manifest: ApprovedCandidateManifest) {
+  const metadata = manifest.configuration_fingerprint.role_version_metadata.formative_conversation_agent;
+  const guards = manifest.configuration_fingerprint.deterministic_guard_versions;
+  if (!metadata || (!metadata.input_encoding && !guards.formative_input_projection &&
+      metadata.prompt_version !== "formative-conversation-host-v7.21")) return [];
+  const actualMetadata: Record<string, string | number> = {
+    prompt_version: FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
+    prompt_hash: FORMATIVE_CONVERSATION_V18R2_PROMPT_HASH,
+    schema_version: FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION,
+    canonical_schema_version: FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION,
+    context_version: FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION,
+    validator_version: FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
+    input_encoding: FORMATIVE_TUTOR_INPUT_ENCODING,
+    profile_proposal_version: FORMATIVE_PROFILE_UPDATE_PROPOSAL_VERSION,
+    interpretation_policy_version: FORMATIVE_INTERPRETATION_POLICY_VERSION,
+    learning_summary_policy_version: LEARNING_SUMMARY_POLICY_VERSION,
+    physical_usage_policy_version: PROVIDER_PHYSICAL_USAGE_VERSION,
+    current_source_activation_projection_version: CONVERSATION_CURRENT_SOURCE_ACTIVATION_PROJECTION_VERSION,
+    deferred_need_link_version: CONVERSATION_DEFERRED_NEED_LINK_VERSION,
+    stored_preference_retention_version: CONVERSATION_STORED_PREFERENCE_RETENTION_VERSION,
+    evidence_id_request_schema_version: EVIDENCE_ID_REQUEST_SCHEMA_VERSION,
+    private_learning_review_version: CONVERSATION_PRIVATE_LEARNING_REVIEW_VERSION,
+    conversation_continuity_version: CONVERSATION_CONTINUITY_VERSION,
+    conversation_review_version: CONVERSATION_REVIEW_VERSION,
+    conversation_pre_reply_plan_version: CONVERSATION_PRE_REPLY_PLAN_VERSION,
+    conversation_current_reply_source_version: CONVERSATION_CURRENT_REPLY_SOURCE_VERSION,
+    conversation_prior_tutor_source_version: CONVERSATION_PRIOR_TUTOR_SOURCE_VERSION,
+    conversation_stored_preference_transition_version: CONVERSATION_STORED_PREFERENCE_TRANSITION_VERSION,
+    conversation_support_preference_link_version: CONVERSATION_SUPPORT_PREFERENCE_LINK_VERSION,
+    delivery_review_version: CONVERSATION_DELIVERY_REVIEW_VERSION,
+    delivery_review_prompt_hash: CONVERSATION_DELIVERY_REVIEW_PROMPT_HASH,
+    delivery_review_max_output_tokens: FORMATIVE_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS,
+    execution_accounting_version: FORMATIVE_CONVERSATION_DELIVERY_REVIEW_ACCOUNTING_VERSION,
+    formative_max_student_turns: FORMATIVE_CONVERSATION_CURRENT_MAX_STUDENT_TURNS
+  };
+  const actualGuards: Record<string, string> = {
+    formative_conversation_acceptance: FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
+    formative_input_projection: FORMATIVE_TUTOR_INPUT_ENCODING,
+    formative_profile_update_proposal: FORMATIVE_PROFILE_UPDATE_PROPOSAL_VERSION,
+    formative_conversation_continuity: CONVERSATION_CONTINUITY_VERSION,
+    formative_conversation_review: CONVERSATION_REVIEW_VERSION,
+    formative_conversation_pre_reply_plan: CONVERSATION_PRE_REPLY_PLAN_VERSION,
+    formative_conversation_current_reply_source: CONVERSATION_CURRENT_REPLY_SOURCE_VERSION,
+    formative_conversation_prior_tutor_source: CONVERSATION_PRIOR_TUTOR_SOURCE_VERSION,
+    formative_conversation_stored_preference_transition: CONVERSATION_STORED_PREFERENCE_TRANSITION_VERSION,
+    formative_conversation_support_preference_links: CONVERSATION_SUPPORT_PREFERENCE_LINK_VERSION,
+    formative_conversation_delivery_review: CONVERSATION_DELIVERY_REVIEW_VERSION,
+    formative_interpretation_policy: FORMATIVE_INTERPRETATION_POLICY_VERSION,
+    formative_learning_summary: LEARNING_SUMMARY_POLICY_VERSION,
+    provider_physical_usage: PROVIDER_PHYSICAL_USAGE_VERSION,
+    formative_current_source_activation_projection: CONVERSATION_CURRENT_SOURCE_ACTIVATION_PROJECTION_VERSION,
+    formative_deferred_need_link: CONVERSATION_DEFERRED_NEED_LINK_VERSION,
+    formative_stored_preference_retention: CONVERSATION_STORED_PREFERENCE_RETENTION_VERSION,
+    evidence_id_request_schema: EVIDENCE_ID_REQUEST_SCHEMA_VERSION,
+    formative_private_learning_review: CONVERSATION_PRIVATE_LEARNING_REVIEW_VERSION
+  };
+  if (["delivery_review_policy_version", "delivery_review_model_name", "delivery_review_reasoning_effort",
+    "delivery_review_execution_purpose"].some(key => metadata[key] !== undefined)) {
+    Object.assign(actualMetadata, { delivery_review_policy_version: LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION,
+      delivery_review_model_name: LUNA_SOL_DELIVERY_REVIEW_MODEL, delivery_review_reasoning_effort: "medium",
+      delivery_review_execution_purpose: "conversation_delivery_review" });
+  }
+  return [...Object.entries(actualMetadata).filter(([key, value]) => metadata[key] !== value).map(([key]) => `metadata.${key}`),
+    ...Object.entries(actualGuards).filter(([key, value]) => guards[key] !== value).map(([key]) => `guard.${key}`),
+    ...(manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent?.evidence_id_request_schema_version === EVIDENCE_ID_REQUEST_SCHEMA_VERSION
+      ? [] : ["profile_metadata.evidence_id_request_schema_version"])];
+}
+
 function verifyDerivedApprovedOperationalConfig(
   activeRuntime: Exclude<ActiveApprovedOperationalRuntimeConfig, { kind: "phase8a_legacy" }>,
   options: ApprovedOperationalConfigVerificationOptions
@@ -517,6 +606,11 @@ function verifyDerivedApprovedOperationalConfig(
   const env = getServerEnv();
   const manifest = activeRuntime.active_bundle.manifest;
   const issues: ApprovedOperationalConfigVerification["issues"] = [];
+  for (const field of conversationRepairRuntimeFingerprintIssues(manifest)) {
+    issues.push({ code: "conversation_reliability_fingerprint_mismatch",
+      message: "The formative conversation implementation does not match its approved reliability contract.",
+      details: { agent_name: "formative_conversation_agent", field } });
+  }
   const sources = liveModelRoleEnvSources();
   const activeAgents = applyActiveAgentOverrides(
     activeAgentsFromDerivedManifest(manifest),
@@ -641,7 +735,9 @@ function verifyDerivedApprovedOperationalConfig(
   if (approvedConsistencyVersion && approvedConsistencyVersion !== STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION) {
     issues.push({ code: "profile_evidence_validator_mismatch", message: "The profiling evidence validator does not match its approval." });
   }
-  if (manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent.prompt_version === "student-profiling-v7") {
+  const profilingPromptVersion = manifest.configuration_fingerprint.role_version_metadata.student_profiling_agent.prompt_version;
+  if (typeof profilingPromptVersion === "string" &&
+      ["student-profiling-v7", "student-profiling-v8", "student-profiling-v9", "student-profiling-v10"].includes(profilingPromptVersion)) {
     for (const [key, version] of [
       ["student_profile_fact_binding", STUDENT_PROFILE_FACT_BINDING_VERSION],
       ["student_profile_semantic_repair", STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION],

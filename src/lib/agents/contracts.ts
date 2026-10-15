@@ -376,16 +376,28 @@ export const ProductionStudentProfileOutput = StudentProfileOutput.extend({
   )
 }).strict();
 
-// V4 remains available to historical evaluation/replay code. Only current
-// provider dispatch uses V5; stored profile readers accept either shape.
+// V4/V5 remain available to historical evaluation/replay code.
 export const ProductionStudentProfileOutputV5 = ProductionStudentProfileOutput.extend({
   item_level_evidence: z.array(StudentProfileOutput.shape.item_level_evidence.element.extend({
     reasoning_basis: StudentProfileReasoningBasisSchema
   }).strict())
 }).strict();
 
+export const StudentProfileStrongPartialReasoningSupportSchema = z.object({
+  item_public_id: z.string().min(1),
+  source_evidence_id: z.string().min(1),
+  source_quote: z.string().min(1),
+  correct_component: z.string().min(1),
+  remaining_error: z.string().min(1)
+}).strict();
+
+export const ProductionStudentProfileOutputV6 = ProductionStudentProfileOutputV5.extend({
+  schema_version: z.literal("student-profile-output-v6"),
+  strong_partial_reasoning_support: z.array(StudentProfileStrongPartialReasoningSupportSchema).max(20)
+}).strict();
+
 export const StoredStudentProfileOutput = z.union([
-  ProductionStudentProfileOutputV5, StudentProfileOutput
+  ProductionStudentProfileOutputV6, ProductionStudentProfileOutputV5, StudentProfileOutput
 ]);
 
 export const FormativePlanningInput = z.object({
@@ -453,7 +465,7 @@ export const agentInputSchemas = {
 export const agentOutputSchemas = {
   item_verification_agent: ItemVerificationOutput,
   response_collection_agent: ResponseCollectionOutput,
-  student_profiling_agent: ProductionStudentProfileOutputV5,
+  student_profiling_agent: ProductionStudentProfileOutputV6,
   formative_value_and_planning_agent: FormativePlanningOutput,
   followup_agent: FollowupOutput
 } as const;
@@ -474,6 +486,7 @@ type CompatibleStudentProfileOutput = Omit<
   ParsedStudentProfileOutput,
   "misconception_indicators" | "item_level_evidence"
 > & {
+  strong_partial_reasoning_support?: Array<z.infer<typeof StudentProfileStrongPartialReasoningSupportSchema>>;
   item_level_evidence: Array<ParsedStudentProfileOutput["item_level_evidence"][number] & {
     reasoning_basis?: z.infer<typeof StudentProfileReasoningBasisSchema>;
   }>;

@@ -7,7 +7,7 @@ type JsonRecord = Record<string, unknown>;
 export const STUDENT_PROFILE_EVIDENCE_CONSISTENCY_VERSION =
   "student-profile-evidence-consistency-v2" as const;
 
-export const STUDENT_PROFILE_FACT_BINDING_VERSION = "student-profile-fact-binding-v2" as const;
+export const STUDENT_PROFILE_FACT_BINDING_VERSION = "student-profile-fact-binding-v3" as const;
 
 export const studentProfileEvidenceConsistencyValues = [
   "coherent",
@@ -141,10 +141,7 @@ function packageItemEvidence(value: unknown): GroundedItemEvidence[] {
 // Provider-schema restriction only: reuse the validator's item merge order,
 // but never turn an unknown sealed correctness value into a known fact merely
 // because an earlier metadata projection supplied a value.
-export function studentProfileSealedCorrectness(input?: StudentProfilingInput): {
-  item_count: number;
-  all_known_incorrect: boolean;
-} {
+export function sealedCorrectnessByItem(input?: StudentProfilingInput) {
   const correctnessById = new Map<string, "correct" | "incorrect" | null>();
   for (const responsePackage of [input?.initial_response_package, input?.followup_evidence_package]) {
     for (const item of packageItemEvidence(responsePackage)) {
@@ -164,6 +161,14 @@ export function studentProfileSealedCorrectness(input?: StudentProfilingInput): 
     }
     for (const [itemPublicId, correctness] of sealedCorrectness) correctnessById.set(itemPublicId, correctness);
   }
+  return correctnessById;
+}
+
+export function studentProfileSealedCorrectness(input?: StudentProfilingInput): {
+  item_count: number;
+  all_known_incorrect: boolean;
+} {
+  const correctnessById = sealedCorrectnessByItem(input);
   return {
     item_count: correctnessById.size,
     all_known_incorrect: correctnessById.size > 0 &&
@@ -441,8 +446,9 @@ function validateGroundedItemEvidence(input: {
   const groundedById = new Map(
     groundedItems.map((item) => [item.item_public_id, item])
   );
-  const requiresBasis = input.providerInput.profiling_constraints.fact_binding_version ===
-    STUDENT_PROFILE_FACT_BINDING_VERSION || input.output.schema_version === "student-profile-output-v5";
+  const requiresBasis = ["student-profile-fact-binding-v2", STUDENT_PROFILE_FACT_BINDING_VERSION]
+    .includes(String(input.providerInput.profiling_constraints.fact_binding_version)) ||
+    ["student-profile-output-v5", "student-profile-output-v6"].includes(input.output.schema_version);
   const seenItemIds = new Set<string>();
 
   for (const item of input.output.item_level_evidence) {
@@ -530,6 +536,57 @@ function validateGroundedItemEvidence(input: {
     issues.push("correctness_reasoning_mismatch is not supported when every sealed answer is incorrect and every corresponding reasoning_basis is incorrect_explanation; incorrect answers with incorrect explanations alone are not a correctness-versus-reasoning mismatch.");
   }
 
+  return issues;
+}
+
+// Prospective V6 provenance and explicit-claim checks only. A matching source
+// quotation does not prove that the model's correct-component judgment is true.
+// V4/V5 historical evidence is neither reclassified nor rewritten by this rule.
+export function validateStudentProfileStrongPartialReasoningSupport(input: {
+  providerInput?: StudentProfilingInput;
+  output: StudentProfileOutput;
+}) {
+  const issues: string[] = [];
+  const prospective = input.output.schema_version === "student-profile-output-v6" ||
+    input.providerInput?.profiling_constraints.fact_binding_version === STUDENT_PROFILE_FACT_BINDING_VERSION ||
+    input.providerInput?.profiling_constraints.output_schema_version === "student-profile-output-v6";
+  if (!prospective) return issues;
+  const support = input.output.strong_partial_reasoning_support;
+  if (!Array.isArray(support)) return ["strong_partial_reasoning_support is required for current V6 profiling."];
+  const flagged = input.output.ability_pattern_flags.includes("incorrect_answer_strong_partial_reasoning");
+  if (flagged !== (support.length > 0)) {
+    issues.push("strong_partial_reasoning_support must be nonempty exactly when incorrect_answer_strong_partial_reasoning is asserted.");
+  }
+  const grounded = new Map([
+    ...packageItemEvidence(input.providerInput?.initial_response_package),
+    ...packageItemEvidence(input.providerInput?.followup_evidence_package)
+  ].map(item => [item.item_public_id, item]));
+  const correctness = sealedCorrectnessByItem(input.providerInput);
+  const seen = new Set<string>();
+  for (const [index, entry] of support.entries()) {
+    const field = `strong_partial_reasoning_support[${index}]`;
+    if (seen.has(entry.item_public_id)) issues.push(`${field} duplicates a supporting item.`);
+    seen.add(entry.item_public_id);
+    const item = grounded.get(entry.item_public_id);
+    if (!item || correctness.get(entry.item_public_id) !== "incorrect" ||
+        !input.output.item_level_evidence.some(value => value.item_public_id === entry.item_public_id)) {
+      issues.push(`${field} requires an explicitly incorrect sealed item also represented in item_level_evidence.`);
+    }
+    if (!entry.source_quote.trim() || !item?.reasoning_text?.includes(entry.source_quote)) {
+      issues.push(`${field}.source_quote must quote that item's submitted reasoning verbatim.`);
+    }
+    const sources = input.providerInput?.allowed_evidence_catalog?.evidence.filter(evidence =>
+      evidence.evidence_id === entry.source_evidence_id) ?? [];
+    if (sources.length !== 1 || sources[0].source_role !== "student" ||
+        sources[0].evidence_stage !== "baseline_assessment" || sources[0].eligibility !== "student_understanding" ||
+        sources[0].evidence_kind !== "assessment_reasoning" ||
+        sources[0].item_public_id !== entry.item_public_id || !sources[0].content.includes(entry.source_quote)) {
+      issues.push(`${field}.source_evidence_id must bind the exact quote to one eligible student reasoning source for the same item.`);
+    }
+    if (!entry.correct_component.trim() || !entry.remaining_error.trim()) {
+      issues.push(`${field} requires explicit correct_component and remaining_error interpretations.`);
+    }
+  }
   return issues;
 }
 
@@ -629,6 +686,7 @@ export function validateStudentProfileOutputSemantics(input: {
   }
 
   issues.push(...validateGroundedItemEvidence(input));
+  issues.push(...validateStudentProfileStrongPartialReasoningSupport(input));
   issues.push(...validateAtomicMisconceptionClaims(input));
 
   if (evidenceConsistency.narrative_conflict_language_present) {

@@ -2,21 +2,20 @@ import { createHash } from "node:crypto";
 import type { StructuredAgentResult } from "@/lib/llm/providers/types";
 import {
   FormativeConversationV18R2AgentOutputSchema,
-  type FormativeConversationV18R2AgentInput,
-  type FormativeConversationV18R2AgentOutput
+  type FormativeConversationV18R2AgentInput
 } from "./agent-contract-v18r2";
 import { validateFormativeConversationV18R2CandidateAcceptance } from "./candidate-validation-v18r2";
 import { learningSummaryEvidenceIssues } from "./learning-summary-policy";
 import { isRecognitionQualification } from "./assistance-history";
 import { questionCoverageEvidenceIssues } from "./question-coverage-policy";
 
-export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v5";
+export const FORMATIVE_INTERPRETATION_POLICY_VERSION = "formative-interpretation-policy-v6";
 
 // This projection fixes bookkeeping only. Raw output and every evidence reference survive.
-export function prepareFormativeInterpretationResult(
-  result: StructuredAgentResult<FormativeConversationV18R2AgentOutput>,
+export function prepareFormativeInterpretationResult<T>(
+  result: StructuredAgentResult<T>,
   context: FormativeConversationV18R2AgentInput
-): StructuredAgentResult<FormativeConversationV18R2AgentOutput> {
+): StructuredAgentResult<T> {
   if (result.status !== "completed") return result;
   const parsed = FormativeConversationV18R2AgentOutputSchema.safeParse(result.parsed_output);
   const prior = context.current_profile.canonical_profile;
@@ -39,7 +38,7 @@ export function prepareFormativeInterpretationResult(
   if (!normalizedFields.length) return result;
   return {
     ...result,
-    parsed_output: output,
+    parsed_output: output as T,
     raw_output: {
       provider_raw_output: result.raw_output ?? null,
       original_parsed_output: result.parsed_output,
@@ -94,7 +93,8 @@ export function validateFormativeInterpretation(input: {
   const pendingQuestions = coverage.some(observation => observation.evidence_type === "student_question_pending");
   const contentAmbiguity = coverage.some(observation => observation.evidence_type === "assessment_content_ambiguity");
   if ((pendingQuestions || contentAmbiguity) && output.lifecycle_recommendation === "complete" &&
-      input.context.formative_lifecycle.another_student_turn_available && output.outcome !== "teacher_assistance_recommended") {
+      input.context.formative_lifecycle.another_student_turn_available && output.outcome !== "teacher_assistance_recommended" &&
+      output.conversation_review?.closure.reason !== "student_stop") {
     issues.push("instructional_coverage.unanswered_questions_require_support");
   }
   if (contentAmbiguity && output.outcome === "sound_understanding") {

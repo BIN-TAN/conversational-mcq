@@ -112,11 +112,11 @@ function main() {
   try {
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION,
-      "formative-conversation-host-v7.16"
+      "formative-conversation-host-v7.21"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_CANDIDATE_ACCEPTANCE_VERSION,
-      "formative-conversation-v18r2-candidate-acceptance-v4"
+      "formative-conversation-v18r2-candidate-acceptance-v5"
     );
     assert.equal(
       FORMATIVE_CONVERSATION_V18R2_OPENING_ACKNOWLEDGEMENT_VERSION,
@@ -177,7 +177,7 @@ function main() {
       "Consider preceding hints, supplied reasoning and worked examples",
       "recognition of the explanation, not a new application",
       "Do not override that rule simply because the supplied explanation is correct",
-      "including when the same message also requests an overview",
+      "A request for an overview, recap, explanation or stopping is not new conceptual evidence",
       "correct option cannot be identified just by its length",
       "Design the reasoning decision before writing the options",
       "Move shared qualifications into the stem",
@@ -437,6 +437,17 @@ function main() {
     assert.equal(compiled.model, "gpt-5.6-sol");
     assert.equal(compiled.max_output_tokens, 7_000);
     assert.equal(compiled.store, false);
+    const outputFields = Object.keys((compiled.text?.format as unknown as {
+      schema: { properties: Record<string, unknown> }
+    }).schema.properties);
+    assert(outputFields.indexOf("student_visible_message") >= 0);
+    assert(outputFields.indexOf("pre_reply_plan") >= 0 &&
+      outputFields.indexOf("pre_reply_plan") < outputFields.indexOf("student_visible_message"),
+      "The current provider schema must plan before drafting the reply.");
+    assert(outputFields.indexOf("post_reply_review") > outputFields.indexOf("student_visible_message"),
+      "The current post-reply review must follow the reply it cites in the provider schema.");
+    assert.equal(outputFields.includes("conversation_review"), false,
+      "Canonical conversation_review is reconstructed by the application, not authored on the wire.");
     assert.match(JSON.stringify(compiled.input), /formative_lifecycle/u);
     assert.match(
       JSON.stringify(compiled.text),

@@ -1,0 +1,73 @@
+{
+  "version": "native-synthetic-quote-regression-v1",
+  "synthetic_only": true,
+  "classroom_learning_evidence": false,
+  "source": {
+    "path": ".data/luna-conversation-repair-2026-10-13/attempts/repair-replay-v3-deferred-01/result.json",
+    "sha256": "9152fa73284938e435d2546d12bf0601b6d57744fcb8f620ab6aea364e9a5654"
+  },
+  "scope": "Exact current/support/recap text from both rejected drafts; test rebuilds synthetic identities without modifying historical records.",
+  "prior_tutor_text": "The hiring and wellbeing examples connect through the same distinction:\n\n- **Reliability** asks whether the scores are consistent.\n- **Validity** asks whether the scores support the intended interpretation.\n\nFor hiring, the intended interpretation is that the score helps predict job performance. For wellbeing, the intended interpretation is that the score reflects wellbeing. In either case, a test could consistently measure something else—for example, reading skill—so consistency alone is not enough. We would need relevant evidence connecting the scores to job performance or to wellbeing, while checking competing explanations such as reading skill.\n\nSo the general rule is: **a measure can be reliable without being valid for the particular purpose.**",
+  "cases": [
+    {
+      "kind": "base",
+      "candidate_sha256": "d55e2ba0b6e4c6693817101253b25ff9dfcfaddf8719fd70ddd40541e429cc84",
+      "current_text": "Your wellbeing reasoning identifies the important possibility: reading skill could consistently affect how people understand and answer the questions. That could make the scores reliable—consistent across occasions—without showing that they truly measure wellbeing.\n\nSo the connection is:\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the intended interpretation—in this case, wellbeing?\n\nYou can have the first without the second. I’ll leave the SEM question aside for now, as you requested.",
+      "current_support": [
+        {
+          "topic": "Reliability versus validity for the wellbeing questionnaire",
+          "kind": "explanation",
+          "quote": "Reading skill could consistently influence how people answer the questionnaire, so the scores might be reliable while still not adequately representing wellbeing.",
+          "need_ids": [],
+          "preference_ids": []
+        }
+      ],
+      "recap_claims": [
+        {
+          "current_quote": "The same distinction applies to wellbeing: consistent scores can show reliability, but they do not by themselves establish that the scores measure wellbeing.",
+          "earlier_support": [
+            {
+              "tutor_sequence_index": 35,
+              "quote": "Reliability asks whether the scores are consistent. Validity asks whether the scores support the intended interpretation. For wellbeing, the intended interpretation is that the score reflects wellbeing."
+            }
+          ]
+        }
+      ],
+      "validation_issue_paths": [
+        "conversation_review.current_support_quote_invalid",
+        "conversation_review.recap_quote_invalid",
+        "conversation_review.tutor_source_invalid"
+      ]
+    },
+    {
+      "kind": "semantic_regeneration",
+      "candidate_sha256": "931703bd70cda072c8715674c3e540d23fac7ae0a5514b174254d9dcc77754c7",
+      "current_text": "Your wellbeing reasoning identifies the key possibility: reading skill could consistently affect how people understand and answer the questions, making the scores reliable without establishing that they measure wellbeing.\n\nThe connection is:\n\n- **Reliability:** Are the scores consistent?\n- **Validity:** Do the scores support the intended interpretation—in this case, wellbeing?\n\nSo a questionnaire can consistently reflect reading skill, or another factor, rather than wellbeing. Consistency is useful evidence, but we also need evidence that the scores represent wellbeing and not mainly a competing factor.\n\nI’ll leave the SEM question aside for now, as you requested.",
+      "current_support": [
+        {
+          "topic": "Reliability versus validity for the wellbeing questionnaire",
+          "kind": "explanation",
+          "quote": "Reading skill could consistently affect how people understand and answer the questions, making the scores reliable without establishing that they measure wellbeing.",
+          "need_ids": [],
+          "preference_ids": []
+        }
+      ],
+      "recap_claims": [
+        {
+          "current_quote": "The wellbeing example uses the same distinction: consistent scores can show reliability, but they do not by themselves establish that the scores measure wellbeing.",
+          "earlier_support": [
+            {
+              "tutor_sequence_index": 35,
+              "quote": "Reliability asks whether the scores are consistent. Validity asks whether the scores support the intended interpretation. For wellbeing, the intended interpretation is that the score reflects wellbeing."
+            }
+          ]
+        }
+      ],
+      "validation_issue_paths": [
+        "conversation_review.current_support_quote_invalid",
+        "conversation_review.recap_quote_invalid",
+        "conversation_review.tutor_source_invalid"
+      ]
+    }
+  ]
+}

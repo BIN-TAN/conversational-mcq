@@ -3,10 +3,10 @@ import type {
   ExecuteOperationalAgentInput,
   OperationalAgentExecutionResult
 } from "@/lib/agents/operational/executor";
-import { validateStudentProfileOutputSemantics } from "./semantic-validation";
+import { sealedCorrectnessByItem, validateStudentProfileOutputSemantics } from "./semantic-validation";
 import { stableHash } from "@/lib/operational/stable-hash";
 
-export const STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION = "student-profile-semantic-repair-v1" as const;
+export const STUDENT_PROFILE_SEMANTIC_REPAIR_VERSION = "student-profile-semantic-repair-v2" as const;
 type Request = ExecuteOperationalAgentInput<"student_profiling_agent">;
 type Result = OperationalAgentExecutionResult<AgentOutputByName["student_profiling_agent"]>;
 type Semantic = ReturnType<typeof validateStudentProfileOutputSemantics>;
@@ -48,7 +48,21 @@ export function studentProfileSealedInputMatches(
   return stableHash(facts(retained)) === stableHash(facts(current));
 }
 
-function repairRequest(request: Request, rejectedCallId: string, semantic: Semantic): Request {
+function repairRequest(request: Request, rejectedCallId: string, semantic: Semantic,
+  rejectedOutput: AgentOutputByName["student_profiling_agent"]): Request {
+  // Reuse the fact validator's exact precedence, including unknown/conflicting
+  // correctness. Each row refers to an existing item, never a newly inferred fact.
+  const itemComparisons = [...sealedCorrectnessByItem(request.allowlistedInput)].map(([itemId, correctness]) => {
+    const rejectedItems = rejectedOutput.item_level_evidence.filter(item => item.item_public_id === itemId);
+    return {
+      item_public_id: itemId,
+      sealed_correctness: correctness,
+      rejected_item_entry_count: rejectedItems.length,
+      // Distinct enum values stay bounded even if the rejected draft duplicated
+      // an item. Never choose an arbitrary one of conflicting classifications.
+      rejected_reasoning_assessments: [...new Set(rejectedItems.map(item => item.reasoning_basis?.assessment ?? null))]
+    };
+  });
   return {
     ...request,
     invocationKey: studentProfileSemanticRepairKey(request.invocationKey),
@@ -62,7 +76,12 @@ function repairRequest(request: Request, rejectedCallId: string, semantic: Seman
           attempt: 1,
           maximum_regenerations: 1,
           validation_issues: semantic.issues,
-          instruction: "Regenerate the complete profile using only the unchanged submitted evidence. Resolve the validation issues without inventing facts or subjective diagnostic support."
+          rejected_field_diagnostics: {
+            provenance: "The item IDs and sealed_correctness are projections of the unchanged submitted packages. Rejected flags and reasoning assessments are prior model judgments, not student evidence or authoritative classifications. Reassess the original student explanations; do not copy a rejected judgment merely because it appears here.",
+            ability_pattern_flags: [...rejectedOutput.ability_pattern_flags],
+            item_comparisons: itemComparisons
+          },
+          instruction: "Regenerate the complete profile from the unchanged submitted evidence. First assess each item's actual reasoning, then compare that assessment with its sealed answer correctness before choosing aggregate flags. Resolve every listed validation issue; do not change a reasoning assessment simply to justify a flag, delete student evidence, invent support, or copy a rejected model judgment. An incorrect answer and incorrect explanation are aligned evidence of error, not by themselves a correctness-versus-reasoning mismatch."
         }
       }
     },
@@ -92,7 +111,7 @@ export async function executeStudentProfileWithSemanticRepair(input: {
     };
     // Resume from the original audited input, not a rebuilt context containing
     // later operational events. Never dispatch the rejected original again.
-    request = repairRequest({ ...request, allowlistedInput: prior.provider_input! }, prior.agent_call_id, semantic);
+    request = repairRequest({ ...request, allowlistedInput: prior.provider_input! }, prior.agent_call_id, semantic, prior.output!);
   }
   for (let attempt = prior ? 1 : 0; attempt < 2; attempt += 1) {
     const result = await input.execute(request);
@@ -118,7 +137,7 @@ export async function executeStudentProfileWithSemanticRepair(input: {
       retry_count: result.retry_count,
       validation_error: semantic.issues.join("; ")
     };
-    request = repairRequest(input.request, result.agent_call_id, semantic);
+    request = repairRequest(input.request, result.agent_call_id, semantic, result.output);
   }
   throw new Error("student_profile_semantic_repair_bound_exceeded");
 }

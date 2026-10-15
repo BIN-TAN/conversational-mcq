@@ -10,6 +10,8 @@ import { parse } from "csv-parse/sync";
 import { AI_STUDENT_ITEMS, AI_STUDENT_SCENARIOS } from "../src/lib/evaluation/ai-student-scenarios";
 import { CONVERSATIONAL_APPLICATION_ITEMS, CONVERSATIONAL_APPLICATION_SCENARIOS, conversationalRobustnessScenarios, type ConversationalEvaluationScenario } from "../src/lib/evaluation/conversational-application-scenarios";
 import { CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS } from "../src/lib/evaluation/conversational-support-needs-scenarios";
+import { CONVERSATIONAL_RELIABILITY_SCENARIOS } from "../src/lib/evaluation/conversational-reliability-scenarios";
+import { LUNA_CONVERSATION_REPAIR_SOURCE_FILES } from "../src/lib/operational/luna-conversation-repair-identity";
 import type { StudentSessionState, StudentFormativeConversation } from "../src/lib/student-assessment-ui/types";
 import type { StructuredAgentResult } from "../src/lib/llm/providers/types";
 
@@ -18,14 +20,39 @@ const option = (name: string) => {
   const index = process.argv.indexOf(name);
   return index < 0 ? undefined : process.argv[index + 1];
 };
+const SyntheticResourceProfile = z.object({
+  version: z.literal("synthetic-conversation-resource-profile-v1"),
+  synthetic_only: z.literal(true),
+  session_token_limit: z.literal(2_000_000),
+  student_daily_token_limit: z.literal(5_000_000)
+}).strict();
+const defaultHarnessResourceLimits = {
+  LLM_AGENT_CALL_LIMIT_PER_SESSION: "80", LLM_AGENT_CALL_LIMIT_PER_DAY: "260",
+  LLM_DAILY_STUDENT_TOKEN_LIMIT: "1000000", LLM_SESSION_TOKEN_LIMIT: "1000000", LLM_DAILY_CLASS_TOKEN_LIMIT: "8000000"
+};
 
 async function main() {
   const robustnessSuite = option("--suite") === "conversational-robustness";
   const supportNeedsSuite = option("--suite") === "conversational-support-needs";
-  const applicationSuite = option("--suite") === "conversational-application" || robustnessSuite || supportNeedsSuite;
+  const reliabilitySuite = option("--suite") === "conversational-reliability";
+  const resourceProfileArgument = option("--resource-profile");
+  assert(!process.argv.includes("--resource-profile") || resourceProfileArgument, "A resource profile file is required after --resource-profile.");
+  assert(!resourceProfileArgument || reliabilitySuite, "The bounded resource profile is only available for the synthetic conversational-reliability suite.");
+  let resourceProfile: { path: string; sha256: string; profile: z.infer<typeof SyntheticResourceProfile> } | null = null;
+  const harnessResourceLimits = { ...defaultHarnessResourceLimits };
+  if (resourceProfileArgument) {
+    const profilePath = path.resolve(resourceProfileArgument);
+    const bytes = readFileSync(profilePath);
+    assert(bytes.length <= 4096, "Synthetic resource profile exceeds its size bound.");
+    const profile = SyntheticResourceProfile.parse(JSON.parse(bytes.toString("utf8")));
+    resourceProfile = { path: profilePath, sha256: createHash("sha256").update(bytes).digest("hex"), profile };
+    harnessResourceLimits.LLM_SESSION_TOKEN_LIMIT = String(profile.session_token_limit);
+    harnessResourceLimits.LLM_DAILY_STUDENT_TOKEN_LIMIT = String(profile.student_daily_token_limit);
+  }
+  const applicationSuite = option("--suite") === "conversational-application" || robustnessSuite || supportNeedsSuite || reliabilitySuite;
   assert(!option("--suite") || applicationSuite, "Unknown synthetic evaluation suite.");
   const scenarioItems = applicationSuite ? CONVERSATIONAL_APPLICATION_ITEMS : AI_STUDENT_ITEMS;
-  const scenarios: readonly ConversationalEvaluationScenario[] = supportNeedsSuite ? CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS : robustnessSuite ? conversationalRobustnessScenarios()
+  const scenarios: readonly ConversationalEvaluationScenario[] = reliabilitySuite ? CONVERSATIONAL_RELIABILITY_SCENARIOS : supportNeedsSuite ? CONVERSATIONAL_SUPPORT_NEEDS_SCENARIOS : robustnessSuite ? conversationalRobustnessScenarios()
     : applicationSuite ? CONVERSATIONAL_APPLICATION_SCENARIOS : AI_STUDENT_SCENARIOS;
   const selected = scenarios.filter(s => !option("--case") || s.id === option("--case"));
   assert(selected.length, "Unknown scenario.");
@@ -34,7 +61,8 @@ async function main() {
     assert(!scenario.scriptedReplies || scenario.scriptedReplies.length === scenario.followupTurns, scenario.id);
   }
   if (process.argv.includes("--dry-run")) {
-    console.log(JSON.stringify({ synthetic_only: true, cases: selected, maximum_provider_dispatches: 240 }, null, 2));
+    console.log(JSON.stringify({ synthetic_only: true, cases: selected, maximum_provider_dispatches: 240,
+      resource_profile: resourceProfile, harness_resource_limits: harnessResourceLimits }, null, 2));
     return;
   }
   assert(process.argv.includes("--allow-live-synthetic"), "Explicit opt-in required for paid synthetic AI calls.");
@@ -57,8 +85,7 @@ async function main() {
     LLM_PROVIDER: "openai", LLM_LIVE_CALLS_ENABLED: "true", ITEM_ADMIN_TUTOR_MODE: "live",
     FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: "true", ALLOW_MANUAL_REVIEW_STUDENT_STARTS: "true",
     RESEARCH_PSEUDONYMIZATION_KEY: randomBytes(40).toString("hex"),
-    LLM_AGENT_CALL_LIMIT_PER_SESSION: "80", LLM_AGENT_CALL_LIMIT_PER_DAY: "260",
-    LLM_DAILY_STUDENT_TOKEN_LIMIT: "1000000", LLM_SESSION_TOKEN_LIMIT: "1000000", LLM_DAILY_CLASS_TOKEN_LIMIT: "8000000"
+    ...harnessResourceLimits
   });
   const admin = new PrismaClient({ datasourceUrl: originalUrl.href });
   try { await admin.$executeRawUnsafe(`CREATE DATABASE "${database}"`); } finally { await admin.$disconnect(); }
@@ -82,14 +109,21 @@ async function main() {
   const studentModel = { ...resolveOpenAIModelConfigForRole("connectivity_test"), max_output_tokens: 3000 };
   const StudentReply = z.object({ message: z.string().trim().min(1) }).strict();
   const report = {
-    version: "ai-student-journeys-v3", suite: supportNeedsSuite ? "conversational-support-needs" : robustnessSuite ? "conversational-robustness" : applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
+    version: "ai-student-journeys-v3", suite: reliabilitySuite ? "conversational-reliability" : supportNeedsSuite ? "conversational-support-needs" : robustnessSuite ? "conversational-robustness" : applicationSuite ? "conversational-application" : "original", synthetic_only: true, real_student_records_used: false,
     scope: "Actual service, database, background preparation, tutor runtime, dashboard and research export; no browser exposure or usability measurement.",
     learner_method: "Fixed initial responses, explicitly identified scripted edge-case messages and adaptive AI replies from student-visible conversation only; no hidden profiles or keys given to learner generator.",
+    resource_profile: resourceProfile,
+    effective_resource_limits: Object.fromEntries([
+      "LLM_DAILY_CLASS_CALL_LIMIT", "LLM_DAILY_STUDENT_CALL_LIMIT", "LLM_SESSION_CALL_LIMIT",
+      "LLM_SESSION_TOKEN_LIMIT", "LLM_DAILY_STUDENT_TOKEN_LIMIT", "LLM_DAILY_CLASS_TOKEN_LIMIT",
+      "LLM_AGENT_CALL_LIMIT_PER_SESSION", "LLM_AGENT_CALL_LIMIT_PER_DAY"
+    ].map(key => [key, process.env[key] ?? null])),
     database, output_directory: output, started_at: new Date().toISOString(),
     source_commit: spawnSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).stdout.trim(),
     source_worktree_dirty: spawnSync("git", ["status", "--porcelain"], { encoding: "utf8" }).stdout.trim().length > 0,
     scenarios_sha256: hash(scenarios), items_sha256: hash(scenarioItems), scenarios: selected,
     source_files_sha256: Object.fromEntries([
+      ...(reliabilitySuite ? LUNA_CONVERSATION_REPAIR_SOURCE_FILES : []),
       "prisma/ai-student-journey-evaluation.ts", "src/lib/evaluation/ai-student-scenarios.ts",
       "src/lib/evaluation/conversational-application-scenarios.ts",
       "src/lib/evaluation/conversational-support-needs-scenarios.ts",
@@ -278,6 +312,21 @@ async function main() {
             save();
           }
           checks.push(`${followupTurns} scripted/adaptive student messages received saved tutor replies; replays made no new AI calls.`);
+          if (followupTurns === 30) {
+            const dispatchesBefore = report.provider_dispatches;
+            const transcriptBefore = state.formative_conversation!.transcript;
+            assert.equal(state.formative_conversation!.status, "ended");
+            await assert.rejects(processFormativeConversationStudentMessage({
+              conversation_public_id: state.formative_conversation!.conversation_public_id,
+              client_message_id: randomUUID(), message_text: "A31st message must not be accepted.",
+              context: await buildFormativeConversationRuntimeContextSeed({
+                conversation_public_id: state.formative_conversation!.conversation_public_id, student_user_db_id: student.id })
+            }, { runner_factory: createLiveFormativeConversationV18R2AgentRunner }));
+            state = await service.getStudentSessionState(input);
+            assert.deepEqual(state.formative_conversation!.transcript, transcriptBefore);
+            assert.equal(report.provider_dispatches, dispatchesBefore);
+            checks.push("Turn30 ended by the existing platform limit; turn31 rejected without a model call or persisted turn.");
+          }
           if (scenario.pause) {
             if (state.formative_conversation?.status === "active") await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "pause" });
             state = await service.getStudentSessionState(input);
@@ -288,6 +337,14 @@ async function main() {
             checks.push("Pause and resume preserved the same assessment attempt.");
           }
           state = await service.getStudentSessionState(input);
+          // Record the tutor's own recommendation before the harness performs the
+          // explicit simulated student's end/finish action. Completion below is
+          // lifecycle verification, never proof that the tutor chose to conclude.
+          const finalTutorCall = await db.agentCall.findFirst({ where: { ...where,
+            agent_name: "formative_conversation_agent", call_status: "succeeded", output_validated: true },
+            orderBy: { created_at: "desc" }, select: { output_payload: true } });
+          result.tutor_closure_before_harness_finish = finalTutorCall?.output_payload ?? null;
+          result.completion_evidence_scope = "Explicit synthetic lifecycle action; inspect tutor review/transcript separately for pedagogical closure.";
           if (state.formative_conversation?.status === "active" || state.formative_conversation?.status === "paused") await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "end" });
           await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "finish" });
           await lifecycle.updateStudentFormativeConversationLifecycle({ ...input, action: "finish" });
@@ -372,6 +429,7 @@ async function main() {
             }
             const records = await db.agentCall.findMany({ where: { assessment_session: { session_public_id: result.session_public_id } }, select: {
               agent_name: true, provider: true, model_name: true, reasoning_effort: true, max_output_tokens: true, token_usage: true,
+              prompt_version: true, prompt_hash: true, schema_version: true,
               retry_count: true, total_tokens: true, usage_guard_snapshot: true,
               provider_request_id: true, provider_response_id: true,
               output_validated: true, validation_error: true, error_category: true,

@@ -1,0 +1,63 @@
+{
+  "version": "delivery-review-jsonb-receipt-regression-v1",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "source_agent_calls_sha256": "f72d9cff6886ca2a7b4a4fd4616ed701b0a2874b10ba35f669ce38c14361c310",
+  "source_agent_call_index_zero_based": 7,
+  "source_attempt_index_zero_based": 0,
+  "projection_notice": "Exact parsed output, original text and receipt hash from synthetic native V17; raw envelope intentionally contains only completion/message fields needed by the regression. Provider IDs, encrypted reasoning and transcript omitted.",
+  "parsed_output": {
+    "verdict": "pass",
+    "version": "conversation-delivery-review-v4",
+    "findings": [],
+    "teaching_block_audit": [
+      {
+        "check": "Introduces a hypothetical everyday example without asserting a definition or conclusion.",
+        "block_id": 1,
+        "assessment": "no_teaching_claims"
+      },
+      {
+        "check": "Nearly identical readings under similar conditions illustrate repeatability, the relevant sense of consistency.",
+        "block_id": 2,
+        "assessment": "supported"
+      },
+      {
+        "check": "For repeated measurements of the same weight, a fixed five-pound bias preserves consistency while making the displayed weight inaccurate.",
+        "block_id": 3,
+        "assessment": "supported"
+      },
+      {
+        "check": "The surrounding example supplies similar measurement conditions; similarity across repetitions appropriately describes consistency.",
+        "block_id": 4,
+        "assessment": "supported"
+      },
+      {
+        "check": "Validity concerns whether measurements support their intended interpretation or use, not merely whether readings repeat.",
+        "block_id": 5,
+        "assessment": "supported"
+      },
+      {
+        "check": "Repeatability alone does not establish measurement of the intended construct; a hiring test can be consistent yet unsuitable for interpreting job performance.",
+        "block_id": 6,
+        "assessment": "supported"
+      }
+    ]
+  },
+  "review_output_sha256": "f83bee2d214b80b99e26cea87690ad15c6dd26be3a520c1ea3ba19144049d3e3",
+  "raw_output": {
+    "status": "completed",
+    "output": [
+      {
+        "type": "message",
+        "role": "assistant",
+        "status": "completed",
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\n  \"version\": \"conversation-delivery-review-v4\",\n  \"teaching_block_audit\": [\n    {\n      \"block_id\": 1,\n      \"assessment\": \"no_teaching_claims\",\n      \"check\": \"Introduces a hypothetical everyday example without asserting a definition or conclusion.\"\n    },\n    {\n      \"block_id\": 2,\n      \"assessment\": \"supported\",\n      \"check\": \"Nearly identical readings under similar conditions illustrate repeatability, the relevant sense of consistency.\"\n    },\n    {\n      \"block_id\": 3,\n      \"assessment\": \"supported\",\n      \"check\": \"For repeated measurements of the same weight, a fixed five-pound bias preserves consistency while making the displayed weight inaccurate.\"\n    },\n    {\n      \"block_id\": 4,\n      \"assessment\": \"supported\",\n      \"check\": \"The surrounding example supplies similar measurement conditions; similarity across repetitions appropriately describes consistency.\"\n    },\n    {\n      \"block_id\": 5,\n      \"assessment\": \"supported\",\n      \"check\": \"Validity concerns whether measurements support their intended interpretation or use, not merely whether readings repeat.\"\n    },\n    {\n      \"block_id\": 6,\n      \"assessment\": \"supported\",\n      \"check\": \"Repeatability alone does not establish measurement of the intended construct; a hiring test can be consistent yet unsuitable for interpreting job performance.\"\n    }\n  ],\n  \"verdict\": \"pass\",\n  \"findings\": []\n}"
+          }
+        ]
+      }
+    ]
+  }
+}

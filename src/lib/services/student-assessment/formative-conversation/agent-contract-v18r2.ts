@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AssistanceHistorySchema } from "./assistance-history";
+import { ConversationContinuitySchema, ConversationReviewSchema } from "./conversation-continuity";
 import { CanonicalEligibleEvidenceCatalogSchema } from "@/lib/domain/canonical-evidence-identity";
 import { CanonicalMisconceptionClaimCatalogSchema } from "@/lib/domain/misconception-claim-identity";
 import {
@@ -31,6 +32,31 @@ export const FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION =
   "formative-conversation-agent-contract-v4" as const;
 export const FORMATIVE_CONVERSATION_V18R2_CONTEXT_VERSION =
   "formative-conversation-context-v4" as const;
+export const FORMATIVE_CONVERSATION_SCOPE_NARROWING_INSTRUCTIONS = `
+In pre_reply_plan V2, retaining an existing preference uses exactly
+{preference_id,decision:"retain"}. Do not include prior, current_source,
+change_basis, kind or description in that branch. The application preserves the
+stored preference's identity, status and source; a released preference stays released.
+For example, a stop or recap request that leaves an existing deferral unchanged
+needs only that retained ID and decision, not a new quote about uncertainty.
+Activating or releasing a preference is a different, source-grounded transition.
+A boundary recovered from visible history still uses its separate history-source
+branch; it cannot masquerade as an existing stored preference.
+When a student changes only part of a broad topic boundary, preserve the part that
+still applies. Releasing a broad preference does not itself create its narrower
+replacement. If the student's exact words reopen one subject but still defer
+another, explicitly release the broad preference, activate a distinct narrower
+preference from the supporting student source, and relink any still-deferred needs
+to that active preference in the same candidate. Keep the stored broad preference's
+identity and description unchanged. Author the narrower scope from the conversation;
+do not infer consent from renewed uncertainty, from an identifier, or from validation
+feedback. A deferred need must remain linked to an active defer_topic preference
+after all updates, including needs you did not update. Do not mark a need addressed,
+reopen it, drop its link, or reactivate a released preference just to pass a check.
+When a boundary is genuinely withdrawn, change the affected need only as supported
+by the student's request and the actual support in this reply. This bookkeeping
+adds no student task, forced quiz, or obligation to discuss a deferred subject.
+`.trim();
 export const FORMATIVE_CONVERSATION_V18R2_PROFILE_RECOMMENDATION_VERSION =
   FORMATIVE_CONVERSATION_V18_PROFILE_RECOMMENDATION_VERSION;
 export const FORMATIVE_CONVERSATION_V18R2_PROFILE_SNAPSHOT_VERSION =
@@ -57,6 +83,7 @@ export const FormativeConversationV18R2AgentInputSchema = z
     latest_student_message: z.string().min(1).max(5_000).nullable(),
     visible_transcript: z.array(FormativeConversationTranscriptTurnSchema),
     assistance_history: AssistanceHistorySchema.optional(),
+    conversation_continuity: ConversationContinuitySchema.optional(),
     administered_items: z.array(FormativeConversationAdministeredItemSchema),
     assessment_specification:
       FormativeConversationAssessmentSpecificationSchema.nullable(),
@@ -157,7 +184,8 @@ export const FormativeConversationV18R2AgentOutputSchema = z
         reason_code: z.string().min(1).nullable()
       })
       .strict(),
-    lifecycle_recommendation: z.enum(["continue", "pause", "complete"])
+    lifecycle_recommendation: z.enum(["continue", "pause", "complete"]),
+    conversation_review: ConversationReviewSchema.optional()
   })
   .strict()
   .superRefine((value, context) => {

@@ -5,6 +5,12 @@ import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-reso
 import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "./connectivity-budget";
 import { MIXED_TUTOR_MODEL, MIXED_TUTOR_ROLE } from "../operational/mixed-tutor-identity";
 import {
+  LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION, LUNA_SOL_DELIVERY_REVIEW_MODEL,
+  LUNA_SOL_DELIVERY_REVIEW_CANDIDATE_VERSION, LUNA_SOL_DELIVERY_REVIEW_AMENDMENT_KEY,
+  LUNA_CONVERSATION_DELIVERY_REVIEW_VERSION, LUNA_CONVERSATION_DELIVERY_REVIEW_PROMPT_HASH,
+  LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS
+} from "../operational/luna-conversation-repair-identity";
+import {
   type ApprovedCandidateManifest,
   LEGACY_GPT54_APPROVED_RUNTIME_HASH,
   approvedCandidateRoleConfig,
@@ -49,6 +55,11 @@ export type AgentModelConfig = {
   temperature?: number;
   max_output_tokens?: number;
   verbosity?: Verbosity;
+};
+
+export type FormativeConversationDeliveryReviewConfig = {
+  model_config: AgentModelConfig;
+  policy_version: typeof LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION | null;
 };
 
 export type LlmRuntimeConfig = {
@@ -674,6 +685,56 @@ export function resolveOpenAIModelConfigForRole(role: LiveModelRole): AgentModel
   };
   assertModelConfigCompatible(parsedRole, config);
   return config;
+}
+
+// This child purpose has no environment override and does not create another
+// application role. A different model is available only through the verified
+// mixed-review manifest identity; older manifests retain primary inheritance.
+export function resolveFormativeConversationDeliveryReviewConfig(
+  primaryModelConfig: AgentModelConfig
+): FormativeConversationDeliveryReviewConfig {
+  const active = resolveOperationalApprovalForModelResolution();
+  const approvedPrimary: AgentModelConfig = active
+    ? approvedCandidateRoleConfig(active.manifest, "formative_conversation_agent")
+    : resolveOpenAIModelConfigForRole("formative_conversation_agent");
+  assertRoleEnvironmentMatchesApproved("formative_conversation_agent", approvedPrimary);
+  assertModelConfigCompatible("formative_conversation_agent", approvedPrimary);
+  const fields = ["model_name", "reasoning_effort", "temperature", "max_output_tokens", "verbosity"] as const;
+  if (fields.some(key => primaryModelConfig[key] !== approvedPrimary[key]) ||
+      Object.keys(primaryModelConfig).some(key => !fields.includes(key as typeof fields[number]))) {
+    throw new LlmConfigurationError("delivery_review_primary_mismatch",
+      "Delivery review must bind the resolved formative conversation primary configuration.");
+  }
+  const metadata = active?.manifest.configuration_fingerprint.role_version_metadata.formative_conversation_agent;
+  const mixedIdentity = active?.kind === "local_candidate_evaluation"
+    ? active.record.version === LUNA_SOL_DELIVERY_REVIEW_CANDIDATE_VERSION
+    : active?.kind === "derived_approval" && Object.hasOwn(active.evidence, LUNA_SOL_DELIVERY_REVIEW_AMENDMENT_KEY);
+  const policyFields = ["delivery_review_policy_version", "delivery_review_model_name",
+    "delivery_review_reasoning_effort", "delivery_review_execution_purpose"] as const;
+  const containsPolicy = metadata && policyFields.some(key => Object.hasOwn(metadata, key));
+  if (mixedIdentity || containsPolicy) {
+    if (!mixedIdentity || !metadata ||
+        metadata.delivery_review_policy_version !== LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION ||
+        metadata.delivery_review_model_name !== LUNA_SOL_DELIVERY_REVIEW_MODEL ||
+        metadata.delivery_review_reasoning_effort !== "medium" ||
+        metadata.delivery_review_execution_purpose !== "conversation_delivery_review" ||
+        metadata.delivery_review_max_output_tokens !== LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS ||
+        metadata.delivery_review_version !== LUNA_CONVERSATION_DELIVERY_REVIEW_VERSION ||
+        metadata.delivery_review_prompt_hash !== LUNA_CONVERSATION_DELIVERY_REVIEW_PROMPT_HASH ||
+        approvedPrimary.model_name !== "gpt-5.6-luna" || approvedPrimary.reasoning_effort !== "medium" ||
+        (approvedPrimary.max_output_tokens ?? 0) < LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS) {
+      throw new LlmConfigurationError("delivery_review_policy_mismatch",
+        "Delivery review policy does not match the exact verified mixed-review manifest.");
+    }
+    const modelConfig = { model_name: LUNA_SOL_DELIVERY_REVIEW_MODEL,
+      reasoning_effort: "medium" as const, max_output_tokens: LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS };
+    assertModelConfigCompatible("formative_conversation_agent", modelConfig);
+    return { model_config: modelConfig, policy_version: LUNA_SOL_DELIVERY_REVIEW_POLICY_VERSION };
+  }
+  const reviewLimit = metadata?.delivery_review_version === LUNA_CONVERSATION_DELIVERY_REVIEW_VERSION
+    ? LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS : 2500;
+  return { model_config: { ...approvedPrimary,
+    max_output_tokens: Math.min(approvedPrimary.max_output_tokens ?? reviewLimit, reviewLimit) }, policy_version: null };
 }
 
 export function resolveAgentModelConfig(agentName: AgentNameType): AgentModelConfig {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { PrismaClient } from "@prisma/client";
-import { StudentProfileOutput } from "../src/lib/agents/contracts";
+import { ProductionStudentProfileOutputV6 as StudentProfileOutput } from "../src/lib/agents/contracts";
 import { buildInitialStudentProfilingInput } from "../src/lib/agents/student-profiling/input-builder";
 import { runInitialStudentProfiling } from "../src/lib/agents/student-profiling/service";
 import { serializeStudentProfileForStudent } from "../src/lib/agents/student-profiling/serializers";

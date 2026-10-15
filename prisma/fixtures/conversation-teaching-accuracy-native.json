@@ -1,0 +1,534 @@
+{
+  "version": "conversation-teaching-accuracy-native-fixture-v1",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "source": {
+    "path": ".data/luna-conversation-repair-2026-10-13/cohort-v13/source/.data/ai-student-evaluation/cmcq_ai_students_36b011768d59/maximum_length_unresolved_support-agent-calls.json",
+    "sha256": "153e58f597741e8820d41d6b1ec6d3ffc00e8def44c6375691c4b607e3294207"
+  },
+  "cases": [
+    {
+      "id": "constant_score_reliability_error",
+      "source_agent_call_index_zero_based": 19,
+      "source_attempt_index_zero_based": 0,
+      "source_tutor_sequence_index": 51,
+      "expected_verdict": "reject",
+      "input": {
+        "draft_message": "Yes—even if every person gets the same wrong score every time, the scores can still be **reliable** because they are perfectly consistent.\n\nBut the test would have poor **validity** for the intended purpose, because it is not distinguishing people’s actual job ability. In fact, if everyone receives the same score, it provides no useful information for deciding who is better suited for the job.\n\nSo:\n\n- **Reliability:** the scores are stable and repeatable.\n- **Validity:** the scores support the meaning or decision we want to make.\n\nA test can be highly reliable while measuring the wrong thing—or while failing to distinguish people at all.",
+        "visible_transcript": [
+          {
+            "actor": "tutor",
+            "message_text": "You connected consistent scores with measuring the right thing. That connection is understandable, but it raises an important distinction: **reliability** asks whether scores are consistent, while **validity** asks whether the scores support the intended interpretation or use.\n\nFor the hiring-test example, a test could produce very consistent scores yet have little relationship with actual job performance. Its consistency would be evidence of reliability, but not enough evidence that using it to make hiring decisions is valid.\n\nWe can start by unpacking that distinction, or we can focus first on what SEM tells us about an individual score.",
+            "sequence_index": 27
+          },
+          {
+            "actor": "student",
+            "message_text": "Please explain consistency using an everyday example. No quiz, please.",
+            "sequence_index": 28
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Think of a bathroom scale that is always **5 pounds too high**.\n\nIf you step on it several times and it shows 155 pounds each time, the scale is **consistent**: it gives stable, repeatable results. But it is not accurate if your actual weight is 150 pounds.\n\nThat is the key distinction:\n\n- **Reliability** is about consistency—whether results are stable or repeatable.\n- **Validity** is about whether the result supports the meaning or use we want to make from it.\n\nThe same idea applies to a hiring test. A test can give very consistent scores but still fail to measure what matters for job performance. Consistency is useful evidence, but by itself it does not prove that the test measures the right thing.",
+            "sequence_index": 29
+          },
+          {
+            "actor": "student",
+            "message_text": "I still confuse consistent with correct. Could you contrast those two ideas?",
+            "sequence_index": 30
+          },
+          {
+            "actor": "tutor",
+            "message_text": "**Consistency** and **correctness** answer different questions:\n\n- **Consistent:** Do you get the same result repeatedly?\n- **Correct:** Is the result accurate or aligned with the value you are trying to measure?\n\nFor example, imagine a bathroom scale that shows **155 pounds every time**, but your actual weight is 150 pounds. The scale is **consistent** because its readings are stable. It is not **correct** because the readings are inaccurate.\n\nSo:\n\n- A tool can be **consistent and correct**: it repeatedly shows 150 when your actual weight is 150.\n- A tool can be **consistent but incorrect**: it repeatedly shows 155 when your actual weight is 150.\n- A tool can be **inconsistent**: it shows 148, then 155, then 151, even if some readings happen to be close.\n\nFor a test, consistency is evidence of **reliability**. Correctness for the intended meaning or decision requires relevant **validity evidence**. Therefore, consistent scores are useful, but consistency alone does not show that the test measures the right thing.",
+            "sequence_index": 31
+          },
+          {
+            "actor": "student",
+            "message_text": "How could a hiring score consistently measure the wrong skill?",
+            "sequence_index": 32
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring score can be consistent because the test measures the same skill in the same way every time—even if that skill is not the skill needed for the job.\n\nFor example, imagine a hiring test that mainly measures reading speed. It might give very similar results each time:\n\n- Alex scores 90 on Monday and 91 on Friday.\n- Jordan scores 70 both times.\n\nThose stable results show **reliability**: the scores are repeatable. But suppose success in the job depends mostly on careful equipment repair, and reading speed is only weakly related to that work. Then the test may be consistently measuring reading speed rather than job performance.\n\nSo the test is not necessarily measuring randomly or badly. It may be measuring the **wrong target very consistently**. Reliability asks, “Are the scores stable?” Validity asks, “Do the scores support the intended hiring interpretation and decision?” A hiring test needs relevant evidence about job performance, not consistency alone, to support that use.",
+            "sequence_index": 33
+          },
+          {
+            "actor": "student",
+            "message_text": "Why would reading skill affect scores even if we wanted job skill?",
+            "sequence_index": 34
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Reading skill can affect the score because the test may require people to read complicated instructions, understand written scenarios, or work quickly through text. In that case, the observed score can reflect both **job skill** and **reading skill**.\n\nFor example, suppose a test is meant to measure equipment-repair ability, but every question uses dense technical passages. Someone might be excellent at repairing equipment but score lower because reading the passages is difficult or slow. Another person might score higher partly because they read quickly, even if their repair ability is weaker.\n\nThat does not automatically mean reading skill is an unfair influence. If the actual job requires substantial reading, reading ability may be relevant to the hiring decision. But if the job mainly requires hands-on repair and reading is not important, then reading skill is a competing explanation for the score—an influence unrelated to the intended target.\n\nSo a reliable test can repeatedly produce similar scores that partly reflect reading skill. The key validity question is not only, “Are the scores consistent?” but also, “Do the scores support the intended interpretation about the skills needed for this job?”",
+            "sequence_index": 35
+          },
+          {
+            "actor": "student",
+            "message_text": "I am not confident I understand. Please make that explanation shorter.",
+            "sequence_index": 36
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring test can give the same score each time because it consistently measures reading skill. But if the job mainly requires equipment repair, the score may not show repair ability.\n\nSo:\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores measure what the hiring decision needs.\n\nA test can be reliable without being valid for that job.",
+            "sequence_index": 37
+          },
+          {
+            "actor": "student",
+            "message_text": "Could you explain what job-performance evidence would look like?",
+            "sequence_index": 38
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Job-performance evidence is information about how people actually perform the work after hiring. Examples include:\n\n- supervisor ratings based on clear job criteria\n- work-sample results, such as completing a realistic repair task\n- objective outcomes, such as accuracy, safety, productivity, or error rates\n- training or probation results, when those outcomes reflect the job skill\n\nTo support validity, researchers would examine whether hiring-test scores relate to these relevant performance measures, using consistent criteria. If the test scores mainly relate to reading skill but not to job performance, consistency alone would not support using the test to make that hiring decision.",
+            "sequence_index": 39
+          },
+          {
+            "actor": "student",
+            "message_text": "I am back from my break. Please remind me of the hiring example briefly.",
+            "sequence_index": 40
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring test can produce very consistent scores because it repeatedly measures reading skill. But if the job mainly requires equipment repair, those scores may not show repair ability.\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores support the intended hiring decision.\n\nSo, a test can be reliable without being valid for that job. Evidence such as realistic work samples, supervisor ratings, or accuracy and safety records would help show whether the test relates to actual job performance.",
+            "sequence_index": 41
+          },
+          {
+            "actor": "student",
+            "message_text": "Would the same evidence support every job? I am not sure.",
+            "sequence_index": 42
+          },
+          {
+            "actor": "tutor",
+            "message_text": "No. Validity evidence is tied to a specific job, population, and intended use.\n\nFor example, evidence that a test relates to equipment-repair performance supports using it for an equipment-repair job. It does not automatically support using the same test to select nurses, teachers, or drivers, because those jobs require different skills.\n\nThe same evidence may be useful across similar jobs, but each use still needs a relevant connection to the actual performance being predicted. Reliability can describe the test's consistency, but validity evidence must show that the scores support this particular hiring decision.",
+            "sequence_index": 43
+          },
+          {
+            "actor": "student",
+            "message_text": "Please explain what changes when the intended use changes.",
+            "sequence_index": 44
+          },
+          {
+            "actor": "tutor",
+            "message_text": "When the **intended use** changes, the question that validity evidence must answer changes too.\n\nFor example:\n\n- If a test is used to hire equipment-repair workers, relevant evidence would involve repair accuracy, safety, and work-sample performance.\n- If the same test is used to select nurses, evidence about repair performance would not be enough. The evidence would need to relate to nursing performance, such as patient-care accuracy or safe clinical decisions.\n\nThe population matters too. Evidence from experienced adult workers may not automatically apply to new trainees or a different group.\n\nSo reliability asks whether scores are consistent under specified conditions. Validity asks whether those scores support a particular interpretation and decision for a particular population. When the job, population, or decision changes, the relevant validity evidence must be reconsidered; consistency alone does not transfer automatically.",
+            "sequence_index": 45
+          },
+          {
+            "actor": "student",
+            "message_text": "Leave SEM for later. I only want help with reliability and validity now.",
+            "sequence_index": 46
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Understood—we’ll leave SEM for later.\n\n- **Reliability** means the scores are consistent or repeatable.\n- **Validity** means the scores support the specific meaning or decision we want to make.\n\nA hiring test might reliably measure reading skill every time. If the job mainly requires equipment repair, that consistency does not show that the test is valid for hiring repair workers. Validity evidence would need to connect the scores to relevant job performance for that particular job and use.",
+            "sequence_index": 47
+          },
+          {
+            "actor": "student",
+            "message_text": "I still do not understand why repeating scores is not enough. Please use another example.",
+            "sequence_index": 48
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Here is another example: imagine a clock that is always **10 minutes fast**. It shows the same time every time you check it, so it is **consistent**. But it is not **correct**, because it does not show the actual time.\n\nThe same can happen with a test. Repeating the test may show that it gives stable scores, which supports **reliability**. But the scores might consistently reflect the wrong thing—for example, reading speed instead of equipment-repair ability. To support **validity**, we would also need evidence that the scores relate to the skill or outcome we intend to judge.\n\nSo repeating asks, “Does the result stay similar?” Validity asks, “Is that result meaningful for this particular use?”",
+            "sequence_index": 49
+          },
+          {
+            "actor": "student",
+            "message_text": "What if every person gets the same wrong score every time?",
+            "sequence_index": 50
+          }
+        ],
+        "latest_student_message": "What if every person gets the same wrong score every time?"
+      },
+      "historical_scope_only_review": {
+        "verdict": "pass",
+        "version": "conversation-delivery-review-v1",
+        "findings": []
+      },
+      "paired_control": {
+        "id": "valid_constant_score_limitation",
+        "expected_verdict": "pass",
+        "input": {
+          "draft_message": "That would be repeatable, but repetition alone would not justify calling the test highly reliable. If everyone always receives the same score, there is no score variation for the usual variance- or correlation-based reliability calculations. Those calculations cannot establish high reliability in this case. The test also cannot distinguish people for the hiring decision.\n\nA clearer example is a test that consistently distinguishes people by reading skill, while the intended hiring decision concerns equipment-repair ability. Its consistency would not by itself justify that intended use.",
+          "visible_transcript": [
+            {
+              "actor": "tutor",
+              "message_text": "You connected consistent scores with measuring the right thing. That connection is understandable, but it raises an important distinction: **reliability** asks whether scores are consistent, while **validity** asks whether the scores support the intended interpretation or use.\n\nFor the hiring-test example, a test could produce very consistent scores yet have little relationship with actual job performance. Its consistency would be evidence of reliability, but not enough evidence that using it to make hiring decisions is valid.\n\nWe can start by unpacking that distinction, or we can focus first on what SEM tells us about an individual score.",
+              "sequence_index": 27
+            },
+            {
+              "actor": "student",
+              "message_text": "Please explain consistency using an everyday example. No quiz, please.",
+              "sequence_index": 28
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Think of a bathroom scale that is always **5 pounds too high**.\n\nIf you step on it several times and it shows 155 pounds each time, the scale is **consistent**: it gives stable, repeatable results. But it is not accurate if your actual weight is 150 pounds.\n\nThat is the key distinction:\n\n- **Reliability** is about consistency—whether results are stable or repeatable.\n- **Validity** is about whether the result supports the meaning or use we want to make from it.\n\nThe same idea applies to a hiring test. A test can give very consistent scores but still fail to measure what matters for job performance. Consistency is useful evidence, but by itself it does not prove that the test measures the right thing.",
+              "sequence_index": 29
+            },
+            {
+              "actor": "student",
+              "message_text": "I still confuse consistent with correct. Could you contrast those two ideas?",
+              "sequence_index": 30
+            },
+            {
+              "actor": "tutor",
+              "message_text": "**Consistency** and **correctness** answer different questions:\n\n- **Consistent:** Do you get the same result repeatedly?\n- **Correct:** Is the result accurate or aligned with the value you are trying to measure?\n\nFor example, imagine a bathroom scale that shows **155 pounds every time**, but your actual weight is 150 pounds. The scale is **consistent** because its readings are stable. It is not **correct** because the readings are inaccurate.\n\nSo:\n\n- A tool can be **consistent and correct**: it repeatedly shows 150 when your actual weight is 150.\n- A tool can be **consistent but incorrect**: it repeatedly shows 155 when your actual weight is 150.\n- A tool can be **inconsistent**: it shows 148, then 155, then 151, even if some readings happen to be close.\n\nFor a test, consistency is evidence of **reliability**. Correctness for the intended meaning or decision requires relevant **validity evidence**. Therefore, consistent scores are useful, but consistency alone does not show that the test measures the right thing.",
+              "sequence_index": 31
+            },
+            {
+              "actor": "student",
+              "message_text": "How could a hiring score consistently measure the wrong skill?",
+              "sequence_index": 32
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring score can be consistent because the test measures the same skill in the same way every time—even if that skill is not the skill needed for the job.\n\nFor example, imagine a hiring test that mainly measures reading speed. It might give very similar results each time:\n\n- Alex scores 90 on Monday and 91 on Friday.\n- Jordan scores 70 both times.\n\nThose stable results show **reliability**: the scores are repeatable. But suppose success in the job depends mostly on careful equipment repair, and reading speed is only weakly related to that work. Then the test may be consistently measuring reading speed rather than job performance.\n\nSo the test is not necessarily measuring randomly or badly. It may be measuring the **wrong target very consistently**. Reliability asks, “Are the scores stable?” Validity asks, “Do the scores support the intended hiring interpretation and decision?” A hiring test needs relevant evidence about job performance, not consistency alone, to support that use.",
+              "sequence_index": 33
+            },
+            {
+              "actor": "student",
+              "message_text": "Why would reading skill affect scores even if we wanted job skill?",
+              "sequence_index": 34
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Reading skill can affect the score because the test may require people to read complicated instructions, understand written scenarios, or work quickly through text. In that case, the observed score can reflect both **job skill** and **reading skill**.\n\nFor example, suppose a test is meant to measure equipment-repair ability, but every question uses dense technical passages. Someone might be excellent at repairing equipment but score lower because reading the passages is difficult or slow. Another person might score higher partly because they read quickly, even if their repair ability is weaker.\n\nThat does not automatically mean reading skill is an unfair influence. If the actual job requires substantial reading, reading ability may be relevant to the hiring decision. But if the job mainly requires hands-on repair and reading is not important, then reading skill is a competing explanation for the score—an influence unrelated to the intended target.\n\nSo a reliable test can repeatedly produce similar scores that partly reflect reading skill. The key validity question is not only, “Are the scores consistent?” but also, “Do the scores support the intended interpretation about the skills needed for this job?”",
+              "sequence_index": 35
+            },
+            {
+              "actor": "student",
+              "message_text": "I am not confident I understand. Please make that explanation shorter.",
+              "sequence_index": 36
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring test can give the same score each time because it consistently measures reading skill. But if the job mainly requires equipment repair, the score may not show repair ability.\n\nSo:\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores measure what the hiring decision needs.\n\nA test can be reliable without being valid for that job.",
+              "sequence_index": 37
+            },
+            {
+              "actor": "student",
+              "message_text": "Could you explain what job-performance evidence would look like?",
+              "sequence_index": 38
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Job-performance evidence is information about how people actually perform the work after hiring. Examples include:\n\n- supervisor ratings based on clear job criteria\n- work-sample results, such as completing a realistic repair task\n- objective outcomes, such as accuracy, safety, productivity, or error rates\n- training or probation results, when those outcomes reflect the job skill\n\nTo support validity, researchers would examine whether hiring-test scores relate to these relevant performance measures, using consistent criteria. If the test scores mainly relate to reading skill but not to job performance, consistency alone would not support using the test to make that hiring decision.",
+              "sequence_index": 39
+            },
+            {
+              "actor": "student",
+              "message_text": "I am back from my break. Please remind me of the hiring example briefly.",
+              "sequence_index": 40
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring test can produce very consistent scores because it repeatedly measures reading skill. But if the job mainly requires equipment repair, those scores may not show repair ability.\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores support the intended hiring decision.\n\nSo, a test can be reliable without being valid for that job. Evidence such as realistic work samples, supervisor ratings, or accuracy and safety records would help show whether the test relates to actual job performance.",
+              "sequence_index": 41
+            },
+            {
+              "actor": "student",
+              "message_text": "Would the same evidence support every job? I am not sure.",
+              "sequence_index": 42
+            },
+            {
+              "actor": "tutor",
+              "message_text": "No. Validity evidence is tied to a specific job, population, and intended use.\n\nFor example, evidence that a test relates to equipment-repair performance supports using it for an equipment-repair job. It does not automatically support using the same test to select nurses, teachers, or drivers, because those jobs require different skills.\n\nThe same evidence may be useful across similar jobs, but each use still needs a relevant connection to the actual performance being predicted. Reliability can describe the test's consistency, but validity evidence must show that the scores support this particular hiring decision.",
+              "sequence_index": 43
+            },
+            {
+              "actor": "student",
+              "message_text": "Please explain what changes when the intended use changes.",
+              "sequence_index": 44
+            },
+            {
+              "actor": "tutor",
+              "message_text": "When the **intended use** changes, the question that validity evidence must answer changes too.\n\nFor example:\n\n- If a test is used to hire equipment-repair workers, relevant evidence would involve repair accuracy, safety, and work-sample performance.\n- If the same test is used to select nurses, evidence about repair performance would not be enough. The evidence would need to relate to nursing performance, such as patient-care accuracy or safe clinical decisions.\n\nThe population matters too. Evidence from experienced adult workers may not automatically apply to new trainees or a different group.\n\nSo reliability asks whether scores are consistent under specified conditions. Validity asks whether those scores support a particular interpretation and decision for a particular population. When the job, population, or decision changes, the relevant validity evidence must be reconsidered; consistency alone does not transfer automatically.",
+              "sequence_index": 45
+            },
+            {
+              "actor": "student",
+              "message_text": "Leave SEM for later. I only want help with reliability and validity now.",
+              "sequence_index": 46
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Understood—we’ll leave SEM for later.\n\n- **Reliability** means the scores are consistent or repeatable.\n- **Validity** means the scores support the specific meaning or decision we want to make.\n\nA hiring test might reliably measure reading skill every time. If the job mainly requires equipment repair, that consistency does not show that the test is valid for hiring repair workers. Validity evidence would need to connect the scores to relevant job performance for that particular job and use.",
+              "sequence_index": 47
+            },
+            {
+              "actor": "student",
+              "message_text": "I still do not understand why repeating scores is not enough. Please use another example.",
+              "sequence_index": 48
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Here is another example: imagine a clock that is always **10 minutes fast**. It shows the same time every time you check it, so it is **consistent**. But it is not **correct**, because it does not show the actual time.\n\nThe same can happen with a test. Repeating the test may show that it gives stable scores, which supports **reliability**. But the scores might consistently reflect the wrong thing—for example, reading speed instead of equipment-repair ability. To support **validity**, we would also need evidence that the scores relate to the skill or outcome we intend to judge.\n\nSo repeating asks, “Does the result stay similar?” Validity asks, “Is that result meaningful for this particular use?”",
+              "sequence_index": 49
+            },
+            {
+              "actor": "student",
+              "message_text": "What if every person gets the same wrong score every time?",
+              "sequence_index": 50
+            }
+          ],
+          "latest_student_message": "What if every person gets the same wrong score every time?"
+        },
+        "authored_synthetic": true
+      }
+    },
+    {
+      "id": "clock_analogy_inconsistency",
+      "source_agent_call_index_zero_based": 18,
+      "source_attempt_index_zero_based": 0,
+      "source_tutor_sequence_index": 49,
+      "expected_verdict": "reject",
+      "input": {
+        "draft_message": "Here is another example: imagine a clock that is always **10 minutes fast**. It shows the same time every time you check it, so it is **consistent**. But it is not **correct**, because it does not show the actual time.\n\nThe same can happen with a test. Repeating the test may show that it gives stable scores, which supports **reliability**. But the scores might consistently reflect the wrong thing—for example, reading speed instead of equipment-repair ability. To support **validity**, we would also need evidence that the scores relate to the skill or outcome we intend to judge.\n\nSo repeating asks, “Does the result stay similar?” Validity asks, “Is that result meaningful for this particular use?”",
+        "visible_transcript": [
+          {
+            "actor": "tutor",
+            "message_text": "You connected consistent scores with measuring the right thing. That connection is understandable, but it raises an important distinction: **reliability** asks whether scores are consistent, while **validity** asks whether the scores support the intended interpretation or use.\n\nFor the hiring-test example, a test could produce very consistent scores yet have little relationship with actual job performance. Its consistency would be evidence of reliability, but not enough evidence that using it to make hiring decisions is valid.\n\nWe can start by unpacking that distinction, or we can focus first on what SEM tells us about an individual score.",
+            "sequence_index": 27
+          },
+          {
+            "actor": "student",
+            "message_text": "Please explain consistency using an everyday example. No quiz, please.",
+            "sequence_index": 28
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Think of a bathroom scale that is always **5 pounds too high**.\n\nIf you step on it several times and it shows 155 pounds each time, the scale is **consistent**: it gives stable, repeatable results. But it is not accurate if your actual weight is 150 pounds.\n\nThat is the key distinction:\n\n- **Reliability** is about consistency—whether results are stable or repeatable.\n- **Validity** is about whether the result supports the meaning or use we want to make from it.\n\nThe same idea applies to a hiring test. A test can give very consistent scores but still fail to measure what matters for job performance. Consistency is useful evidence, but by itself it does not prove that the test measures the right thing.",
+            "sequence_index": 29
+          },
+          {
+            "actor": "student",
+            "message_text": "I still confuse consistent with correct. Could you contrast those two ideas?",
+            "sequence_index": 30
+          },
+          {
+            "actor": "tutor",
+            "message_text": "**Consistency** and **correctness** answer different questions:\n\n- **Consistent:** Do you get the same result repeatedly?\n- **Correct:** Is the result accurate or aligned with the value you are trying to measure?\n\nFor example, imagine a bathroom scale that shows **155 pounds every time**, but your actual weight is 150 pounds. The scale is **consistent** because its readings are stable. It is not **correct** because the readings are inaccurate.\n\nSo:\n\n- A tool can be **consistent and correct**: it repeatedly shows 150 when your actual weight is 150.\n- A tool can be **consistent but incorrect**: it repeatedly shows 155 when your actual weight is 150.\n- A tool can be **inconsistent**: it shows 148, then 155, then 151, even if some readings happen to be close.\n\nFor a test, consistency is evidence of **reliability**. Correctness for the intended meaning or decision requires relevant **validity evidence**. Therefore, consistent scores are useful, but consistency alone does not show that the test measures the right thing.",
+            "sequence_index": 31
+          },
+          {
+            "actor": "student",
+            "message_text": "How could a hiring score consistently measure the wrong skill?",
+            "sequence_index": 32
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring score can be consistent because the test measures the same skill in the same way every time—even if that skill is not the skill needed for the job.\n\nFor example, imagine a hiring test that mainly measures reading speed. It might give very similar results each time:\n\n- Alex scores 90 on Monday and 91 on Friday.\n- Jordan scores 70 both times.\n\nThose stable results show **reliability**: the scores are repeatable. But suppose success in the job depends mostly on careful equipment repair, and reading speed is only weakly related to that work. Then the test may be consistently measuring reading speed rather than job performance.\n\nSo the test is not necessarily measuring randomly or badly. It may be measuring the **wrong target very consistently**. Reliability asks, “Are the scores stable?” Validity asks, “Do the scores support the intended hiring interpretation and decision?” A hiring test needs relevant evidence about job performance, not consistency alone, to support that use.",
+            "sequence_index": 33
+          },
+          {
+            "actor": "student",
+            "message_text": "Why would reading skill affect scores even if we wanted job skill?",
+            "sequence_index": 34
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Reading skill can affect the score because the test may require people to read complicated instructions, understand written scenarios, or work quickly through text. In that case, the observed score can reflect both **job skill** and **reading skill**.\n\nFor example, suppose a test is meant to measure equipment-repair ability, but every question uses dense technical passages. Someone might be excellent at repairing equipment but score lower because reading the passages is difficult or slow. Another person might score higher partly because they read quickly, even if their repair ability is weaker.\n\nThat does not automatically mean reading skill is an unfair influence. If the actual job requires substantial reading, reading ability may be relevant to the hiring decision. But if the job mainly requires hands-on repair and reading is not important, then reading skill is a competing explanation for the score—an influence unrelated to the intended target.\n\nSo a reliable test can repeatedly produce similar scores that partly reflect reading skill. The key validity question is not only, “Are the scores consistent?” but also, “Do the scores support the intended interpretation about the skills needed for this job?”",
+            "sequence_index": 35
+          },
+          {
+            "actor": "student",
+            "message_text": "I am not confident I understand. Please make that explanation shorter.",
+            "sequence_index": 36
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring test can give the same score each time because it consistently measures reading skill. But if the job mainly requires equipment repair, the score may not show repair ability.\n\nSo:\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores measure what the hiring decision needs.\n\nA test can be reliable without being valid for that job.",
+            "sequence_index": 37
+          },
+          {
+            "actor": "student",
+            "message_text": "Could you explain what job-performance evidence would look like?",
+            "sequence_index": 38
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Job-performance evidence is information about how people actually perform the work after hiring. Examples include:\n\n- supervisor ratings based on clear job criteria\n- work-sample results, such as completing a realistic repair task\n- objective outcomes, such as accuracy, safety, productivity, or error rates\n- training or probation results, when those outcomes reflect the job skill\n\nTo support validity, researchers would examine whether hiring-test scores relate to these relevant performance measures, using consistent criteria. If the test scores mainly relate to reading skill but not to job performance, consistency alone would not support using the test to make that hiring decision.",
+            "sequence_index": 39
+          },
+          {
+            "actor": "student",
+            "message_text": "I am back from my break. Please remind me of the hiring example briefly.",
+            "sequence_index": 40
+          },
+          {
+            "actor": "tutor",
+            "message_text": "A hiring test can produce very consistent scores because it repeatedly measures reading skill. But if the job mainly requires equipment repair, those scores may not show repair ability.\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores support the intended hiring decision.\n\nSo, a test can be reliable without being valid for that job. Evidence such as realistic work samples, supervisor ratings, or accuracy and safety records would help show whether the test relates to actual job performance.",
+            "sequence_index": 41
+          },
+          {
+            "actor": "student",
+            "message_text": "Would the same evidence support every job? I am not sure.",
+            "sequence_index": 42
+          },
+          {
+            "actor": "tutor",
+            "message_text": "No. Validity evidence is tied to a specific job, population, and intended use.\n\nFor example, evidence that a test relates to equipment-repair performance supports using it for an equipment-repair job. It does not automatically support using the same test to select nurses, teachers, or drivers, because those jobs require different skills.\n\nThe same evidence may be useful across similar jobs, but each use still needs a relevant connection to the actual performance being predicted. Reliability can describe the test's consistency, but validity evidence must show that the scores support this particular hiring decision.",
+            "sequence_index": 43
+          },
+          {
+            "actor": "student",
+            "message_text": "Please explain what changes when the intended use changes.",
+            "sequence_index": 44
+          },
+          {
+            "actor": "tutor",
+            "message_text": "When the **intended use** changes, the question that validity evidence must answer changes too.\n\nFor example:\n\n- If a test is used to hire equipment-repair workers, relevant evidence would involve repair accuracy, safety, and work-sample performance.\n- If the same test is used to select nurses, evidence about repair performance would not be enough. The evidence would need to relate to nursing performance, such as patient-care accuracy or safe clinical decisions.\n\nThe population matters too. Evidence from experienced adult workers may not automatically apply to new trainees or a different group.\n\nSo reliability asks whether scores are consistent under specified conditions. Validity asks whether those scores support a particular interpretation and decision for a particular population. When the job, population, or decision changes, the relevant validity evidence must be reconsidered; consistency alone does not transfer automatically.",
+            "sequence_index": 45
+          },
+          {
+            "actor": "student",
+            "message_text": "Leave SEM for later. I only want help with reliability and validity now.",
+            "sequence_index": 46
+          },
+          {
+            "actor": "tutor",
+            "message_text": "Understood—we’ll leave SEM for later.\n\n- **Reliability** means the scores are consistent or repeatable.\n- **Validity** means the scores support the specific meaning or decision we want to make.\n\nA hiring test might reliably measure reading skill every time. If the job mainly requires equipment repair, that consistency does not show that the test is valid for hiring repair workers. Validity evidence would need to connect the scores to relevant job performance for that particular job and use.",
+            "sequence_index": 47
+          },
+          {
+            "actor": "student",
+            "message_text": "I still do not understand why repeating scores is not enough. Please use another example.",
+            "sequence_index": 48
+          }
+        ],
+        "latest_student_message": "I still do not understand why repeating scores is not enough. Please use another example."
+      },
+      "historical_scope_only_review": {
+        "verdict": "pass",
+        "version": "conversation-delivery-review-v1",
+        "findings": []
+      },
+      "paired_control": {
+        "id": "valid_offset_clock_analogy",
+        "expected_verdict": "pass",
+        "input": {
+          "draft_message": "Imagine a working clock that is always ten minutes fast: at noon it shows 12:10, and at 1:00 it shows 1:10. Its displayed time changes, but its ten-minute offset stays the same. That is a simple example of a stable error rather than correct measurement.\n\nFor a test, consistently measuring reading skill would not by itself justify using the scores to select equipment-repair workers. We still need evidence that supports the intended interpretation and use. The clock is only an analogy for stable bias; it is not a calculation of test reliability.",
+          "visible_transcript": [
+            {
+              "actor": "tutor",
+              "message_text": "You connected consistent scores with measuring the right thing. That connection is understandable, but it raises an important distinction: **reliability** asks whether scores are consistent, while **validity** asks whether the scores support the intended interpretation or use.\n\nFor the hiring-test example, a test could produce very consistent scores yet have little relationship with actual job performance. Its consistency would be evidence of reliability, but not enough evidence that using it to make hiring decisions is valid.\n\nWe can start by unpacking that distinction, or we can focus first on what SEM tells us about an individual score.",
+              "sequence_index": 27
+            },
+            {
+              "actor": "student",
+              "message_text": "Please explain consistency using an everyday example. No quiz, please.",
+              "sequence_index": 28
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Think of a bathroom scale that is always **5 pounds too high**.\n\nIf you step on it several times and it shows 155 pounds each time, the scale is **consistent**: it gives stable, repeatable results. But it is not accurate if your actual weight is 150 pounds.\n\nThat is the key distinction:\n\n- **Reliability** is about consistency—whether results are stable or repeatable.\n- **Validity** is about whether the result supports the meaning or use we want to make from it.\n\nThe same idea applies to a hiring test. A test can give very consistent scores but still fail to measure what matters for job performance. Consistency is useful evidence, but by itself it does not prove that the test measures the right thing.",
+              "sequence_index": 29
+            },
+            {
+              "actor": "student",
+              "message_text": "I still confuse consistent with correct. Could you contrast those two ideas?",
+              "sequence_index": 30
+            },
+            {
+              "actor": "tutor",
+              "message_text": "**Consistency** and **correctness** answer different questions:\n\n- **Consistent:** Do you get the same result repeatedly?\n- **Correct:** Is the result accurate or aligned with the value you are trying to measure?\n\nFor example, imagine a bathroom scale that shows **155 pounds every time**, but your actual weight is 150 pounds. The scale is **consistent** because its readings are stable. It is not **correct** because the readings are inaccurate.\n\nSo:\n\n- A tool can be **consistent and correct**: it repeatedly shows 150 when your actual weight is 150.\n- A tool can be **consistent but incorrect**: it repeatedly shows 155 when your actual weight is 150.\n- A tool can be **inconsistent**: it shows 148, then 155, then 151, even if some readings happen to be close.\n\nFor a test, consistency is evidence of **reliability**. Correctness for the intended meaning or decision requires relevant **validity evidence**. Therefore, consistent scores are useful, but consistency alone does not show that the test measures the right thing.",
+              "sequence_index": 31
+            },
+            {
+              "actor": "student",
+              "message_text": "How could a hiring score consistently measure the wrong skill?",
+              "sequence_index": 32
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring score can be consistent because the test measures the same skill in the same way every time—even if that skill is not the skill needed for the job.\n\nFor example, imagine a hiring test that mainly measures reading speed. It might give very similar results each time:\n\n- Alex scores 90 on Monday and 91 on Friday.\n- Jordan scores 70 both times.\n\nThose stable results show **reliability**: the scores are repeatable. But suppose success in the job depends mostly on careful equipment repair, and reading speed is only weakly related to that work. Then the test may be consistently measuring reading speed rather than job performance.\n\nSo the test is not necessarily measuring randomly or badly. It may be measuring the **wrong target very consistently**. Reliability asks, “Are the scores stable?” Validity asks, “Do the scores support the intended hiring interpretation and decision?” A hiring test needs relevant evidence about job performance, not consistency alone, to support that use.",
+              "sequence_index": 33
+            },
+            {
+              "actor": "student",
+              "message_text": "Why would reading skill affect scores even if we wanted job skill?",
+              "sequence_index": 34
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Reading skill can affect the score because the test may require people to read complicated instructions, understand written scenarios, or work quickly through text. In that case, the observed score can reflect both **job skill** and **reading skill**.\n\nFor example, suppose a test is meant to measure equipment-repair ability, but every question uses dense technical passages. Someone might be excellent at repairing equipment but score lower because reading the passages is difficult or slow. Another person might score higher partly because they read quickly, even if their repair ability is weaker.\n\nThat does not automatically mean reading skill is an unfair influence. If the actual job requires substantial reading, reading ability may be relevant to the hiring decision. But if the job mainly requires hands-on repair and reading is not important, then reading skill is a competing explanation for the score—an influence unrelated to the intended target.\n\nSo a reliable test can repeatedly produce similar scores that partly reflect reading skill. The key validity question is not only, “Are the scores consistent?” but also, “Do the scores support the intended interpretation about the skills needed for this job?”",
+              "sequence_index": 35
+            },
+            {
+              "actor": "student",
+              "message_text": "I am not confident I understand. Please make that explanation shorter.",
+              "sequence_index": 36
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring test can give the same score each time because it consistently measures reading skill. But if the job mainly requires equipment repair, the score may not show repair ability.\n\nSo:\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores measure what the hiring decision needs.\n\nA test can be reliable without being valid for that job.",
+              "sequence_index": 37
+            },
+            {
+              "actor": "student",
+              "message_text": "Could you explain what job-performance evidence would look like?",
+              "sequence_index": 38
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Job-performance evidence is information about how people actually perform the work after hiring. Examples include:\n\n- supervisor ratings based on clear job criteria\n- work-sample results, such as completing a realistic repair task\n- objective outcomes, such as accuracy, safety, productivity, or error rates\n- training or probation results, when those outcomes reflect the job skill\n\nTo support validity, researchers would examine whether hiring-test scores relate to these relevant performance measures, using consistent criteria. If the test scores mainly relate to reading skill but not to job performance, consistency alone would not support using the test to make that hiring decision.",
+              "sequence_index": 39
+            },
+            {
+              "actor": "student",
+              "message_text": "I am back from my break. Please remind me of the hiring example briefly.",
+              "sequence_index": 40
+            },
+            {
+              "actor": "tutor",
+              "message_text": "A hiring test can produce very consistent scores because it repeatedly measures reading skill. But if the job mainly requires equipment repair, those scores may not show repair ability.\n\n- **Reliability:** the scores are consistent.\n- **Validity:** the scores support the intended hiring decision.\n\nSo, a test can be reliable without being valid for that job. Evidence such as realistic work samples, supervisor ratings, or accuracy and safety records would help show whether the test relates to actual job performance.",
+              "sequence_index": 41
+            },
+            {
+              "actor": "student",
+              "message_text": "Would the same evidence support every job? I am not sure.",
+              "sequence_index": 42
+            },
+            {
+              "actor": "tutor",
+              "message_text": "No. Validity evidence is tied to a specific job, population, and intended use.\n\nFor example, evidence that a test relates to equipment-repair performance supports using it for an equipment-repair job. It does not automatically support using the same test to select nurses, teachers, or drivers, because those jobs require different skills.\n\nThe same evidence may be useful across similar jobs, but each use still needs a relevant connection to the actual performance being predicted. Reliability can describe the test's consistency, but validity evidence must show that the scores support this particular hiring decision.",
+              "sequence_index": 43
+            },
+            {
+              "actor": "student",
+              "message_text": "Please explain what changes when the intended use changes.",
+              "sequence_index": 44
+            },
+            {
+              "actor": "tutor",
+              "message_text": "When the **intended use** changes, the question that validity evidence must answer changes too.\n\nFor example:\n\n- If a test is used to hire equipment-repair workers, relevant evidence would involve repair accuracy, safety, and work-sample performance.\n- If the same test is used to select nurses, evidence about repair performance would not be enough. The evidence would need to relate to nursing performance, such as patient-care accuracy or safe clinical decisions.\n\nThe population matters too. Evidence from experienced adult workers may not automatically apply to new trainees or a different group.\n\nSo reliability asks whether scores are consistent under specified conditions. Validity asks whether those scores support a particular interpretation and decision for a particular population. When the job, population, or decision changes, the relevant validity evidence must be reconsidered; consistency alone does not transfer automatically.",
+              "sequence_index": 45
+            },
+            {
+              "actor": "student",
+              "message_text": "Leave SEM for later. I only want help with reliability and validity now.",
+              "sequence_index": 46
+            },
+            {
+              "actor": "tutor",
+              "message_text": "Understood—we’ll leave SEM for later.\n\n- **Reliability** means the scores are consistent or repeatable.\n- **Validity** means the scores support the specific meaning or decision we want to make.\n\nA hiring test might reliably measure reading skill every time. If the job mainly requires equipment repair, that consistency does not show that the test is valid for hiring repair workers. Validity evidence would need to connect the scores to relevant job performance for that particular job and use.",
+              "sequence_index": 47
+            },
+            {
+              "actor": "student",
+              "message_text": "I still do not understand why repeating scores is not enough. Please use another example.",
+              "sequence_index": 48
+            }
+          ],
+          "latest_student_message": "I still do not understand why repeating scores is not enough. Please use another example."
+        },
+        "authored_synthetic": true
+      }
+    }
+  ],
+  "limitations": [
+    "Exact prior synthetic reviewer inputs and accepted V1 scope-only verdicts are preserved; no claim that V1 checked instructional accuracy.",
+    "Paired corrected replies are explicitly authored controls, not observed tutor outputs or classroom evidence.",
+    "A future reviewer decision is model judgment, not a factual guarantee or independent domain validation."
+  ]
+}

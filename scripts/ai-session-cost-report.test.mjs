@@ -146,6 +146,204 @@ test("accepted raw response cache details only match their own response ID", () 
   assert.equal(analyzed.units[1].usage.cached_input_tokens, 500);
 });
 
+const reviewReceipt = extra => ({ model_name: "gpt-6.1-sol", status: "passed", logical_call_entered: true,
+  http_request_count: 1, transport_retry_count: 0, dispatch_accounting_complete: true,
+  usage_accounting_complete: true, ...usage(), ...extra });
+const reviewedAttempt = (review = reviewReceipt()) => ({ ...usage(), http_request_count: 1,
+  transport_retry_count: 0, pre_delivery_review: review });
+const reviewedRecord = (attempts, extra = {}) => row({ token_usage: null,
+  raw_output: { provider_execution_audit: { attempts, ...extra } } });
+
+test("AgentCall fallback prices rejected and repaired delivery-review children at their own model exactly once", () => {
+  const record = reviewedRecord([reviewedAttempt(reviewReceipt({ status: "rejected" })), reviewedAttempt()],
+    { review_logical_calls_entered: 2, http_requests_dispatched: 4 });
+  record.token_usage = { input_tokens: 4000, output_tokens: 400, total_tokens: 4400 };
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 5 }), new Map([["demo", [record]]]));
+  assert.equal(report.application_total.cost.exact_usd, 0.00456);
+  assert.equal(report.application_total.recorded_usage_units, 4);
+  assert.equal(report.application_total.tokens.input_tokens.known, 4000);
+  assert.equal(report.application_total.tokens.reasoning_tokens.known, 160);
+  assert.equal(report.provider_dispatch_reconciliation.status, "matched");
+  assert.deepEqual(report.sessions[0].application.models, [PRICING.model, "gpt-6.1-sol"]);
+  assert.deepEqual(report.sessions[0].application.warnings, []);
+});
+
+test("child raw usage supplies retained cache writes without borrowing parent usage", () => {
+  const review = reviewReceipt();
+  delete review.input_tokens_details;
+  delete review.output_tokens_details;
+  review.raw_output = { usage: usage(1000, 100, 200, 300) };
+  const analyzed = analyzeAgentCall(reviewedRecord([reviewedAttempt(review)]));
+  assert.equal(analyzed.units[1].usage.cache_write_input_tokens, 300);
+  assert.equal(analyzed.units[1].cost.exact_usd, 0.00277);
+  assert.equal(analyzed.units[0].cost.exact_usd, 0.00023);
+});
+
+test("undispatched opening review is free and does not prevent aggregate reconciliation", () => {
+  const record = reviewedRecord([reviewedAttempt(reviewReceipt({ status: "skipped_opening", logical_call_entered: false,
+    http_request_count: 0, input_tokens: null, output_tokens: null, total_tokens: null,
+    input_tokens_details: null, output_tokens_details: null }))],
+  { review_logical_calls_entered: 0, http_requests_dispatched: 1 });
+  record.token_usage = usage();
+  const analyzed = analyzeAgentCall(record);
+  assert.equal(analyzed.request_count, 1);
+  assert.equal(analyzed.units[1].cost.exact_usd, 0);
+  assert.equal(analyzed.units[1].dispatched, false);
+  assert.deepEqual(analyzed.warnings, []);
+  record.token_usage = usage(2000);
+  assert(analyzeAgentCall(record).warnings.includes("aggregate_input_tokens_does_not_match_attempts"));
+});
+
+test("unknown child models and missing child usage remain unknown rather than using Luna or parent totals", () => {
+  for (const child of [reviewReceipt({ model_name: null }), reviewReceipt({ model_name: "gpt-unknown" }),
+    reviewReceipt({ input_tokens: null, output_tokens: null, total_tokens: null }), null]) {
+    const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }),
+      new Map([["demo", [reviewedRecord([reviewedAttempt(child)])]]]));
+    assert.equal(report.application_total.cost.upper_usd, null);
+    assert.equal(report.combined_recorded_total.cost.upper_usd, null);
+  }
+});
+
+test("child transport retry counts include missing earlier usage and preserve unknown upper bounds", () => {
+  const review = reviewReceipt({ http_request_count: undefined, transport_retry_count: 2 });
+  const analyzed = analyzeAgentCall(reviewedRecord([reviewedAttempt(review)]));
+  assert.equal(analyzed.request_count, 4);
+  assert.equal(analyzed.missing_attempts, 2);
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 5 }),
+    new Map([["demo", [reviewedRecord([reviewedAttempt(review)])]]]));
+  assert.equal(report.provider_dispatch_reconciliation.status, "matched");
+  assert.equal(report.application_total.cost.upper_usd, null);
+  assert.equal(report.application_total.usage_units_missing, 2);
+});
+
+const physicalAttempt = (index, extra = {}) => ({
+  adapter_attempt_index: index, client_request_id: `request_${index}`, provider_response_id: `response_${index}`,
+  fetch_invoked: true, input_tokens: 1000, output_tokens: 100, total_tokens: 1100,
+  cached_input_tokens: 500, reasoning_tokens: 40, ...extra
+});
+const physicalLogical = (entries, extra = {}) => ({
+  provider_attempt_count: entries.length, http_request_count: entries.filter(entry => entry.fetch_invoked === true).length,
+  transport_retry_count: Math.max(0, entries.length - 1), dispatch_accounting_complete: true,
+  usage_accounting_complete: true,
+  physical_usage: { version: "provider-physical-usage-v1", attempts: entries, usage_accounting_complete: true },
+  ...extra
+});
+
+test("retained physical retries are priced separately without aggregate or final-response duplication", () => {
+  const entries = [physicalAttempt(1), physicalAttempt(2)];
+  const attempt = physicalLogical(entries, { input_tokens: 2000, output_tokens: 200, total_tokens: 2200,
+    provider_response_id: "response_2" });
+  const record = reviewedRecord([attempt], { http_requests_dispatched: 2 });
+  record.raw_output.accepted_output = { id: "response_2", usage: usage() };
+  record.token_usage = { input_tokens: 2000, output_tokens: 200, total_tokens: 2200 };
+  const analyzed = analyzeAgentCall(record);
+  assert.equal(analyzed.request_count, 2);
+  assert.equal(analyzed.missing_attempts, 0);
+  assert.equal(analyzed.retry_coverage_unknown, false);
+  assert.equal(analyzed.units.length, 2);
+  assert.deepEqual(analyzed.units.map(entry => entry.usage.input_tokens), [1000, 1000]);
+  assert.deepEqual(analyzed.units.map(entry => entry.usage.cache_write_input_tokens), [null, 0]);
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }), new Map([["demo", [record]]]));
+  assert.equal(report.application_total.cost.lower_usd, 0.00046);
+  assert.equal(report.application_total.cost.upper_usd, 0.000485);
+  assert.equal(report.application_total.cost.exact_usd, null);
+  assert.equal(report.provider_dispatch_reconciliation.status, "matched");
+});
+
+test("physical retry unknown usage remains unknown even if a parent falsely claims completeness", () => {
+  const missing = physicalAttempt(1, { provider_response_id: null, input_tokens: null, output_tokens: null,
+    total_tokens: null, cached_input_tokens: null, reasoning_tokens: null });
+  const attempt = physicalLogical([missing, physicalAttempt(2)], { input_tokens: 1000, output_tokens: 100,
+    total_tokens: 1100, provider_response_id: "response_2" });
+  const record = reviewedRecord([attempt]);
+  record.raw_output.accepted_output = { id: "response_2", usage: usage() };
+  const analyzed = analyzeAgentCall(record);
+  assert.equal(analyzed.units[0].usage.input_tokens, null);
+  assert.equal(analyzed.units[1].usage.input_tokens, 1000);
+  assert.equal(analyzed.retry_coverage_unknown, true);
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }), new Map([["demo", [record]]]));
+  assert.equal(report.application_total.cost.lower_usd, 0.00023);
+  assert.equal(report.application_total.cost.upper_usd, null);
+  assert.equal(report.application_total.tokens.input_tokens.records_missing, 1);
+});
+
+test("physical child retries use the child model and each request's own long-context threshold", () => {
+  const entries = [physicalAttempt(1, { input_tokens: 200000, output_tokens: 100, total_tokens: 200100,
+    cached_input_tokens: 0 }), physicalAttempt(2, { input_tokens: 200000, output_tokens: 100,
+    total_tokens: 200100, cached_input_tokens: 0 })];
+  const review = reviewReceipt({ ...physicalLogical(entries), input_tokens: 400000, output_tokens: 200,
+    total_tokens: 400200, raw_output: { id: "response_2", usage: usage(200000, 100, 0, 0) } });
+  const record = reviewedRecord([reviewedAttempt(review)], { http_requests_dispatched: 3, review_logical_calls_entered: 1 });
+  const analyzed = analyzeAgentCall(record);
+  assert.equal(analyzed.request_count, 3);
+  assert.equal(analyzed.missing_attempts, 0);
+  assert.deepEqual(analyzed.units.map(entry => entry.model), [PRICING.model, "gpt-6.1-sol", "gpt-6.1-sol"]);
+  assert(analyzed.units.every(entry => !entry.cost.long_context_multiplier_applied));
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 4 }), new Map([["demo", [record]]]));
+  assert.equal(report.application_total.cost.lower_usd, 0.80223);
+  assert.equal(report.application_total.cost.upper_usd, 0.90223);
+});
+
+test("physical audit identities, counters and response usage inconsistencies cannot yield exact totals", () => {
+  const good = physicalLogical([physicalAttempt(1)]);
+  const malformed = [
+    { ...good, provider_attempt_count: 2 },
+    { ...good, http_request_count: 2 },
+    { ...good, physical_usage: { ...good.physical_usage, version: "unknown-version" } },
+    { ...good, physical_usage: { ...good.physical_usage, attempts: [physicalAttempt(2)] } },
+    physicalLogical([physicalAttempt(1), physicalAttempt(2, { client_request_id: "request_1" })]),
+    physicalLogical([physicalAttempt(1), physicalAttempt(2, { provider_response_id: "response_1" })]),
+    physicalLogical([physicalAttempt(1, { provider_response_id: null })]),
+    physicalLogical([physicalAttempt(1, { provider_response_id: 123 })]),
+    physicalLogical([physicalAttempt(1, { fetch_invoked: null })]),
+    physicalLogical([physicalAttempt(1, { fetch_invoked: false })])
+  ];
+  for (const attempt of malformed) {
+    const analyzed = analyzeAgentCall(reviewedRecord([attempt]));
+    assert.equal(analyzed.retry_coverage_unknown, true);
+  }
+  const record = reviewedRecord([good]);
+  record.raw_output.accepted_output = { id: "response_1", usage: usage(2000) };
+  assert(analyzeAgentCall(record).units[0].cost.issues.includes("physical_response_usage_mismatch"));
+  const noDispatch = physicalLogical([physicalAttempt(1, { fetch_invoked: false, input_tokens: null,
+    output_tokens: null, total_tokens: null, cached_input_tokens: null, reasoning_tokens: null })]);
+  const free = analyzeAgentCall(reviewedRecord([noDispatch]));
+  assert.equal(free.request_count, 0);
+  assert.equal(free.units[0].cost.exact_usd, 0);
+  assert.equal(free.units[0].dispatched, false);
+});
+
+test("duplicate response IDs cannot reuse the final raw usage to price two physical requests", () => {
+  const attempt = physicalLogical([physicalAttempt(1), physicalAttempt(2, { provider_response_id: "response_1" })],
+    { provider_response_id: "response_1" });
+  const record = reviewedRecord([attempt]);
+  record.raw_output.accepted_output = { id: "response_1", usage: usage() };
+  const analyzed = analyzeAgentCall(record);
+  assert.equal(analyzed.units.length, 1);
+  assert(analyzed.warnings.includes("tutor_physical_audit_invalid"));
+  assert.equal(analyzed.retry_coverage_unknown, true);
+  const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }), new Map([["demo", [record]]]));
+  assert.equal(report.application_total.cost.lower_usd, 0.00023);
+  assert.equal(report.application_total.cost.upper_usd, null);
+  assert.equal(report.application_total.cost.exact_usd, null);
+});
+
+test("incomplete child accounting and inconsistent execution totals cannot produce a complete cost", () => {
+  for (const record of [
+    reviewedRecord([reviewedAttempt(reviewReceipt({ dispatch_accounting_complete: false }))]),
+    reviewedRecord([reviewedAttempt(reviewReceipt({ usage_accounting_complete: false }))]),
+    reviewedRecord([reviewedAttempt(reviewReceipt({ http_request_count: 0 }))]),
+    reviewedRecord([reviewedAttempt()], { review_logical_calls_entered: 2 }),
+    reviewedRecord([reviewedAttempt()], { http_requests_dispatched: 3 }),
+    reviewedRecord([reviewedAttempt()], { usage_accounting_complete: false })
+  ]) {
+    const analyzed = analyzeAgentCall(record);
+    assert.equal(analyzed.retry_coverage_unknown, true);
+    const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }), new Map([["demo", [record]]]));
+    assert.equal(report.application_total.cost.upper_usd, null);
+  }
+});
+
 test("transport retries with unretained usage keep an unknown upper bound", () => {
   const report = buildSessionCostReport(fixture({ provider_dispatches: 3 }), new Map([["demo", [row({ retry_count: 1 })]]]));
   assert.equal(report.application_total.usage_units_missing, 1);
