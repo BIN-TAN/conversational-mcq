@@ -41,7 +41,7 @@ uses the verified official LibreOffice 26.2.6 runtime extracted under
 desktop installation. No application dependency change is required.
 
 The following PowerShell commands match the verified Windows runtime
-`26.1009.11318`. If the loader or skills catalog reports a different location,
+`26.1013.11914`. If the loader or skills catalog reports a different location,
 use those returned absolute paths instead. Run from the repository root after
 the ledger contains the actual application commit and deployment evidence:
 
@@ -49,7 +49,7 @@ the ledger contains the actual application commit and deployment evidence:
 $dependencyRoot = Join-Path $env:USERPROFILE '.cache/codex-runtimes/codex-primary-runtime/dependencies'
 $docxPython = Join-Path $dependencyRoot 'python/python.exe'
 $artifactNode = Join-Path $dependencyRoot 'node/bin/node.exe'
-$documentSkill = Join-Path $env:USERPROFILE '.codex/plugins/cache/openai-primary-runtime/documents/26.1009.11318/skills/documents'
+$documentSkill = Join-Path $env:USERPROFILE '.codex/plugins/cache/openai-primary-runtime/documents/26.1013.11914/skills/documents'
 $officeBin = (Resolve-Path -LiteralPath '.data/windows-tools/libreoffice-26.2.6/runtime/program').Path
 $popplerBin = Join-Path $dependencyRoot 'native/poppler/Library/bin'
 $env:PATH = "$officeBin;$popplerBin;$env:PATH"

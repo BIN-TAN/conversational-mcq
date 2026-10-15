@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-13T19:15:46.988Z",
+  "updated_at": "2026-10-15T02:59:09.966Z",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3100,6 +3100,101 @@
         "src/lib/operational/luna-profile-fidelity-identity.ts",
         "src/lib/agents/student-profiling/semantic-repair.ts",
         "scripts/ai-session-cost-report.mjs"
+      ]
+    },
+    {
+      "id": "CMCQ-20261014-01",
+      "date": "2026-10-14",
+      "title": "Critical conversation safeguards development checkpoint",
+      "application_commit": "9406aa428c05e950b57e4ea4411102a236db2395",
+      "summary": "This checkpoint preserves an ongoing 98-file reliability candidate on the feature branch. The critical correction reviews proposed private learning/profile claims before persistence and compacts review responses. Three private controls passed; one partial native completed with accepted content, but its release-evidence checker failed on a rejected-draft representation. The second partial and broader suite are deferred. This is not release approval, and no new Render deployment was attempted.",
+      "push_status": "Verified feature-branch push to codex/luna-medium-profile-fix at 2026-10-15T02:56:26.5431830Z. Remote branch equals 9406aa428c05e950b57e4ea4411102a236db2395. Remote main remained e0a9e1f6e9cc54d1069b86ca516f1ba2411db3d7; no Render deployment was attempted.",
+      "changes": [
+        {
+          "area": "Private learning review",
+          "problem": "V26 accepted a private understanding/profile promotion from an assisted restatement. Visible-message review did not inspect that proposal, and empty first-use assistance history did not establish independent understanding.",
+          "fix": "The existing child review now receives exact proposed observations, changed field assertions, outcome/rationale and resolved-disposition evidence summaries with application-bound eligible student sources. It reviews these untrusted claims before persistence. Prior whole profiles, answer keys and hidden correctness are excluded; unavailable source content cannot support a positive learning inference.",
+          "impact": "A rejected proposal enters the same single authored tutor repair and must receive a matching review before persistence. The application does not silently remove or correct a proposal. Genuine new supported reasoning remains eligible."
+        },
+        {
+          "area": "Bounded review output",
+          "problem": "V27's first private control exhausted 2,500 output tokens while repeating source quotations across findings; the incomplete JSON was not accepted.",
+          "fix": "V8 groups findings by cause, shares bounded source references, and requires exactly one valid target per unsupported private block. Complete private inputs and per-block audits remain. Current Sol medium review has a bounded 4,000-token ceiling; historical V7/2,500 receipts retain their original contract.",
+          "impact": "The three current controls distinguish unsupported assisted promotion, qualified recognition without promotion, and genuinely new reasoning. Compact output and additional headroom reduce the observed failure mechanism but do not guarantee every future response completes."
+        },
+        {
+          "area": "Preserved reliability changes",
+          "problem": "The branch also contains earlier source-reference, preference-continuity, physical-usage and evidence-integrity corrections from this ongoing task.",
+          "fix": "Preserve the scoped candidate, versioned historical readers, exact raw evidence and failed/superseded dispositions. Current request enums, stored-retain projection, deferred-need links and physical usage checks remain enforced.",
+          "impact": "The present narrowed validation is not fresh comprehensive verification of every prior change. Unrelated research/output files and historical failure costs remain preserved."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Current V28 engineering",
+          "result": "Passed",
+          "detail": "Typecheck, 74-file lint, production build and five isolated mock flow/export/timing checks passed. Approval checks: 561. Leakage checks passed. Build source was unchanged; tracing found zero environment-file paths. Existing unused-import and Tailwind warnings remain."
+        },
+        {
+          "name": "Affected core and private-review checks",
+          "result": "Passed",
+          "detail": "Delivery 72, continuity 110, source-reference 30 and private-learning 40 checks passed. Historical V7 format and private projection inputs remain intact. Initial launcher, historical-cap fixture and overlong synthetic-check failures are retained with their corrections; inherited unchanged security checks are not claimed as freshly rerun."
+        },
+        {
+          "name": "Three critical private-learning controls",
+          "result": "Passed with independent review",
+          "detail": "Actual verdicts were reject/pass/pass as expected. Three requests had known usage and no retry. All claim/source inputs were reviewed; this is three-control acceptance, not acceptance of all 27 controls or the release."
+        },
+        {
+          "name": "Full conversation simulation and release evidence check",
+          "result": "Functional/content pass; selected evidence gate failed",
+          "detail": "The completed synthetic run had 23 known physical requests, seven delivered tutors and one correct private-review rejection/recovery. All profile proposals were null. The checker parsed a preserved rejected planned wire as canonical output and rejected pre_reply_plan/post_reply_review keys. Its actual exit1/log and projection hashes are retained. No source fix or rerun was performed; partial02 is deferred."
+        },
+        {
+          "name": "Broader validation and UI",
+          "result": "Deferred by narrowed user scope",
+          "detail": "The second partial, remaining 24 controls, other native scenarios including the maximum-length run, and 12 retained replays are deferred. No new UI testing is required for this non-UI checkpoint; earlier UI evidence is historical. Full release gates remain unsatisfied."
+        },
+        {
+          "name": "Preserved V26 and V27 failures",
+          "result": "Historical failures, not current passes",
+          "detail": "V26's failed partial cohort used 44 known requests, USD0.33866429 standard cost. V27's incomplete first control used one request, USD0.046371. Neither cohort was release-approved. Earlier unknown usage at requests 674 and 754 retains USD0.3402245 in full reservations; cumulative exact cost remains unknown, rather than fabricated."
+        },
+        {
+          "name": "Closed critical-scope accounting",
+          "result": "26 current requests accounted; historical unknowns retained",
+          "detail": "Three controls plus one conversation simulation cost an estimated USD 0.24666036: controls 0.06050370, assessment application 0.18545631 and synthetic learner 0.00070035. The application session was about CAD 0.26 using the retained October 13 exchange rate. Across 909 requests, no reservations remain pending. The cumulative conservative guard charge is USD 6.740894508; the exact total remains unknown because two historical requests lack usage and retain full reservations."
+        }
+      ],
+      "data_impact": [
+        "All candidate exercises are synthetic. No identifiable student transcripts or credentials belong in this record; no production student records were modified.",
+        "Original requests, failed drafts, transport receipts and historical instrumentation remain unchanged. New derivations do not relabel old records or erase unknown usage."
+      ],
+      "limitations": [
+        "This checkpoint is not approved for release. Passing the narrowed critical checks does not replace the deferred full acceptance checks, classroom evidence, concurrency testing or psychometric validation.",
+        "No new Render deployment was attempted. Read-only verification at 2026-10-15T02:47:11.0500724Z confirmed the canonical service still runs 3aaf605567e19cd3784625e320c793e1287a0cb3 from main, with HTTP 200 and a reachable, ready database. This is evidence about the unchanged service, not this candidate being Live.",
+        "The evidence-checker compatibility defect is deferred, not a passed check or observed student-facing runtime failure. Planned quota changes were not applied to production.",
+        "The current full conversation is one synthetic topic with six learner replies. Its cost is not a maximum-session estimate. Median follow-up delivery was 21.97 seconds and the maximum was 49.40 seconds; wider latency and long-session cost checks are deferred."
+      ],
+      "deployment": {
+        "status": "pending",
+        "source_commit": "9406aa428c05e950b57e4ea4411102a236db2395",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": null,
+        "verified_at": null,
+        "url": null,
+        "evidence": [
+          "Deployment intentionally deferred and not attempted under the narrowed checkpoint scope; no candidate Live claim."
+        ]
+      },
+      "references": [
+        "docs/release-records/evidence/luna-critical-checkpoint-20261014.json",
+        "src/lib/services/student-assessment/formative-conversation/private-learning-review.ts",
+        "src/lib/services/student-assessment/formative-conversation/conversation-continuity.ts",
+        "src/lib/services/student-assessment/formative-conversation/execution-v18r2.ts",
+        "src/lib/operational/luna-conversation-replay-evidence.ts",
+        "src/lib/llm/config.ts"
       ]
     }
   ],

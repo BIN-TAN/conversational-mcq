@@ -1,0 +1,178 @@
+{
+  "version": "luna-critical-development-checkpoint-v1",
+  "record_id": "CMCQ-20261014-01",
+  "recorded_at": "2026-10-15T02:59:09.958Z",
+  "application_commit": "9406aa428c05e950b57e4ea4411102a236db2395",
+  "branch": "codex/luna-medium-profile-fix",
+  "release_approved": false,
+  "new_render_deployment": false,
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "runtime_hash": "270708dbe265ee5fb23cbb03637322e1b85deb94411c614166efb3446f29e685",
+  "critical_controls_accepted": true,
+  "native_functional_and_content_accepted": true,
+  "selected_native_gate_passed": false,
+  "current_usage": {
+    "physical_requests": 26,
+    "known_usage_requests": 26,
+    "unknown_usage_requests": 0,
+    "known_standard_lower_usd": 0.24666036,
+    "exact_standard_total_usd": 0.24666036,
+    "conservative_guard_usd": 0.271326414,
+    "unknown_usage_retained_reservation_usd": 0,
+    "executed_probes": 3,
+    "accepted_probes": 3,
+    "native_runs": 1,
+    "unique_native_scenarios": 1,
+    "retained_replays": 0,
+    "probe_cost": {
+      "physical_requests": 3,
+      "known_usage_requests": 3,
+      "unknown_usage_requests": 0,
+      "known_standard_lower_usd": 0.0605037,
+      "exact_standard_total_usd": 0.0605037,
+      "conservative_guard_usd": 0.066554072,
+      "unknown_usage_retained_reservation_usd": 0
+    },
+    "native_whole_topic_application": {
+      "requests": 21,
+      "missing_provider_usage": 0,
+      "unknown_exact_cost": 0,
+      "usage_issues": [],
+      "tokens": {
+        "input_tokens": 401540,
+        "output_tokens": 19595,
+        "total_tokens": 421135,
+        "cached_input_tokens": 27495,
+        "cache_write_input_tokens": 373982,
+        "reasoning_tokens": 6269
+      },
+      "standard_usd": 0.18545631,
+      "conservative_guard_usd": 0.204001955
+    },
+    "native_synthetic_learner_overhead": {
+      "requests": 2,
+      "missing_provider_usage": 0,
+      "unknown_exact_cost": 0,
+      "usage_issues": [],
+      "tokens": {
+        "input_tokens": 1929,
+        "output_tokens": 206,
+        "total_tokens": 2135,
+        "cached_input_tokens": 0,
+        "cache_write_input_tokens": 1347,
+        "reasoning_tokens": 61
+      },
+      "standard_usd": 0.00070035,
+      "conservative_guard_usd": 0.000770387
+    },
+    "native_whole_topic_application_cad": 0.263755964082
+  },
+  "cumulative_usage": {
+    "physical_requests": 909,
+    "known_usage_requests": 907,
+    "unknown_usage_requests": 2,
+    "known_standard_lower_usd": 5.8187905,
+    "exact_standard_total_usd": null,
+    "conservative_guard_usd": 6.740894508,
+    "unknown_usage_retained_reservation_usd": 0.3402245,
+    "pending": 0,
+    "lock_present": false,
+    "effective_budget_usd": 13,
+    "maximum_dispatches": 1320,
+    "original883_records_exact": true,
+    "original_history_prefix_exact": true,
+    "pricing_unchanged": true
+  },
+  "known_failure": {
+    "attempt_id": "repair-e2e-v28-partial-01",
+    "case_id": "partial_progress_many_difficulties",
+    "mechanical_outcome": "mechanical_checks_passed_manual_pedagogical_review_required",
+    "content_review_accepted": true,
+    "critical_case_accepted": true,
+    "selected_gate_passed": false,
+    "selected_gate_exit_code": 1,
+    "selected_gate_failure": "Rejected raw planned candidate is parsed as canonical output; pre_reply_plan/post_reply_review are rejected as extra fields at luna-conversation-replay-evidence.ts:785.",
+    "failure_classification": "release_evidence_checker_compatibility_failure",
+    "application_failure_not_inferred_from_checker": true,
+    "failed_gate_preserved": true,
+    "source_fix_performed": false,
+    "runs_repeated": 0
+  },
+  "unexecuted_scope": {
+    "private_controls": 24,
+    "native_executions": 10,
+    "retained_replays": 12,
+    "reason": "User narrowed work to critical issues; broader checks and the evidence-checker compatibility repair are deferred."
+  },
+  "production_context": {
+    "application_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+    "service_id": "srv-d987t1vaqgkc73d5l5q0",
+    "verified_at": "2026-10-15T02:47:11.0500724Z",
+    "healthy": true
+  },
+  "source_refs": [
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/final-engineering-v28.json",
+      "sha256": "1c55d7aea7533cf85d6d7b952acb8f705207958e6d2f578597b087baa47b8aa6"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/compact-private-review-core-owned-verification-v28.json",
+      "sha256": "4567064a1d785aadf974441b89d17f7a0a6cb097df83e32ed9cebd8a636731a7"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/private-learning-review-focused-verification-v28.json",
+      "sha256": "2040594c17d5bb38e201e7fd9f1441654b10b33aab606532b2bea2a72472297f"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/private-learning-three-control-checkpoint-v28.json",
+      "sha256": "d05e2212ba602457a9d896c83f4ef688f6f3000f6fc9f62c8a8f87b3eb02d266"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/proposed-scoped-commit-inventory-v28.json",
+      "sha256": "849bc09d329cc9a6f6f350777dd13231c67a7d65c0fae530990380f252c30351"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/v26-stopped-after-partial-summary.json",
+      "sha256": "d8ff1d27a91b953597d319976882381c44b8e60b49bb2b96432438c23f65017f"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/v27-stopped-after-probe-summary.json",
+      "sha256": "0f9ee752b3291761e94e3d8b24687e4881eeb04e302d0900251ddfcf888fcb8e"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/unchanged-production-health-v28.json",
+      "sha256": "6e6f483e28dfbf9a64be0228ee3e35f88036818694d21a5c35e04860f2b8ee38"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/release-entry-finalization-template-v26-disposition.json",
+      "sha256": "0b33f894a6fd70dcb3817f995e3d57ef312380309184692d4fec02d7bd4f977a"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/selected-evidence-checker-diagnosis-v28.json",
+      "sha256": "102ef2bd4259f5b3c3507b772b585bfd7184421441b3f39d118c83b3d243f416"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/attempts/repair-e2e-v28-partial-01/qualitative-review.json",
+      "sha256": "5811411ab4c7e825ee8e9f1afdda57db7f27994e6c7aff7c7fe099dbd5908f13"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/critical-checkpoint-branch-push-v28.json",
+      "sha256": "649e13a764d8a965dac88108b8fc61e62dcd2f9c92e3bcc38a0d989023959661"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/v28-critical-scope-checkpoint.json",
+      "sha256": "605ade4a79e542b25714c28e0d723f28b2e038a449adec3a93b6513ae16b6ee4"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/budget-closure-actual-v28-critical909.json",
+      "sha256": "3a9d7573503cc587961f9a472badf017b3b70797582e62a8f0808a733a7fdb07"
+    }
+  ],
+  "limitations": [
+    "This checkpoint is not approved for release. Passing the narrowed critical checks does not replace the deferred full acceptance checks, classroom evidence, concurrency testing or psychometric validation.",
+    "No new Render deployment was attempted. Read-only verification at 2026-10-15T02:47:11.0500724Z confirmed the canonical service still runs 3aaf605567e19cd3784625e320c793e1287a0cb3 from main, with HTTP 200 and a reachable, ready database. This is evidence about the unchanged service, not this candidate being Live.",
+    "The evidence-checker compatibility defect is deferred, not a passed check or observed student-facing runtime failure. Planned quota changes were not applied to production.",
+    "The current full conversation is one synthetic topic with six learner replies. Its cost is not a maximum-session estimate. Median follow-up delivery was 21.97 seconds and the maximum was 49.40 seconds; wider latency and long-session cost checks are deferred."
+  ]
+}
