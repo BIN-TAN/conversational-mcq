@@ -1,0 +1,106 @@
+{
+  "version": "rejected-draft-checker-checkpoint-v1",
+  "release_record_id": "CMCQ-20261015-01",
+  "generated_at": "2026-10-15T07:44:19.027861+00:00",
+  "application_commit": "5a8e8d3c865f7b8915562e0e18ee991b3051113f",
+  "checkpoint_only": true,
+  "full_release_accepted": false,
+  "production_activation_approved": false,
+  "new_paid_calls": 0,
+  "real_student_records_used": false,
+  "contains_credentials": false,
+  "contains_raw_transcripts": false,
+  "changes": [
+    {
+      "area": "Exact rejected draft reconstruction",
+      "problem": "The V28 selected-evidence checker treated preserved planned output as canonical output and rejected its plan fields, despite the completed conversation and retained child review.",
+      "fix": "Replay the production plan, profile and interpretation projections only when original hashes, source values and complete audits match. Require planned output for current evidence; removing plan fields cannot bypass provenance. Child input, source, format and physical-usage checks remain.",
+      "impact": "This corrects offline verification. It does not change student messages, model settings, retry limits or production behavior. Two descriptions now correctly identify V8, its 4000-token reviewer ceiling and 27 controls."
+    }
+  ],
+  "tests": [
+    {
+      "name": "Focused checker and approval regression",
+      "result": "46 and 557 checks passed",
+      "detail": "Actual rejected output, JSONB key order, audit/hash tampering, removed plan markers and all four physical-request formats were exercised. Three changed TypeScript files passed lint. The initial invalid historical-reader test fixture and its correction remain recorded."
+    },
+    {
+      "name": "Current engineering",
+      "result": "Passed",
+      "detail": "Typecheck, 75-file lint, production build and five isolated student-flow/export/timing checks passed. Security smoke/policy and full/production dependency audits passed with zero findings. Two existing unused-import build warnings and a Tailwind module-type warning remain."
+    },
+    {
+      "name": "Retained V28 evidence",
+      "result": "Offline diagnostic passed",
+      "detail": "The repaired checker accepted the exact retained conversation evidence without new generation. The original failed gate and raw records remain unchanged; this diagnostic is not fresh current-cohort or full-release acceptance."
+    },
+    {
+      "name": "Broader rollout",
+      "result": "Deferred",
+      "detail": "V29 source/context helpers were prepared but never activated. No new paid calls occurred. The full native, replay and control suite, quota rollout and deployment remain pending; existing acceptance predicates were not relaxed."
+    }
+  ],
+  "data_impact": [
+    "No production student data, schema, answer keys, scores or profile history changed. The committed fixture contains only synthetic evidence and excludes provider reasoning blobs and credentials. All 40 earlier ledger entries remain unchanged."
+  ],
+  "limitations": [
+    "This feature-branch checkpoint is not an approved student-facing release. The new checker and its projection dependencies are absent from the currently live code, so this is not an isolated live-runtime patch.",
+    "Accounting remains closed at 909 dispatches with no pending reservations and USD 6.740894508 conservative charge. Unknown historical usage at requests 674 and 754 remains unknown with its full reservation."
+  ],
+  "branch_push": {
+    "branch": "codex/luna-medium-profile-fix",
+    "remote_commit": "5a8e8d3c865f7b8915562e0e18ee991b3051113f",
+    "verified_at": "2026-10-15T07:41:14.3504760Z",
+    "main_commit_unchanged": "e0a9e1f6e9cc54d1069b86ca516f1ba2411db3d7"
+  },
+  "unchanged_live_service": {
+    "service_id": "srv-d987t1vaqgkc73d5l5q0",
+    "application_commit": "3aaf605567e19cd3784625e320c793e1287a0cb3",
+    "branch": "main",
+    "read_only_shell_verified_at": "2026-10-15T07:41:33.472Z",
+    "health_verified_at": "2026-10-15T07:41:40.3366850Z",
+    "http_status": 200,
+    "status": "ok",
+    "database_reachable": true,
+    "schema_ready": true,
+    "migration_readiness": "ready",
+    "new_deployment_attempted": false
+  },
+  "accounting": {
+    "dispatches": 909,
+    "pending": 0,
+    "conservative_usd": 6.740894508,
+    "historical_unknown_usage_requests": [
+      674,
+      754
+    ],
+    "exact_cumulative_cost": null,
+    "v29_activation_performed": false
+  },
+  "source_proofs": [
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/final-engineering-v29.json",
+      "sha256": "89de210d8e2cf2f9800f9d2f7a2b74351b5f72dcef3700ea5c18571d28e8f940"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/rejected-planned-evidence-owned-verification-resumed-v28.json",
+      "sha256": "f567f090e207fe5d12affc5f40d07ae76b4eefc205e8aed03efb4d1764e981a8"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/rejected-planned-evidence-independent-review-v29.json",
+      "sha256": "86a20c51286dc05db5d295f941d944186a80432511c1a0b175b3cea2745ff8cf"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/native-v28-partial-01-retained-offline-resumed-bindings.json",
+      "sha256": "e66dfef72574a032744f3819c5fbab053d2a2dfc6d9119f7d62a7f3fd17a6710"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/native-v28-partial-01-selected-bindings-run.json",
+      "sha256": "b5a6931d724263b44ef656215f4c5f303f510935e6376599fc9f09f15f4bc2a9"
+    },
+    {
+      "path": ".data/luna-conversation-repair-2026-10-13/v28-critical-scope-checkpoint.json",
+      "sha256": "605ade4a79e542b25714c28e0d723f28b2e038a449adec3a93b6513ae16b6ee4"
+    }
+  ]
+}
