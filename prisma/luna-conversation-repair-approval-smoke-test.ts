@@ -555,6 +555,8 @@ try {
     provider_response_id: "OFFLINE-REJECTED-REVIEW", physical_usage: fakePhysicalUsage("OFFLINE-REJECTED-REVIEW"),
     validation_issue_paths: ["conversation_delivery_review.rejected"] };
   const rejectedAttempt = { ...openingAudit.attempts[0], accepted: false, failure_class: "parsed_semantic_contract_failure",
+    // This authored control is already canonical, not a projected planned wire.
+    conversation_plan_projection: undefined,
     provider_response_id: "OFFLINE-REJECTED-DRAFT", physical_usage: fakePhysicalUsage("OFFLINE-REJECTED-DRAFT"), pre_delivery_review: rejectedReceipt,
     invalid_candidate: { candidate_json: fakeCanonical() } };
   const repairedAudit = { ...paidAudit, logical_calls_entered: 4, tutor_logical_calls_entered: 2, review_logical_calls_entered: 2,
@@ -562,11 +564,10 @@ try {
     attempts: [rejectedAttempt, paidAudit.attempts[0]] };
   const repairedRows = [...paidRows, { ...transportRow("OFFLINE-REJECTED-DRAFT"), request_index: 3 },
     { ...reviewTransportRow("OFFLINE-REJECTED-REVIEW"), request_index: 4 }];
-  check(() => assert.equal(verifyDelivery(repairedAudit, reviewInput, repairedRows).input_tokens, 40));
-  for (const index of [0, 1, 2, 3]) {
-    const changed = repairedRows.map((row, position) => position === index ? { ...row, request_format_sha256: "0".repeat(64) } : row);
-    check(() => assert.throws(() => verifyDelivery(repairedAudit, reviewInput, changed), /physical request format/));
-  }
+  // Current paid requests use planned wire. A canonical-only authored draft
+  // cannot substitute for its missing original plan/projection provenance.
+  // The retained V28 regression separately checks all four physical formats.
+  check(() => assert.throws(() => verifyDelivery(repairedAudit, reviewInput, repairedRows)));
   check(() => assert.throws(() => verifyDelivery(repairedAudit, reviewInput, repairedRows.slice(0, 3))));
   check(() => assert.throws(() => verifyDelivery({ ...repairedAudit, attempts: [{ ...rejectedAttempt,
     invalid_candidate: { candidate_json: { student_visible_message: "Changed rejected draft" } } }, paidAudit.attempts[0]] }, reviewInput, repairedRows)));

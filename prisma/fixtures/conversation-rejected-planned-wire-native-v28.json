@@ -1,0 +1,2954 @@
+{
+  "version": "conversation-rejected-planned-wire-native-v28-v1",
+  "synthetic_only": true,
+  "real_student_records_used": false,
+  "source": {
+    "path": ".data/luna-conversation-repair-2026-10-13/cohort-v28/source/.data/ai-student-evaluation/cmcq_ai_students_9f05d5472d2f/partial_progress_many_difficulties-agent-calls.json",
+    "sha256": "45dd69428a9bfd3bde9a41ae9f593fad263bf68c6a9848ab0faa892559e132b5",
+    "agent_call_index_zero_based": 8
+  },
+  "transport_source": {
+    "path": ".data/luna-conversation-repair-2026-10-13/attempts/repair-e2e-v28-partial-01/transport-usage.json",
+    "sha256": "20e812ca501d46e11732e8454937d2b04b72c2f870aa7a5482441c46e322c454"
+  },
+  "scope": "Exact synthetic input, accepted output, attempt audits and four numeric transport rows; child raw responses retain exact completed output messages/status only. Unused provider metadata and reasoning blobs are excluded. This does not amend the original failed V28 selected-evidence verdict.",
+  "input": {
+    "memory": null,
+    "context_version": "formative-conversation-context-v4",
+    "current_profile": {
+      "outcome": "not_yet_determined",
+      "profile_version": "f1ab8c53-c13d-4282-bcc5-e1b719ec023c",
+      "evidence_summary": [
+        "The student completed the full response sequence and supplied explicit explanations, making the evidence interpretable. All three answers were incorrect, and the explanations directly support two recurring conceptual misconceptions rather than unexplained guessing. Low confidence is consistent with the incorrect performance, while the available process record supports adequate participation.",
+        "All three items included submitted explanations. The explanations were explicit enough to diagnose two conceptual patterns: reliability was treated as sufficient for validity, and SEM was treated as a known signed error that can be subtracted. No item provided correct conceptual reasoning or strong partial reasoning."
+      ],
+      "canonical_profile": {
+        "rationale": "The profile is based on three sealed incorrect responses, three exact student explanations, and recorded low confidence on every item. The evidence is sufficient for a formative misconception profile, though it is not sufficient to judge transfer to substantially novel tasks.",
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "engagement_profile": "adequate_engagement",
+        "engagement_summary": "The student completed all three administered items, supplied reasoning for each, recorded low confidence for each, and responded to each tempting-option prompt with \"No other option was tempting.\" The available process evidence supports adequate participation; it does not establish motivation or any misconduct-related conclusion.",
+        "profile_confidence": "high",
+        "item_level_evidence": [
+          "correctness: incorrect",
+          "item public id: item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "assessment: incorrect_explanation",
+          "source quote: I think getting consistent scores means the hiring test measures the right thing.",
+          "diagnostic limitation: The response supports a specific reliability-versus-validity misconception, but does not show how the student would evaluate other validity evidence.",
+          "evidence summary: The student selected option B, which was incorrect. The student supplied reasoning explicitly linking consistent scores to measuring the right construct: \"I think getting consistent scores means the hiring test measures the right thing.\" This endorses the reliability-to-validity misconception rather than distinguishing score consistency from validity evidence.",
+          "confidence rating: low",
+          "reasoning quality: The explanation is clear but conceptually incorrect: consistency alone does not establish validity for the intended hiring decision.",
+          "item public id: item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source quote: I subtract three to remove the error and find the exact true score.",
+          "diagnostic limitation: The response demonstrates the specific SEM misconception, but does not reveal whether the student understands uncertainty intervals or the assumptions needed to construct them.",
+          "evidence summary: The student selected option A, which was incorrect. The student explained the choice by treating SEM as a known error that can be subtracted to obtain an exact true score: \"I subtract three to remove the error and find the exact true score.\"",
+          "reasoning quality: The explanation is explicit but conceptually incorrect: SEM represents score uncertainty and is not a known signed error for an individual score.",
+          "item public id: item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source quote: The scores are consistent, so it must measure wellbeing.",
+          "diagnostic limitation: The repeated claim supports a stable misconception across contexts, but the package does not test broader transfer beyond these related examples.",
+          "evidence summary: The student selected option A, which was incorrect. The student explicitly endorsed the claim that consistency establishes the intended wellbeing interpretation: \"The scores are consistent, so it must measure wellbeing.\" This repeats the reliability-to-validity misconception in a new context involving a competing reading-skill explanation.",
+          "reasoning quality: The explanation is explicit and conceptually incorrect because consistent scores can reflect another attribute, such as reading skill, and therefore require relevant validity evidence for a wellbeing interpretation."
+        ],
+        "confidence_alignment": "well_calibrated",
+        "evidence_sufficiency": "adequate",
+        "ability_pattern_flags": [
+          "misconception_indicator_present",
+          "distractor_aligned_reasoning",
+          "conceptual_error_possible"
+        ],
+        "engagement_pattern_flags": [
+          "sustained_engagement"
+        ],
+        "misconception_indicators": [
+          "The student treats consistent scores as sufficient evidence that a hiring test measures the right thing.",
+          "The student treats consistent scores as sufficient evidence that a questionnaire measures wellbeing, despite evidence that scores may mainly reflect reading skill.",
+          "The student treats SEM as a known individual score error that can be subtracted to recover an exact true score."
+        ],
+        "reasoning_quality_summary": "All three items included submitted explanations. The explanations were explicit enough to diagnose two conceptual patterns: reliability was treated as sufficient for validity, and SEM was treated as a known signed error that can be subtracted. No item provided correct conceptual reasoning or strong partial reasoning.",
+        "recommended_next_evidence": [
+          "reason: Ask the student to explain, in their own words, why a highly consistent test could still fail to support a hiring interpretation, explicitly separating reliability from validity.",
+          "evidence type: student_explanation",
+          "item public id: item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "reason: Present a new SEM example and ask what can and cannot be inferred about an individual score, including whether SEM is a signed error or an uncertainty measure.",
+          "evidence type: focused_application",
+          "item public id: item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "reason: Use a novel questionnaire context with a plausible competing construct and ask what evidence would be needed before interpreting scores as measuring the intended construct.",
+          "evidence type: transfer_explanation",
+          "item public id: item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909"
+        ],
+        "integrated_profile_rationale": "The student completed the full response sequence and supplied explicit explanations, making the evidence interpretable. All three answers were incorrect, and the explanations directly support two recurring conceptual misconceptions rather than unexplained guessing. Low confidence is consistent with the incorrect performance, while the available process record supports adequate participation.",
+        "independence_interpretability": "independent_understanding_likely",
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "process_interpretation_cautions": [
+          "Response times and short explanations provide context but do not by themselves indicate low engagement.",
+          "The package contains no revisions, page switches, or long pauses, but absence of those events does not establish mastery or independent transfer.",
+          "The three items are closely related, so performance on a novel context remains untested."
+        ]
+      },
+      "unresolved_evidence": [],
+      "evidence_limitations": [
+        "Evidence sufficiency is adequate."
+      ],
+      "misconception_claim_catalog": {
+        "indicators": [
+          {
+            "claims": [
+              {
+                "claim_id": "mc_4b390902a9d4c5d39b7e69a9",
+                "claim_text": "The student treats consistent scores as sufficient evidence that a hiring test measures the right thing.",
+                "source_evidence_refs": [
+                  "ev_2a3a414f8c3ab7663620803d"
+                ]
+              },
+              {
+                "claim_id": "mc_194f3ba456beefc79b824f9b",
+                "claim_text": "The student treats consistent scores as sufficient evidence that a questionnaire measures wellbeing, despite evidence that scores may mainly reflect reading skill.",
+                "source_evidence_refs": [
+                  "ev_928cf2a49121eb84340e8578"
+                ]
+              }
+            ],
+            "indicator_id": "mi_577e50efb932155b770b7182",
+            "indicator_text": "Reliability automatically establishes validity for the intended interpretation or decision.",
+            "indicator_rationale": "The student selected B on Item 1 and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely option text, and both endorse the same reliability-to-validity inference.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_2a3a414f8c3ab7663620803d",
+              "ev_928cf2a49121eb84340e8578"
+            ]
+          },
+          {
+            "claims": [
+              {
+                "claim_id": "mc_a3c9ba6c44644387dedc093a",
+                "claim_text": "The student treats SEM as a known individual score error that can be subtracted to recover an exact true score.",
+                "source_evidence_refs": [
+                  "ev_b0a717fadf67a16b2b85fa75"
+                ]
+              }
+            ],
+            "indicator_id": "mi_851b2a5d4f9a603e512678c8",
+            "indicator_text": "Subtracting SEM from an observed score identifies the exact individual true score.",
+            "indicator_rationale": "The student selected A on Item 2 and explicitly wrote, \"I subtract three to remove the error and find the exact true score.\" This is a student-explained misconception about SEM, not only selection of the distractor.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_b0a717fadf67a16b2b85fa75"
+            ]
+          }
+        ],
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_d6ccd22b7ba2bfc2a55aa450"
+      },
+      "evidence_cutoff_sequence_index": 0
+    },
+    "initial_profile": {
+      "outcome": "not_yet_determined",
+      "profile_version": "f1ab8c53-c13d-4282-bcc5-e1b719ec023c",
+      "evidence_summary": [
+        "The student completed the full response sequence and supplied explicit explanations, making the evidence interpretable. All three answers were incorrect, and the explanations directly support two recurring conceptual misconceptions rather than unexplained guessing. Low confidence is consistent with the incorrect performance, while the available process record supports adequate participation.",
+        "All three items included submitted explanations. The explanations were explicit enough to diagnose two conceptual patterns: reliability was treated as sufficient for validity, and SEM was treated as a known signed error that can be subtracted. No item provided correct conceptual reasoning or strong partial reasoning."
+      ],
+      "canonical_profile": {
+        "rationale": "The profile is based on three sealed incorrect responses, three exact student explanations, and recorded low confidence on every item. The evidence is sufficient for a formative misconception profile, though it is not sufficient to judge transfer to substantially novel tasks.",
+        "schema_version": "formative-conversation-learning-profile-v1",
+        "ability_profile": "misconception_based_understanding",
+        "engagement_profile": "adequate_engagement",
+        "engagement_summary": "The student completed all three administered items, supplied reasoning for each, recorded low confidence for each, and responded to each tempting-option prompt with \"No other option was tempting.\" The available process evidence supports adequate participation; it does not establish motivation or any misconduct-related conclusion.",
+        "profile_confidence": "high",
+        "item_level_evidence": [
+          "correctness: incorrect",
+          "item public id: item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "assessment: incorrect_explanation",
+          "source quote: I think getting consistent scores means the hiring test measures the right thing.",
+          "diagnostic limitation: The response supports a specific reliability-versus-validity misconception, but does not show how the student would evaluate other validity evidence.",
+          "evidence summary: The student selected option B, which was incorrect. The student supplied reasoning explicitly linking consistent scores to measuring the right construct: \"I think getting consistent scores means the hiring test measures the right thing.\" This endorses the reliability-to-validity misconception rather than distinguishing score consistency from validity evidence.",
+          "confidence rating: low",
+          "reasoning quality: The explanation is clear but conceptually incorrect: consistency alone does not establish validity for the intended hiring decision.",
+          "item public id: item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source quote: I subtract three to remove the error and find the exact true score.",
+          "diagnostic limitation: The response demonstrates the specific SEM misconception, but does not reveal whether the student understands uncertainty intervals or the assumptions needed to construct them.",
+          "evidence summary: The student selected option A, which was incorrect. The student explained the choice by treating SEM as a known error that can be subtracted to obtain an exact true score: \"I subtract three to remove the error and find the exact true score.\"",
+          "reasoning quality: The explanation is explicit but conceptually incorrect: SEM represents score uncertainty and is not a known signed error for an individual score.",
+          "item public id: item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source quote: The scores are consistent, so it must measure wellbeing.",
+          "diagnostic limitation: The repeated claim supports a stable misconception across contexts, but the package does not test broader transfer beyond these related examples.",
+          "evidence summary: The student selected option A, which was incorrect. The student explicitly endorsed the claim that consistency establishes the intended wellbeing interpretation: \"The scores are consistent, so it must measure wellbeing.\" This repeats the reliability-to-validity misconception in a new context involving a competing reading-skill explanation.",
+          "reasoning quality: The explanation is explicit and conceptually incorrect because consistent scores can reflect another attribute, such as reading skill, and therefore require relevant validity evidence for a wellbeing interpretation."
+        ],
+        "confidence_alignment": "well_calibrated",
+        "evidence_sufficiency": "adequate",
+        "ability_pattern_flags": [
+          "misconception_indicator_present",
+          "distractor_aligned_reasoning",
+          "conceptual_error_possible"
+        ],
+        "engagement_pattern_flags": [
+          "sustained_engagement"
+        ],
+        "misconception_indicators": [
+          "The student treats consistent scores as sufficient evidence that a hiring test measures the right thing.",
+          "The student treats consistent scores as sufficient evidence that a questionnaire measures wellbeing, despite evidence that scores may mainly reflect reading skill.",
+          "The student treats SEM as a known individual score error that can be subtracted to recover an exact true score."
+        ],
+        "reasoning_quality_summary": "All three items included submitted explanations. The explanations were explicit enough to diagnose two conceptual patterns: reliability was treated as sufficient for validity, and SEM was treated as a known signed error that can be subtracted. No item provided correct conceptual reasoning or strong partial reasoning.",
+        "recommended_next_evidence": [
+          "reason: Ask the student to explain, in their own words, why a highly consistent test could still fail to support a hiring interpretation, explicitly separating reliability from validity.",
+          "evidence type: student_explanation",
+          "item public id: item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "reason: Present a new SEM example and ask what can and cannot be inferred about an individual score, including whether SEM is a signed error or an uncertainty measure.",
+          "evidence type: focused_application",
+          "item public id: item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "reason: Use a novel questionnaire context with a plausible competing construct and ask what evidence would be needed before interpreting scores as measuring the intended construct.",
+          "evidence type: transfer_explanation",
+          "item public id: item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909"
+        ],
+        "integrated_profile_rationale": "The student completed the full response sequence and supplied explicit explanations, making the evidence interpretable. All three answers were incorrect, and the explanations directly support two recurring conceptual misconceptions rather than unexplained guessing. Low confidence is consistent with the incorrect performance, while the available process record supports adequate participation.",
+        "independence_interpretability": "independent_understanding_likely",
+        "integrated_diagnostic_profile": "misconception_with_sufficient_engagement",
+        "integrated_profile_confidence": "high",
+        "process_interpretation_cautions": [
+          "Response times and short explanations provide context but do not by themselves indicate low engagement.",
+          "The package contains no revisions, page switches, or long pauses, but absence of those events does not establish mastery or independent transfer.",
+          "The three items are closely related, so performance on a novel context remains untested."
+        ]
+      },
+      "unresolved_evidence": [],
+      "evidence_limitations": [
+        "Evidence sufficiency is adequate."
+      ],
+      "misconception_claim_catalog": {
+        "indicators": [
+          {
+            "claims": [
+              {
+                "claim_id": "mc_4b390902a9d4c5d39b7e69a9",
+                "claim_text": "The student treats consistent scores as sufficient evidence that a hiring test measures the right thing.",
+                "source_evidence_refs": [
+                  "ev_2a3a414f8c3ab7663620803d"
+                ]
+              },
+              {
+                "claim_id": "mc_194f3ba456beefc79b824f9b",
+                "claim_text": "The student treats consistent scores as sufficient evidence that a questionnaire measures wellbeing, despite evidence that scores may mainly reflect reading skill.",
+                "source_evidence_refs": [
+                  "ev_928cf2a49121eb84340e8578"
+                ]
+              }
+            ],
+            "indicator_id": "mi_577e50efb932155b770b7182",
+            "indicator_text": "Reliability automatically establishes validity for the intended interpretation or decision.",
+            "indicator_rationale": "The student selected B on Item 1 and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely option text, and both endorse the same reliability-to-validity inference.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_2a3a414f8c3ab7663620803d",
+              "ev_928cf2a49121eb84340e8578"
+            ]
+          },
+          {
+            "claims": [
+              {
+                "claim_id": "mc_a3c9ba6c44644387dedc093a",
+                "claim_text": "The student treats SEM as a known individual score error that can be subtracted to recover an exact true score.",
+                "source_evidence_refs": [
+                  "ev_b0a717fadf67a16b2b85fa75"
+                ]
+              }
+            ],
+            "indicator_id": "mi_851b2a5d4f9a603e512678c8",
+            "indicator_text": "Subtracting SEM from an observed score identifies the exact individual true score.",
+            "indicator_rationale": "The student selected A on Item 2 and explicitly wrote, \"I subtract three to remove the error and find the exact true score.\" This is a student-explained misconception about SEM, not only selection of the distractor.",
+            "indicator_confidence": "high",
+            "source_evidence_refs": [
+              "ev_b0a717fadf67a16b2b85fa75"
+            ]
+          }
+        ],
+        "identity_version": "misconception-claim-identity-v1",
+        "profile_scope_id": "mp_d6ccd22b7ba2bfc2a55aa450"
+      },
+      "evidence_cutoff_sequence_index": 0
+    },
+    "profile_history": [
+      {
+        "outcome": "not_yet_determined",
+        "created_at": "2026-10-15T02:46:58.796Z",
+        "evidence_source": "student_profiling_agent",
+        "profile_version": "f1ab8c53-c13d-4282-bcc5-e1b719ec023c"
+      }
+    ],
+    "safety_boundary": {
+      "boundary_version": "formative-conversation-safety-boundary-v1",
+      "credentials_excluded": true,
+      "hidden_prompts_excluded": true,
+      "raw_teacher_notes_excluded": true,
+      "administered_item_public_ids": [
+        "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909"
+      ],
+      "unadministered_item_protection_required": true
+    },
+    "contract_version": "formative-conversation-agent-contract-v4",
+    "teacher_guidance": [],
+    "telemetry_summary": {
+      "latest_activity_at": "2026-10-15T02:47:27.044Z",
+      "total_input_tokens": 73591,
+      "total_output_tokens": 1988,
+      "lifecycle_event_count": 9,
+      "observable_tutor_turn_count": 2,
+      "observable_student_turn_count": 2
+    },
+    "administered_items": [
+      {
+        "options": [
+          {
+            "text": "Consistency alone does not establish validity for the intended hiring decision.",
+            "label": "A"
+          },
+          {
+            "text": "High reliability proves that the hiring decision is valid.",
+            "label": "B"
+          },
+          {
+            "text": "A weak relationship with job performance proves the scores are unreliable.",
+            "label": "C"
+          },
+          {
+            "text": "Reliability and validity always provide the same evidence.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A hiring test produces highly consistent scores, but its scores have little relationship with job performance. Which conclusion is best supported?",
+        "item_number": 1,
+        "administered": true,
+        "correct_answer": "A",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "student_answer": "B",
+        "concise_explanation": "Option A states the relevant relationship: Consistency alone does not establish validity for the intended hiring decision."
+      },
+      {
+        "options": [
+          {
+            "text": "The exact true score is 73 because the error can be subtracted.",
+            "label": "A"
+          },
+          {
+            "text": "The exact true score is 79 because the error can be added.",
+            "label": "B"
+          },
+          {
+            "text": "An estimate of score uncertainty, not identification of the exact true score.",
+            "label": "C"
+          },
+          {
+            "text": "Proof that the student answered exactly three questions incorrectly.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A student has an observed score of 76 and a standard error of measurement (SEM) of 3. What does the SEM support?",
+        "item_number": 2,
+        "administered": true,
+        "correct_answer": "C",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "student_answer": "A",
+        "concise_explanation": "Option C states the relevant relationship: An estimate of score uncertainty, not identification of the exact true score."
+      },
+      {
+        "options": [
+          {
+            "text": "Yes, consistent scores establish that wellbeing is being measured.",
+            "label": "A"
+          },
+          {
+            "text": "No, the wellbeing interpretation needs relevant validity evidence beyond consistency.",
+            "label": "B"
+          },
+          {
+            "text": "No, evidence about reading skill proves the scores have no reliability.",
+            "label": "C"
+          },
+          {
+            "text": "Yes, giving it twice would establish the intended interpretation without other evidence.",
+            "label": "D"
+          }
+        ],
+        "item_stem": "A wellbeing questionnaire has highly consistent scores in a stated population, but a study suggests its scores mainly reflect reading skill. Does consistency alone support interpreting them as wellbeing?",
+        "item_number": 3,
+        "administered": true,
+        "correct_answer": "B",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "student_answer": "A",
+        "concise_explanation": "Option B states the relevant relationship: No, the wellbeing interpretation needs relevant validity evidence beyond consistency."
+      }
+    ],
+    "assistance_history": {
+      "version": "conversation-assistance-history-v1",
+      "observations": []
+    },
+    "visible_transcript": [
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T02:47:04.283Z",
+        "message_text": "You connected consistent scores with measuring the intended thing—for example, concluding that consistency means a hiring test measures what matters for the job. The important distinction to explore is that **reliability** and **validity** answer different questions:\n\n- **Reliability:** Are the scores consistent under the stated conditions?\n- **Validity:** Do the scores support the intended interpretation or decision, such as predicting job performance or measuring wellbeing?\n\nA test can be highly reliable while consistently reflecting the wrong attribute. For example, a hiring test might produce very stable scores but mainly measure reading skill rather than job performance. The consistency would still be real, but it would not by itself justify the hiring interpretation.\n\nWe can start by unpacking this reliability-versus-validity distinction, or we can focus on why SEM is an uncertainty measure rather than an exact error to subtract.",
+        "sequence_index": 27
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T02:47:04.506Z",
+        "message_text": "There are too many things I got wrong. Please help me with just the hiring question first.",
+        "sequence_index": 28
+      },
+      {
+        "actor": "tutor",
+        "created_at": "2026-10-15T02:47:25.265Z",
+        "message_text": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea focused on consistency: if the test gives similar scores, that tells us it is **reliable**. Reliability asks, “Are the scores consistent?”\n\nBut a hiring decision needs **validity** evidence too. Validity asks, “Do the scores support the interpretation we want to make—in this case, predicting job performance?”\n\nA test could consistently measure something else, such as reading speed, while having little relationship with actual job performance. Its scores would be consistent, but that consistency would not make the hiring decision valid.",
+        "sequence_index": 29
+      },
+      {
+        "actor": "student",
+        "created_at": "2026-10-15T02:47:27.044Z",
+        "message_text": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+        "sequence_index": 30
+      }
+    ],
+    "formative_lifecycle": {
+      "max_student_turns": 30,
+      "final_allowed_turn": false,
+      "student_turn_index": 2,
+      "another_student_turn_available": true
+    },
+    "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+    "intervention_history": [],
+    "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+    "conversation_public_id": "cmv8xtmqr000bikegvuuq5c6c",
+    "latest_student_message": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+    "conversation_continuity": {
+      "needs": [
+        {
+          "kind": "support_request",
+          "source": {
+            "quote": "There are too many things I got wrong. Please help me with just the hiring question first.",
+            "evidence_id": "ev_e683d0d7f715e4c98a8c7248"
+          },
+          "status": "addressed",
+          "need_id": "need_hiring_reliability_validity",
+          "support": [
+            {
+              "quote": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea focused on consistency: if the test gives similar scores, that tells us it is **reliable**. Reliability asks, “Are the scores consistent?”\n\nBut a hiring decision needs **validity** evidence too. Validity asks, “Do the scores support the interpretation we want to make—in this case, predicting job performance?”\n\nA test could consistently measure something else, such as reading speed, while having little relationship with actual job performance. Its scores would be consistent, but that consistency would not make the hiring decision valid.",
+              "source_binding": {
+                "version": "conversation-current-reply-source-v1",
+                "reply_sha256": "86f38d23ca8c615222379123304f8319644fcca1671bebf48d08705250028d70"
+              },
+              "tutor_sequence_index": 29
+            }
+          ],
+          "description": "The student requested help with the hiring-test question before discussing the other topics.",
+          "deferred_by_preference_id": null,
+          "source_agent_call_public_id": "cmv8xu4cl000vikego2smh4y9",
+          "source_tutor_sequence_index": 29
+        }
+      ],
+      "version": "conversation-continuity-v1",
+      "preferences": [],
+      "support_history": [
+        {
+          "kind": "explanation",
+          "quote": "You connected consistent scores with measuring the intended thing—for example, concluding that consistency means a hiring test measures what matters for the job. The important distinction to explore is that **reliability** and **validity** answer different questions:\n\n- **Reliability:** Are the scores consistent under the stated conditions?\n- **Validity:** Do the scores support the intended interpretation or decision, such as predicting job performance or measuring wellbeing?\n\nA test can be highly reliable while consistently reflecting the wrong attribute. For example, a hiring test might produce very stable scores but mainly measure reading skill rather than job performance. The consistency would still be real, but it would not by itself justify the hiring interpretation.\n\nWe can start by unpacking this reliability-versus-validity distinction, or we can focus on why SEM is an uncertainty measure rather than an exact error to subtract.",
+          "topic": "Reliability and validity answer different questions; consistent scores alone do not establish the intended interpretation.",
+          "need_ids": [],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "60ed8066c830fd06d87eae931ffb87d855710a6adbd16e559b7fc796163f2f7f"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8xu00a000jikeguvh6s9to",
+          "source_tutor_sequence_index": 27
+        },
+        {
+          "kind": "explanation",
+          "quote": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea focused on consistency: if the test gives similar scores, that tells us it is **reliable**. Reliability asks, “Are the scores consistent?”\n\nBut a hiring decision needs **validity** evidence too. Validity asks, “Do the scores support the interpretation we want to make—in this case, predicting job performance?”\n\nA test could consistently measure something else, such as reading speed, while having little relationship with actual job performance. Its scores would be consistent, but that consistency would not make the hiring decision valid.",
+          "topic": "Why consistent hiring-test scores do not by themselves establish validity for the hiring decision",
+          "need_ids": [
+            "need_hiring_reliability_validity"
+          ],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "86f38d23ca8c615222379123304f8319644fcca1671bebf48d08705250028d70"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          },
+          "source_agent_call_public_id": "cmv8xu4cl000vikego2smh4y9",
+          "source_tutor_sequence_index": 29
+        }
+      ],
+      "last_student_state": {
+        "readiness": "not_reported",
+        "understanding": "not_reported",
+        "readiness_source": null,
+        "understanding_source": null,
+        "source_agent_call_public_id": "cmv8xu4cl000vikego2smh4y9",
+        "source_tutor_sequence_index": 29
+      },
+      "conversation_public_id": "cmv8xtmqr000bikegvuuq5c6c"
+    },
+    "allowed_evidence_catalog": {
+      "evidence": [
+        {
+          "content": "Selected option B; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_d2b0d20feb815ee5e6853985",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "I think getting consistent scores means the hiring test measures the right thing.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_2a3a414f8c3ab7663620803d",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_46558822d4f3f91f30735a62",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_acebc52908f1209e2be8fbe5",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Selected option A; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_7a4e7e44fceeced22d32a88f",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "I subtract three to remove the error and find the exact true score.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_b0a717fadf67a16b2b85fa75",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_21def17b3f6738618b43631a",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_f0f2a20cc825ad8f0f938051",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Selected option A; scored incorrect.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_4a4d37d47c190d8269649841",
+          "source_role": "student",
+          "evidence_kind": "assessment_answer",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "The scores are consistent, so it must measure wellbeing.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_928cf2a49121eb84340e8578",
+          "source_role": "student",
+          "evidence_kind": "assessment_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Submitted confidence: low.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_7b3ed1fe63165c29c2d50c16",
+          "source_role": "student",
+          "evidence_kind": "assessment_confidence",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Tempting option No.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_ddd0fb7512cc776229257f5a",
+          "source_role": "student",
+          "evidence_kind": "assessment_distractor_reasoning",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T02:46:09.270Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_51a6d3f17d97c91400432d80",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:09.270Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_3577e970906115d15daee2e9",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T02:46:09.320Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_e59c7a6658aa8e8088f79fb6",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T02:46:09.322Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_f522a65d792c0caa08582f0f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:09.323Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_7bb767ae78909d771ae88b12",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T02:46:11.593Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_736536b2128c0f0af3bdbf08",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T02:46:11.595Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_0366068c3b3c7cf53e9f5887",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:11.596Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_075e1233600c73dd5790966d",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T02:46:11.630Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_4da1b8131b110efaea57367f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T02:46:11.632Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_c0379895ad764843af23c2c2",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:11.633Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_01e6d012573f798354ef7d44",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T02:46:11.665Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_bd1102131e4e69c1e6a22c90",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T02:46:11.667Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_8281cbbee5b62deaad864564",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T02:46:11.680Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_bf97444960befb5b89d673db",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:11.681Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_97dcc758dba03661e90703a6",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T02:46:11.703Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_2c275e6f9ba9a9d52dafedcf",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T02:46:11.705Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_82269e4efea91586720a3fde",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:11.706Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_6689c5cc8a441160af042ce7",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T02:46:14.873Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_27e1512dcb9fe89f44ee1ca8",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T02:46:14.875Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_21f3a5e434c9ca2c3e5f1f0b",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:14.876Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_c5dc7ac807a933459b68285e",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T02:46:14.903Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_1fab3c0eceea0f7ecab464f0",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T02:46:14.904Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_8c48e8c4f51ab80f32492b1b",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:14.905Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_b4c7986af0e9f55b4aff65a5",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T02:46:14.932Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_a03303818084c09f0cab10e1",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T02:46:14.933Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_34fb97a61a581d63d974ce31",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_presented (initial_administration, backend) at 2026-10-15T02:46:14.946Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_6c03eabe926e596c820e4266",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:14.947Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_2b3a4b7a92a79efda1a7e4cf",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_selected (initial_administration, frontend) at 2026-10-15T02:46:14.967Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_5eec3fb0ab9e189e36c3c316",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed option_clicked (initial_administration, frontend) at 2026-10-15T02:46:14.968Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_f017dc07521460a981fa175f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:14.969Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_bfda708d1ae27e14e0b2fe24",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_entered (initial_administration, frontend) at 2026-10-15T02:46:16.984Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_3925217fe25b1d12f15cf52c",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed reasoning_submitted (initial_administration, frontend) at 2026-10-15T02:46:16.985Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_d083212c28e81ff157a6a737",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:16.986Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_28f40b83c1c4457958a8eff3",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_selected (initial_administration, frontend) at 2026-10-15T02:46:17.014Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_9d595d4cefbea9f8e6a8e09d",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed confidence_clicked (initial_administration, frontend) at 2026-10-15T02:46:17.016Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_24165bbc90f8c6f45c52839f",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:17.016Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_90dc54a16f4ef6b3018771db",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed tempting_option_submitted (initial_administration, frontend) at 2026-10-15T02:46:17.044Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_81cc0349d9f36c8bf7c2077c",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed item_completed (initial_administration, backend) at 2026-10-15T02:46:17.045Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_9c8cf1c96d82a1f74a5e071d",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed package_review_opened (initial_administration, backend) at 2026-10-15T02:46:17.057Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_716203af34f8e67b12d4e299",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed agent_message_shown (initial_administration, backend) at 2026-10-15T02:46:17.058Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_68ac3d3e7b94c9c6a224173c",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "Observed package_submitted (initial_administration, backend) at 2026-10-15T02:46:17.067Z.",
+          "eligibility": "evidence_quality_context",
+          "evidence_id": "ev_406adbf5dd362b4e4bc9e961",
+          "source_role": "platform_observation",
+          "evidence_kind": "assessment_process_observation",
+          "evidence_stage": "baseline_assessment",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": null,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": null
+        },
+        {
+          "content": "There are too many things I got wrong. Please help me with just the hiring question first.",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_e683d0d7f715e4c98a8c7248",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": 28,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": "cmv8xtmqr000bikegvuuq5c6c"
+        },
+        {
+          "content": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+          "eligibility": "student_understanding",
+          "evidence_id": "ev_f22c42d14ee25f6a94b35927",
+          "source_role": "student",
+          "evidence_kind": "formative_student_turn",
+          "evidence_stage": "formative_conversation",
+          "item_public_id": null,
+          "source_ordinal": null,
+          "identity_version": "canonical-evidence-identity-v2",
+          "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286",
+          "assessment_public_id": "asmt_2e5dc393-a3a1-44cf-a8f1-a24b3f13922e",
+          "source_sequence_index": 30,
+          "concept_unit_public_id": "cu_2c1b31ef-0aff-412a-9705-5c138b3756a5",
+          "conversation_public_id": "cmv8xtmqr000bikegvuuq5c6c"
+        }
+      ],
+      "identity_version": "canonical-evidence-identity-v2",
+      "evidence_scope_id": "es_7c881ba3cb7c157a34a5f286"
+    },
+    "assessment_specification": {
+      "boundaries": {
+        "pedagogy_owner": "formative_conversation_agent",
+        "administered_items_only": true,
+        "raw_teacher_notes_must_not_be_quoted": true,
+        "legacy_activity_routing_authoritative": false,
+        "unadministered_item_content_protected": true,
+        "administered_answer_discussion_allowed": true
+      },
+      "schema_version": "formative-conversation-assessment-specification-v1",
+      "assessment_title": "Synthetic measurement evaluation",
+      "diagnostic_focus": null,
+      "concept_unit_title": "Reliability and score interpretation",
+      "learning_objective": "Distinguish reliability, validity, SEM and population-specific score evidence.",
+      "administered_item_guidance": [
+        {
+          "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+          "target_reasoning_note": "Consistency and evidence supporting the intended hiring interpretation are different kinds of evidence.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "Consistency and evidence supporting the intended hiring interpretation are different kinds of evidence.",
+          "plain_language_distractor_diagnostic_notes": "Option B: Consistency alone does not establish intended-use validity. Option C: Weak external association does not negate score consistency. Option D: Reliability and validity answer different evidential questions."
+        },
+        {
+          "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+          "target_reasoning_note": "SEM describes measurement uncertainty, not the signed error of an individual's score. A specific interval needs additional assumptions.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "SEM describes measurement uncertainty, not the signed error of an individual's score. A specific interval needs additional assumptions.",
+          "plain_language_distractor_diagnostic_notes": "Option A: SEM is not the known signed error to subtract. Option B: SEM is not the known signed error to add. Option D: SEM is not a count of incorrectly answered questions."
+        },
+        {
+          "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+          "target_reasoning_note": "Score consistency alone does not establish the intended wellbeing interpretation reading skill is a competing explanation to investigate.",
+          "interpretation_caution": "Selected options are indirect evidence only and must be interpreted together with written reasoning, confidence, timing/process features, revisions, and patterns across responses.",
+          "strong_reasoning_should_mention": "Score consistency alone does not establish the intended wellbeing interpretation reading skill is a competing explanation to investigate.",
+          "plain_language_distractor_diagnostic_notes": "Option A: Consistency is not sufficient validity evidence. Option C: A validity concern does not by itself negate reliability. Option D: Repeated administration alone cannot establish the wellbeing interpretation."
+        }
+      ],
+      "related_concept_description": "Score consistency alone does not establish intended-use validity. SEM represents uncertainty. Reliability is population-specific."
+    },
+    "assessment_process_evidence": [
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T02:46:09.270Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:09.270Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T02:46:09.320Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T02:46:09.322Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:09.323Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T02:46:11.593Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T02:46:11.595Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:11.596Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T02:46:11.630Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T02:46:11.632Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:11.633Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T02:46:11.665Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T02:46:11.667Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T02:46:11.680Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:11.681Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T02:46:11.703Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T02:46:11.705Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:11.706Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T02:46:14.873Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T02:46:14.875Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:14.876Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T02:46:14.903Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T02:46:14.904Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:14.905Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T02:46:14.932Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T02:46:14.933Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_presented",
+        "occurred_at": "2026-10-15T02:46:14.946Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:14.947Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_selected",
+        "occurred_at": "2026-10-15T02:46:14.967Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "option_clicked",
+        "occurred_at": "2026-10-15T02:46:14.968Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:14.969Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_entered",
+        "occurred_at": "2026-10-15T02:46:16.984Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "reasoning_submitted",
+        "occurred_at": "2026-10-15T02:46:16.985Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:16.986Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_selected",
+        "occurred_at": "2026-10-15T02:46:17.014Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "confidence_clicked",
+        "occurred_at": "2026-10-15T02:46:17.016Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:17.016Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "tempting_option_submitted",
+        "occurred_at": "2026-10-15T02:46:17.044Z",
+        "event_source": "frontend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "item_completed",
+        "occurred_at": "2026-10-15T02:46:17.045Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "package_review_opened",
+        "occurred_at": "2026-10-15T02:46:17.057Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "agent_message_shown",
+        "occurred_at": "2026-10-15T02:46:17.058Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      },
+      {
+        "event_type": "package_submitted",
+        "occurred_at": "2026-10-15T02:46:17.067Z",
+        "event_source": "backend",
+        "event_category": "initial_administration",
+        "item_public_id": null,
+        "pause_duration_ms": null,
+        "visibility_duration_ms": null
+      }
+    ],
+    "assessment_response_evidence": [
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+        "selected_option": "B",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "I think getting consistent scores means the hiring test measures the right thing.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 2352,
+          "response_time_answer_ms": 5,
+          "response_time_reasoning_ms": 2273,
+          "response_time_confidence_ms": 37
+        },
+        "tempting_option_reason": null
+      },
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+        "selected_option": "A",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "I subtract three to remove the error and find the exact true score.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 3232,
+          "response_time_answer_ms": 2,
+          "response_time_reasoning_ms": 3170,
+          "response_time_confidence_ms": 30
+        },
+        "tempting_option_reason": null
+      },
+      {
+        "confidence": "low",
+        "correctness": "incorrect",
+        "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+        "selected_option": "A",
+        "tempting_option": "No",
+        "revision_summary": null,
+        "written_reasoning": "The scores are consistent, so it must measure wellbeing.",
+        "safe_timing_summary": {
+          "total_item_time_ms": 2081,
+          "response_time_answer_ms": 3,
+          "response_time_reasoning_ms": 2017,
+          "response_time_confidence_ms": 30
+        },
+        "tempting_option_reason": null
+      }
+    ],
+    "allowed_misconception_claim_catalog": {
+      "indicators": [
+        {
+          "claims": [
+            {
+              "claim_id": "mc_4b390902a9d4c5d39b7e69a9",
+              "claim_text": "The student treats consistent scores as sufficient evidence that a hiring test measures the right thing.",
+              "source_evidence_refs": [
+                "ev_2a3a414f8c3ab7663620803d"
+              ]
+            },
+            {
+              "claim_id": "mc_194f3ba456beefc79b824f9b",
+              "claim_text": "The student treats consistent scores as sufficient evidence that a questionnaire measures wellbeing, despite evidence that scores may mainly reflect reading skill.",
+              "source_evidence_refs": [
+                "ev_928cf2a49121eb84340e8578"
+              ]
+            }
+          ],
+          "indicator_id": "mi_577e50efb932155b770b7182",
+          "indicator_text": "Reliability automatically establishes validity for the intended interpretation or decision.",
+          "indicator_rationale": "The student selected B on Item 1 and explicitly stated, \"I think getting consistent scores means the hiring test measures the right thing.\" On Item 3, the student selected A and stated, \"The scores are consistent, so it must measure wellbeing.\" These are student-supplied explanations, not merely option text, and both endorse the same reliability-to-validity inference.",
+          "indicator_confidence": "high",
+          "source_evidence_refs": [
+            "ev_2a3a414f8c3ab7663620803d",
+            "ev_928cf2a49121eb84340e8578"
+          ]
+        },
+        {
+          "claims": [
+            {
+              "claim_id": "mc_a3c9ba6c44644387dedc093a",
+              "claim_text": "The student treats SEM as a known individual score error that can be subtracted to recover an exact true score.",
+              "source_evidence_refs": [
+                "ev_b0a717fadf67a16b2b85fa75"
+              ]
+            }
+          ],
+          "indicator_id": "mi_851b2a5d4f9a603e512678c8",
+          "indicator_text": "Subtracting SEM from an observed score identifies the exact individual true score.",
+          "indicator_rationale": "The student selected A on Item 2 and explicitly wrote, \"I subtract three to remove the error and find the exact true score.\" This is a student-explained misconception about SEM, not only selection of the distractor.",
+          "indicator_confidence": "high",
+          "source_evidence_refs": [
+            "ev_b0a717fadf67a16b2b85fa75"
+          ]
+        }
+      ],
+      "identity_version": "misconception-claim-identity-v1",
+      "profile_scope_id": "mp_d6ccd22b7ba2bfc2a55aa450"
+    }
+  },
+  "output": {
+    "outcome": "continue_conversation",
+    "contract_version": "formative-conversation-agent-contract-v4",
+    "teaching_artifact": null,
+    "conversation_review": {
+      "closure": {
+        "reason": "continue_support",
+        "rationale": "The student's question was answered with a concrete explanation of predictive evidence and the distinction between reliability and validity. Continued support remains available for examining another example or the SEM question.",
+        "instructor_support": null,
+        "unresolved_need_ids": []
+      },
+      "version": "conversation-review-v1",
+      "need_updates": [
+        {
+          "kind": "support_request",
+          "source": {
+            "quote": "Could you explain what kind of evidence would show validity?",
+            "evidence_id": "ev_f22c42d14ee25f6a94b35927"
+          },
+          "status": "addressed",
+          "need_id": "need_hiring_reliability_validity",
+          "support": [
+            {
+              "quote": "Yes. For a hiring test, validity evidence would support the specific interpretation and decision you want to make: using test scores to predict job performance.\n\nOne direct approach is **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Examine whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to be associated with better later job performance, that supports the hiring interpretation. The evidence should come from the population and job setting where the test will be used. Researchers should also check whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being better explained by an unrelated skill.\n\nSo reliability is still important, because very unstable scores are difficult to interpret, but it is not enough by itself:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+              "source_binding": {
+                "version": "conversation-current-reply-source-v1",
+                "reply_sha256": "22f582fb4389fe53d6d56c0bdd9395c79964fa4a3341edbaf4c3da668777c594"
+              },
+              "tutor_sequence_index": null
+            }
+          ],
+          "description": "Could you explain what kind of evidence would show validity?",
+          "deferred_by_preference_id": null
+        }
+      ],
+      "recap_claims": [],
+      "student_state": {
+        "readiness": "not_reported",
+        "understanding": "not_reported",
+        "readiness_source": null,
+        "understanding_source": null
+      },
+      "current_support": [
+        {
+          "kind": "explanation",
+          "quote": "Yes. For a hiring test, validity evidence would support the specific interpretation and decision you want to make: using test scores to predict job performance.\n\nOne direct approach is **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Examine whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to be associated with better later job performance, that supports the hiring interpretation. The evidence should come from the population and job setting where the test will be used. Researchers should also check whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being better explained by an unrelated skill.\n\nSo reliability is still important, because very unstable scores are difficult to interpret, but it is not enough by itself:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+          "topic": "Evidence supporting the validity of a hiring test's job-performance interpretation",
+          "need_ids": [
+            "need_hiring_reliability_validity"
+          ],
+          "preference_ids": [],
+          "source_binding": {
+            "version": "conversation-current-reply-source-v1",
+            "reply_sha256": "22f582fb4389fe53d6d56c0bdd9395c79964fa4a3341edbaf4c3da668777c594"
+          },
+          "preference_linkage": {
+            "links": [],
+            "version": "conversation-support-preference-links-v1"
+          }
+        }
+      ],
+      "preference_updates": []
+    },
+    "evidence_observations": [
+      {
+        "observation": "Student question: \"I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?\" The reply explains predictive evidence by connecting pre-hiring test scores with later job-performance measures and notes additional relevant validity evidence.",
+        "evidence_ids": [
+          "ev_f22c42d14ee25f6a94b35927"
+        ],
+        "evidence_type": "student_question_addressed"
+      }
+    ],
+    "student_visible_message": "Yes. For a hiring test, validity evidence would support the specific interpretation and decision you want to make: using test scores to predict job performance.\n\nOne direct approach is **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Examine whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to be associated with better later job performance, that supports the hiring interpretation. The evidence should come from the population and job setting where the test will be used. Researchers should also check whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being better explained by an unrelated skill.\n\nSo reliability is still important, because very unstable scores are difficult to interpret, but it is not enough by itself:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+    "lifecycle_recommendation": "continue",
+    "profile_transition_recommendation": null,
+    "teacher_assistance_recommendation": {
+      "reason_code": null,
+      "recommended": false
+    }
+  },
+  "provider_response_id": "resp_04e371bc5472cdf1016ad03ede1efc87d084a6b134b99e3cf9",
+  "audit": {
+    "attempts": [
+      {
+        "kind": "base",
+        "accepted": false,
+        "sequence": 1,
+        "latency_ms": 13941,
+        "input_tokens": 35560,
+        "total_tokens": 37140,
+        "failure_class": "parsed_semantic_contract_failure",
+        "output_tokens": 1580,
+        "result_status": "completed",
+        "physical_usage": {
+          "version": "provider-physical-usage-v1",
+          "attempts": [
+            {
+              "input_tokens": 35560,
+              "total_tokens": 37140,
+              "fetch_invoked": true,
+              "output_tokens": 1580,
+              "reasoning_tokens": 672,
+              "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:1:base:request:1:2a567e06-237c-4fb7-9596-ae60f3a8dedc",
+              "cached_input_tokens": 0,
+              "provider_response_id": "resp_07fd18ffcc199e05016ad03ebff0b087d0b85929cbffc196e9",
+              "adapter_attempt_index": 1
+            }
+          ],
+          "usage_accounting_complete": true
+        },
+        "logical_call_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:1:base",
+        "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:1:base:request:1:2a567e06-237c-4fb7-9596-ae60f3a8dedc",
+        "incomplete_reason": null,
+        "invalid_candidate": {
+          "candidate_hash": "2884f3e02f80180b29e06a62d42613062ba2d919bb32ea98b0d2acdf0f98f593",
+          "candidate_json": {
+            "outcome": "continue_conversation",
+            "pre_reply_plan": {
+              "version": "conversation-pre-reply-plan-v2",
+              "current_focus": {
+                "source": {
+                  "quote": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+                  "evidence_id": "ev_f22c42d14ee25f6a94b35927"
+                },
+                "description": "The student wants an explanation of what evidence would support the claim that a hiring test predicts job performance, while preserving the emerging distinction between reliability and validity."
+              },
+              "student_state": {
+                "readiness": "not_reported",
+                "understanding": "not_reported",
+                "readiness_source": null,
+                "understanding_source": null
+              },
+              "preference_comparisons": []
+            },
+            "contract_version": "formative-conversation-agent-contract-v4",
+            "post_reply_review": {
+              "closure": {
+                "reason": "continue_support",
+                "rationale": "The student's question was addressed with an explanation of predictive validity evidence, but continued support remains available if the student wants to examine a concrete example or distinguish different kinds of validity evidence.",
+                "instructor_support": null
+              },
+              "need_updates": [
+                {
+                  "kind": "support_request",
+                  "source": {
+                    "quote": "Could you explain what kind of evidence would show validity?",
+                    "evidence_id": "ev_f22c42d14ee25f6a94b35927"
+                  },
+                  "status": "addressed",
+                  "need_id": "need_hiring_reliability_validity",
+                  "support": [
+                    {
+                      "kind": "current_reply"
+                    }
+                  ],
+                  "description": "Could you explain what kind of evidence would show validity?",
+                  "deferred_by_preference_id": null
+                }
+              ],
+              "recap_claims": [
+                {
+                  "current_source": {
+                    "kind": "current_reply"
+                  },
+                  "earlier_support": [
+                    {
+                      "kind": "prior_tutor_turn",
+                      "tutor_sequence_index": 29
+                    }
+                  ]
+                }
+              ],
+              "current_support": [
+                {
+                  "kind": "explanation",
+                  "topic": "Evidence supporting the validity of a hiring test's job-performance interpretation",
+                  "source": {
+                    "kind": "current_reply"
+                  },
+                  "need_ids": [
+                    "need_hiring_reliability_validity"
+                  ],
+                  "preference_links": []
+                }
+              ]
+            },
+            "teaching_artifact": null,
+            "evidence_observations": [
+              {
+                "observation": "Student question: \"I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?\" The reply explains predictive evidence using later job performance and also identifies relevant content and construct evidence.",
+                "evidence_ids": [
+                  "ev_f22c42d14ee25f6a94b35927"
+                ],
+                "evidence_type": "student_question_addressed"
+              },
+              {
+                "observation": "The student reports beginning to distinguish consistency from reliability, but this turn asks for the validity evidence rather than independently demonstrating a complete validity argument. The response therefore provides further explanation without treating the statement as proof of resolved understanding.",
+                "evidence_ids": [
+                  "ev_f22c42d14ee25f6a94b35927"
+                ],
+                "evidence_type": "recognition_of_prior_support"
+              }
+            ],
+            "student_visible_message": "Yes. For a hiring test, evidence of validity would show that the test scores support the specific interpretation and decision you want to make: predicting job performance.\n\nThe strongest direct example here would be **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Check whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to predict better job performance, that supports the hiring interpretation. But the relationship should be examined in the population and job setting where the test will be used. Researchers would also need to consider whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther validity evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being explained better by an unrelated skill. Reliability is still necessary because highly unstable scores are difficult to interpret, but reliability alone is not sufficient. In short:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+            "lifecycle_recommendation": "continue",
+            "profile_transition_recommendation": null,
+            "teacher_assistance_recommendation": {
+              "reason_code": null,
+              "recommended": false
+            }
+          },
+          "candidate_text": null,
+          "validation_status": "delivery_review_rejected",
+          "validation_issue_paths": [
+            "conversation_delivery_review.rejected"
+          ]
+        },
+        "http_request_count": 1,
+        "pre_delivery_review": {
+          "input": {
+            "draft_blocks": [
+              {
+                "text": "Yes. For a hiring test, evidence of validity would show that the test scores support the specific interpretation and decision you want to make: predicting job performance.\n\n",
+                "sha256": "2e56786ab0cd4434f156bae1af18fa4fc8a02d2e87f6869088018806ad683d10",
+                "block_id": 1
+              },
+              {
+                "text": "The strongest direct example here would be **predictive evidence**:\n\n",
+                "sha256": "6d80d3378aee5cf6aeb9aae77429fbf727ced9b8b8245d771be12bb42ff198b4",
+                "block_id": 2
+              },
+              {
+                "text": "- Give the test before hiring.\n",
+                "sha256": "5dcca75a0535bb0294338b855386a4d44a0257be8bff6bde0f8cda402f88c16b",
+                "block_id": 3
+              },
+              {
+                "text": "- Follow the people who are hired.\n",
+                "sha256": "82a30b2304d38d054c898d8beec5c2658c2830707d79e627e41bc9c10389e827",
+                "block_id": 4
+              },
+              {
+                "text": "- Measure their later job performance using relevant, reasonably consistent criteria.\n",
+                "sha256": "8b09895efe91b605176dd8966948f5193317a6b0b4297a332f211e200833a83a",
+                "block_id": 5
+              },
+              {
+                "text": "- Check whether test scores are meaningfully related to those later performance measures.\n\n",
+                "sha256": "1932d2735997178c4f05798f03fc1dc17e70a20a8512b68cffa5af3a9d216ff3",
+                "block_id": 6
+              },
+              {
+                "text": "If higher test scores tend to predict better job performance, that supports the hiring interpretation. But the relationship should be examined in the population and job setting where the test will be used. Researchers would also need to consider whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\n",
+                "sha256": "d2a7ea8a99520177790936787997f5c81bb9dac132bcc729c77ed68d80950822",
+                "block_id": 7
+              },
+              {
+                "text": "Other validity evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being explained better by an unrelated skill. Reliability is still necessary because highly unstable scores are difficult to interpret, but reliability alone is not sufficient. In short:\n\n",
+                "sha256": "5d3f3e450543dd7060ef69a9b39ac03770ef39d31f788cbdfd634cbf31746824",
+                "block_id": 8
+              },
+              {
+                "text": "**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+                "sha256": "91d3736d23f259be0f5e3d0d2fe677c4d41fd912531c877231ec166fb17adcce",
+                "block_id": 9
+              }
+            ],
+            "draft_message": "Yes. For a hiring test, evidence of validity would show that the test scores support the specific interpretation and decision you want to make: predicting job performance.\n\nThe strongest direct example here would be **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Check whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to predict better job performance, that supports the hiring interpretation. But the relationship should be examined in the population and job setting where the test will be used. Researchers would also need to consider whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther validity evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being explained better by an unrelated skill. Reliability is still necessary because highly unstable scores are difficult to interpret, but reliability alone is not sufficient. In short:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+            "visible_transcript": [
+              {
+                "actor": "tutor",
+                "message_text": "You connected consistent scores with measuring the intended thing—for example, concluding that consistency means a hiring test measures what matters for the job. The important distinction to explore is that **reliability** and **validity** answer different questions:\n\n- **Reliability:** Are the scores consistent under the stated conditions?\n- **Validity:** Do the scores support the intended interpretation or decision, such as predicting job performance or measuring wellbeing?\n\nA test can be highly reliable while consistently reflecting the wrong attribute. For example, a hiring test might produce very stable scores but mainly measure reading skill rather than job performance. The consistency would still be real, but it would not by itself justify the hiring interpretation.\n\nWe can start by unpacking this reliability-versus-validity distinction, or we can focus on why SEM is an uncertainty measure rather than an exact error to subtract.",
+                "sequence_index": 27
+              },
+              {
+                "actor": "student",
+                "message_text": "There are too many things I got wrong. Please help me with just the hiring question first.",
+                "sequence_index": 28
+              },
+              {
+                "actor": "tutor",
+                "message_text": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea focused on consistency: if the test gives similar scores, that tells us it is **reliable**. Reliability asks, “Are the scores consistent?”\n\nBut a hiring decision needs **validity** evidence too. Validity asks, “Do the scores support the interpretation we want to make—in this case, predicting job performance?”\n\nA test could consistently measure something else, such as reading speed, while having little relationship with actual job performance. Its scores would be consistent, but that consistency would not make the hiring decision valid.",
+                "sequence_index": 29
+              },
+              {
+                "actor": "student",
+                "message_text": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+                "sequence_index": 30
+              }
+            ],
+            "latest_student_message": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+            "proposed_learning_claims": {
+              "blocks": [
+                {
+                  "text": "[{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"path\":\"evidence_observations[0]\",\"value\":{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"evidence_type\":\"student_question_addressed\",\"observation\":\"Student question: \\\"I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?\\\" The reply explains predictive evidence using later job performance and also identifies relevant content and construct evidence.\"}}]",
+                  "sha256": "485923e9c392aa53c53326c444bdd21b8c90efef8ce9eb0f12d11419b0e965b0",
+                  "block_id": 1,
+                  "claim_paths": [
+                    "evidence_observations[0]"
+                  ]
+                },
+                {
+                  "text": "[{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"path\":\"evidence_observations[1]\",\"value\":{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"evidence_type\":\"recognition_of_prior_support\",\"observation\":\"The student reports beginning to distinguish consistency from reliability, but this turn asks for the validity evidence rather than independently demonstrating a complete validity argument. The response therefore provides further explanation without treating the statement as proof of resolved understanding.\"}}]",
+                  "sha256": "364531ee6155a53e13a1e1d1068c057470aa7fec2554b03388a3d70f13522e11",
+                  "block_id": 2,
+                  "claim_paths": [
+                    "evidence_observations[1]"
+                  ]
+                }
+              ],
+              "version": "conversation-private-learning-review-v1",
+              "claim_count": 2,
+              "source_bindings": [
+                {
+                  "content": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+                  "eligibility": "student_understanding",
+                  "evidence_id": "ev_f22c42d14ee25f6a94b35927",
+                  "source_kind": "visible_student_turn",
+                  "evidence_kind": "formative_student_turn",
+                  "item_public_id": null,
+                  "sequence_index": 30
+                }
+              ],
+              "candidate_sha256": "bc16d682e28d9c1648924596ad57e5b7ea47d9a1f27b0502185ea02a7ffd4c12"
+            },
+            "initial_student_reasoning": [
+              {
+                "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+                "written_reasoning": "I think getting consistent scores means the hiring test measures the right thing."
+              },
+              {
+                "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+                "written_reasoning": "I subtract three to remove the error and find the exact true score."
+              },
+              {
+                "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+                "written_reasoning": "The scores are consistent, so it must measure wellbeing."
+              }
+            ]
+          },
+          "status": "rejected",
+          "version": "conversation-delivery-review-v8",
+          "provider": "openai",
+          "latency_ms": 16197,
+          "model_name": "gpt-6.1-sol",
+          "raw_output": {
+            "status": "completed",
+            "output": [
+              {
+                "id": "msg_03098b371ecce972016ad03ed3818487d08f571d6e0fb467df",
+                "role": "assistant",
+                "type": "message",
+                "phase": "final_answer",
+                "status": "completed",
+                "content": [
+                  {
+                    "text": "{\n  \"version\": \"conversation-delivery-review-v8\",\n  \"teaching_block_audit\": [\n    {\n      \"block_id\": 1,\n      \"assessment\": \"supported\",\n      \"check\": \"Correctly ties validity evidence to the intended prediction of job performance.\"\n    },\n    {\n      \"block_id\": 2,\n      \"assessment\": \"supported\",\n      \"check\": \"Predictive evidence directly addresses the student's question about later job performance.\"\n    },\n    {\n      \"block_id\": 3,\n      \"assessment\": \"supported\",\n      \"check\": \"Testing before hiring establishes the temporal order for the predictive study described.\"\n    },\n    {\n      \"block_id\": 4,\n      \"assessment\": \"supported\",\n      \"check\": \"Following hired applicants permits later performance measurement; no universal generalization is claimed.\"\n    },\n    {\n      \"block_id\": 5,\n      \"assessment\": \"supported\",\n      \"check\": \"Relevant, reasonably consistent performance criteria are appropriate for evaluating prediction.\"\n    },\n    {\n      \"block_id\": 6,\n      \"assessment\": \"supported\",\n      \"check\": \"Examining the score–performance relationship supplies predictive validity evidence.\"\n    },\n    {\n      \"block_id\": 7,\n      \"assessment\": \"supported\",\n      \"check\": \"Prediction supports, rather than proves, validity; population, setting and added usefulness are considered.\"\n    },\n    {\n      \"block_id\": 8,\n      \"assessment\": \"supported\",\n      \"check\": \"Content relevance and related evidence can support validity; reliability alone cannot establish it.\"\n    },\n    {\n      \"block_id\": 9,\n      \"assessment\": \"supported\",\n      \"check\": \"Accurately contrasts score consistency with support for an intended interpretation and decision.\"\n    }\n  ],\n  \"private_learning_audit\": [\n    {\n      \"block_id\": 1,\n      \"assessment\": \"supported\",\n      \"check\": \"Accurately records the question and the reply's coverage without asserting student learning.\"\n    },\n    {\n      \"block_id\": 2,\n      \"assessment\": \"unsupported\",\n      \"check\": \"Student links consistency to reliability, rather than reporting a distinction between those two concepts.\"\n    }\n  ],\n  \"verdict\": \"reject\",\n  \"findings\": [\n    {\n      \"kind\": \"unsupported_learning_claim\",\n      \"targets\": [\n        {\n          \"learning_block_id\": 2,\n          \"claim_path\": \"evidence_observations[1]\",\n          \"claim_quote\": \"The student reports beginning to distinguish consistency from reliability\"\n        }\n      ],\n      \"source_refs\": [\n        {\n          \"sequence_index\": 29,\n          \"actor\": \"tutor\",\n          \"quote\": \"Reliability asks, “Are the scores consistent?”\"\n        },\n        {\n          \"sequence_index\": 30,\n          \"actor\": \"student\",\n          \"quote\": \"I think I’m starting to see that consistency only means reliability\"\n        }\n      ],\n      \"rationale\": \"The student recognizes the supplied link between consistency and reliability, not a distinction between them. The qualification about unresolved understanding does not correct this misdescription.\"\n    }\n  ]\n}",
+                    "type": "output_text",
+                    "logprobs": [],
+                    "annotations": []
+                  }
+                ]
+              }
+            ]
+          },
+          "prompt_hash": "7625a8594a614073b17ce4df24f9f8e36c5f6bfa6af6654cd9b9acd03f41d77e",
+          "draft_sha256": "0b8e3e6b3a12be8b14ad0491bd7ed3ff810108c472a171781554961b6ad4cb6e",
+          "input_sha256": "83872e03de030c550d69e0014315d4c8bb222f801aafa122a3aef96a6049c066",
+          "input_tokens": 5688,
+          "total_tokens": 6556,
+          "output_tokens": 868,
+          "parsed_output": {
+            "verdict": "reject",
+            "version": "conversation-delivery-review-v8",
+            "findings": [
+              {
+                "kind": "unsupported_learning_claim",
+                "targets": [
+                  {
+                    "claim_path": "evidence_observations[1]",
+                    "claim_quote": "The student reports beginning to distinguish consistency from reliability",
+                    "learning_block_id": 2
+                  }
+                ],
+                "rationale": "The student recognizes the supplied link between consistency and reliability, not a distinction between them. The qualification about unresolved understanding does not correct this misdescription.",
+                "source_refs": [
+                  {
+                    "actor": "tutor",
+                    "quote": "Reliability asks, “Are the scores consistent?”",
+                    "sequence_index": 29
+                  },
+                  {
+                    "actor": "student",
+                    "quote": "I think I’m starting to see that consistency only means reliability",
+                    "sequence_index": 30
+                  }
+                ]
+              }
+            ],
+            "teaching_block_audit": [
+              {
+                "check": "Correctly ties validity evidence to the intended prediction of job performance.",
+                "block_id": 1,
+                "assessment": "supported"
+              },
+              {
+                "check": "Predictive evidence directly addresses the student's question about later job performance.",
+                "block_id": 2,
+                "assessment": "supported"
+              },
+              {
+                "check": "Testing before hiring establishes the temporal order for the predictive study described.",
+                "block_id": 3,
+                "assessment": "supported"
+              },
+              {
+                "check": "Following hired applicants permits later performance measurement; no universal generalization is claimed.",
+                "block_id": 4,
+                "assessment": "supported"
+              },
+              {
+                "check": "Relevant, reasonably consistent performance criteria are appropriate for evaluating prediction.",
+                "block_id": 5,
+                "assessment": "supported"
+              },
+              {
+                "check": "Examining the score–performance relationship supplies predictive validity evidence.",
+                "block_id": 6,
+                "assessment": "supported"
+              },
+              {
+                "check": "Prediction supports, rather than proves, validity; population, setting and added usefulness are considered.",
+                "block_id": 7,
+                "assessment": "supported"
+              },
+              {
+                "check": "Content relevance and related evidence can support validity; reliability alone cannot establish it.",
+                "block_id": 8,
+                "assessment": "supported"
+              },
+              {
+                "check": "Accurately contrasts score consistency with support for an intended interpretation and decision.",
+                "block_id": 9,
+                "assessment": "supported"
+              }
+            ],
+            "private_learning_audit": [
+              {
+                "check": "Accurately records the question and the reply's coverage without asserting student learning.",
+                "block_id": 1,
+                "assessment": "supported"
+              },
+              {
+                "check": "Student links consistency to reliability, rather than reporting a distinction between those two concepts.",
+                "block_id": 2,
+                "assessment": "unsupported"
+              }
+            ]
+          },
+          "result_status": "completed",
+          "physical_usage": {
+            "version": "provider-physical-usage-v1",
+            "attempts": [
+              {
+                "input_tokens": 5688,
+                "total_tokens": 6556,
+                "fetch_invoked": true,
+                "output_tokens": 868,
+                "reasoning_tokens": 202,
+                "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:1:request:1:64fa2d28-ad0f-464a-b1ce-d7146c8d7137",
+                "cached_input_tokens": 3541,
+                "provider_response_id": "resp_03098b371ecce972016ad03ecdb95487d0948ebe42eb992f89",
+                "adapter_attempt_index": 1
+              }
+            ],
+            "usage_accounting_complete": true
+          },
+          "schema_version": "conversation-delivery-review-v8",
+          "logical_call_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:1",
+          "reasoning_effort": "medium",
+          "reasoning_tokens": 202,
+          "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:1:request:1:64fa2d28-ad0f-464a-b1ce-d7146c8d7137",
+          "max_output_tokens": 4000,
+          "http_request_count": 1,
+          "cached_input_tokens": 3541,
+          "provider_request_id": "req_d7772a5c09b94b98b19848c41b41fb04",
+          "logical_call_entered": true,
+          "provider_response_id": "resp_03098b371ecce972016ad03ecdb95487d0948ebe42eb992f89",
+          "review_output_sha256": "e48d227ab8696bea708f52234c5432f2c2ad635b4d51974eec54757dbf3f9858",
+          "transport_retry_count": 0,
+          "canonical_request_hash": "b3951bb082bb399eca327b44f95b2e8ea446c8dbc2375b9630c6cbd4759e456e",
+          "provider_attempt_count": 1,
+          "validation_issue_paths": [
+            "conversation_delivery_review.rejected"
+          ],
+          "execution_policy_version": "formative-conversation-sol-review-policy-v1",
+          "usage_accounting_complete": true,
+          "dispatch_accounting_complete": true,
+          "provider_response_completed_count": 1,
+          "pre_dispatch_request_rejection_count": 0
+        },
+        "provider_request_id": "req_3249ce6a5aa4492a9457e003480cdec5",
+        "logical_call_entered": true,
+        "provider_response_id": "resp_07fd18ffcc199e05016ad03ebff0b087d0b85929cbffc196e9",
+        "transport_retry_count": 0,
+        "canonical_request_hash": "09089724ca185f7b7e43489647bf77d527aeb0d422bafd6dcf549b098d95114a",
+        "parsed_candidate_count": 1,
+        "provider_attempt_count": 1,
+        "profile_update_projection": {
+          "status": "no_profile_transition",
+          "version": "formative-profile-update-proposal-v1",
+          "changed_fields": [],
+          "retained_fields": [],
+          "prior_profile_sha256": "a21990c9c5b37ae22c499338655c898583fec0442edb596650ea511ea0229c4e",
+          "prior_profile_version": "f1ab8c53-c13d-4282-bcc5-e1b719ec023c",
+          "original_output_sha256": "5b27b3e55e6c8c686f19c73ab57b240ecec1df8362493851da4c9ff1985def74",
+          "validation_issue_paths": [],
+          "reconstructed_output_sha256": "55ad74ab2d2d678600a35be13a4475f1991661c355e4ac0e919b30a5d86f7667"
+        },
+        "usage_accounting_complete": true,
+        "conversation_plan_projection": {
+          "status": "reconstructed",
+          "version": "conversation-pre-reply-plan-v2",
+          "prior_needs_sha256": "70aeba046e7ff4234d7bc60738e39c3ce912e88b7a8fdfdc1219ab2d0566378b",
+          "prior_tutor_bindings": [
+            {
+              "path": "conversation_review.recap_claims[0].earlier_support[0].quote",
+              "reply_sha256": "86f38d23ca8c615222379123304f8319644fcca1671bebf48d08705250028d70",
+              "tutor_sequence_index": 29
+            }
+          ],
+          "derived_open_need_ids": [],
+          "current_reply_bindings": [
+            {
+              "path": "conversation_review.need_updates[0].support[0].quote",
+              "reply_sha256": "6fb2bde3e8e3b983e04a1d3ce9e84b86d9ca8a7e8600da515cc25e679d4025d4"
+            },
+            {
+              "path": "conversation_review.current_support[0].quote",
+              "reply_sha256": "6fb2bde3e8e3b983e04a1d3ce9e84b86d9ca8a7e8600da515cc25e679d4025d4"
+            },
+            {
+              "path": "conversation_review.recap_claims[0].current_quote",
+              "reply_sha256": "6fb2bde3e8e3b983e04a1d3ce9e84b86d9ca8a7e8600da515cc25e679d4025d4"
+            }
+          ],
+          "original_output_sha256": "2884f3e02f80180b29e06a62d42613062ba2d919bb32ea98b0d2acdf0f98f593",
+          "validation_issue_paths": [],
+          "prior_tutor_source_version": "conversation-prior-tutor-source-v1",
+          "stored_preference_bindings": [],
+          "reconstructed_output_sha256": "5b27b3e55e6c8c686f19c73ab57b240ecec1df8362493851da4c9ff1985def74",
+          "current_reply_source_version": "conversation-current-reply-source-v1",
+          "support_preference_link_version": "conversation-support-preference-links-v1",
+          "support_preference_link_bindings": [
+            {
+              "path": "conversation_review.current_support[0].preference_linkage",
+              "links": []
+            }
+          ],
+          "current_source_activation_bindings": [],
+          "stored_preference_retention_version": "conversation-stored-preference-retention-v1",
+          "stored_preference_transition_version": "conversation-stored-preference-transition-v1",
+          "current_source_activation_projection_version": "conversation-current-source-activation-projection-v1"
+        },
+        "dispatch_accounting_complete": true,
+        "provider_response_completed_count": 1,
+        "pre_dispatch_request_rejection_count": 0,
+        "semantically_accepted_candidate_count": 0
+      },
+      {
+        "kind": "semantic_regeneration",
+        "accepted": true,
+        "sequence": 2,
+        "latency_ms": 9378,
+        "input_tokens": 41506,
+        "total_tokens": 42594,
+        "failure_class": null,
+        "output_tokens": 1088,
+        "result_status": "completed",
+        "physical_usage": {
+          "version": "provider-physical-usage-v1",
+          "attempts": [
+            {
+              "input_tokens": 41506,
+              "total_tokens": 42594,
+              "fetch_invoked": true,
+              "output_tokens": 1088,
+              "reasoning_tokens": 292,
+              "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:2:semantic_regeneration:request:1:2e64e47e-5bfe-4059-8afa-b4f7cf127287",
+              "cached_input_tokens": 0,
+              "provider_response_id": "resp_04e371bc5472cdf1016ad03ede1efc87d084a6b134b99e3cf9",
+              "adapter_attempt_index": 1
+            }
+          ],
+          "usage_accounting_complete": true
+        },
+        "logical_call_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:2:semantic_regeneration",
+        "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:generation:2:semantic_regeneration:request:1:2e64e47e-5bfe-4059-8afa-b4f7cf127287",
+        "incomplete_reason": null,
+        "invalid_candidate": null,
+        "http_request_count": 1,
+        "pre_delivery_review": {
+          "input": {
+            "draft_blocks": [
+              {
+                "text": "Yes. For a hiring test, validity evidence would support the specific interpretation and decision you want to make: using test scores to predict job performance.\n\n",
+                "sha256": "1e7aaf30942c45c025a0b49f47a244adf3fdc4100fce1bb68f7c35ad495bcbba",
+                "block_id": 1
+              },
+              {
+                "text": "One direct approach is **predictive evidence**:\n\n",
+                "sha256": "cb2001065a72f51afaa90723ec99466e92daddca932acf546d9a417ef002c9a0",
+                "block_id": 2
+              },
+              {
+                "text": "- Give the test before hiring.\n",
+                "sha256": "5dcca75a0535bb0294338b855386a4d44a0257be8bff6bde0f8cda402f88c16b",
+                "block_id": 3
+              },
+              {
+                "text": "- Follow the people who are hired.\n",
+                "sha256": "82a30b2304d38d054c898d8beec5c2658c2830707d79e627e41bc9c10389e827",
+                "block_id": 4
+              },
+              {
+                "text": "- Measure their later job performance using relevant, reasonably consistent criteria.\n",
+                "sha256": "8b09895efe91b605176dd8966948f5193317a6b0b4297a332f211e200833a83a",
+                "block_id": 5
+              },
+              {
+                "text": "- Examine whether test scores are meaningfully related to those later performance measures.\n\n",
+                "sha256": "4769e0aca1eccf31bd7134bf758f9587e100b892b5949fa97ef45e96b258bf78",
+                "block_id": 6
+              },
+              {
+                "text": "If higher test scores tend to be associated with better later job performance, that supports the hiring interpretation. The evidence should come from the population and job setting where the test will be used. Researchers should also check whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\n",
+                "sha256": "a1114cb10fe72e6866fc9d50c1bfe73481b4cf29b64dbacb72a41540fa4b6ed2",
+                "block_id": 7
+              },
+              {
+                "text": "Other evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being better explained by an unrelated skill.\n\n",
+                "sha256": "62aa43fedda70560c03943f390aeaa598dcc280ca14bac54ca29cc1856fac928",
+                "block_id": 8
+              },
+              {
+                "text": "So reliability is still important, because very unstable scores are difficult to interpret, but it is not enough by itself:\n\n",
+                "sha256": "1efc465997d0dd48b09f8fc670d0c7e7c884fafccbfdc278e49af40fb611f22a",
+                "block_id": 9
+              },
+              {
+                "text": "**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+                "sha256": "91d3736d23f259be0f5e3d0d2fe677c4d41fd912531c877231ec166fb17adcce",
+                "block_id": 10
+              }
+            ],
+            "draft_message": "Yes. For a hiring test, validity evidence would support the specific interpretation and decision you want to make: using test scores to predict job performance.\n\nOne direct approach is **predictive evidence**:\n\n- Give the test before hiring.\n- Follow the people who are hired.\n- Measure their later job performance using relevant, reasonably consistent criteria.\n- Examine whether test scores are meaningfully related to those later performance measures.\n\nIf higher test scores tend to be associated with better later job performance, that supports the hiring interpretation. The evidence should come from the population and job setting where the test will be used. Researchers should also check whether the test is mainly measuring something else, such as reading skill, and whether it adds useful prediction beyond information already used in hiring.\n\nOther evidence can help too: the test content should represent important parts of the job, and the proposed interpretation should fit related evidence without being better explained by an unrelated skill.\n\nSo reliability is still important, because very unstable scores are difficult to interpret, but it is not enough by itself:\n\n**Reliability asks, “Are the scores consistent?” Validity asks, “Do the scores support this particular interpretation and decision?”**",
+            "visible_transcript": [
+              {
+                "actor": "tutor",
+                "message_text": "You connected consistent scores with measuring the intended thing—for example, concluding that consistency means a hiring test measures what matters for the job. The important distinction to explore is that **reliability** and **validity** answer different questions:\n\n- **Reliability:** Are the scores consistent under the stated conditions?\n- **Validity:** Do the scores support the intended interpretation or decision, such as predicting job performance or measuring wellbeing?\n\nA test can be highly reliable while consistently reflecting the wrong attribute. For example, a hiring test might produce very stable scores but mainly measure reading skill rather than job performance. The consistency would still be real, but it would not by itself justify the hiring interpretation.\n\nWe can start by unpacking this reliability-versus-validity distinction, or we can focus on why SEM is an uncertainty measure rather than an exact error to subtract.",
+                "sequence_index": 27
+              },
+              {
+                "actor": "student",
+                "message_text": "There are too many things I got wrong. Please help me with just the hiring question first.",
+                "sequence_index": 28
+              },
+              {
+                "actor": "tutor",
+                "message_text": "For the hiring question, the best answer is **A: Consistency alone does not establish validity for the intended hiring decision.**\n\nYour idea focused on consistency: if the test gives similar scores, that tells us it is **reliable**. Reliability asks, “Are the scores consistent?”\n\nBut a hiring decision needs **validity** evidence too. Validity asks, “Do the scores support the interpretation we want to make—in this case, predicting job performance?”\n\nA test could consistently measure something else, such as reading speed, while having little relationship with actual job performance. Its scores would be consistent, but that consistency would not make the hiring decision valid.",
+                "sequence_index": 29
+              },
+              {
+                "actor": "student",
+                "message_text": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+                "sequence_index": 30
+              }
+            ],
+            "latest_student_message": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+            "proposed_learning_claims": {
+              "blocks": [
+                {
+                  "text": "[{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"path\":\"evidence_observations[0]\",\"value\":{\"evidence_ids\":[\"ev_f22c42d14ee25f6a94b35927\"],\"evidence_type\":\"student_question_addressed\",\"observation\":\"Student question: \\\"I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?\\\" The reply explains predictive evidence by connecting pre-hiring test scores with later job-performance measures and notes additional relevant validity evidence.\"}}]",
+                  "sha256": "dc9c37561a9348858b1bce6a821dd102f28fa751cf26b4ba45c3dbbed870d401",
+                  "block_id": 1,
+                  "claim_paths": [
+                    "evidence_observations[0]"
+                  ]
+                }
+              ],
+              "version": "conversation-private-learning-review-v1",
+              "claim_count": 1,
+              "source_bindings": [
+                {
+                  "content": "I think I’m starting to see that consistency only means reliability, but I’m still unsure how to tell whether the test predicts job performance. Could you explain what kind of evidence would show validity?",
+                  "eligibility": "student_understanding",
+                  "evidence_id": "ev_f22c42d14ee25f6a94b35927",
+                  "source_kind": "visible_student_turn",
+                  "evidence_kind": "formative_student_turn",
+                  "item_public_id": null,
+                  "sequence_index": 30
+                }
+              ],
+              "candidate_sha256": "12cbeb8cd116b4f0c1a6c60ed2f51877b8fb6b4b3bb10bf849b55ca6eb293456"
+            },
+            "initial_student_reasoning": [
+              {
+                "item_public_id": "item_8a98082c-2c33-4a6c-9418-33dc7a502fb8",
+                "written_reasoning": "I think getting consistent scores means the hiring test measures the right thing."
+              },
+              {
+                "item_public_id": "item_5d204973-b324-4827-af6e-0732bdd3f81f",
+                "written_reasoning": "I subtract three to remove the error and find the exact true score."
+              },
+              {
+                "item_public_id": "item_f94c1d7a-0307-44f3-9e8e-14dd58fd0909",
+                "written_reasoning": "The scores are consistent, so it must measure wellbeing."
+              }
+            ]
+          },
+          "status": "passed",
+          "version": "conversation-delivery-review-v8",
+          "provider": "openai",
+          "latency_ms": 9888,
+          "model_name": "gpt-6.1-sol",
+          "raw_output": {
+            "status": "completed",
+            "output": [
+              {
+                "id": "msg_00aa727959f6445b016ad03ee9db7887d0853fa6a567964596",
+                "role": "assistant",
+                "type": "message",
+                "phase": "final_answer",
+                "status": "completed",
+                "content": [
+                  {
+                    "text": "{\n  \"version\": \"conversation-delivery-review-v8\",\n  \"teaching_block_audit\": [\n    {\n      \"block_id\": 1,\n      \"assessment\": \"supported\",\n      \"check\": \"Correctly frames validity evidence around the intended hiring interpretation and decision.\"\n    },\n    {\n      \"block_id\": 2,\n      \"assessment\": \"supported\",\n      \"check\": \"Predictive evidence is an appropriate approach to the student's question about future job performance.\"\n    },\n    {\n      \"block_id\": 3,\n      \"assessment\": \"supported\",\n      \"check\": \"Testing before hiring establishes the prospective timing used in the shared predictive-evidence example.\"\n    },\n    {\n      \"block_id\": 4,\n      \"assessment\": \"supported\",\n      \"check\": \"Following hired applicants permits later job-performance measurement; no universal inference is asserted.\"\n    },\n    {\n      \"block_id\": 5,\n      \"assessment\": \"supported\",\n      \"check\": \"Relevant, reasonably consistent performance criteria are appropriate for evaluating predictive evidence.\"\n    },\n    {\n      \"block_id\": 6,\n      \"assessment\": \"supported\",\n      \"check\": \"Examining score relationships with later performance appropriately tests predictive validity evidence.\"\n    },\n    {\n      \"block_id\": 7,\n      \"assessment\": \"supported\",\n      \"check\": \"Association supports rather than proves validity; setting relevance and incremental prediction are useful checks.\"\n    },\n    {\n      \"block_id\": 8,\n      \"assessment\": \"supported\",\n      \"check\": \"Job-relevant content and coherence with related evidence appropriately supplement predictive evidence.\"\n    },\n    {\n      \"block_id\": 9,\n      \"assessment\": \"supported\",\n      \"check\": \"Score instability complicates interpretation; reliability alone does not establish validity.\"\n    },\n    {\n      \"block_id\": 10,\n      \"assessment\": \"supported\",\n      \"check\": \"Accurately distinguishes consistency from support for an intended interpretation; claims no student mastery.\"\n    }\n  ],\n  \"private_learning_audit\": [\n    {\n      \"block_id\": 1,\n      \"assessment\": \"supported\",\n      \"check\": \"Accurately records the student's question and the reply's scope without claiming learning beyond prior help.\"\n    }\n  ],\n  \"verdict\": \"pass\",\n  \"findings\": []\n}",
+                    "type": "output_text",
+                    "logprobs": [],
+                    "annotations": []
+                  }
+                ]
+              }
+            ]
+          },
+          "prompt_hash": "7625a8594a614073b17ce4df24f9f8e36c5f6bfa6af6654cd9b9acd03f41d77e",
+          "draft_sha256": "141ca6876f634d92df11194a18b69c3f4750087163077f597ebd8b4d3e3d6103",
+          "input_sha256": "3de2bf3c0f356a9abf4c04fbc188c623e6617ce80e6b5a89a077a73b0bfedd2b",
+          "input_tokens": 5545,
+          "total_tokens": 6070,
+          "output_tokens": 525,
+          "parsed_output": {
+            "verdict": "pass",
+            "version": "conversation-delivery-review-v8",
+            "findings": [],
+            "teaching_block_audit": [
+              {
+                "check": "Correctly frames validity evidence around the intended hiring interpretation and decision.",
+                "block_id": 1,
+                "assessment": "supported"
+              },
+              {
+                "check": "Predictive evidence is an appropriate approach to the student's question about future job performance.",
+                "block_id": 2,
+                "assessment": "supported"
+              },
+              {
+                "check": "Testing before hiring establishes the prospective timing used in the shared predictive-evidence example.",
+                "block_id": 3,
+                "assessment": "supported"
+              },
+              {
+                "check": "Following hired applicants permits later job-performance measurement; no universal inference is asserted.",
+                "block_id": 4,
+                "assessment": "supported"
+              },
+              {
+                "check": "Relevant, reasonably consistent performance criteria are appropriate for evaluating predictive evidence.",
+                "block_id": 5,
+                "assessment": "supported"
+              },
+              {
+                "check": "Examining score relationships with later performance appropriately tests predictive validity evidence.",
+                "block_id": 6,
+                "assessment": "supported"
+              },
+              {
+                "check": "Association supports rather than proves validity; setting relevance and incremental prediction are useful checks.",
+                "block_id": 7,
+                "assessment": "supported"
+              },
+              {
+                "check": "Job-relevant content and coherence with related evidence appropriately supplement predictive evidence.",
+                "block_id": 8,
+                "assessment": "supported"
+              },
+              {
+                "check": "Score instability complicates interpretation; reliability alone does not establish validity.",
+                "block_id": 9,
+                "assessment": "supported"
+              },
+              {
+                "check": "Accurately distinguishes consistency from support for an intended interpretation; claims no student mastery.",
+                "block_id": 10,
+                "assessment": "supported"
+              }
+            ],
+            "private_learning_audit": [
+              {
+                "check": "Accurately records the student's question and the reply's scope without claiming learning beyond prior help.",
+                "block_id": 1,
+                "assessment": "supported"
+              }
+            ]
+          },
+          "result_status": "completed",
+          "physical_usage": {
+            "version": "provider-physical-usage-v1",
+            "attempts": [
+              {
+                "input_tokens": 5545,
+                "total_tokens": 6070,
+                "fetch_invoked": true,
+                "output_tokens": 525,
+                "reasoning_tokens": 33,
+                "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:2:request:1:eb517b40-30f4-4cfb-a4b1-46e26c5381a8",
+                "cached_input_tokens": 3541,
+                "provider_response_id": "resp_00aa727959f6445b016ad03ee7781087d081549a3430068f15",
+                "adapter_attempt_index": 1
+              }
+            ],
+            "usage_accounting_complete": true
+          },
+          "schema_version": "conversation-delivery-review-v8",
+          "logical_call_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:2",
+          "reasoning_effort": "medium",
+          "reasoning_tokens": 33,
+          "client_request_id": "formative_conversation:03bfc26d4924d5da960e476e6c246f80d771ac6d97eb4a361c2c7beacf984c43:delivery-review:2:request:1:eb517b40-30f4-4cfb-a4b1-46e26c5381a8",
+          "max_output_tokens": 4000,
+          "http_request_count": 1,
+          "cached_input_tokens": 3541,
+          "provider_request_id": "req_594c9edee4c4446683fc46f55b27738c",
+          "logical_call_entered": true,
+          "provider_response_id": "resp_00aa727959f6445b016ad03ee7781087d081549a3430068f15",
+          "review_output_sha256": "88e8ec52e5d05d48d8a0436df17253daad004c532e75144d34ca17d74631cf51",
+          "transport_retry_count": 0,
+          "canonical_request_hash": "de25bc7284d4ee3071f46af081bc9264c2ba2f2c1fb3af74cf8429b4860bf063",
+          "provider_attempt_count": 1,
+          "validation_issue_paths": [],
+          "execution_policy_version": "formative-conversation-sol-review-policy-v1",
+          "usage_accounting_complete": true,
+          "dispatch_accounting_complete": true,
+          "provider_response_completed_count": 1,
+          "pre_dispatch_request_rejection_count": 0
+        },
+        "provider_request_id": "req_864700922c74482f9aa0f11c0cd7313a",
+        "logical_call_entered": true,
+        "provider_response_id": "resp_04e371bc5472cdf1016ad03ede1efc87d084a6b134b99e3cf9",
+        "transport_retry_count": 0,
+        "canonical_request_hash": "39e4e8674326fd66cf4f50867e62a05e3da4c5a3d1ce7db88db5e94d1851c311",
+        "parsed_candidate_count": 1,
+        "provider_attempt_count": 1,
+        "profile_update_projection": {
+          "status": "no_profile_transition",
+          "version": "formative-profile-update-proposal-v1",
+          "changed_fields": [],
+          "retained_fields": [],
+          "prior_profile_sha256": "a21990c9c5b37ae22c499338655c898583fec0442edb596650ea511ea0229c4e",
+          "prior_profile_version": "f1ab8c53-c13d-4282-bcc5-e1b719ec023c",
+          "original_output_sha256": "1f07531347e037fdd76c4ef7ecf0ab6a226b2f19108cdd61b82979a00162374f",
+          "validation_issue_paths": [],
+          "reconstructed_output_sha256": "3260b6d3ae0cb3e29cf967a70ede6ab3de5c341730a826cf9efe518c4b0c5988"
+        },
+        "usage_accounting_complete": true,
+        "conversation_plan_projection": {
+          "status": "reconstructed",
+          "version": "conversation-pre-reply-plan-v2",
+          "prior_needs_sha256": "70aeba046e7ff4234d7bc60738e39c3ce912e88b7a8fdfdc1219ab2d0566378b",
+          "prior_tutor_bindings": [],
+          "derived_open_need_ids": [],
+          "current_reply_bindings": [
+            {
+              "path": "conversation_review.need_updates[0].support[0].quote",
+              "reply_sha256": "22f582fb4389fe53d6d56c0bdd9395c79964fa4a3341edbaf4c3da668777c594"
+            },
+            {
+              "path": "conversation_review.current_support[0].quote",
+              "reply_sha256": "22f582fb4389fe53d6d56c0bdd9395c79964fa4a3341edbaf4c3da668777c594"
+            }
+          ],
+          "original_output_sha256": "bc0ee27dfff17ae5a768d7de62c70e3e5fabbfa44e09bf557402a92286b5db25",
+          "validation_issue_paths": [],
+          "prior_tutor_source_version": "conversation-prior-tutor-source-v1",
+          "stored_preference_bindings": [],
+          "reconstructed_output_sha256": "1f07531347e037fdd76c4ef7ecf0ab6a226b2f19108cdd61b82979a00162374f",
+          "current_reply_source_version": "conversation-current-reply-source-v1",
+          "support_preference_link_version": "conversation-support-preference-links-v1",
+          "support_preference_link_bindings": [
+            {
+              "path": "conversation_review.current_support[0].preference_linkage",
+              "links": []
+            }
+          ],
+          "current_source_activation_bindings": [],
+          "stored_preference_retention_version": "conversation-stored-preference-retention-v1",
+          "stored_preference_transition_version": "conversation-stored-preference-transition-v1",
+          "current_source_activation_projection_version": "conversation-current-source-activation-projection-v1"
+        },
+        "dispatch_accounting_complete": true,
+        "provider_response_completed_count": 1,
+        "pre_dispatch_request_rejection_count": 0,
+        "semantically_accepted_candidate_count": 1
+      }
+    ],
+    "policy_version": "formative-conversation-v18r2-execution-policy-v1",
+    "parsed_candidates": 2,
+    "provider_attempts": 4,
+    "transport_retries": 0,
+    "accounting_version": "formative-conversation-v18r2-evaluation-accounting-v2",
+    "logical_calls_entered": 4,
+    "http_requests_dispatched": 4,
+    "usage_accounting_complete": true,
+    "planned_base_logical_calls": 1,
+    "semantic_regeneration_calls": 1,
+    "tutor_logical_calls_entered": 2,
+    "dispatch_accounting_complete": true,
+    "provider_responses_completed": 4,
+    "review_logical_calls_entered": 2,
+    "pre_dispatch_request_rejections": 0,
+    "incomplete_output_recovery_calls": 0,
+    "semantically_accepted_candidates": 1
+  },
+  "transport": [
+    {
+      "request_index": 897,
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "model_name": "gpt-5.6-luna",
+      "status": "completed",
+      "provider_response_id": "resp_07fd18ffcc199e05016ad03ebff0b087d0b85929cbffc196e9",
+      "request_format_sha256": "9047106eef9f39ce2f25da641108e88aa6ed58595822b875c0d393da85d9278d",
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "usage": {
+        "input_tokens": 35560,
+        "input_tokens_details": {
+          "cache_write_tokens": 35557,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1580,
+        "output_tokens_details": {
+          "reasoning_tokens": 672
+        },
+        "total_tokens": 37140
+      }
+    },
+    {
+      "request_index": 898,
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "model_name": "gpt-6.1-sol",
+      "status": "completed",
+      "provider_response_id": "resp_03098b371ecce972016ad03ecdb95487d0948ebe42eb992f89",
+      "request_format_sha256": "c2dd6782dcb9fe6e22e171d6bf1e50ea96ebaefb11a7a3a2f47c2928e94a5926",
+      "execution_policy_version": "formative-conversation-sol-review-policy-v1",
+      "execution_purpose": "conversation_delivery_review",
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "usage": {
+        "input_tokens": 5688,
+        "input_tokens_details": {
+          "cache_write_tokens": 2144,
+          "cached_tokens": 3541
+        },
+        "output_tokens": 868,
+        "output_tokens_details": {
+          "reasoning_tokens": 202
+        },
+        "total_tokens": 6556
+      }
+    },
+    {
+      "request_index": 899,
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "model_name": "gpt-5.6-luna",
+      "status": "completed",
+      "provider_response_id": "resp_04e371bc5472cdf1016ad03ede1efc87d084a6b134b99e3cf9",
+      "request_format_sha256": "9047106eef9f39ce2f25da641108e88aa6ed58595822b875c0d393da85d9278d",
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "usage": {
+        "input_tokens": 41506,
+        "input_tokens_details": {
+          "cache_write_tokens": 41503,
+          "cached_tokens": 0
+        },
+        "output_tokens": 1088,
+        "output_tokens_details": {
+          "reasoning_tokens": 292
+        },
+        "total_tokens": 42594
+      }
+    },
+    {
+      "request_index": 900,
+      "category": "application",
+      "agent_name": "formative_conversation_agent",
+      "model_name": "gpt-6.1-sol",
+      "status": "completed",
+      "provider_response_id": "resp_00aa727959f6445b016ad03ee7781087d081549a3430068f15",
+      "request_format_sha256": "c2dd6782dcb9fe6e22e171d6bf1e50ea96ebaefb11a7a3a2f47c2928e94a5926",
+      "execution_policy_version": "formative-conversation-sol-review-policy-v1",
+      "execution_purpose": "conversation_delivery_review",
+      "diagnostic_only": false,
+      "candidate_validation_eligible": true,
+      "usage": {
+        "input_tokens": 5545,
+        "input_tokens_details": {
+          "cache_write_tokens": 2001,
+          "cached_tokens": 3541
+        },
+        "output_tokens": 525,
+        "output_tokens_details": {
+          "reasoning_tokens": 33
+        },
+        "total_tokens": 6070
+      }
+    }
+  ]
+}

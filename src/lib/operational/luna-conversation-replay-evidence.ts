@@ -6,7 +6,9 @@ import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
 import { evidenceIdRequestSchema } from "../llm/evidence-id-request-schema";
 import { CanonicalEligibleEvidenceCatalogSchema } from "../domain/canonical-evidence-identity";
-import { FormativeConversationPlannedProposalOutputSchema, FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION } from "../services/student-assessment/formative-conversation/profile-update-proposal";
+import { FormativeConversationPlannedProposalOutputSchema, FORMATIVE_PROFILE_UPDATE_WIRE_SCHEMA_VERSION,
+  reconstructFormativeProfileProposal } from "../services/student-assessment/formative-conversation/profile-update-proposal";
+import { prepareFormativeInterpretationResult, validateFormativeInterpretation } from "../services/student-assessment/formative-conversation/interpretation-policy";
 import { APPROVED_OPERATIONAL_ROLE_NAMES, ApprovedCandidateManifestSchema } from "./active-approval-bundle";
 import { modelUpgradeCandidateRuntimeHash } from "./model-upgrade-candidate-identity";
 import { stableHash } from "./stable-hash";
@@ -16,9 +18,9 @@ import { ConversationContinuitySchema, ConversationReviewSchema, ConversationPre
   CONVERSATION_SUPPORT_PREFERENCE_LINK_VERSION, CONVERSATION_PRIOR_TUTOR_SOURCE_VERSION,
   CONVERSATION_STORED_PREFERENCE_TRANSITION_VERSION, CONVERSATION_STORED_PREFERENCE_RETENTION_VERSION,
   CONVERSATION_PRE_REPLY_PLAN_VERSION, CONVERSATION_CURRENT_SOURCE_ACTIVATION_PROJECTION_VERSION,
-  conversationCurrentReplySourceHash } from "../services/student-assessment/formative-conversation/conversation-continuity";
+  conversationCurrentReplySourceHash, projectConversationContinuityWire } from "../services/student-assessment/formative-conversation/conversation-continuity";
 import { FormativeConversationDeliveryReviewAuditSchema, FORMATIVE_CONVERSATION_DELIVERY_REVIEW_ACCOUNTING_VERSION, ProviderPhysicalUsageAuditSchema } from "../services/student-assessment/formative-conversation/execution-v18r2";
-import { FormativeConversationV18R2AgentOutputSchema, type FormativeConversationV18R2AgentInput,
+import { FormativeConversationV18R2AgentInputSchema, FormativeConversationV18R2AgentOutputSchema, type FormativeConversationV18R2AgentInput,
   type FormativeConversationV18R2AgentOutput } from "../services/student-assessment/formative-conversation/agent-contract-v18r2";
 import { LUNA_CONVERSATION_DELIVERY_REVIEW_PROMPT_HASH, LUNA_CONVERSATION_DELIVERY_REVIEW_VERSION,
   LUNA_CONVERSATION_DELIVERY_REVIEW_MAX_OUTPUT_TOKENS,
@@ -701,6 +703,54 @@ export function verifyDeliveryReviewOriginalParse(rawValue: unknown, parsedValue
   return original;
 }
 
+// A rejected model draft is retained in its original wire representation, not
+// as the canonical candidate reviewed by the child. Replay the same ordered
+// projections as the live runner and bind every stage before trusting that review.
+export function verifyRejectedConversationDeliveryCandidate(attemptValue: unknown, inputValue: unknown) {
+  const attempt = nativeObject.parse(attemptValue);
+  const invalid = nativeObject.parse(attempt.invalid_candidate);
+  const retained = nativeObject.parse(invalid.candidate_json);
+  // This is a current selected-evidence check: its transport is bound to the
+  // planned provider schema. Removing plan fields/audits cannot opt into a
+  // canonical fallback. Historical readers do not invoke this check.
+  const context = FormativeConversationV18R2AgentInputSchema.parse(inputValue);
+  const schemaOrderedWire = FormativeConversationPlannedProposalOutputSchema.parse(retained);
+  if (!isDeepStrictEqual(context, inputValue) || !isDeepStrictEqual(schemaOrderedWire, retained)) {
+    throw new Error("Rejected tutor projection would change retained source values.");
+  }
+  // JSONB can reorder keys, but does not preserve rejected provider text. The
+  // strict schema order is usable ONLY when its exact serialization reproduces
+  // the recorded original hashes. No arbitrary field removal or fuzzy repair.
+  const text = invalid.candidate_text == null ? JSON.stringify(schemaOrderedWire) : z.string().min(1).parse(invalid.candidate_text);
+  const wire = nativeObject.parse(JSON.parse(text));
+  if (!isDeepStrictEqual(wire, retained) ||
+      createHash("sha256").update(text).digest("hex") !== digest.parse(invalid.candidate_hash)) {
+    throw new Error("Rejected tutor original candidate hash or values differ.");
+  }
+  const plan = projectConversationContinuityWire(wire, context);
+  if (plan.output === null || plan.audit.status !== "reconstructed" ||
+      !isDeepStrictEqual(plan.audit, attempt.conversation_plan_projection)) {
+    throw new Error("Rejected tutor plan projection differs from its retained audit.");
+  }
+  const profile = reconstructFormativeProfileProposal({ candidate: plan.output, context });
+  if (!profile.valid || !isDeepStrictEqual(profile.audit, attempt.profile_update_projection)) {
+    throw new Error("Rejected tutor profile projection differs from its retained audit.");
+  }
+  const interpreted = prepareFormativeInterpretationResult({ provider: "openai", status: "completed",
+    client_request_id: z.string().min(1).parse(attempt.client_request_id),
+    latency_ms: z.number().nonnegative().parse(attempt.latency_ms), parsed_output: profile.output }, context);
+  const interpretationAudit = interpreted.raw_output === undefined ? undefined :
+    nativeObject.parse(interpreted.raw_output).interpretation_projection;
+  if (!isDeepStrictEqual(interpretationAudit, attempt.interpretation_projection)) {
+    throw new Error("Rejected tutor interpretation projection differs from its retained audit.");
+  }
+  const candidate = FormativeConversationV18R2AgentOutputSchema.parse(interpreted.parsed_output);
+  if (!validateFormativeInterpretation({ candidate, context }).valid) {
+    throw new Error("Rejected tutor candidate was not eligible for delivery review.");
+  }
+  return candidate;
+}
+
 export function verifySelectedConversationDeliveryAudit(value: unknown, responseId: string, inputValue: unknown,
   outputValue: unknown, transport: TransportRow[], deliveryReviewModel?: typeof LUNA_SOL_DELIVERY_REVIEW_MODEL) {
   const audit = nativeObject.parse(value);
@@ -782,8 +832,8 @@ export function verifySelectedConversationDeliveryAudit(value: unknown, response
       continue; // Structurally invalid tutor drafts are retained without a reviewer call.
     }
     const review = FormativeConversationDeliveryReviewAuditSchema.parse(attempt.pre_delivery_review);
-    const candidate = FormativeConversationV18R2AgentOutputSchema.parse(attempt.accepted === true ? output :
-      nativeObject.parse(attempt.invalid_candidate).candidate_json);
+    const candidate = attempt.accepted === true ? FormativeConversationV18R2AgentOutputSchema.parse(output) :
+      verifyRejectedConversationDeliveryCandidate(attempt, inputValue);
     const draft = candidate.student_visible_message;
     const expectedInput = buildConversationDeliveryReviewInput(context, draft, candidate);
     if (hashObject(review.input) !== hashObject(expectedInput) || review.input_sha256 !== hashObject(expectedInput) ||

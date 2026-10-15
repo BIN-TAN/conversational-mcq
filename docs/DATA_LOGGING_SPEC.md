@@ -940,9 +940,11 @@ corresponding tutor draft. If the review context cannot be constructed, the
 application retains the already-generated tutor draft and its usage, marks the
 review unreliable and not entered, and leaves the review input/hash null. It
 does not fabricate an empty context or dispatch a review against invalid sources.
-The prospective mixed-review policy explicitly binds
-Sol-medium with a 2,500-output-token ceiling to this purpose and the exact review
-prompt/schema in the approved runtime manifest. Primary-role AgentCall identity
+The current mixed-review policy explicitly binds
+Sol-medium with a 4,000-output-token ceiling to the V8 delivery/private-learning
+review and its exact prompt/schema in the approved runtime manifest. Historical
+V7 and earlier mixed-review receipts retain their 2,500-token ceiling.
+Primary-role AgentCall identity
 remains Luna-medium; the child receipt records the actual review identity before
 request hashing and execution. Historical inherited-model reviews retain their
 original identities, and model-only diagnostics are not candidate approval evidence.
