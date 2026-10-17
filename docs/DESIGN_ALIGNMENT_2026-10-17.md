@@ -227,6 +227,95 @@ limited to one `try/catch`.
 - **Local checks:** `scripts/local/run-local-checks.ps1` (new) runs every local check and saves logs in `local-check-results/`; see `docs/LOCAL_CHECKS_GUIDE.md`.
 - Consent is collected with Google Forms (researcher decision) and applied as an analysis filter; the remaining open research-data items are listed in the review.
 
+## Fourth pass (17 Oct 2026, after 03:43): pre-release review
+
+Three independent reviews read the release: the student flow, research-data
+accuracy, and deployment readiness. They found one critical problem. Everything
+the reviews rated High or Medium was fixed, apart from the items listed under
+"Not changed".
+
+### Critical: the working copy cannot be deployed as it is
+
+- **Problem.** The project folder also contains the unreleased V41 tutor-repair work:
+  profiling prompt `student-profiling-v10` (approved: v7) and tutor prompt v7.25.
+  Live guarded AI compares each prompt with the approved configuration of
+  CMCQ-20261013-03.
+- **Evidence.** The approval check was run locally with the 13 October approved
+  configuration. The full working copy failed (`active_agent_config_mismatch` for
+  `student_profiling_agent`, plus three profile-fidelity guards). Deployed, live AI
+  would switch itself off for every student while `/api/health` still reported ok.
+- **Fix.**
+  - Branch `release/design-alignment-2026-10-17` is the live commit `3aaf605` plus
+    the 17 October changes only.
+  - Two conflicts were resolved in favour of the live versions, keeping the D2
+    rules: `finish-assessment.ts` and `runtime.ts`. A V41-only paragraph in
+    `ASSESSMENT_FLOW.md` was dropped.
+  - On this branch the approval check passes, the typecheck has no new errors,
+    and the 36 design-alignment checks and both dictionary audits pass.
+  - The branch is delivered as `.data/release-candidate-2026-10-17/design-alignment-2026-10-17.bundle`.
+  - Release steps are in `docs/RELEASE_GUIDE_2026-10-17.md`.
+
+### Fixed
+
+| Finding | Fix |
+| --- | --- |
+| Stale-reply sweep rewrote historical receipts whenever a pilot student reopened an attempt (research H1) | Sweeps only live, active or paused conversations. Keeps an earlier failure category. Logs `formative_reply_marked_interrupted` with the prior status and the time the reply stalled. A sweep failure no longer breaks the student's state load |
+| Attempts started before the deploy and continued after it mix two timing rules (research H2) | New `sessions.csv` column `data_collection_rules_changed_during_attempt`. `attempt_tab_claim_count` is blank, not 0, before the rules |
+| Blocked pastes still counted as pastes in engagement signals, process features, the summary and the data audit (research M1) | Shared `blocked-paste.ts`. Blocked attempts are counted separately (`paste_blocked_attempt`, `blocked_paste_attempt_count`) |
+| New payload fields not exported, and refused saves not logged (research M2) | Exports `payload_unanswered_message_count` and `payload_replaced_other_tab`. New event `attempt_save_refused_other_tab`. Definitions state that reloads count as claims |
+| An item's own option E is scored as "I don't know yet" (research M4) | Publishing refuses an option labelled E. The item designer offers at most four options |
+| Instructor report included waived attempts; order biased truncation; dropped rows were silent (research M3) | Same waiver rule as the dashboard, a stable order, and a note when rows are dropped. Items cannot change after attempts exist (content lock), so the item text matches what students saw |
+| Report quotes such as "the" passed the check (research L6) | A quote needs three words or 12 characters, unless it is the student's whole answer |
+| One credential-like phrase in student text would abort the restricted export (research L7) | The AI audit masks credential-like fragments |
+| Codebook mislabelled the new events (research L1) | Explicit codebook entries for the four new events |
+| Unanswered count included the system opening (research L3) | Excluded |
+| A reload whose tab claim was slow or failed showed a false "open elsewhere" dialog and refused a save (student M1) | A refused save re-claims and retries once when this tab's own claim had not landed. Failed claims retry with backoff. The visibility check re-claims instead of reporting another tab |
+| Unload events could wait on the claim and be lost (student L1) | Keepalive sends never wait |
+| Ending the conversation during a send could re-enable the composer (student L3) | The composer stays busy until the send settles |
+| Teacher JSON with a forbidden key made the report fail with an error 500 (deploy M4) | Forbidden keys are dropped before the provider call |
+| Two local checks failed on the researcher's computer | The response-quality test now clears a developer's `ALLOW_LOCAL_MOCK_RUNTIME`. The script-review test follows the documented policy that accepts an affective message as limited evidence |
+
+### Not changed (reasons)
+
+- **Paste blocking and assistive technology (student M2). Researcher decision (17 Oct):**
+  no exception. Written explanations must be typed, for every student. Dictation
+  tools that insert text by pasting will not work in those two fields; the
+  conversation still accepts pasted text.
+- **Spurious "changed by another save" on transfer-item edits (student L2).** Rare.
+  Planned with F-A3a (client-sent version).
+- **Tab-claim ordering by server time (student L4).** Fine on a single Render
+  instance.
+- **Retired route guarded only by middleware (student L5).** The route file is
+  beyond the bridge's folder depth. Delete or rewrite it on the Windows computer
+  when convenient.
+- **Legacy multi-topic attempts cannot finish (student L6; deploy H1).** Before
+  deploying, check that every published mini test has one topic (Release guide,
+  step 4). Restore an attempt for any student caught in an old multi-topic attempt.
+- **Instructor-report call outside the approval bundle (deploy M1).** Recorded as
+  an unapproved, teacher-triggered role. It is off until its two Render variables
+  are set.
+- **`process_event_count` now includes tab-claim events (research L2).**
+  Documented here. Filter by `event_category` when comparing with pilot attempts.
+- **Evidence-stage caveats (research L5).** `finish_chosen` means the attempt
+  status is "completed". `conversation_started` is true once the system opens the
+  conversation; use `conversation_student_message_count` for participation.
+- **Profile fallback reclassification (research L4).** Historical profiles whose
+  profiling call failed are now labelled `fallback` instead of `unverified`. This
+  is intended (D3); mention it in the change notes.
+
+### Fourth-pass verification
+
+- Typecheck: no new errors in either tree.
+- Design-alignment checks: 36 pass (6 new) in the working copy and on the release
+  branch.
+- Dictionary semantic and timing audits pass.
+- DB-free regression suite: 154 pass in the working copy, the same as before.
+  One test caught a raw `console.error`; it now uses the production-safe logger.
+- Approval check with the 13 October configuration: the release branch is valid;
+  the working copy is invalid (see Critical).
+- Not run here: the database tests and the paid simulation, which need the
+  researcher's computer (steps in the Release guide).
+
 ## Verification
 
 All checks ran in an isolated cloud workspace without the app's full dependency set.
@@ -306,7 +395,8 @@ Then, with `LLM_PROVIDER=mock` against the local synthetic database, check the f
 - Per `AGENTS.md`, release only after the local checks above pass. Then commit the scoped changes, push, verify the exact commit is Live on Render, and append a release entry to `docs/release-records/releases.json` and the Word record.
 - `RESEARCH_PSEUDONYMIZATION_KEY` **already exists on Render** (checked 17 Oct: Render refused a duplicate key). Live exports already use it, so research IDs do not change. Confirm it is at least 16 characters.
 - Before using D8 live, add `OPENAI_MODEL_INSTRUCTOR_REPORT=gpt-6.1-sol` and `OPENAI_REASONING_EFFORT_INSTRUCTOR_REPORT=medium` on Render ("Save only"). Review a few reports before relying on them.
-- Five changed files are in the approval bundle's recorded source inventory: `config.ts`, `finish-assessment.ts`, `runtime.ts`, `formative-profile.ts` and `profile-record.ts`. No model, prompt or effort changed. The post-deploy check that compares deployed source hashes will still report them, so record the change in the release entry as the approval process requires.
+- Six changed files are in the approval bundle's recorded source inventory: `config.ts`, `finish-assessment.ts`, `runtime.ts`, `formative-profile.ts`, `profile-record.ts` and `analysis-ready-export.ts`. No model, prompt or effort changed. The post-deploy check that compares deployed source hashes will still report them, so record the change in the release entry as the approval process requires.
+- **Release from `release/design-alignment-2026-10-17`, not from the working copy** (see Fourth pass, Critical, and `docs/RELEASE_GUIDE_2026-10-17.md`).
 - The V41 conversation-repair candidate in the same working copy has its own release prerequisites (`handover-2026-10-15.md`). In particular, its prompt version v7.25 needs a matching approved configuration. Release the two pieces of work separately if needed.
 
 ## Follow-ups (still open)
