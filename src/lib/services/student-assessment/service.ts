@@ -128,6 +128,8 @@ const MAX_REASONING_LENGTH = 5000;
 const MAX_EVENT_BATCH_SIZE = 20;
 const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
+/** D3: student-facing payloads never include the understanding profile. */
+const STUDENT_LEARNING_PROFILE_VISIBLE = false as boolean;
 const ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE =
   "This assessment is temporarily unavailable. Please try again later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
@@ -3357,7 +3359,9 @@ export async function getStudentSessionState(input: {
         ? packageResultsForStudent(latestEvidenceIntegratedProfile)
         : null,
     progression: formativeConversation ? null : progression,
-    learning_profile: shouldExposeLearningProfileToStudent({
+    // D3 (DESIGN_ALIGNMENT_2026-10-17.md): understanding profiles inform instructors
+    // only. Students receive answer review and tailored feedback, not their profile.
+    learning_profile: STUDENT_LEARNING_PROFILE_VISIBLE && shouldExposeLearningProfileToStudent({
       assessment_state: assessmentState,
       effective_phase: effectivePhase,
       current_item_role: transferItem ? "transfer" : currentItem ? "initial" : null
@@ -3768,13 +3772,26 @@ async function getOrCreateItemResponse(input: {
     return existing;
   }
 
+  // D4 (DESIGN_ALIGNMENT_2026-10-17.md): response time starts when the item first
+  // appears on the student's screen. The backend records item_presented in the
+  // same response that renders the item, so its earliest occurrence is the start.
+  const firstPresented = await prisma.processEvent.findFirst({
+    where: {
+      concept_unit_session_db_id: input.concept_unit_session_db_id,
+      item_db_id: input.item.id,
+      event_type: { in: ["item_presented", "transfer_item_presented"] }
+    },
+    orderBy: { occurred_at: "asc" },
+    select: { occurred_at: true }
+  });
+
   return prisma.itemResponse.create({
     data: {
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       item_db_id: input.item.id,
       correct_option_snapshot: input.item.correct_option,
       correctness: "not_scored",
-      item_started_at: new Date(),
+      item_started_at: firstPresented?.occurred_at ?? new Date(),
       item_version_snapshot: input.item.version,
       item_snapshot: itemSnapshot(input.item)
     }
@@ -5446,7 +5463,31 @@ export async function updatePackageReviewItemResponse(input: {
         changed_fields: changedFields
       };
 
-      await prisma.itemResponse.update({
+      // F-A3 (audit F12): serialize the edit with sealing. The session row lock is the
+      // same one submitInitialConceptUnitForPreparation takes while it seals the
+      // package, so an edit cannot land after the sealed snapshot. The updated_at
+      // precondition refuses the second of two simultaneous saves. It does not detect
+      // an old tab saving later: the client sends no version yet (follow-up F-A3a).
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${context.session.id}::uuid FOR UPDATE`;
+        const sealed = await tx.responsePackage.findFirst({
+          where: {
+            concept_unit_session_db_id: context.conceptUnitSession.id,
+            package_type: "initial_concept_unit_response_package"
+          },
+          select: { id: true }
+        });
+        if (sealed) {
+          throw publicConflict("These responses were already submitted. Refresh to see the current state.");
+        }
+        const precondition = await tx.itemResponse.updateMany({
+          where: { id: response.id, updated_at: response.updated_at },
+          data: { updated_at: now }
+        });
+        if (precondition.count !== 1) {
+          throw publicConflict("This response was just changed by another save. Refresh and try again.");
+        }
+        await tx.itemResponse.update({
         where: { id: response.id },
         data: {
           selected_option: selectedOption,
@@ -5459,6 +5500,7 @@ export async function updatePackageReviewItemResponse(input: {
           revision_count: changedFields.length > 0 ? { increment: 1 } : undefined,
           client_submission_id: data.client_action_id ?? response.client_submission_id
         }
+      });
       });
       await prisma.assessmentSession.update({
         where: { id: context.session.id },
@@ -5745,7 +5787,31 @@ export async function updateInFlowItemResponse(input: {
       });
 
       if (changedFields.length > 0) {
-        await prisma.itemResponse.update({
+        // F-A3 (audit F12): same serialization as package-review edits. Initial items
+        // cannot change after the package is sealed, and the second of two simultaneous
+        // saves is refused (an old tab saving later is follow-up F-A3a).
+        await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${context.session.id}::uuid FOR UPDATE`;
+        if (!context.isTransferItem) {
+          const sealed = await tx.responsePackage.findFirst({
+            where: {
+              concept_unit_session_db_id: context.conceptUnitSession.id,
+              package_type: "initial_concept_unit_response_package"
+            },
+            select: { id: true }
+          });
+          if (sealed) {
+            throw publicConflict("These responses were already submitted. Refresh to see the current state.");
+          }
+        }
+        const precondition = await tx.itemResponse.updateMany({
+          where: { id: response.id, updated_at: response.updated_at },
+          data: { updated_at: now }
+        });
+        if (precondition.count !== 1) {
+          throw publicConflict("This response was just changed by another save. Refresh and try again.");
+        }
+        await tx.itemResponse.update({
           where: { id: response.id },
           data: {
             selected_option: nextSelectedOption,
@@ -5758,6 +5824,7 @@ export async function updateInFlowItemResponse(input: {
             revision_count: { increment: 1 },
             client_submission_id: data.client_action_id ?? response.client_submission_id
           }
+        });
         });
         await prisma.assessmentSession.update({
           where: { id: context.session.id },
@@ -5911,6 +5978,18 @@ export async function submitItemResponse(input: {
   data: unknown;
 }) {
   const data = submitActionSchema.parse(input.data);
+  // D5 (DESIGN_ALIGNMENT_2026-10-17.md): skipping is not part of the design. Students
+  // answer "E - I don't know yet", give a brief or uncertain reason, always choose a
+  // confidence level, and may answer "No" to the alternative prompt. The legacy skip
+  // flags are rejected so a crafted request cannot erase a recorded answer.
+  if (data.skip_item || data.skip_reasoning || data.skip_confidence || data.confirm_skip) {
+    throw new StudentAssessmentServiceError(
+      "invalid_phase_for_action",
+      "Skipping is not available. Choose \"I don't know yet\" or give your best current answer instead.",
+      400,
+      { reason: "skipping_not_supported" }
+    );
+  }
   const context = await getActionContext(input);
 
   return withActionIdempotency({
@@ -6187,7 +6266,7 @@ export async function submitInitialConceptUnitForPreparation(input: {
     const incomplete = items.filter((item) => !submitted.has(item.id));
     if (!items.length || incomplete.length) {
       throw new StudentAssessmentServiceError("missing_evidence_confirmation_required",
-        "Every included item needs a submitted response or explicit skip before completion.", 409,
+        "Every included item needs a submitted response before completion.", 409,
         { incomplete_item_public_ids: incomplete.map((item) => item.item_public_id) });
     }
     const now = new Date();
@@ -6375,8 +6454,12 @@ export async function completeInitialConceptUnitAdministration(input: {
     revealed_at: new Date()
   });
 
-  const { status: responsePackageStatus, responsePackage } =
-    await getOrCreateInitialResponsePackage(conceptUnitSession.id);
+  // F-A3 (audit F12): seal under the session row lock that response edits take, so a
+  // late edit either commits before the snapshot or is refused after it.
+  const { status: responsePackageStatus, responsePackage } = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${session.id}::uuid FOR UPDATE`;
+    return getOrCreateInitialResponsePackage(conceptUnitSession.id, tx);
+  }, { timeout: 30_000 });
   const identity = packageCompletionIdentity({
     session_public_id: session.session_public_id,
     concept_unit_public_id: session.current_concept_unit.concept_unit_public_id,

@@ -221,7 +221,9 @@ export function useStudentProcessEvents(input: {
           target_kind: targetKind(event.target),
           pasted_text_length_band: textLengthBand(pastedText.length),
           clipboard_type_count: event.clipboardData?.types.length ?? 0,
-          includes_plain_text: event.clipboardData?.types.includes("text/plain") ?? false
+          includes_plain_text: event.clipboardData?.types.includes("text/plain") ?? false,
+          // D10: true when the paste was blocked (written explanation fields).
+          paste_blocked: event.target instanceof Element && event.target.closest("[data-paste-blocked]") !== null
         }
       });
     }

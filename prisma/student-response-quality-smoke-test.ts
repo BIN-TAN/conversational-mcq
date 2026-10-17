@@ -93,8 +93,10 @@ function assertInitialPromptVariation() {
     selectedOption: "C"
   }).prompt_text;
   assert(
-    /detail|more useful my feedback|explain your reasoning/i.test(reasoningPrompt),
-    "Reasoning prompt should invite detailed explanation."
+    // The current prompts ask for the student's own reason in low-pressure wording
+    // ("What led you to choose C? ... it is okay to be unsure").
+    /reason|explanation|thinking|detail|explain/i.test(reasoningPrompt),
+    "Reasoning prompt should ask the student to explain their reasoning."
   );
   assert(
     !/Chinese|English, Chinese|mix of both|multilingual/i.test(reasoningPrompt),
@@ -223,6 +225,8 @@ async function assertItemAdminRuntimeModeResolution() {
       OPENAI_MODEL_ITEM_ADMIN: "",
       OPENAI_MODEL_FOLLOWUP: "",
       npm_lifecycle_event: "",
+      // A developer .env.local may allow the local mock; this case checks the default.
+      ALLOW_LOCAL_MOCK_RUNTIME: "",
       NODE_ENV: "development"
     },
     async () => {
@@ -750,7 +754,9 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "FORMATIVE_ACTIVITY", "Mock formative activity should be available.");
-    assert(state.learning_profile, "Student learning profile should be available after package analysis.");
+    // D3 (DESIGN_ALIGNMENT_2026-10-17.md): understanding profiles are instructor-facing;
+    // students receive answer review and tailored feedback only.
+    assert(state.learning_profile === null, "Student state must not expose the understanding profile.");
     assert(state.package_results, "Initial package results should be visible after package completion.");
     assert(state.package_results.full_answer_revealed, "Correct answers should be revealed immediately after the initial package.");
     assert(
@@ -814,31 +820,6 @@ async function main() {
         row.explanation_version === "initial-package-answer-explanation-v1"
       ),
       "Reveal metadata should be persisted on administered item responses."
-    );
-    assert(
-      ["explanation", "next_focus", "status", "updated_at"].every((key) => key in (state.learning_profile ?? {})),
-      "Learning profile should expose one status, explanation, next-focus, and timestamp."
-    );
-    assert(
-      !["Mostly understood", "Still developing", "Needs more work"].every((label) =>
-        JSON.stringify(state.learning_profile).includes(label)
-      ),
-      "Learning profile should not show all three status categories simultaneously."
-    );
-    assert(
-      ["Mostly understood", "Still developing", "Needs more work"].includes(state.learning_profile.status),
-      "Learning profile should use an approved single status."
-    );
-    assert(state.learning_profile.explanation.length > 0, "Learning profile should include a short explanation.");
-    assert(
-      state.learning_profile.next_focus.trim().length > 0,
-      "Learning profile should include one student-facing next-focus statement."
-    );
-    assert(
-      !/\b(the student|they|their|engagement profile|engagement category|ai assistance|external assistance|formative need|metadata|structured output|agent call|integration pattern|internal integrated status)\b/i.test(
-        JSON.stringify(state.learning_profile)
-      ),
-      "Learning profile should use direct student-facing wording without internal labels."
     );
     const persistedIntegrationProfile = await prisma.studentProfile.findFirst({
       where: {

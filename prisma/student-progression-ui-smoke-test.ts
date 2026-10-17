@@ -85,6 +85,13 @@ async function main() {
   }
 }
 
+// Retired by design decision D1 (one topic per mini-test; docs/DESIGN_ALIGNMENT_2026-10-17.md).
+// This test drives progression from one topic to the next, which no longer exists for
+// new attempts. Set RUN_RETIRED_MULTI_TOPIC_TESTS=1 to run it against legacy behaviour.
+if (process.env.RUN_RETIRED_MULTI_TOPIC_TESTS !== "1") {
+  console.log("RETIRED: multi-topic progression test skipped (D1, one topic per mini-test).");
+  process.exit(0);
+}
 main()
   .catch((error) => {
     console.error(error);

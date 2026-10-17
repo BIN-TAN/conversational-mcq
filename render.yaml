@@ -69,6 +69,12 @@ services:
         sync: false
       - key: OPERATIONAL_APPROVAL_EVIDENCE_PATH
         sync: false
+      - key: RESEARCH_PSEUDONYMIZATION_KEY
+        sync: false
+      - key: OPENAI_MODEL_INSTRUCTOR_REPORT
+        sync: false
+      - key: OPENAI_REASONING_EFFORT_INSTRUCTOR_REPORT
+        sync: false
       - key: ALLOW_LOCAL_MOCK_RUNTIME
         value: "false"
       - key: ITEM_ADMIN_TUTOR_MODE

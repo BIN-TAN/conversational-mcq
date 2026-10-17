@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { countedEventType } from "./blocked-paste";
 import { prisma } from "@/lib/db";
 
 export const ENGAGEMENT_EVIDENCE_PACKET_SCHEMA_VERSION =
@@ -466,9 +467,10 @@ function itemReasoningTypingBand(milliseconds?: number | null) {
   return "reasoning_typing_typical_or_high" as const;
 }
 
-function countByType(events: Array<{ event_type: string }>) {
+function countByType(events: Array<{ event_type: string; payload?: unknown }>) {
   return events.reduce<Record<string, number>>((counts, event) => {
-    counts[event.event_type] = (counts[event.event_type] ?? 0) + 1;
+    const type = countedEventType(event);
+    counts[type] = (counts[type] ?? 0) + 1;
     return counts;
   }, {});
 }
@@ -2174,7 +2176,10 @@ function derivePackageTiming(input: {
         itemWallClockDuration !== null && itemInactiveDuration > 0
           ? Math.max(1, itemWallClockDuration - itemInactiveDuration)
           : null;
-      const pasteObserved = itemEvents.some((event) => event.event_type === "paste_detected");
+      // D10: a blocked paste (written explanations) inserted no text, so it does not
+      // affect typing-time reconstruction.
+      const pasteObserved = itemEvents.some((event) =>
+        event.event_type === "paste_detected" && record(event.payload).paste_blocked !== true);
       const typingTiming = buildTypingTimingReconstruction({
         itemPublicId: response.item_public_id,
         typingEvents: typingSummaryEvents(itemEvents),

@@ -1,5 +1,15 @@
 # Product Specification
 
+## Current design decisions (2026-10-17)
+
+See `docs/DESIGN_ALIGNMENT_2026-10-17.md` for the full record and
+`docs/ASSESSMENT_FLOW.md` (top section) for the operative rules: one topic per mini
+test; the student may end the conversation at any point; understanding profiles are
+instructor-facing only and retain uncertainty; item time starts at presentation; no
+skipping; AI roles grouped into the five dissertation modules; an AI instructor report
+on the dashboard; three to five items recommended; three attempts; up to 30 student
+turns per mini test.
+
 ## Product Goal
 
 This project is a web-based, chat-native conversation-based MCQ formative assessment platform.
@@ -183,7 +193,7 @@ This workflow implements the evidence-centered sequence:
 - assembly: teacher selection across objectives, reasoning demand, and difficulty;
 - interpretation: item-level evidence retained beneath an objective- and section-level profile.
 
-Six to nine included items is the recommended authoring starting point, not a psychometric requirement. The current validated runtime supports three to twelve included items and shows the student the current item, total item count, and number remaining. No fixed number of items proves or disproves a misconception.
+Three to five included items is the recommended mini-test size (dissertation Section 3.1.1), not a psychometric requirement. Each mini test contains exactly one topic (2026-10-17 decision D1). The current validated runtime supports three to twelve included items and shows the student the current item, total item count, and number remaining. No fixed number of items proves or disproves a misconception.
 
 Once any student attempt exists, that mini-test version, its topics, items, media, and answer keys are immutable. A teacher may correct an error by creating a linked editable revision. The revision receives new assessment, topic, item, and media public IDs while retaining predecessor identifiers, a teacher-entered correction reason, and a hash of the copied source content. Existing attempts remain attached to the original version. Publishing the correction atomically archives the predecessor for new starts; only future attempts use the corrected version. Historical correctness snapshots are never recalculated by this workflow.
 

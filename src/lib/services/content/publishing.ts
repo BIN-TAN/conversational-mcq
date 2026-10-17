@@ -15,6 +15,17 @@ import {
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
 import { archiveSupersededAssessmentForRevision } from "./assessment-revisions";
 import { preparePublishedAssessmentContext } from "./prepared-assessment-context";
+import { MAX_PUBLISHED_TOPICS_PER_MINI_TEST } from "@/lib/services/assessment-availability/availability";
+
+// Design decision D1 (docs/DESIGN_ALIGNMENT_2026-10-17.md): one topic per mini-test.
+function multipleTopicsError(details: Record<string, unknown>) {
+  return new ContentServiceError(
+    "publish_validation_failed",
+    "A mini test can contain only one topic. Move the other topic into its own mini test before publishing.",
+    422,
+    { reason: "assessment_multiple_topics_unsupported", max_topics: MAX_PUBLISHED_TOPICS_PER_MINI_TEST, ...details }
+  );
+}
 
 export type PublishValidationResult = {
   ok: boolean;
@@ -69,6 +80,16 @@ function validatePublishableItem(item: PublishableItem, itemIndex: number): Cont
 
   if (!parsed.success) {
     return zodIssuesToContentIssues(parsed.error, pathPrefix);
+  }
+
+  // Students always get an "E. I don't know yet" choice, which is recorded as
+  // uncertainty and not scored. An item's own option E would be scored the same way.
+  if (parsed.data.options.some((option) => option.label.trim().toUpperCase() === "E")) {
+    return [validationIssue(
+      `${pathPrefix}.options`,
+      "reserved_option_label",
+      "Option E is reserved for the student's \"I don't know yet\" choice. Use options A-D (at most four answer options)."
+    )];
   }
 
   return [];
@@ -239,8 +260,22 @@ export async function publishConceptUnit(input: {
       concept_unit_public_id: input.concept_unit_public_id,
       assessment: { created_by_user_db_id: input.teacher_user_db_id }
     },
-    select: { id: true }
+    select: { id: true, assessment_db_id: true }
   });
+
+  const otherActiveTopicCount = await prisma.conceptUnit.count({
+    where: {
+      assessment_db_id: conceptUnit.assessment_db_id,
+      id: { not: conceptUnit.id },
+      status: { not: "archived" }
+    }
+  });
+  if (otherActiveTopicCount + 1 > MAX_PUBLISHED_TOPICS_PER_MINI_TEST) {
+    throw multipleTopicsError({
+      concept_unit_public_id: input.concept_unit_public_id,
+      other_active_topic_count: otherActiveTopicCount
+    });
+  }
 
   const verificationPolicy = await getVerificationPublicationPolicy({
     concept_unit_db_id: conceptUnit.id,
@@ -336,6 +371,13 @@ export async function publishAssessment(input: {
       422,
       { assessment_public_id: assessment.assessment_public_id }
     );
+  }
+
+  if (assessmentWithConceptUnits.concept_units.length > MAX_PUBLISHED_TOPICS_PER_MINI_TEST) {
+    throw multipleTopicsError({
+      assessment_public_id: assessment.assessment_public_id,
+      active_topic_count: assessmentWithConceptUnits.concept_units.length
+    });
   }
 
   const conceptUnitResults: Array<{

@@ -431,9 +431,14 @@ async function main() {
       "Guided item set with diagnostic notes should not have diagnostic-note warnings."
     );
 
+    // F-D1a: one topic per mini test, so the warning-path topic gets its own mini test.
+    const warningAssessment = await createAssessment({
+      teacher_user_db_id: teacher.id,
+      data: { title: `Temporary ${prefix} warning topic`, folder_label: "Week 31i" }
+    });
     const warningConceptUnit = await createConceptUnit({
       teacher_user_db_id: teacher.id,
-      assessment_public_id: assessment.assessment_public_id,
+      assessment_public_id: warningAssessment.assessment_public_id,
       data: {
         title: "Topic without notes",
         learning_objective: "Exercise warning path.",

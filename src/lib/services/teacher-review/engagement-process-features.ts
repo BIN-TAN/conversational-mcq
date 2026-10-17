@@ -1,4 +1,5 @@
 import { asRecord } from "./serializers";
+import { insertedPasteCount } from "@/lib/services/student-assessment/blocked-paste";
 import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
 
 export type EngagementProcessItemResponse = {
@@ -263,7 +264,7 @@ function buildItemRow(input: {
   const studentActionCount = events.filter(isStudentAction).length;
   const substantiveActionCount = events.filter(isSubstantiveAction).length;
   const typingCount = safeCount(events, ["typing_activity_summary"]);
-  const pasteCount = safeCount(events, ["paste_detected"]);
+  const pasteCount = insertedPasteCount(events);
   const reasoningFirstTime = firstEventTime(events, (event) =>
     event.event_type === "reasoning_entered" ||
     event.event_type === "reasoning_started" ||
@@ -346,7 +347,7 @@ function buildActivityRows(input: {
   const totalMs = nonnegativeDiff(promptTime, responseEndTime);
   const studentActionCount = activityEvents.filter(isStudentAction).length;
   const substantiveActionCount = activityEvents.filter(isSubstantiveAction).length;
-  const pasteCount = safeCount(activityEvents, ["paste_detected"]);
+  const pasteCount = insertedPasteCount(activityEvents);
   const typingCount = safeCount(activityEvents, ["typing_activity_summary"]);
 
   return [{

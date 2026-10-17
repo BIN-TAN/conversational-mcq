@@ -140,6 +140,22 @@ const serverEnvSchema = z.object({
   OPENAI_MAX_OUTPUT_TOKENS_FORMATIVE_CONVERSATION: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_MCQ_DIAGNOSTIC_AUTHORING: optionalPositiveInt,
   OPENAI_MAX_OUTPUT_TOKENS_MCQ_FORMATTING: optionalPositiveInt,
+  // Module-level model settings (DESIGN_ALIGNMENT_2026-10-17.md, D6). A role-specific
+  // OPENAI_MODEL_* value wins; otherwise each role uses its dissertation module's value.
+  OPENAI_MODEL_MODULE_ITEM_PREPARATION: z.string().optional(),
+  OPENAI_MODEL_MODULE_ITEM_ADMINISTRATION: z.string().optional(),
+  OPENAI_MODEL_MODULE_PROFILING_FEEDBACK: z.string().optional(),
+  OPENAI_MODEL_MODULE_FORMATIVE_CONVERSATION: z.string().optional(),
+  OPENAI_MODEL_MODULE_INSTRUCTOR_REPORTING: z.string().optional(),
+  OPENAI_REASONING_EFFORT_MODULE_ITEM_PREPARATION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MODULE_ITEM_ADMINISTRATION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MODULE_PROFILING_FEEDBACK: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MODULE_FORMATIVE_CONVERSATION: optionalOpenAiReasoningEffort,
+  OPENAI_REASONING_EFFORT_MODULE_INSTRUCTOR_REPORTING: optionalOpenAiReasoningEffort,
+  // Instructor reporting module (D8): role-specific overrides for the report writer.
+  OPENAI_MODEL_INSTRUCTOR_REPORT: z.string().optional(),
+  OPENAI_REASONING_EFFORT_INSTRUCTOR_REPORT: optionalOpenAiReasoningEffort,
+  OPENAI_MAX_OUTPUT_TOKENS_INSTRUCTOR_REPORT: optionalPositiveInt,
   STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED: booleanWithDefault(false),
   TOPIC_DIALOGUE_LIVE_CALLS_ENABLED: booleanWithDefault(false),
   FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: booleanWithDefault(false),

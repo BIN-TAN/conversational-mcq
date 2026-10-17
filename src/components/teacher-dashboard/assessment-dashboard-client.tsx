@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { AttemptComparisonPanel } from "./attempt-comparison-panel";
+import { InstructorReportPanel } from "./instructor-report-panel";
 import type {
   CandidateMisconceptionPattern,
   ChartDatum,
@@ -291,8 +292,15 @@ async function fetchDashboard(assessmentPublicId: string) {
   return (payload as DashboardResponse).dashboard;
 }
 
+type DashboardView = "overview" | "attempts" | "report";
+const dashboardTabs: ReadonlyArray<readonly [DashboardView, string]> = [
+  ["overview", "Overview"],
+  ["attempts", "Compare attempts"],
+  ["report", "Instructor report"]
+];
+
 export function AssessmentDashboardClient({ initialDashboard }: { initialDashboard: TeacherAssessmentDashboard }) {
-  const [view, setView] = useState<"overview" | "attempts">("overview");
+  const [view, setView] = useState<DashboardView>("overview");
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState(initialDashboard.selected_assessment_public_id ?? "");
   const [loading, setLoading] = useState(false);
@@ -364,13 +372,20 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
       ) : null}
 
       {hasAssessment && <div role="tablist" aria-label="Dashboard view" className="flex gap-5 border-b border-line">
-        {([["overview", "Overview"], ["attempts", "Compare attempts"]] as const).map(([value, title], index) =>
+        {dashboardTabs.map(([value, title], index) =>
           <button key={value} type="button" role="tab" id={`dashboard-tab-${value}`} aria-selected={view === value}
             aria-controls={`dashboard-panel-${value}`} tabIndex={view === value ? 0 : -1}
             onKeyDown={event => { if (["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) {
-              event.preventDefault(); const next = event.key === "Home" ? "overview" : event.key === "End" ? "attempts" : index === 0 ? "attempts" : "overview";
+              event.preventDefault();
+              const last = dashboardTabs.length - 1;
+              const nextIndex = event.key === "Home" ? 0 : event.key === "End" ? last
+                : event.key === "ArrowRight" ? (index === last ? 0 : index + 1) : (index === 0 ? last : index - 1);
+              const next = dashboardTabs[nextIndex][0];
               setView(next); document.getElementById(`dashboard-tab-${next}`)?.focus();
             } }} onClick={() => setView(value)} className={`border-b-2 px-1 py-3 text-sm font-semibold ${view === value ? "border-accent text-accent" : "border-transparent text-muted"}`}>{title}</button>)}
+      </div>}
+      {hasAssessment && view === "report" && <div role="tabpanel" id="dashboard-panel-report" aria-labelledby="dashboard-tab-report">
+        <InstructorReportPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
       {hasAssessment && view === "attempts" && <div role="tabpanel" id="dashboard-panel-attempts" aria-labelledby="dashboard-tab-attempts">
         <AttemptComparisonPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />

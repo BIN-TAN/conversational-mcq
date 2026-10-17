@@ -213,7 +213,8 @@ function defaultBlueprint(input: {
     misconception_hypotheses: [],
     exemplar_items: [],
     generation_settings: {
-      target_item_count: 6,
+      // 3-5 items per mini-test are recommended (D7); 3-12 remain allowed.
+      target_item_count: 4,
       option_count: 4,
       difficulty_mix: ["foundational", "analyzing", "evaluating", "creating"],
       context_notes: null

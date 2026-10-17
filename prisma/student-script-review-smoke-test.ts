@@ -104,12 +104,11 @@ const scenarios: Scenario[] = [
     expected_nonadvancing_attempts: 1
   },
   {
+    // Collection policy (docs/DATA_LOGGING_SPEC.md): an affective message is accepted
+    // as limited, collectable evidence so a confused student is never trapped.
     name: "affective_confused",
-    first_reason_attempts: [
-      "I'm confused.",
-      "I don't know the reason yet."
-    ],
-    expected_nonadvancing_attempts: 1
+    first_reason_attempts: ["I'm confused."],
+    expected_nonadvancing_attempts: 0
   },
   {
     name: "edit_request",
@@ -463,56 +462,15 @@ function reviewScenario(result: ScenarioResult, scenario: Scenario): ReviewIssue
     });
   }
 
-  if (!result.learning_profile) {
+  // D3 (DESIGN_ALIGNMENT_2026-10-17.md): the understanding profile is instructor-facing
+  // and must not be sent to students; tailored feedback is reviewed above.
+  if (result.learning_profile) {
     issues.push({
       scenario: result.name,
       reviewer: "learning_profile",
       severity: "high",
-      message: "Student-safe learning profile was not generated."
+      message: "Student state exposed the understanding profile."
     });
-  } else {
-    const profileKeys = Object.keys(result.learning_profile).sort();
-    const expectedKeys = ["explanation", "next_focus", "status", "updated_at"].sort();
-    if (JSON.stringify(profileKeys) !== JSON.stringify(expectedKeys)) {
-      issues.push({
-        scenario: result.name,
-        reviewer: "learning_profile",
-        severity: "high",
-        message: `Unexpected profile keys: ${profileKeys.join(", ")}.`
-      });
-    }
-    if (!["Mostly understood", "Still developing", "Needs more work"].includes(result.learning_profile.status)) {
-      issues.push({
-        scenario: result.name,
-        reviewer: "learning_profile",
-        severity: "high",
-        message: `Unexpected profile status: ${result.learning_profile.status}.`
-      });
-    }
-    if (!/^(Your next focus\b|Knowledge focus:)/i.test(result.learning_profile.next_focus)) {
-      issues.push({
-        scenario: result.name,
-        reviewer: "learning_profile",
-        severity: "high",
-        message: "Profile focus statement is missing or not student-facing."
-      });
-    }
-    if (/mostly_understood|still_developing|needs_more_work/i.test(safeText(result.learning_profile))) {
-      issues.push({
-        scenario: result.name,
-        reviewer: "learning_profile",
-        severity: "high",
-        message: "Profile leaked old multi-category keys."
-      });
-    }
-    if (safeText(result.learning_profile).includes("not enough evidence yet") && result.name === "concise_usable_reasoning") {
-      issues.push({
-        scenario: result.name,
-        reviewer: "learning_profile",
-        severity: "low",
-        message: "Profile used a fallback phrase for a usable-reasoning scenario."
-      });
-    }
   }
 
   return issues;
@@ -526,6 +484,12 @@ async function main() {
   process.env.ITEM_ADMIN_TUTOR_MODE = "mock";
 
   await ensureDemoStudentAssessment(prisma);
+  // Students only see their own teacher's mini tests (catalog-access.ts); unassigned
+  // accounts no longer see the seeded demo, so the scripted students belong to its teacher.
+  const demoTeacherDbId = (await prisma.assessment.findUniqueOrThrow({
+    where: { assessment_public_id: demoAssessmentPublicId },
+    select: { created_by_user_db_id: true }
+  })).created_by_user_db_id;
   const prefix = `phase18_script_${Date.now()}_${randomUUID().slice(0, 8)}`;
 
   try {
@@ -536,7 +500,8 @@ async function main() {
       const student = await createSmokeStudent({
         prisma,
         prefix: `${prefix}_${scenario.name}`,
-        accessCode: "phase18_script_access"
+        accessCode: "phase18_script_access",
+        teacherDbId: demoTeacherDbId
       });
       const scenarioSessionPublicIds: string[] = [];
 

@@ -1,5 +1,50 @@
 # Assessment Flow Specification
 
+## Design alignment with the dissertation (2026-10-17)
+
+These rules take precedence over older text in this file. Rationale, affected code and
+verification are recorded in `docs/DESIGN_ALIGNMENT_2026-10-17.md`.
+
+- **One topic per mini test (D1).** A published mini test contains exactly one topic
+  (concept unit). Publishing a second topic is refused, and an already-published
+  multi-topic mini test is not offered for new attempts. Students open each mini test
+  individually; there is no automatic progression between mini tests. Feedback,
+  profiling and the conversation therefore follow submission of the whole mini test.
+- **Ending the conversation (D2).** The optional conversation can be ended at any
+  point, including while a tutor reply is pending or failed. Messages still awaiting
+  a reply stay saved and are counted in a `formative_conversation_ended_by_student`
+  process event. A student stop always permits Finish assessment.
+- **Profiles retain uncertainty and stay instructor-facing (D3).** Students receive
+  answer review and tailored feedback, not their understanding profile. Technical
+  fallback profiles are identified from the failed profiling call as well as caution
+  text, and profile exports report the source provider.
+- **Response time (D4).** Item time starts when the item is first presented
+  (`item_presented`), not at the first click.
+- **No skipping (D5).** Students answer "E - I don't know yet" when unsure, give a
+  brief or uncertain reason (an explicit "I don't know" is accepted), always choose a
+  confidence level, and may answer "No" to the alternative prompt. Legacy skip flags
+  are rejected by the API.
+- **AI roles grouped into the five dissertation modules (D6)**, with one model
+  configuration per module (D9): GPT-5.6 Luna medium for item preparation, item
+  administration, and profiling and feedback; GPT-6.1 Sol medium for the formative
+  conversation and instructor reporting. See `docs/AI_ROLES_AND_MODULES.md`.
+- **Typed explanations (D10).** The justification and tempting-option explanation
+  fields do not accept pasted or dropped text; attempts are recorded as
+  `paste_detected` with `paste_blocked: true`. The conversation is unchanged.
+- **Three attempts per mini test** (`ASSESSMENT_ATTEMPT_LIMIT = 3`), each recorded
+  separately; a teacher can restore an attempt lost to a technical problem.
+- **Research pseudonymization key required outside local/test (D7).**
+- **Instructor reporting module (D8).** The teacher dashboard's Instructor report tab
+  asks an AI model to review all students' sealed responses and conversation
+  transcripts for the mini test; every quoted claim is verified against the stored
+  student text and links to the attempt record.
+- **Recommended mini-test length is three to five items**; the system continues to
+  accept three to twelve.
+- **Attempts:** three attempts per mini test (unchanged; now to be stated in the
+  dissertation).
+- **Turn limit:** up to 30 student-authored turns per mini test (one conversation per
+  mini test, because a mini test has one topic).
+
 ## Conversation Closure and Attempt Completion (2026-09-27)
 
 `planning_completed` is the persisted feedback-ready phase, not assessment
@@ -71,7 +116,8 @@ independently of research retention.
 
 ### Current Free-Text Conversation Limit
 
-The formative learning conversation permits up to **30 student-authored turns**.
+The formative learning conversation permits up to **30 student-authored turns** per
+mini test (one conversation per mini test, because a mini test has exactly one topic).
 Its counter starts at zero only when the formative phase begins. Initial item
 answers, explanations, confidence, alternative-answer evidence, tutor openings,
 and retries of the same message do not consume formative turns. Turn 30 is the
@@ -124,7 +170,7 @@ Compatibility: older student accounts without `created_by_teacher_user_id` keep 
 
 ## Initial Item Administration
 
-Current teacher-authored mini tests administer the complete included item set for the section. The validated set size is three to twelve items; six to nine is the recommended authoring starting point. The fixed three-item language below documents the original MVP fixture rather than a requirement that every misconception receive exactly three items. The student UI shows `Item X of N` and the number remaining.
+Current teacher-authored mini tests administer the complete included item set for the section. The validated set size is three to twelve items; three to five is the recommended size (dissertation Section 3.1.1), and each mini test contains exactly one topic. The fixed three-item language below documents the original MVP fixture rather than a requirement that every misconception receive exactly three items. The student UI shows `Item X of N` and the number remaining.
 
 For each of the first three items:
 

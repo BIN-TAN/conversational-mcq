@@ -199,9 +199,40 @@ async function main() {
       "Archiving one of exactly three included published items should be rejected"
     );
 
+    // F-D1a: a draft mini test can hold only one topic, so each further topic below
+    // gets its own mini test, and creating a second topic in one is refused.
+    let secondTopicCreateRefusal: unknown = null;
+    try {
+      await createConceptUnit({
+        teacher_user_db_id: teacher.id,
+        assessment_public_id: assessment.assessment_public_id,
+        data: {
+          title: "Temporary second topic",
+          learning_objective: "Must be refused.",
+          related_concept_description: "Second topic in one mini test.",
+          administration_rules: {}
+        }
+      });
+    } catch (error) {
+      secondTopicCreateRefusal = error;
+    }
+    assert(
+      (secondTopicCreateRefusal as { details?: { reason?: string } } | null)?.details?.reason ===
+        "assessment_multiple_topics_unsupported",
+      "Creating a second topic in one mini test must be refused."
+    );
+    const separateAssessment = async (label: string) => {
+      const extra = await createAssessment({
+        teacher_user_db_id: teacher.id,
+        data: { title: `Temporary ${prefix} ${label}`, description: "Temporary Phase 3A content smoke assessment." }
+      });
+      created.assessmentPublicIds.push(extra.assessment_public_id);
+      return extra.assessment_public_id;
+    };
+
     const fewItemsConceptUnit = await createConceptUnit({
       teacher_user_db_id: teacher.id,
-      assessment_public_id: assessment.assessment_public_id,
+      assessment_public_id: await separateAssessment("few-items"),
       data: {
         title: "Temporary invalid short concept unit",
         learning_objective: "Verify fewer than three active items fails.",
@@ -228,7 +259,7 @@ async function main() {
 
     const missingTeacherMetadataConceptUnit = await createConceptUnit({
       teacher_user_db_id: teacher.id,
-      assessment_public_id: assessment.assessment_public_id,
+      assessment_public_id: await separateAssessment("metadata-warnings"),
       data: {
         title: "Temporary warning metadata concept unit",
         learning_objective: "Verify missing teacher diagnostic metadata warns without blocking.",
@@ -272,14 +303,28 @@ async function main() {
       ),
       "Missing teacher target reasoning did not return expected warning code."
     );
-    const metadataWarningPublished = await publishConceptUnit({
-      teacher_user_db_id: teacher.id,
-      concept_unit_public_id: missingTeacherMetadataConceptUnit.concept_unit_public_id,
-      confirm_publish_without_current_verification: true
+    // D1: publishing still refuses a second topic for legacy data created before the
+    // creation-time check (F-D1a). Move the valid warning-metadata topic into the first
+    // mini test directly to simulate such data, then try to publish it.
+    await prisma.conceptUnit.update({
+      where: { concept_unit_public_id: missingTeacherMetadataConceptUnit.concept_unit_public_id },
+      data: { assessment: { connect: { assessment_public_id: assessment.assessment_public_id } }, order_index: 99 }
     });
+    const legacySecondTopic = missingTeacherMetadataConceptUnit;
+    let secondTopicRefusal: unknown = null;
+    try {
+      await publishConceptUnit({
+        teacher_user_db_id: teacher.id,
+        concept_unit_public_id: legacySecondTopic.concept_unit_public_id,
+        confirm_publish_without_current_verification: true
+      });
+    } catch (error) {
+      secondTopicRefusal = error;
+    }
     assert(
-      metadataWarningPublished.concept_unit.status === "published",
-      "Teacher metadata warnings should not block publication when structural validation passes."
+      (secondTopicRefusal as { details?: { reason?: string } } | null)?.details?.reason ===
+        "assessment_multiple_topics_unsupported",
+      "Publishing a second topic in one mini test must be refused."
     );
 
     const archivedConceptUnit = await archiveConceptUnit({

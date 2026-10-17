@@ -8,6 +8,8 @@ import {
 import { EnvConfigurationError } from "@/lib/env";
 import { getTeacherLlmUsageStatus } from "@/lib/llm/usage/usage-serializers";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
+import { MODULE_MODEL_POLICY_VERSION, moduleModelPolicyStatus } from "@/lib/llm/assessment-modules";
+import { resolveInstructorReportModelConfig } from "@/lib/services/instructor-report/service";
 
 export async function getLlmReadiness() {
   try {
@@ -18,12 +20,34 @@ export async function getLlmReadiness() {
     const operationalIntegration = await getGuardedOperationalAgentIntegrationReadiness({
       checkDatabase: false
     });
+    let instructorReportConfig: ReturnType<typeof resolveInstructorReportModelConfig> = null;
+    try {
+      instructorReportConfig = runtime.provider === "mock" ? null : resolveInstructorReportModelConfig();
+    } catch {
+      instructorReportConfig = null;
+    }
+    const moduleModelPolicy = {
+      version: MODULE_MODEL_POLICY_VERSION,
+      modules: moduleModelPolicyStatus([
+        ...Object.values(modelReadiness).map((entry) => ({
+          role: entry.role,
+          model: entry.effective_model,
+          reasoning_effort: entry.reasoning_effort
+        })),
+        {
+          role: "instructor_report_agent",
+          model: instructorReportConfig?.model_name ?? null,
+          reasoning_effort: instructorReportConfig?.reasoning_effort ?? null
+        }
+      ])
+    };
 
     return {
       provider: runtime.provider,
       live_calls_enabled: runtime.live_calls_enabled,
       openai_key_configured: runtime.openai_key_configured,
       agent_model_configured: modelReadiness,
+      module_model_policy: moduleModelPolicy,
       prompt_versions: Object.fromEntries(
         prompts.map((prompt) => [prompt.agent_name, prompt.prompt_version])
       ),
@@ -50,6 +74,7 @@ export async function getLlmReadiness() {
         live_calls_enabled: false,
         openai_key_configured: false,
         agent_model_configured: {},
+        module_model_policy: null,
         prompt_versions: {},
         schema_versions: {},
         prompt_statuses: {},
@@ -76,6 +101,7 @@ export async function getLlmReadiness() {
         live_calls_enabled: false,
         openai_key_configured: false,
         agent_model_configured: {},
+        module_model_policy: null,
         prompt_versions: {},
         schema_versions: {},
         prompt_statuses: {},

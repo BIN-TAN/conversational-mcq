@@ -15,6 +15,30 @@ import {
   returnConceptUnitToDraft as returnConceptUnitToDraftSafely
 } from "./governance";
 import { itemSerializerInclude, serializeConceptUnit, serializeItem } from "./serializers";
+import { MAX_PUBLISHED_TOPICS_PER_MINI_TEST } from "@/lib/services/assessment-availability/availability";
+
+/** F-D1a: one topic per mini-test (D1) is enforced when a topic is created, not only at publish. */
+export function secondTopicNotAllowedError(details: Record<string, unknown> = {}) {
+  return new ContentServiceError(
+    "validation_failed",
+    "A mini test has one topic. Create a separate mini test for another topic.",
+    422,
+    { reason: "assessment_multiple_topics_unsupported", max_topics: MAX_PUBLISHED_TOPICS_PER_MINI_TEST, ...details }
+  );
+}
+
+export async function assertTopicCapacity(
+  db: Pick<Prisma.TransactionClient, "conceptUnit">,
+  assessmentDbId: string,
+  adding: number
+) {
+  const existing = await db.conceptUnit.count({
+    where: { assessment_db_id: assessmentDbId, status: { not: "archived" } }
+  });
+  if (existing + adding > MAX_PUBLISHED_TOPICS_PER_MINI_TEST) {
+    throw secondTopicNotAllowedError({ existing_topics: existing, requested_topics: adding });
+  }
+}
 
 function isUniqueConstraintError(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002";
@@ -89,6 +113,7 @@ export async function createConceptUnit(input: {
 }) {
   const data = ConceptUnitDraftInputSchema.parse(input.data);
   const assessment = await assertAssessmentEditable(input);
+  await assertTopicCapacity(prisma, assessment.id, 1);
   const orderIndex = data.order_index ?? (await getNextConceptUnitOrder(assessment.id));
 
   try {

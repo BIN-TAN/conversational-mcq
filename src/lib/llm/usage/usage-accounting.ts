@@ -153,6 +153,9 @@ export async function getLlmUsageSnapshot(input: LlmUsageSnapshotInput): Promise
   const assessmentSessionId = input.assessment_session_db_id ?? null;
   const dayWhere = {
     provider: "openai",
+    // D8 (DESIGN_ALIGNMENT_2026-10-17.md): teacher-requested instructor reports have
+    // their own per-mini-test daily cap and must not use up the students' daily budget.
+    agent_name: { not: "instructor_report_agent" },
     ...(input.exclude_agent_call_db_id ? { id: { not: input.exclude_agent_call_db_id } } : {}),
     created_at: {
       gte: window.start,

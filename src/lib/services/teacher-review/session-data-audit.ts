@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { countedEventType } from "@/lib/services/student-assessment/blocked-paste";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 import { processEventTypes } from "@/lib/domain/enums";
@@ -398,7 +399,7 @@ export async function buildTeacherSessionDataAudit(input: {
   const usesFormativeConversation =
     session.formative_conversation_sessions.length > 0;
 
-  const eventCounts = countBy(allProcessEvents.map((event) => event.event_type));
+  const eventCounts = countBy(allProcessEvents.map((event) => countedEventType(event)));
   const observedEventTypes = Object.keys(eventCounts).sort();
   const expectedEvents = expectedInitialAdministrationEvents.filter((eventType) => {
     if (eventType === "session_started") return true;

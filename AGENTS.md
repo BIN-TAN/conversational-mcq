@@ -47,3 +47,14 @@ authorized. A documentation-only follow-up commit is not another application
 release: retain the deployed application commit in the record and do not create
 an endless deployment/documentation loop. These instructions are a task completion
 requirement, not a claim that an unattended background service monitors deploys.
+
+## Current design decisions (2026-10-17)
+
+Read `docs/DESIGN_ALIGNMENT_2026-10-17.md` before changing assessment flow, profiling,
+the formative conversation, reporting or AI configuration. It records the researcher's
+decisions (D1–D8): one topic per mini test; students may end the conversation at any
+point; understanding profiles are instructor-facing and retain uncertainty; item time
+starts at presentation; no skipping; AI roles grouped by the dissertation's five
+modules (`docs/AI_ROLES_AND_MODULES.md`); a pseudonymization key is required when
+deployed; and an evidence-checked AI instructor report. It also lists the open
+follow-ups and the tests retired by D1.

@@ -361,7 +361,14 @@ export const processEventTypes = [
   "student_response_edit_submitted",
   "reasoning_edited",
   "confidence_changed",
-  "tempting_option_changed"
+  "tempting_option_changed",
+  // Added 2026-10-17 (DESIGN_ALIGNMENT_2026-10-17.md): explicit student stop of the
+  // formative conversation, with the number of messages left unanswered.
+  "formative_conversation_ended_by_student",
+  // Added 2026-10-17 (D11): the browser tab or window that currently holds the attempt.
+  "attempt_tab_claimed",
+  "attempt_save_refused_other_tab",
+  "formative_reply_marked_interrupted"
 ] as const;
 export const ProcessEventTypeSchema = z.enum(processEventTypes);
 

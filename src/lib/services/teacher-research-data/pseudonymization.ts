@@ -57,8 +57,14 @@ function requestedVersion(env: NodeJS.ProcessEnv): ResearchPseudonymizationVersi
   );
 }
 
+// D7 (DESIGN_ALIGNMENT_2026-10-17.md): every deployed environment, including the
+// Render service that runs with APP_ENV=staging, must use a secret key. The in-source
+// test key is only acceptable for local development and automated tests, where
+// APP_ENV is unset, "local", "development" or "test".
+const NON_DEPLOYED_APP_ENVS = new Set(["", "local", "development", "test"]);
+
 function isProductionLike(env: NodeJS.ProcessEnv) {
-  return env.APP_ENV === "production";
+  return !NON_DEPLOYED_APP_ENVS.has((env.APP_ENV ?? "").trim().toLowerCase());
 }
 
 function effectiveVersion(env: NodeJS.ProcessEnv): ResearchPseudonymizationVersion {
@@ -71,7 +77,7 @@ function resolvedKey(env: NodeJS.ProcessEnv) {
     if (isProductionLike(env) && key.length < 16) {
       throw new ResearchPseudonymizationConfigError(
         "research_pseudonymization_key_inadequate",
-        "RESEARCH_PSEUDONYMIZATION_KEY is too short for production research exports."
+        "RESEARCH_PSEUDONYMIZATION_KEY is too short for research exports from a deployed (staging or production) environment."
       );
     }
     return { key, productionReady: true };
@@ -79,7 +85,7 @@ function resolvedKey(env: NodeJS.ProcessEnv) {
   if (isProductionLike(env)) {
     throw new ResearchPseudonymizationConfigError(
       "research_pseudonymization_key_missing",
-      "RESEARCH_PSEUDONYMIZATION_KEY is required for production research exports."
+      "RESEARCH_PSEUDONYMIZATION_KEY is required for research exports from a deployed (staging or production) environment."
     );
   }
   return { key: RESEARCH_PSEUDONYMIZATION_DEFAULT_TEST_KEY, productionReady: false };

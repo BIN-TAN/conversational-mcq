@@ -98,11 +98,8 @@ async function runScenario(scenario: Scenario) {
     );
     assertStudentVisibleTextIsSafe(activity.state);
     if (scenario.expectedStateAfterActivity !== "FORMATIVE_ACTIVITY") {
-      assert(activity.state.learning_profile, `${scenario.name}: learning profile should be visible after evaluation.`);
-      assert(
-        JSON.stringify(activity.state.learning_profile).toLowerCase().includes("engagement") === false,
-        `${scenario.name}: student learning profile should not expose engagement labels.`
-      );
+      // D3 (DESIGN_ALIGNMENT_2026-10-17.md): profiles are instructor-facing only.
+      assert(activity.state.learning_profile === null, `${scenario.name}: student state must not expose the understanding profile.`);
     }
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({

@@ -273,6 +273,67 @@ async function get<T>(path: string, parse: (value: unknown) => T, signal?: Abort
   return parseResponse(response, parse);
 }
 
+/**
+ * D11: one active browser tab per attempt. The attempt page registers this tab;
+ * saving requests for that attempt then carry the tab's claim, and the server refuses
+ * them once another tab or browser has opened the attempt. Must match
+ * ATTEMPT_TAB_HEADER in src/lib/services/student-assessment/attempt-tab.ts.
+ */
+const ATTEMPT_TAB_HEADER = "x-cmcq-attempt-tab";
+export const ATTEMPT_OPEN_ELSEWHERE_EVENT = "cmcq:attempt-open-elsewhere";
+let activeAttemptTab: { sessionPublicId: string; browserTabId: string } | null = null;
+// Saving requests wait for this tab's claim, so a reload never races its own claim.
+let pendingAttemptTabClaim: Promise<unknown> | null = null;
+// True once the server has accepted this tab's claim for the active attempt. A 409
+// before that point means our own claim had not landed yet (slow or failed request
+// after a reload), not that another tab took over.
+let attemptTabClaimConfirmed = false;
+let documentBrowserTabId: string | null = null;
+
+export function browserTabIdForThisPage() {
+  documentBrowserTabId ??= crypto.randomUUID();
+  return documentBrowserTabId;
+}
+
+export function setActiveAttemptTab(sessionPublicId: string | null) {
+  if (activeAttemptTab?.sessionPublicId !== sessionPublicId) attemptTabClaimConfirmed = false;
+  activeAttemptTab = sessionPublicId ? { sessionPublicId, browserTabId: browserTabIdForThisPage() } : null;
+  if (!sessionPublicId) pendingAttemptTabClaim = null;
+}
+
+function attemptTabHeaders(path: string): Record<string, string> {
+  if (!activeAttemptTab || !path.startsWith(`/api/student/sessions/${activeAttemptTab.sessionPublicId}/`)) return {};
+  return { [ATTEMPT_TAB_HEADER]: `${activeAttemptTab.sessionPublicId} ${activeAttemptTab.browserTabId}` };
+}
+
+export function claimAttemptTab(sessionPublicId: string) {
+  setActiveAttemptTab(sessionPublicId);
+  const claim = fetch(`/api/student/sessions/${sessionPublicId}/tab-claim`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify({ browser_tab_id: browserTabIdForThisPage() })
+  }).then((response) => parseResponse(response, (value) => value as { current: boolean; replaced_other_tab: boolean }))
+    .then((result) => {
+      if (activeAttemptTab?.sessionPublicId === sessionPublicId) attemptTabClaimConfirmed = true;
+      return result;
+    });
+  pendingAttemptTabClaim = claim.catch(() => null);
+  return claim;
+}
+
+export function attemptTabClaimIsConfirmed() {
+  return attemptTabClaimConfirmed;
+}
+
+export async function attemptTabIsCurrent(sessionPublicId: string) {
+  const query = new URLSearchParams({ browser_tab_id: browserTabIdForThisPage() });
+  const response = await fetch(`/api/student/sessions/${sessionPublicId}/tab-claim?${query}`, {
+    method: "GET",
+    headers: { Accept: "application/json" }
+  });
+  return parseResponse(response, (value) => (value as { current?: unknown }).current !== false);
+}
+
 async function post<T>(
   path: string,
   body: Record<string, unknown>,
@@ -281,15 +342,48 @@ async function post<T>(
     keepalive?: boolean;
   }
 ) {
-  const response = await fetch(path, {
+  const tabHeaders = attemptTabHeaders(path);
+  // Unload-time (keepalive) sends never wait: the page may be gone before the claim.
+  if (tabHeaders[ATTEMPT_TAB_HEADER] && pendingAttemptTabClaim && !options?.keepalive) {
+    // Never let a slow claim hold a save for long; the server re-checks anyway.
+    await Promise.race([pendingAttemptTabClaim, new Promise((resolve) => setTimeout(resolve, 4000))]);
+  }
+  const send = () => fetch(path, {
     method: "POST",
     headers: {
       Accept: "application/json",
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      ...tabHeaders
     },
     body: JSON.stringify(body),
     keepalive: options?.keepalive ?? false
   });
+  let response = await send();
+
+  if (response.status === 409 && typeof window !== "undefined" && tabHeaders[ATTEMPT_TAB_HEADER]) {
+    const peek = await response.clone().json().catch(() => null) as { error?: { code?: string } } | null;
+    if (peek?.error?.code === "attempt_open_elsewhere") {
+      // The refused request saved nothing. If this tab's own claim never landed
+      // (slow or failed after a reload), claim again and retry once before telling
+      // the student the attempt is open elsewhere.
+      const sessionPublicId = activeAttemptTab?.sessionPublicId;
+      let retried = false;
+      if (!attemptTabClaimConfirmed && sessionPublicId && !options?.keepalive) {
+        try {
+          await claimAttemptTab(sessionPublicId);
+          response = await send();
+          retried = true;
+        } catch {
+          // fall through to the dialog
+        }
+      }
+      const stillRefused = !retried || (response.status === 409 &&
+        ((await response.clone().json().catch(() => null)) as { error?: { code?: string } } | null)?.error?.code === "attempt_open_elsewhere");
+      if (stillRefused) {
+        window.dispatchEvent(new Event(ATTEMPT_OPEN_ELSEWHERE_EVENT));
+      }
+    }
+  }
 
   return parseResponse(response, parse);
 }

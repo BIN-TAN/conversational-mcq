@@ -76,6 +76,7 @@ import {
 } from "./execution-v18r2";
 import {
   closeFormativeConversationAtStudentTurnLimit,
+  FormativeConversationFoundationError,
   persistFormativeConversationAssistantMessage,
   persistFormativeConversationLifecycleHandoff,
   prepareFormativeConversationAssistantResponseAttempt,
@@ -1761,13 +1762,20 @@ export async function processFormativeConversationStudentMessage(
     (compiled.context as FormativeConversationV18R2AgentInput)
       .formative_lifecycle.final_allowed_turn
   ) {
-    await closeFormativeConversationAtStudentTurnLimit({
-      conversation_public_id: input.conversation_public_id,
-      client_message_id: input.client_message_id,
-      agent_call_db_id: agentResult.agent_call.id,
-      source: "llm_terminal_recommendation",
-      reason_code: "final_allowed_turn_terminal_recommendation_recorded"
-    });
+    try {
+      await closeFormativeConversationAtStudentTurnLimit({
+        conversation_public_id: input.conversation_public_id,
+        client_message_id: input.client_message_id,
+        agent_call_db_id: agentResult.agent_call.id,
+        source: "llm_terminal_recommendation",
+        reason_code: "final_allowed_turn_terminal_recommendation_recorded"
+      });
+    } catch (error) {
+      // D2 (DESIGN_ALIGNMENT_2026-10-17.md): the student may end the conversation
+      // while this final reply was being prepared. Preserve that explicit stop;
+      // every other failure remains observable.
+      if (!(error instanceof FormativeConversationFoundationError) || error.code !== "conversation_not_active") throw error;
+    }
   }
 
   return {

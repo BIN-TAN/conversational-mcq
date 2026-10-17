@@ -6,6 +6,30 @@ import { generatePublicId } from "./ids";
 import { logProcessEvent } from "./process-events";
 import { validatePhaseTransition } from "./phase-transitions";
 import { resolveCanonicalAttemptLifecycle } from "./student-assessment/attempt-lifecycle";
+import { resolveApplicationBuildInfo } from "../provenance/application-build-info";
+
+/**
+ * R1 (docs/DESIGN_ALIGNMENT_2026-10-17.md, research-data review): each attempt records
+ * the application build and the data-collection rules it ran under, so analyses can
+ * separate data collected before and after a rule change (for example D4 timing, D5
+ * no skipping, D10 typed explanations, D11 one active tab). Bump this when the meaning
+ * of a recorded variable changes.
+ */
+export const DATA_COLLECTION_RULES_VERSION = "data-collection-rules-2026-10-17";
+let cachedBuildIdentity: { application_git_commit: string | null; application_git_commit_source: string | null } | null = null;
+function attemptBuildIdentity() {
+  if (!cachedBuildIdentity) {
+    try {
+      const resolution = resolveApplicationBuildInfo({ allowGitFallback: false });
+      cachedBuildIdentity = resolution.ok
+        ? { application_git_commit: resolution.info.application_git_commit, application_git_commit_source: resolution.info.application_git_commit_source }
+        : { application_git_commit: null, application_git_commit_source: null };
+    } catch {
+      cachedBuildIdentity = { application_git_commit: null, application_git_commit_source: null };
+    }
+  }
+  return cachedBuildIdentity;
+}
 
 const stateSelect = {
   id: true,
@@ -73,7 +97,7 @@ export async function startAssessmentSession(input: z.input<typeof startAssessme
     event_type: "session_started",
     event_category: "session",
     event_source: "backend",
-    payload: { phase: "session_started" },
+    payload: { phase: "session_started", data_collection_rules_version: DATA_COLLECTION_RULES_VERSION, ...attemptBuildIdentity() },
     occurred_at: now
   });
   await logProcessEvent({

@@ -160,6 +160,7 @@
     "student:learning-profile-summary-smoke": "tsx prisma/learning-profile-summary-smoke-test.ts",
     "research-export:preflight": "tsx prisma/research-export-preflight.ts",
     "student:research-export-readiness-smoke": "tsx prisma/student-research-export-readiness-smoke-test.ts",
+    "test:design-alignment": "tsx prisma/design-alignment-unit-test.ts",
     "student:research-export-error-ui-smoke": "tsx prisma/student-research-export-error-ui-smoke-test.ts",
     "student:selected-session-export-smoke": "tsx prisma/student-selected-session-export-smoke-test.ts",
     "student:session-forensic-bundle-smoke": "tsx prisma/student-session-forensic-bundle-smoke-test.ts",

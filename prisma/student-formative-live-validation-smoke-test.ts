@@ -654,11 +654,8 @@ async function assertCanonicalizableProfileLabelsValidate() {
       )
     );
     assert(completed.state.assessment_state === "FORMATIVE_ACTIVITY", "Canonicalized live profile should show activity.");
-    assert(completed.state.learning_profile, "Canonicalized live profile should produce one student-facing status.");
-    assert(
-      ["Mostly understood", "Still developing", "Needs more work"].includes(completed.state.learning_profile.status),
-      "Student-facing learning profile should use one approved status."
-    );
+    // D3 (DESIGN_ALIGNMENT_2026-10-17.md): profiles are instructor-facing only.
+    assert(completed.state.learning_profile === null, "Student state must not expose the understanding profile.");
 
     const session = await prisma.assessmentSession.findUniqueOrThrow({
       where: { session_public_id: started.session.session_public_id },

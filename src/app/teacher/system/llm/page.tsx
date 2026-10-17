@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getLlmReadiness } from "@/lib/llm/readiness";
 import { recentProviderNotice } from "@/lib/llm/provider-status";
+import { ASSESSMENT_MODULE_DEFINITIONS, type ModulePolicyStatus } from "@/lib/llm/assessment-modules";
 
 export default async function TeacherLlmSystemPage() {
   const user = await getCurrentUser();
@@ -22,6 +23,7 @@ export default async function TeacherLlmSystemPage() {
   const usage = readiness.usage;
   const providerNotice = recentProviderNotice(usage?.recent_agent_calls ?? []);
   const operationalIntegration = readiness.guarded_operational_agent_integration;
+  const modulePolicy = readiness.module_model_policy as { version: string; modules: ModulePolicyStatus[] } | null;
 
   return (
     <main className="px-6 py-8">
@@ -76,6 +78,48 @@ export default async function TeacherLlmSystemPage() {
             <p className="mt-1 text-xs uppercase tracking-wide">
               {readiness.configuration_error.code}
             </p>
+          </section>
+        ) : null}
+
+        {modulePolicy ? (
+          <section className="mt-6 rounded-lg border border-line bg-white p-5 shadow-soft" data-testid="module-model-policy">
+            <h2 className="text-xl font-semibold text-ink">Models by module</h2>
+            <p className="mt-1 text-sm text-muted">
+              The system runs one model configuration per assessment module ({modulePolicy.version}). Each module&apos;s
+              internal agents share it.
+            </p>
+            <div className="mt-4 overflow-x-auto rounded-lg border border-line">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Module</th>
+                    <th className="px-3 py-2">Selected</th>
+                    <th className="px-3 py-2">In use</th>
+                    <th className="px-3 py-2">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-line">
+                  {modulePolicy.modules.map((entry) => (
+                    <tr key={entry.module}>
+                      <td className="px-3 py-2 font-medium text-ink">{ASSESSMENT_MODULE_DEFINITIONS[entry.module].title}</td>
+                      <td className="px-3 py-2">{entry.selected.model} · {entry.selected.reasoning_effort}</td>
+                      <td className="px-3 py-2">
+                        {entry.configured.length === 0
+                          ? "not configured"
+                          : entry.configured.map((group) => `${group.model ?? "not set"} · ${group.reasoning_effort ?? "default"}`).join("; ")}
+                      </td>
+                      <td className="px-3 py-2">
+                        {entry.matches_selected
+                          ? "Matches"
+                          : entry.single_configuration
+                            ? "Differs from selection"
+                            : entry.configured.length === 0 ? "Not configured" : "Agents disagree"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         ) : null}
 

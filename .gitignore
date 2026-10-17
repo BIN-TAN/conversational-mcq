@@ -47,3 +47,6 @@ _operator_assets/
 # system
 .DS_Store
 .Rhistory
+
+# Local verification output (scripts/local/run-local-checks.ps1)
+local-check-results/

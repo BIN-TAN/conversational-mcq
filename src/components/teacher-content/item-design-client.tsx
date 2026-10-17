@@ -1005,7 +1005,7 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
             ><Plus className="h-4 w-4" aria-hidden="true" /> Add exemplar item</Button>
 
             <div className="grid gap-4 border-t border-line pt-5 md:grid-cols-2">
-              <Field label="Number of draft items" hint="6-9 is a useful starting point. The current validated range is 3-12.">
+              <Field label="Number of draft items" hint="3-5 items per mini-test are recommended; 3-12 are allowed.">
                 <input
                   className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={readOnly}
@@ -1023,7 +1023,9 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
                   onChange={(event) => updateBlueprint((current) => ({ ...current, generation_settings: { ...current.generation_settings, option_count: Number(event.target.value) } }))}
                   value={blueprint.generation_settings.option_count}
                 >
-                  <option value={3}>3</option><option value={4}>4</option><option value={5}>5</option>
+                  <option value={3}>3</option><option value={4}>4</option>
+                  {/* Option E is reserved for the student's "I don't know yet" choice, so items have at most four options. */}
+                  {blueprint.generation_settings.option_count === 5 ? <option value={5}>5 (cannot be published)</option> : null}
                 </select>
               </Field>
               <Field label="Cognitive demand mix">

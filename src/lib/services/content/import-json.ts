@@ -10,6 +10,7 @@ import {
 } from "./serializers";
 import { replaceItemMediaAssets } from "./items";
 import { ContentServiceError } from "./errors";
+import { assertTopicCapacity } from "./concept-units";
 import { assertAssessmentEditable } from "./governance";
 import { ConceptUnitImportInputSchema } from "./validation";
 
@@ -56,6 +57,8 @@ export async function importConceptBasedItemSets(input: {
       if (!assessment) {
         throw new ContentServiceError("not_found", "Assessment was not found.", 404);
       }
+      // F-D1a: one topic per mini-test (D1), checked before anything is created.
+      await assertTopicCapacity(tx, assessment.id, data.concept_units.length);
 
       const lastConceptUnit = await tx.conceptUnit.findFirst({
         where: { assessment_db_id: assessment.id },

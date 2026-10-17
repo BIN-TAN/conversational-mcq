@@ -5,6 +5,7 @@ import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { StudentAssessmentServiceError } from "../errors";
 
 const closed = ["ended", "completed", "teacher_assistance_recommended"];
+const studentEndedReason = "student_ended_conversation";
 
 export async function canFinishConversationAssessment(sessionId: string, assessmentId: string, db: Prisma.TransactionClient = prisma) {
   const topics = await db.conceptUnit.findMany({
@@ -20,8 +21,13 @@ export async function canFinishConversationAssessment(sessionId: string, assessm
   });
   return topics.length > 0 && units.length === topics.length && units.every(unit => {
     const conversation = unit.formative_conversation_session;
-    return unit.initial_completed_at && unit.response_packages.length > 0 && conversation && closed.includes(conversation.status) &&
-      conversation.conversation_turns.length > 0 && conversation.message_receipts.length > 0 &&
+    if (!unit.initial_completed_at || unit.response_packages.length === 0 || !conversation ||
+        !closed.includes(conversation.status)) return false;
+    // D2 (DESIGN_ALIGNMENT_2026-10-17.md): an explicit student stop is a valid end
+    // of the optional conversation even when the opening or a tutor reply was
+    // still pending or failed. The submitted initial record is already sealed.
+    if (conversation.lifecycle_reason === studentEndedReason) return true;
+    return conversation.conversation_turns.length > 0 && conversation.message_receipts.length > 0 &&
       !conversation.lifecycle_reason?.startsWith("platform_") &&
       conversation.message_receipts.every(receipt => receipt.assistant_turn_db_id && receipt.assistant_response_status === "completed");
   });

@@ -1,4 +1,5 @@
 import { deriveItemTiming, deriveSessionTiming, recordedEventTimestamp, type TimingEventLike } from "../student-assessment/timing-contract";
+import { insertedPasteCount, isBlockedPasteEvent } from "@/lib/services/student-assessment/blocked-paste";
 import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
 import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
 import { canonicalAssessmentLifecycleEvents, conversationActivityDates, conversationParticipation, derivePauseEpisodes, displaySourceTurnIndex, type ObservedConversation } from "./participation-observations";
@@ -241,7 +242,8 @@ export function buildProcessDataSummary(input: {
       revision_fields: changes,
       page_reload_count: observed ? count("refresh_recovery") : null,
       assessment_view_open_count: observed ? entries : null,
-      paste_action_count: observed ? count("paste_detected") : null
+      paste_action_count: observed ? insertedPasteCount(input.events) : null,
+      blocked_paste_attempt_count: observed ? input.events.filter(isBlockedPasteEvent).length : null
     },
     typing: {
       summary_count: typingEvents.length,

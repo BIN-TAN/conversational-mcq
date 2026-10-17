@@ -142,6 +142,9 @@ export function computeAssessmentAvailability(
 
 type TxClient = Pick<Prisma.TransactionClient, "conceptUnit">;
 
+/** One mini-test = one topic (concept unit). See DESIGN_ALIGNMENT_2026-10-17.md, D1. */
+export const MAX_PUBLISHED_TOPICS_PER_MINI_TEST = 1;
+
 export async function assessmentHasValidPublishedContent(
   tx: TxClient,
   assessmentDbId: string
@@ -163,8 +166,12 @@ export async function assessmentHasValidPublishedContent(
     }
   });
 
+  // Design decision 2026-10-17 (docs/DESIGN_ALIGNMENT_2026-10-17.md, D1):
+  // a mini-test administers exactly one published topic. The multi-topic
+  // runtime released feedback per topic and offered no route to later topics,
+  // so a published multi-topic mini-test is not offered for new attempts.
   return (
-    conceptUnits.length > 0 &&
+    conceptUnits.length === MAX_PUBLISHED_TOPICS_PER_MINI_TEST &&
     conceptUnits.every(
       (conceptUnit) =>
         conceptUnit.items.length >= INCLUDED_ITEM_RANGE.min &&

@@ -6,6 +6,7 @@ import { learningProfileInclude, latestLearningProfile, learningProfileSummary, 
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
+import { AI_CALL_AUDIT_COLUMNS, AI_CALL_AUDIT_DEFINITIONS, AI_CALL_AUDIT_DICTIONARY_FILE, AI_CALL_AUDIT_FILE, instructorReportAuditRows, sessionAiCallAuditRows } from "./ai-call-audit-export";
 import { researchCsv, RESEARCH_CSV_CONTRACT_VERSION } from "./csv-contract";
 import { researchStudyTemplateFiles, STUDY_TEMPLATE_VERSION } from "./study-templates";
 import { MEASUREMENT_AVAILABILITY_VERSION } from "./measurement-availability";
@@ -840,6 +841,58 @@ function itemSnapshotRecord(response: AnalysisSession["concept_unit_sessions"][n
   return asRecord(response.item_snapshot);
 }
 
+/**
+ * R4 (docs/RESEARCH_DATA_REVIEW_2026-10-17.md): what evidence an attempt actually
+ * produced, independent of session_status. Early pilot attempts often never reached
+ * "completed" even when the student had done everything (later-fixed defects and the
+ * optional Finish step), so analyses should select attempts by evidence stage.
+ */
+/**
+ * R1/H2: which data-collection rules an attempt ran under. An attempt started before
+ * the 2026-10-17 rules has no version on its session_started event; if it was
+ * continued with the newer application (which records a tab claim on every page
+ * load), its later items ran under the new rules, so it is flagged as mixed.
+ */
+function dataCollectionRulesFields(events: AnalysisSession["process_events"]) {
+  const version = payloadString(firstEvent(events, ["session_started"])?.payload, ["data_collection_rules_version"]);
+  const claimCount = events.filter((event) => event.event_type === "attempt_tab_claimed").length;
+  return {
+    data_collection_rules_version: version ?? "pre_2026_10_17_unversioned",
+    data_collection_rules_changed_during_attempt: !version && claimCount > 0,
+    // Blank (not 0) when tab claims were not yet recorded for this attempt.
+    attempt_tab_claim_count: version || claimCount > 0 ? claimCount : null
+  };
+}
+
+function evidenceStageFields(session: AnalysisSession) {
+  const packageSealed = session.concept_unit_sessions.some((unit) =>
+    unit.response_packages.some((pkg) => pkg.package_type === "initial_concept_unit_response_package"));
+  const feedbackShown = session.process_events.some((event) =>
+    ["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(event.event_type));
+  const conversationStarted = session.formative_conversation_sessions.length > 0;
+  const studentMessages = session.formative_conversation_sessions.reduce((total, conversation) =>
+    total + conversation.conversation_turns.filter((turn) => turn.actor_type === "student").length, 0);
+  const finishChosen = session.status === "completed";
+  const stage = !packageSealed ? "responses_incomplete"
+    : finishChosen ? "finished"
+      : studentMessages > 0 ? "conversation_participated"
+        : feedbackShown ? "feedback_shown"
+          : "package_sealed";
+  return {
+    initial_package_sealed: packageSealed,
+    feedback_shown: feedbackShown,
+    conversation_started: conversationStarted,
+    conversation_student_message_count: studentMessages,
+    finish_chosen: finishChosen,
+    evidence_stage: stage
+  };
+}
+
+function snapshotHasOptionE(response: AnalysisSession["concept_unit_sessions"][number]["item_responses"][number]) {
+  const options = itemSnapshotRecord(response).options;
+  return Array.isArray(options) && options.some((option) => asRecord(option).label === "E");
+}
+
 function packageEvidenceByItem(session: AnalysisSession) {
   const packages = session.concept_unit_sessions
     .flatMap((conceptUnitSession) => conceptUnitSession.response_packages)
@@ -1131,6 +1184,11 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       completed_at: iso(session.completed_at),
       resumed_at: iso(firstEvent(session.process_events, ["session_resumed"])?.occurred_at ?? null),
       exited_at: iso(firstEvent(session.process_events, ["session_exited"])?.occurred_at ?? null),
+      // R1: the build and data-collection rules the attempt ran under (blank for
+      // attempts started before 2026-10-17 instrumentation).
+      collecting_application_git_commit: payloadString(firstEvent(session.process_events, ["session_started"])?.payload, ["application_git_commit"]),
+      ...dataCollectionRulesFields(session.process_events),
+      ...evidenceStageFields(session),
       attempt_lifecycle_status: attemptLifecycleStatus,
       terminal_reason: terminalReason,
       ended_by_actor:
@@ -1307,6 +1365,11 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           tempting_option: typeof temptingEvidence.tempting_option === "string" ? temptingEvidence.tempting_option : null,
           tempting_option_reason: typeof temptingEvidence.tempting_option_reason === "string" ? temptingEvidence.tempting_option_reason : null,
           insufficient_knowledge_selected: countEvents(itemEvents, ["idk_selected", "insufficient_knowledge_marked"]) > 0,
+          // R2: split the combined flag. "E" is the "I don't know yet" choice unless the
+          // administered item had its own option E.
+          final_idk_selected: response.selected_option === "E" && !snapshotHasOptionE(response),
+          ever_idk_selected: countEvents(itemEvents, ["idk_selected"]) > 0,
+          ai_flagged_insufficient_knowledge: countEvents(itemEvents, ["insufficient_knowledge_marked"]) > 0,
           skipped_item: response.skipped_item,
           skipped_reasoning: response.skipped_reasoning,
           skipped_confidence: response.skipped_confidence,
@@ -1502,6 +1565,9 @@ function processEventRows(sessions: AnalysisSession[]) {
         payload_target_kind: payloadString(payload, ["target_kind"]),
         payload_clipboard_type_count: payloadNumber(payload, ["clipboard_type_count"]),
         payload_includes_plain_text: payloadBoolean(payload, ["includes_plain_text"]),
+        payload_paste_blocked: payloadBoolean(payload, ["paste_blocked"]),
+        payload_unanswered_message_count: payloadNumber(payload, ["unanswered_message_count"]),
+        payload_replaced_other_tab: payloadBoolean(payload, ["replaced_other_tab"]),
         payload_delivery_gap_count: payloadNumber(payload, ["delivery_gap_count"]),
         duration_ms: duration,
         visibility_duration_ms: event.visibility_duration_ms,
@@ -2846,6 +2912,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
 }
 
 async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool: ResearchExportSpool) {
+  const auditAssessmentIds: string[] = [];
   try { assertResearchPseudonymizationReadyForExport(); } catch (error) {
     if (error instanceof ResearchPseudonymizationConfigError) {
       throw new ContentServiceError(error.code, error.message, 503, {
@@ -2883,12 +2950,36 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
       });
       attemptObservations.push(...observeAttempts(sessions, chances));
       for (const file of sessionExportFiles(source, sessions, supplemental, includeRestricted)) await emit(file);
+      if (includeRestricted) {
+        // R3: researcher-only AI audit rows (never in the default export).
+        for (const session of sessions) {
+          auditAssessmentIds.push(session.assessment.assessment_public_id);
+          await emit({ path: AI_CALL_AUDIT_FILE, data: csv(AI_CALL_AUDIT_COLUMNS, await sessionAiCallAuditRows(tx, {
+            session_db_id: session.id,
+            session_public_id: session.session_public_id,
+            research_student_id: researchStudentId(session.user.user_id),
+            assessment_public_id: session.assessment.assessment_public_id,
+            attempt_number: session.attempt_number
+          })) });
+        }
+      }
       if (input.scope === "selected_session") await emit({
         path: "session_diagnostic_manifest.json", data: sessionDiagnosticManifest(source, sessions, supplemental)
       });
     }
+    // Instructor reports summarise a whole class, so they are exported only for
+    // whole-cohort scopes that include incomplete attempts (the report's own rule).
+    if (includeRestricted && auditAssessmentIds.length &&
+        (input.scope === "all_authorized" || input.scope === "selected_assessment") &&
+        input.include_incomplete_sessions !== false) {
+      await emit({ path: AI_CALL_AUDIT_FILE, data: csv(AI_CALL_AUDIT_COLUMNS, await instructorReportAuditRows(tx, auditAssessmentIds)) });
+    }
     return snapshot.snapshot_at.toISOString();
-  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 120_000 });
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: includeRestricted ? 300_000 : 120_000 });
+  if (includeRestricted) {
+    await emit({ path: AI_CALL_AUDIT_DICTIONARY_FILE, data: csv(["variable", "definition"],
+      Object.entries(AI_CALL_AUDIT_DEFINITIONS).map(([variable, definition]) => ({ variable, definition }))) });
+  }
   // Comparisons retain compact sealed-attempt evidence, not all process logs.
   for (const file of attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
     pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope })) await emit(file);
@@ -2911,6 +3002,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
     "Browser events are best effort: delivery gaps, absent visibility, multiple documents, and unrecovered browser closure limit inference. Absence is not nonoccurrence.",
     "No consent or withdrawal decision is inferred. Apply the approved study cohort before analysis. Free text may contain identifying information and requires review.",
+    "Restricted exports only: ai_call_audit.csv lists every model call recorded for the exported attempts, plus instructor reports for whole-class scopes (inputs, raw output including rejected drafts, validated output, model, effort, prompt version and hash) for AI-output review; see ai_call_audit_data_dictionary.csv. Students never see this file.",
     "Correct answers and teacher-only fields are included only when restricted_fields_included is true in the manifest.",
     "The manifest lists every other ZIP entry. SHA-256 values cover UTF-8 entry bytes; the manifest excludes its own hash to avoid recursion."
   ].join("\n") + "\n" });
@@ -2941,7 +3033,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     timing_source_version: TIMING_SOURCE_VERSION,
     timing_version_scope: "Legacy fallback constants only; use each row's timing_contract_version/timing_source_version. Browser item rows use timing-contract-v4 and response-stage-observation-v1; stage tables carry calculation_version.",
     session_timing_contract_version: SESSION_TIMING_CONTRACT_VERSION,
-    omitted_fields: includeRestricted ? ["raw_provider_payloads", "raw_process_payloads"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
+    // R3: restricted exports carry model inputs and outputs in ai_call_audit.csv.
+    omitted_fields: includeRestricted ? ["raw_process_payloads", "provider_transport_metadata"] : ["raw_provider_payloads", "raw_process_payloads", ...restrictedDefaultColumns],
     entries: spool.manifestEntries()
   };
 

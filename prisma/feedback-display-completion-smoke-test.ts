@@ -78,13 +78,23 @@ async function main() {
     await lifecycle("resume");
     const openingReceipt = await db.formativeConversationMessageReceipt.findFirstOrThrow({ where: { formative_conversation_session: { assessment_session_db_id: session.id } } });
     await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "failed" } });
-    await assert.rejects(lifecycle("end"), /tutor response is not ready/);
-    await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "completed" } });
+    // D2 (DESIGN_ALIGNMENT_2026-10-17.md): an explicit stop is honoured even while a
+    // tutor response is failed or pending; the unanswered count is recorded.
     await lifecycle("end");
+    const endEvent = await db.processEvent.findFirstOrThrow({ where: { assessment_session_db_id: session.id,
+      event_type: "formative_conversation_ended_by_student" } });
+    assert.equal((endEvent.payload as { unanswered_message_count?: number }).unanswered_message_count, 1);
+    await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "completed" } });
     assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: session.id } })).status, "active");
     const receipt = await db.formativeConversationMessageReceipt.findFirstOrThrow({ where: { formative_conversation_session: { assessment_session_db_id: session.id } } });
+    // D2: after a student stop, an unanswered (failed) receipt no longer blocks Finish;
+    // a non-student closure still requires completed receipts.
     await db.formativeConversationMessageReceipt.update({ where: { id: receipt.id }, data: { assistant_response_status: "failed" } });
+    const conversationRow = await db.formativeConversationSession.findFirstOrThrow({ where: { assessment_session_db_id: session.id } });
+    assert.equal(conversationRow.lifecycle_reason, "student_ended_conversation");
+    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "platform_failure:synthetic" } });
     await assert.rejects(lifecycle("finish"), /Finish is available/);
+    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "student_ended_conversation" } });
     await db.formativeConversationMessageReceipt.update({ where: { id: receipt.id }, data: { assistant_response_status: "completed" } });
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: null } });
     await assert.rejects(lifecycle("finish"), /Finish is available/);

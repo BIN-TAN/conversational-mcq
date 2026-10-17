@@ -4,7 +4,7 @@ const MAX_PENDING = 200;
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MAX_ATTEMPTS = 5;
 const SAFE_TYPES = new Set(["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible", "window_blur", "window_focus", "paste_detected", "typing_activity_summary", "long_pause", "inactivity_detected", "navigation_event", "refresh_recovery"]);
-const SAFE_PAYLOAD_KEYS = new Set(["key_count", "backspace_count", "enter_key_count", "duration_ms", "focus_duration_ms", "target_kind", "pasted_text_length_band", "clipboard_type_count", "includes_plain_text", "reason", "navigation_type", "delivery_gap_count"]);
+const SAFE_PAYLOAD_KEYS = new Set(["key_count", "backspace_count", "enter_key_count", "duration_ms", "focus_duration_ms", "target_kind", "pasted_text_length_band", "clipboard_type_count", "includes_plain_text", "paste_blocked", "reason", "navigation_type", "delivery_gap_count"]);
 
 type Pending = { event: FrontendProcessEvent; queued_at: number };
 SAFE_TYPES.add("response_stage_observation");

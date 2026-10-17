@@ -57,7 +57,12 @@ import {
   stopFollowup,
   updateInFlowItem,
   updateFormativeConversationLifecycle,
-  updatePackageReviewItem
+  updatePackageReviewItem,
+  attemptTabClaimIsConfirmed,
+  attemptTabIsCurrent,
+  claimAttemptTab,
+  setActiveAttemptTab,
+  ATTEMPT_OPEN_ELSEWHERE_EVENT
 } from "./api";
 import { useStudentProcessEvents } from "./process-events";
 import { useStudentDraft } from "./use-student-draft";
@@ -368,10 +373,14 @@ export function FormativeOpeningStatus({
 
 function FormativeResponseWaitingStatus({
   onReviewAnswers,
-  messageSaved
+  messageSaved,
+  onEnd,
+  endLabel
 }: {
   onReviewAnswers?: () => void;
   messageSaved: boolean;
+  onEnd?: () => void;
+  endLabel?: string;
 }) {
   const [stage, setStage] = useState<"preparing" | "saved" | "delayed">(
     "preparing"
@@ -427,6 +436,16 @@ function FormativeResponseWaitingStatus({
             Review your answers
           </button>
         ) : null}
+        {stage !== "preparing" && onEnd ? (
+          <button
+            className="mt-3 ml-2 inline-flex items-center rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-red-300"
+            data-testid="formative-conversation-end-while-pending"
+            onClick={onEnd}
+            type="button"
+          >
+            {endLabel ?? "Finish this conversation"}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -471,6 +490,9 @@ function FormativeConversationControls(input: {
       <FormativeResponseWaitingStatus
         onReviewAnswers={input.onReviewAnswers}
         messageSaved={!input.isAwaitingTutorResponse && (response?.status === "pending" || response?.status === "retrying")}
+        // D2: the student can end the conversation even while a reply is pending.
+        onEnd={conversation.can_end ? input.onEnd : undefined}
+        endLabel={input.finishLabel}
       />
     );
   }
@@ -924,6 +946,57 @@ function TemptingOptionMessage({
   );
 }
 
+/**
+ * Students type their written explanations (justification and alternative-option
+ * reasoning); pasting and dropping text there is blocked (design decision D10,
+ * docs/DESIGN_ALIGNMENT_2026-10-17.md). The attempt is still recorded by the
+ * process-event listener as paste_detected with paste_blocked=true. Other fields,
+ * including the optional learning conversation, are unchanged.
+ */
+const EXPLANATION_PASTE_BLOCKED_EVENT = "cmcq:explanation-paste-blocked";
+
+function blockExplanationPaste(event: { preventDefault: () => void }) {
+  event.preventDefault();
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(EXPLANATION_PASTE_BLOCKED_EVENT));
+  }
+}
+
+const explanationPasteBlockProps = {
+  onPaste: blockExplanationPaste,
+  onDrop: blockExplanationPaste,
+  "data-paste-blocked": "true"
+} as const;
+
+function ExplanationPasteNotice() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    function show() {
+      setVisible(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setVisible(false), 4000);
+    }
+    window.addEventListener(EXPLANATION_PASTE_BLOCKED_EVENT, show);
+    return () => {
+      window.removeEventListener(EXPLANATION_PASTE_BLOCKED_EVENT, show);
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
+  return (
+    <div aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex justify-center px-4">
+      {visible ? (
+        <p
+          className="rounded-full bg-ink px-4 py-2 text-sm font-medium text-white shadow-lg"
+          data-testid="explanation-paste-blocked-notice"
+        >
+          Pasting is turned off here. Please type your explanation in your own words.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 function TextComposer({
   label,
   placeholder,
@@ -934,7 +1007,8 @@ function TextComposer({
   sendTestId,
   onChange,
   onSend,
-  sendLabel = "Send"
+  sendLabel = "Send",
+  blockPaste = false
 }: {
   label: string;
   placeholder: string;
@@ -946,6 +1020,8 @@ function TextComposer({
   onChange: (value: string) => void;
   onSend: () => void;
   sendLabel?: string;
+  /** D10: block paste and drop for written explanations. */
+  blockPaste?: boolean;
 }) {
   return (
     <div className="ml-auto w-full max-w-[82%] rounded-2xl rounded-br-md border border-line bg-white px-3 py-2.5 shadow-sm sm:max-w-[72%]">
@@ -959,6 +1035,7 @@ function TextComposer({
         id={testId}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
+        {...(blockPaste ? explanationPasteBlockProps : {})}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
             event.preventDefault();
@@ -1127,6 +1204,7 @@ function PackageReviewMessage({
                       <textarea
                         className="mt-2 min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                         data-testid={`package-review-edit-reasoning-${item.item_public_id}`}
+                        {...explanationPasteBlockProps}
                         disabled={isBusy}
                         id={`package-review-edit-reasoning-${item.item_public_id}`}
                         maxLength={MAX_REASONING_LENGTH}
@@ -1205,6 +1283,7 @@ function PackageReviewMessage({
                         <textarea
                           className="mt-2 min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                           data-testid={`package-review-edit-tempting-reason-${item.item_public_id}`}
+                          {...explanationPasteBlockProps}
                           disabled={isBusy}
                           id={`package-review-edit-tempting-reason-${item.item_public_id}`}
                           maxLength={MAX_REASONING_LENGTH}
@@ -1376,6 +1455,7 @@ function InFlowEditPanel({
             <textarea
               className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
               data-testid="in-flow-edit-reasoning-input"
+              {...explanationPasteBlockProps}
               disabled={isBusy}
               maxLength={MAX_REASONING_LENGTH}
               onChange={(event) => onChange({ ...draft, reasoningText: event.target.value })}
@@ -1442,6 +1522,7 @@ function InFlowEditPanel({
                 <textarea
                   className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                   data-testid="in-flow-edit-tempting-reason-input"
+                  {...explanationPasteBlockProps}
                   disabled={isBusy}
                   maxLength={MAX_REASONING_LENGTH}
                   onChange={(event) => onChange({ ...draft, temptingOptionReason: event.target.value })}
@@ -2246,6 +2327,7 @@ function activeItemPrompt(input: {
           <p className="font-medium text-ink">{reasoningPrompt.prompt_text}</p>
         </AgentMessage>
         <TextComposer
+          blockPaste
           disabled={isBusy}
           label="Reason for answer"
           maxLength={MAX_REASONING_LENGTH}
@@ -2305,6 +2387,7 @@ function activeItemPrompt(input: {
           <p className="font-medium text-ink">{temptingReasonPrompt.prompt_text}</p>
         </AgentMessage>
         <TextComposer
+          blockPaste
           disabled={isBusy}
           label="Tempting option reason"
           maxLength={MAX_REASONING_LENGTH}
@@ -2465,6 +2548,11 @@ export function AssessmentSessionClient({
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const packageResultsRef = useRef<HTMLDivElement | null>(null);
   const formativeMessageIdRef = useRef<string | null>(null);
+  /** D2: set when the student ends the conversation; a concurrent send then yields. */
+  const conversationEndRequestedRef = useRef(false);
+  // True while a conversation message send or reply retry is in flight, so ending the
+  // conversation cannot re-enable the composer before that request settles.
+  const formativeSendInFlightRef = useRef(false);
   const formativeInputTimingRef = useRef<ReturnType<typeof createFormativeInputTiming> | null>(null);
   if (!formativeInputTimingRef.current) formativeInputTimingRef.current = createFormativeInputTiming(() => performance.now(), () => new Date().toISOString());
   const formativeEditCountRef = useRef(0);
@@ -2509,6 +2597,57 @@ export function AssessmentSessionClient({
     return () => window.removeEventListener("beforeunload", warn);
   }, [unprotectedDraft]);
   const preparationPending = Boolean(state?.preparation && ["queued", "preparing", "retrying"].includes(state.preparation.status));
+
+  // D11: one active tab per attempt. This tab claims the attempt when it opens; if a
+  // newer tab or browser takes it over, saving here is refused and this tab says so.
+  const [openElsewhere, setOpenElsewhere] = useState(false);
+  const [reclaimingTab, setReclaimingTab] = useState(false);
+  useEffect(() => {
+    if (!activeSessionPublicId || readOnlyReview) return;
+    let disposed = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    // A failed claim (for example a cold server at class start) is retried with
+    // backoff, so this tab does not stay unclaimed after a reload.
+    const claim = (attempt: number) => {
+      void claimAttemptTab(activeSessionPublicId)
+        .then(() => { if (!disposed) setOpenElsewhere(false); })
+        .catch(() => {
+          if (!disposed && attempt < 3) retryTimer = setTimeout(() => claim(attempt + 1), [2000, 5000, 10000][attempt]);
+        });
+    };
+    claim(0);
+    const onElsewhere = () => setOpenElsewhere(true);
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (!attemptTabClaimIsConfirmed()) {
+        // Our own claim never landed; claim now instead of reporting another tab.
+        claim(3);
+        return;
+      }
+      void attemptTabIsCurrent(activeSessionPublicId)
+        .then((current) => { if (!disposed && !current) setOpenElsewhere(true); })
+        .catch(() => undefined);
+    };
+    window.addEventListener(ATTEMPT_OPEN_ELSEWHERE_EVENT, onElsewhere);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      disposed = true;
+      if (retryTimer) clearTimeout(retryTimer);
+      window.removeEventListener(ATTEMPT_OPEN_ELSEWHERE_EVENT, onElsewhere);
+      document.removeEventListener("visibilitychange", onVisible);
+      setActiveAttemptTab(null);
+    };
+  }, [activeSessionPublicId, readOnlyReview]);
+  async function takeOverThisTab() {
+    if (!activeSessionPublicId) return;
+    setReclaimingTab(true);
+    try {
+      await claimAttemptTab(activeSessionPublicId);
+      window.location.reload();
+    } catch {
+      setReclaimingTab(false);
+    }
+  }
 
   useEffect(() => {
     if (!activeSessionPublicId || !preparationPending || readOnlyReview || isBusy) return;
@@ -2698,6 +2837,8 @@ export function AssessmentSessionClient({
     setIsAwaitingFormativeTutorResponse(true);
     setError(null);
     setFailedAction(null);
+    conversationEndRequestedRef.current = false;
+    formativeSendInFlightRef.current = true;
     try {
       const nextConversation = await sendFormativeConversationMessage({
         sessionPublicId: state.session_public_id,
@@ -2713,19 +2854,35 @@ export function AssessmentSessionClient({
             formativePasteCharacterCountRef.current
         }
       });
-      setState((current) =>
-        current
-          ? { ...current, formative_conversation: nextConversation }
-          : current
-      );
+      // D2: if the student ended the conversation while this send was in flight,
+      // the end is authoritative; do not restore the older "active" projection.
+      if (!conversationEndRequestedRef.current) {
+        setState((current) =>
+          current
+            ? { ...current, formative_conversation: nextConversation }
+            : current
+        );
+      }
       setFormativeConversationDraft("");
       formativeMessageIdRef.current = null;
       resetFormativeInputTelemetry();
     } catch (errorValue) {
-      handleError(errorValue, "message", () => {
-        void handleSendFormativeConversationMessage();
-      });
+      if (conversationEndRequestedRef.current) {
+        // The send lost the race with the student's stop; the message is either
+        // saved without a reply or was never accepted. Show the ended state instead
+        // of a retry prompt.
+        try {
+          setState(await fetchSessionState(state.session_public_id));
+        } catch {
+          // The next poll or refresh shows the authoritative state.
+        }
+      } else {
+        handleError(errorValue, "message", () => {
+          void handleSendFormativeConversationMessage();
+        });
+      }
     } finally {
+      formativeSendInFlightRef.current = false;
       setIsAwaitingFormativeTutorResponse(false);
       setIsBusy(false);
     }
@@ -2776,6 +2933,7 @@ export function AssessmentSessionClient({
     setIsAwaitingFormativeTutorResponse(true);
     setError(null);
     setFailedAction(null);
+    formativeSendInFlightRef.current = true;
     try {
       const nextConversation =
         await retryFormativeConversationResponse({
@@ -2794,6 +2952,7 @@ export function AssessmentSessionClient({
         void handleRetryFormativeConversationResponse();
       });
     } finally {
+      formativeSendInFlightRef.current = false;
       setIsAwaitingFormativeTutorResponse(false);
       setIsBusy(false);
     }
@@ -2802,9 +2961,11 @@ export function AssessmentSessionClient({
   async function handleFormativeConversationLifecycle(
     action: "pause" | "resume" | "end" | "finish"
   ) {
-    if (!state || isBusy) {
+    // D2: an explicit stop is honored even while a message send is in flight.
+    if (!state || (isBusy && action !== "end")) {
       return;
     }
+    if (action === "end") conversationEndRequestedRef.current = true;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
@@ -2828,7 +2989,7 @@ export function AssessmentSessionClient({
         void handleFormativeConversationLifecycle(action);
       });
     } finally {
-      setIsBusy(false);
+      setIsBusy(formativeSendInFlightRef.current);
     }
   }
 
@@ -3787,6 +3948,7 @@ export function AssessmentSessionClient({
       readOnlyReview={readOnlyReview}
       state={state}
     >
+      <ExplanationPasteNotice />
       <div className="flex flex-1">
         <ChatTranscript>
           <ErrorNotice error={error} />
@@ -3860,11 +4022,48 @@ export function AssessmentSessionClient({
         </ChatTranscript>
       </div>
       {navigation.newReply ? <button type="button" className="sticky bottom-4 mx-auto rounded-md border border-accent bg-white px-4 py-2 text-sm font-semibold text-accent shadow-sm" onClick={navigation.showReply}>New tutor reply</button> : null}
+      {!readOnlyReview && openElsewhere ? (
+        <ModalDialog
+          labelledBy="attempt-open-elsewhere-title"
+          onClose={() => undefined}
+          busy={reclaimingTab}
+          testId="attempt-open-elsewhere-dialog"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-semibold text-ink" id="attempt-open-elsewhere-title">
+              This attempt is open somewhere else
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-muted">
+              You opened this attempt in another tab or browser, so this tab can no longer save. Continue in the
+              other one, or use this tab instead. Your saved work is kept either way.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-accent-strong disabled:opacity-60"
+                data-testid="attempt-use-this-tab"
+                disabled={reclaimingTab}
+                onClick={() => void takeOverThisTab()}
+                type="button"
+              >
+                Use this tab
+              </button>
+              <button
+                className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink"
+                disabled={reclaimingTab}
+                onClick={() => router.push("/student/assessment")}
+                type="button"
+              >
+                Back to my assessments
+              </button>
+            </div>
+          </div>
+        </ModalDialog>
+      ) : null}
       {!readOnlyReview && endConversationDialogOpen ? (
         <ModalDialog
           labelledBy="end-conversation-dialog-title"
           onClose={() => setEndConversationDialogOpen(false)}
-          busy={isBusy}
+          busy={isBusy && !isAwaitingFormativeTutorResponse}
           testId="end-conversation-dialog"
         >
           <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
@@ -3890,7 +4089,7 @@ export function AssessmentSessionClient({
               <button
                 className="rounded-full bg-[#c99700] px-4 py-2 text-sm font-semibold text-ink hover:bg-[#d6aa1c] disabled:cursor-not-allowed disabled:opacity-60"
                 data-testid="confirm-end-conversation"
-                disabled={isBusy}
+                disabled={isBusy && !isAwaitingFormativeTutorResponse}
                 onClick={() => {
                   setEndConversationDialogOpen(false);
                   void handleFormativeConversationLifecycle("end");

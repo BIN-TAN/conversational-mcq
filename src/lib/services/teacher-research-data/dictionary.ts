@@ -57,6 +57,16 @@ export const SESSIONS_COLUMNS = [
   "completed_at",
   "resumed_at",
   "exited_at",
+  "collecting_application_git_commit",
+  "data_collection_rules_version",
+  "data_collection_rules_changed_during_attempt",
+  "attempt_tab_claim_count",
+  "initial_package_sealed",
+  "feedback_shown",
+  "conversation_started",
+  "conversation_student_message_count",
+  "finish_chosen",
+  "evidence_stage",
   "attempt_lifecycle_status",
   "terminal_reason",
   "ended_by_actor",
@@ -162,6 +172,9 @@ export const ITEM_RESPONSES_COLUMNS = [
   "tempting_option",
   "tempting_option_reason",
   "insufficient_knowledge_selected",
+  "final_idk_selected",
+  "ever_idk_selected",
+  "ai_flagged_insufficient_knowledge",
   "skipped_item",
   "skipped_reasoning",
   "skipped_confidence",
@@ -283,6 +296,9 @@ export const PROCESS_EVENTS_COLUMNS = [
   "payload_target_kind",
   "payload_clipboard_type_count",
   "payload_includes_plain_text",
+  "payload_paste_blocked",
+  "payload_unanswered_message_count",
+  "payload_replaced_other_tab",
   "payload_delivery_gap_count",
   "duration_ms",
   "visibility_duration_ms",
@@ -1558,7 +1574,24 @@ function definition(table: string, variable: string) {
     total_output_tokens:
       "Number of provider-reported output tokens summed across agent-call audit records included in the assessment attempt.",
     total_tokens:
-      "Number of provider-reported total tokens summed across agent-call audit records included in the assessment attempt."
+      "Number of provider-reported total tokens summed across agent-call audit records included in the assessment attempt.",
+    insufficient_knowledge_selected: "Legacy combined flag: true when the student ever chose \"I don't know yet\" for the item or the response-quality check flagged insufficient knowledge. Use final_idk_selected, ever_idk_selected or ai_flagged_insufficient_knowledge instead.",
+    final_idk_selected: "True when the final selected option is the \"I don't know yet\" choice (option E on an item without its own option E).",
+    ever_idk_selected: "True when the student chose \"I don't know yet\" at any point for the item, including a choice later changed.",
+    ai_flagged_insufficient_knowledge: "True when the response-quality check classified the typed reasoning as an insufficient-knowledge statement; a system judgement, not a student choice.",
+    collecting_application_git_commit: "Application Git commit that served the attempt when it started; blank for attempts started before this field was recorded.",
+    data_collection_rules_version: "Version of the data-collection rules the attempt ran under (for example data-collection-rules-2026-10-17: timing from item presentation, no skipping, typed explanations, one active tab); pre_2026_10_17_unversioned for earlier attempts.",
+    initial_package_sealed: "True when the attempt has a sealed initial response package for its topic (the student submitted the answers, reasoning, confidence and alternative reasoning).",
+    feedback_shown: "True when package results, answer review or formative feedback were displayed to the student (a formative_feedback_shown, package_results_shown or item_correctness_status_shown event exists).",
+    conversation_started: "True when a learning conversation record exists for the attempt.",
+    conversation_student_message_count: "Number of student messages in the attempt's learning conversation(s).",
+    finish_chosen: "True when the attempt reached completed status (the student chose Finish). Early pilot attempts may be complete in substance without this.",
+    evidence_stage: "Furthest evidence stage reached, independent of session_status: responses_incomplete, package_sealed, feedback_shown, conversation_participated or finished. Recommended for selecting attempts in analyses.",
+    data_collection_rules_changed_during_attempt: "True when an attempt that started before the 2026-10-17 data-collection rules (data_collection_rules_version pre_2026_10_17_unversioned) was continued with the newer application, so its later items used the newer rules (timing from item presentation, no skipping, typed explanations, one active tab); exclude or analyse such attempts separately when comparing item timing across rule versions.",
+    attempt_tab_claim_count: "Number of times the attempt was opened in a browser tab or window under the one-active-tab rule (each reload, new tab or device counts, so values above 1 indicate reloads or multi-tab use and do not distinguish the two); blank for attempts with no recorded tab claim before those rules.",
+    payload_paste_blocked: "True when the recorded paste was blocked in a written-explanation field (D10), so no text was inserted; empty for events recorded before typed explanations were required.",
+    payload_unanswered_message_count: "For formative_conversation_ended_by_student events: number of student messages still awaiting a tutor reply when the student ended the conversation (the system opening message is not counted); empty for other events.",
+    payload_replaced_other_tab: "For attempt_tab_claimed events: true when an earlier page load or another tab or window already held the attempt (a reload also counts, because each page load is a new tab identity), false for the first claim; empty for other events."
   };
   if (overrides[variable]) return overrides[variable];
   if (table === "agent_activity_records" && AGENT_ACTIVITY_DEFINITIONS[variable]) {
@@ -1608,6 +1641,9 @@ function collectionMethod(table: string, variable: string) {
     payload_target_kind: "target_kind: textarea, input, contenteditable, other, unknown",
     payload_clipboard_type_count: "clipboard_type_count, the number of advertised clipboard formats",
     payload_includes_plain_text: "includes_plain_text boolean indicating text/plain format availability, not pasted content",
+    payload_paste_blocked: "paste_blocked boolean, true when the paste was blocked in a written-explanation field (D10; present only for attempts with data_collection_rules_version data-collection-rules-2026-10-17 or later) so no text was inserted; empty for earlier events",
+    payload_unanswered_message_count: "unanswered_message_count on formative_conversation_ended_by_student events: student messages still awaiting a tutor reply when the student ended the conversation, excluding the system opening",
+    payload_replaced_other_tab: "replaced_other_tab boolean on attempt_tab_claimed events: true when an earlier page load or another tab already held the attempt (reloads included)",
     payload_delivery_gap_count: "delivery_gap_count, unacknowledged entries discarded by the bounded browser queue; some may already have reached the server"
   };
   if (table === "process_events" && processSummaryFields[variable]) {
@@ -1929,9 +1965,9 @@ function timingMetadata(variable: string, table: string) {
     },
     item_response_time_ms: {
       construct: "deprecated_legacy_item_response_time",
-      start: "legacy ItemResponse.item_started_at or response-row creation time",
+      start: "ItemResponse.item_started_at: for attempts with data_collection_rules_version data-collection-rules-2026-10-17 or later, the first item_presented/transfer_item_presented event (or the row-creation time when no presentation event exists); attempts recorded before those rules used response-row creation (the student's first answer action)",
       end: "item_submitted_at",
-      formula: "persisted ItemResponse.item_response_time_ms; historical values may not start at item presentation",
+      formula: "persisted ItemResponse.item_response_time_ms; for attempts recorded before the 2026-10-17 data-collection rules it starts at the first answer action, not at item presentation (see data_collection_rules_version in sessions.csv)",
       idle: "Includes idle periods unless adjusted by separate active-time fields.",
       hidden: "Includes page-hidden periods unless adjusted by separate focus/visibility fields.",
       method: "Read from the legacy item_responses column for backward compatibility; use item_elapsed_response_time_ms for timing-contract-v3."
@@ -2807,7 +2843,37 @@ export function prismaFieldClassificationEntries() {
   return [...buildInternalSchemaAppendixEntries(), ...buildExcludedPlatformVariableEntries()];
 }
 
+// Events added with the 2026-10-17 data-collection rules, described explicitly
+// rather than by the name-based defaults below.
+const EXPLICIT_EVENT_CODEBOOK: Record<string, { category: string; actor: string; trigger: string; payload: string }> = {
+  attempt_tab_claimed: {
+    category: "attempt_integrity",
+    actor: "student_browser_or_student_action",
+    trigger: "Recorded when a browser tab or window opens or reloads the attempt and claims it under the one-active-tab rule (D11); repeated claims by the tab already holding the attempt are not recorded.",
+    payload: "browser_tab_id; replaced_other_tab"
+  },
+  attempt_save_refused_other_tab: {
+    category: "attempt_integrity",
+    actor: "application_backend",
+    trigger: "Recorded when the backend refuses a saving request because another tab, window or a later page load now holds the attempt (D11). The refused change was not saved.",
+    payload: "browser_tab_id"
+  },
+  formative_conversation_ended_by_student: {
+    category: "agent_or_formative_workflow",
+    actor: "student_browser_or_student_action",
+    trigger: "Recorded when the student ends the learning conversation (D2), including while a tutor reply is still pending.",
+    payload: "conversation_public_id; unanswered_message_count; policy"
+  },
+  formative_reply_marked_interrupted: {
+    category: "agent_or_formative_workflow",
+    actor: "application_backend",
+    trigger: "Recorded when a tutor reply left pending for more than 15 minutes in a live conversation is marked failed so the student can retry; the payload keeps the prior status, any earlier failure category and when the reply stalled.",
+    payload: "client_message_id; prior_assistant_response_status; stale_since; prior_failure_category; policy"
+  }
+};
+
 function eventCategory(eventType: string) {
+  if (EXPLICIT_EVENT_CODEBOOK[eventType]) return EXPLICIT_EVENT_CODEBOOK[eventType].category;
   if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "feedback_display";
   if (eventType.startsWith("response_stage_")) return "item_response_process";
   if (/session|assessment|package|completion|resume|exit|start/.test(eventType)) return "session_lifecycle";
@@ -2818,6 +2884,7 @@ function eventCategory(eventType: string) {
 }
 
 function eventActor(eventType: string) {
+  if (EXPLICIT_EVENT_CODEBOOK[eventType]) return EXPLICIT_EVENT_CODEBOOK[eventType].actor;
   if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "student_browser";
   if (eventType === "response_stage_observation") return "student_browser_or_student_action";
   if (eventType === "response_stage_outcome") return "application_backend";
@@ -2834,6 +2901,7 @@ function eventScope(eventType: string) {
 }
 
 function eventTrigger(eventType: string) {
+  if (EXPLICIT_EVENT_CODEBOOK[eventType]) return EXPLICIT_EVENT_CODEBOOK[eventType].trigger;
   if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "Browser acknowledges the identified feedback content. display-ack-v2 requires partial viewport intersection in a visible document continuously for 500 ms. Legacy v1 used mount acknowledgements. No proof of reading or understanding; no historical backfill.";
   const triggers: Record<string, string> = {
     response_stage_observation: "Browser reports a visible usable stage, first input, submission, request completion, next usable controls, interruption, or visit close. No response text is collected here.",
@@ -2870,6 +2938,7 @@ function eventTrigger(eventType: string) {
 }
 
 function eventPayloadFields(eventType: string) {
+  if (EXPLICIT_EVENT_CODEBOOK[eventType]) return EXPLICIT_EVENT_CODEBOOK[eventType].payload;
   if (["formative_feedback_shown", "package_results_shown", "item_correctness_status_shown"].includes(eventType)) return "display_event_contract_version; content_id; content_kind; source_turn_sequence_index; turn_id; conversation_public_id; observation_method; minimum_visible_ms; client_event_id; browser_tab_id; client_occurred_at; server_received_at";
   if (eventType === "response_stage_observation") return "stage_visit_id; response_stage; response_phase; observation_kind; monotonic_ms; observation_sequence; submission_id; result; input_change_count; input_length; reason; observation_version; browser_tab_id; client_event_id; client_occurred_at; server_received_at";
   if (eventType === "response_stage_outcome") return "stage_visit_id; submission_id; action_type; phase; client_action_id; action_status; accepted; validation_rejected; observation_version";

@@ -3491,17 +3491,23 @@ async function persistProfileDecisionAndActivity(input: {
               }
             : ["no_clear_pattern"]
         ),
-        engagement_profile: "adequate_engagement",
+        // D3/F-D3a (DESIGN_ALIGNMENT_2026-10-17.md): this intermediate planning
+        // profile has no engagement evidence. The evidence-integrated bundle carries
+        // no engagement field and its validator forbids process inferences, so the
+        // profile records "insufficient_process_evidence" in both cases instead of
+        // asserting adequate engagement.
+        engagement_profile: "insufficient_process_evidence",
         engagement_pattern_flags: prismaJson(["no_clear_pattern"]),
         integrated_diagnostic_profile: enums.integrated_diagnostic_profile,
-        integrated_profile_confidence:
-          evidenceBundle?.profile.evidence_sufficiency === "strong" ? "high" : "medium",
+        integrated_profile_confidence: !evidenceBundle
+          ? "low"
+          : evidenceBundle.profile.evidence_sufficiency === "strong" ? "high" : "medium",
         integrated_profile_rationale:
           evidenceBundle?.profile.assessment_specific_understanding.explanation ??
           input.output.provisional_learning_state,
         evidence_sufficiency: evidenceBundle
           ? legacyEvidenceSufficiency(evidenceBundle.profile.evidence_sufficiency)
-          : "adequate",
+          : "limited",
         confidence_alignment: enums.confidence_alignment,
         independence_interpretability: "not_applicable",
         misconception_indicators: prismaJson(
@@ -3511,7 +3517,7 @@ async function persistProfileDecisionAndActivity(input: {
                 {
                   indicator: input.output.main_issue,
                   evidence_reference: "initial_three_item_package",
-                  confidence: "medium",
+                  confidence: "low",
                   rationale: input.output.answer_reasoning_alignment
                 }
               ]
@@ -3539,8 +3545,9 @@ async function persistProfileDecisionAndActivity(input: {
           "This package-level profile is assessment-specific current evidence, not a stable ability estimate.",
           "Timing and process data qualify evidence sufficiency only."
         ]),
-        profile_confidence:
-          evidenceBundle?.profile.evidence_sufficiency === "strong" ? "high" : "medium",
+        profile_confidence: !evidenceBundle
+          ? "low"
+          : evidenceBundle.profile.evidence_sufficiency === "strong" ? "high" : "medium",
         rationale:
           evidenceBundle?.profile.growth_target.target ??
           input.output.main_issue,

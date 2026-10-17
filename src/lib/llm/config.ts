@@ -3,6 +3,7 @@ import { AgentName, type AgentName as AgentNameType } from "@/lib/agents/names";
 import { getServerEnv } from "@/lib/env";
 import { resolveOpenAICredentialFromEnv } from "@/lib/llm/openai-credential-resolver";
 import { CONNECTIVITY_MAX_OUTPUT_TOKENS } from "./connectivity-budget";
+import { moduleForRole, type AssessmentModule } from "./assessment-modules";
 import { MIXED_TUTOR_MODEL, MIXED_TUTOR_ROLE } from "../operational/mixed-tutor-identity";
 import {
   type ApprovedCandidateManifest,
@@ -115,7 +116,7 @@ type RoleSource = {
   defaultMaxTokens?: number;
 };
 
-const roleEnvSources = {
+const roleSpecificEnvSources = {
   item_verification_agent: [{
     model: "OPENAI_MODEL_ITEM_VERIFICATION",
     reasoning: "OPENAI_REASONING_EFFORT_ITEM_VERIFICATION",
@@ -334,6 +335,73 @@ const roleEnvSources = {
     defaultMaxTokens: CONNECTIVITY_MAX_OUTPUT_TOKENS
   }]
 } as const satisfies Record<LiveModelRole, readonly RoleSource[]>;
+
+// D6 (docs/DESIGN_ALIGNMENT_2026-10-17.md, docs/AI_ROLES_AND_MODULES.md): each role
+// belongs to one dissertation module, configured by the module-level
+// OPENAI_MODEL_MODULE_* / OPENAI_REASONING_EFFORT_MODULE_* pair.
+// D9: the module variable is authoritative and role-specific variables are older
+// fallbacks. An active approval bundle still overrides environment configuration.
+const moduleEnvKeys = {
+  item_preparation: {
+    model: "OPENAI_MODEL_MODULE_ITEM_PREPARATION",
+    reasoning: "OPENAI_REASONING_EFFORT_MODULE_ITEM_PREPARATION"
+  },
+  item_administration: {
+    model: "OPENAI_MODEL_MODULE_ITEM_ADMINISTRATION",
+    reasoning: "OPENAI_REASONING_EFFORT_MODULE_ITEM_ADMINISTRATION"
+  },
+  profiling_and_feedback: {
+    model: "OPENAI_MODEL_MODULE_PROFILING_FEEDBACK",
+    reasoning: "OPENAI_REASONING_EFFORT_MODULE_PROFILING_FEEDBACK"
+  },
+  formative_conversation: {
+    model: "OPENAI_MODEL_MODULE_FORMATIVE_CONVERSATION",
+    reasoning: "OPENAI_REASONING_EFFORT_MODULE_FORMATIVE_CONVERSATION"
+  },
+  instructor_reporting: {
+    model: "OPENAI_MODEL_MODULE_INSTRUCTOR_REPORTING",
+    reasoning: "OPENAI_REASONING_EFFORT_MODULE_INSTRUCTOR_REPORTING"
+  }
+} as const satisfies Record<AssessmentModule, { model: EnvKey; reasoning: EnvKey }>;
+
+export function moduleEnvKeysForModule(module: AssessmentModule) {
+  return moduleEnvKeys[module];
+}
+
+const roleEnvSources = Object.fromEntries(
+  LiveModelRole.options.map((role) => {
+    const specific: readonly RoleSource[] = roleSpecificEnvSources[role];
+    const roleModule = moduleForRole(role);
+    if (!roleModule || roleModule === "utility") return [role, specific];
+    const moduleKeys = moduleEnvKeys[roleModule];
+    const [own, ...legacyFallbacks] = specific;
+    // Listing order (a contract for approval tooling, which reads entry [0] as the
+    // role's own variable): the role's own variable, then its module's variable, then
+    // the older cross-role fallbacks (for example OPENAI_MODEL_FOLLOWUP). The module
+    // source keeps the role's own max-output-token variable and default, because
+    // token budgets stay task-specific.
+    const moduleSource: RoleSource = {
+      model: moduleKeys.model,
+      reasoning: moduleKeys.reasoning,
+      ...(own && "maxTokens" in own && own.maxTokens ? { maxTokens: own.maxTokens } : {}),
+      defaultMaxTokens: own?.defaultMaxTokens
+    };
+    return [role, own ? [own, moduleSource, ...legacyFallbacks] : [moduleSource]];
+  })
+) as Record<LiveModelRole, readonly RoleSource[]>;
+
+// D9 five-module model policy: when no approval bundle is active, the module variable
+// is authoritative, so resolution tries it first, then the role's own older variable,
+// then the cross-role fallbacks. Approval verification keeps using roleEnvSources.
+const roleResolutionSources = Object.fromEntries(
+  LiveModelRole.options.map((role) => {
+    const sources = roleEnvSources[role];
+    const roleModule = moduleForRole(role);
+    if (!roleModule || roleModule === "utility" || sources.length < 2) return [role, sources];
+    const [own, moduleSource, ...rest] = sources;
+    return [role, [moduleSource, own, ...rest]];
+  })
+) as Record<LiveModelRole, readonly RoleSource[]>;
 
 export const liveModelRoles = LiveModelRole.options;
 
@@ -605,7 +673,7 @@ function assertRuntimePolicyEnvironmentMatches(
 
 function assertRoleEnvironmentMatchesApproved(role: LiveModelRole, approved: AgentModelConfig) {
   const env = getServerEnv();
-  const source = roleEnvSources[role][0];
+  const source = roleSpecificEnvSources[role][0];
   const model = sourceModelValue(env, source);
   const reasoning = reasoningValue(env, source.reasoning);
   const tokens = numberValue(env, maxTokensKey(source));
@@ -643,7 +711,7 @@ function reasoningValue(env: ReturnType<typeof getServerEnv>, key: EnvKey) {
 }
 
 function resolveRoleSource(env: ReturnType<typeof getServerEnv>, role: LiveModelRole) {
-  const sources = roleEnvSources[role];
+  const sources = roleResolutionSources[role];
   return sources.find((source) => sourceModelValue(env, source)) ?? null;
 }
 
@@ -734,8 +802,8 @@ export function agentModelReadiness() {
         effective_model: config.model_name,
         reasoning_effort: config.reasoning_effort,
         max_output_tokens: config.max_output_tokens,
-        model_env_key: roleEnvSources[role][0].model,
-        reasoning_env_key: roleEnvSources[role][0].reasoning,
+        model_env_key: roleSpecificEnvSources[role][0].model,
+        reasoning_env_key: roleSpecificEnvSources[role][0].reasoning,
         approval_boundary: approvalBoundary(role),
         compatibility_status: issues.length === 0 ? "compatible" : "incompatible",
         compatibility_issues: issues,
@@ -837,10 +905,15 @@ export function liveModelRoleEnvSources() {
   return roleEnvSources;
 }
 
+/** D9: the order used to resolve a role's model when no approval bundle is active. */
+export function liveModelRoleResolutionSources() {
+  return roleResolutionSources;
+}
+
 export function approvedRoleEnvironmentAssertions(manifest: ApprovedCandidateManifest) {
   const assertions: Record<string, string> = {};
   for (const role of LiveModelRole.options) {
-    const source = roleEnvSources[role][0];
+    const source = roleSpecificEnvSources[role][0];
     const config = approvedCandidateRoleConfig(manifest, role);
     assertions[source.model] = config.model_name;
     assertions[source.reasoning] = config.reasoning_effort;

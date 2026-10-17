@@ -98,7 +98,8 @@ const ASSESSMENT_PUBLIC_ID = `${NAMESPACE}_assessment_auto`;
 const FUTURE_ASSESSMENT_PUBLIC_ID = `${NAMESPACE}_assessment_future`;
 const CLOSED_ASSESSMENT_PUBLIC_ID = `${NAMESPACE}_assessment_closed`;
 const CLOSED_RESUME_ASSESSMENT_PUBLIC_ID = `${NAMESPACE}_assessment_closed_resume`;
-const CONCEPT_PUBLIC_IDS = [1, 2, 3].map((index) => `${NAMESPACE}_concept_${index}`);
+// D1: one topic per mini test, so the production-like fixture has a single topic.
+const CONCEPT_PUBLIC_IDS = [1].map((index) => `${NAMESPACE}_concept_${index}`);
 const STUDENT_COUNT = 30;
 
 function nowIso() {
@@ -125,7 +126,8 @@ function itemPublicId(conceptIndex: number, itemOrder: number) {
 
 function itemSeed(conceptIndex: number, itemOrder: number) {
   const duplicateStem =
-    conceptIndex === 3 && itemOrder > 2
+    // D1: the single topic carries the duplicate-style item (previously topic 3).
+    conceptIndex === 1 && itemOrder === 4
       ? "A duplicate-style item asks which option best connects a claim to evidence."
       : `Concept ${conceptIndex} item ${itemOrder}: choose the option best supported by the short evidence statement.`;
 
@@ -357,7 +359,7 @@ async function seedFixture(prisma: PrismaClient) {
     title: "Phase 8B production-like synthetic assessment",
     releaseAt: minutesAfter(base, -1440),
     closeAt: minutesAfter(base, 10080),
-    conceptCount: 3,
+    conceptCount: 1,
     itemCount: 4
   });
   await createAssessmentFixture(prisma, {
@@ -446,7 +448,7 @@ async function seedFixture(prisma: PrismaClient) {
     active_student_count: STUDENT_COUNT - 1,
     assessment_public_id: assessment.assessment_public_id,
     concept_unit_public_ids: CONCEPT_PUBLIC_IDS,
-    item_count: 12
+    item_count: 4
   };
 }
 
@@ -914,22 +916,9 @@ async function completeInitialConcept(
       );
     }
 
-    let reasoningAssessmentState: unknown = "AWAIT_REASON";
-    if (itemOrder === 1 && [6, 7, 8, 9].includes(input.studentIndex % 10)) {
-      const initialMessageResult = await apiJson<Record<string, unknown>>(
-        request,
-        "POST",
-        `${E2E_BASE_URL}/api/student/sessions/${input.sessionPublicId}/initial/messages`,
-        {
-          message: reasoningFor(input.studentIndex, input.conceptIndex, itemOrder),
-          client_message_id: `${clientPrefix}_initial_chat`
-        }
-      );
-      reasoningAssessmentState = (
-        initialMessageResult.state as { assessment_state?: unknown } | undefined
-      )?.assessment_state;
-    }
-
+    // F-A3: the free-text initial/messages route is retired (410); every simulated
+    // student now submits reasoning through the reasoning endpoint the UI uses.
+    const reasoningAssessmentState: unknown = "AWAIT_REASON";
     if (reasoningAssessmentState === "AWAIT_REASON") {
       const reasoningResult = await apiJson<Record<string, unknown>>(
         request,
@@ -1644,7 +1633,10 @@ async function runStudentJourney(
       `${E2E_BASE_URL}/api/student/assessments/${ASSESSMENT_PUBLIC_ID}/sessions/start`
     );
     const sessionPublicId = started.session.session_public_id;
-    const completedConcepts = input.fullCompletion ? 3 : 1;
+    // D1: one topic, so every journey completes that topic and finishes the mini test;
+    // fullCompletion no longer changes the path (earlier partial journeys moved on to
+    // topic 2 instead of finishing).
+    const completedConcepts = 1;
 
     for (let conceptIndex = 1; conceptIndex <= completedConcepts; conceptIndex += 1) {
       const conceptPublicId = CONCEPT_PUBLIC_IDS[conceptIndex - 1];
@@ -1702,13 +1694,13 @@ async function runStudentJourney(
 
       await requestProgressionAndChoose(request, {
         sessionPublicId,
-        isFinal: conceptIndex === 3,
+        isFinal: true,
         clientPrefix: `${sessionPublicId}_${conceptIndex}`
       });
       await waitForPhase(
         request,
         sessionPublicId,
-        conceptIndex === 3 ? ["session_completed"] : ["concept_unit_intro"],
+        ["session_completed"],
         45_000
       );
     }

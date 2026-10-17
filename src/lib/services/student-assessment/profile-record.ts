@@ -8,7 +8,7 @@ export const PROFILE_PROVENANCE_COLUMNS = [
   "profile_validation_status", "profile_provenance_eligible", "profile_valid_for_learning_analysis",
   "profile_source_agent_call_public_id", "profile_source_agent_name",
   "profile_source_call_status", "profile_source_output_validated",
-  "profile_source_prompt_version", "profile_source_schema_version", "profile_unavailable_reason",
+  "profile_source_prompt_version", "profile_source_schema_version", "profile_source_provider", "profile_unavailable_reason",
   "profile_dimensions_status", "profile_native_confidence_alignment", "profile_confidence_alignment_scope"
 ] as const;
 export const PROFILE_EVIDENCE_COLUMNS = [
@@ -22,7 +22,8 @@ export const profileSourceCallSelect = {
   call_status: true,
   output_validated: true,
   prompt_version: true,
-  schema_version: true
+  schema_version: true,
+  provider: true
 } as const;
 
 export type ProfileRecord = {
@@ -39,6 +40,7 @@ export type ProfileRecord = {
     output_validated: boolean;
     prompt_version?: string;
     schema_version?: string;
+    provider?: string | null;
   } | null;
 };
 
@@ -49,9 +51,13 @@ export function profileRecordIdentity(id: string) {
 export function profileRecordProvenance(profile: ProfileRecord) {
   const call = profile.based_on_agent_call;
   const evidence = asRecord(profile.item_level_evidence);
+  // D3 (DESIGN_ALIGNMENT_2026-10-17.md): a profile is a technical fallback when its
+  // caution text says so OR when its source profiling call did not succeed. A
+  // stored profile whose profiling call failed can only be the deterministic
+  // fallback, so the structured call status no longer depends on caution wording.
   const fallback = asArray(profile.process_interpretation_cautions).some(
     (entry) => typeof entry === "string" && /fallback-derived profile/i.test(entry)
-  );
+  ) || (call?.agent_name === "student_profiling_agent" && call.call_status !== "succeeded");
   const intermediate = Boolean(evidence.evidence_integrated_profile_v2) ||
     Boolean(evidence.source_packets) || call?.agent_name === "formative_value_and_planning_agent";
   const validated = !fallback && !intermediate && call?.output_validated === true &&
@@ -72,6 +78,9 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_source_output_validated: call?.output_validated ?? null,
     profile_source_prompt_version: call?.prompt_version ?? null,
     profile_source_schema_version: call?.schema_version ?? null,
+    // D3: provider is reported so mock/test profiles are never mistaken for live
+    // model output in exports ("mock" = local test provider, "openai" = live).
+    profile_source_provider: call?.provider ?? null,
     profile_dimensions_status: status === "fallback" || status === "unverified" ? "unavailable"
       : evidence.evidence_integrated_profile_v2 ? "integrated_dimensions" : "item_level_dimensions",
     profile_native_confidence_alignment: validated ? profile.confidence_alignment : null,
@@ -128,7 +137,7 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   prior_profile_record_id: "Stable profile_record_id of the prior profile referenced by this canonical transition.",
   updated_profile_record_id: "Stable profile_record_id of the updated profile referenced by this canonical transition.",
   profile_record_role: "baseline, updated, or intermediate. Integration/planning artifacts are intermediate, not repeated learning measurements.",
-  profile_validation_status: "validated, fallback, intermediate, or unverified. Success requires a successful validated profiling or conversation source call; fallback cautions override it.",
+  profile_validation_status: "validated, fallback, intermediate, or unverified. Success requires a successful validated profiling or conversation source call; fallback cautions or an unsuccessful student-profiling source call mark a fallback. Check profile_source_provider: mock means local test output, never live model evidence.",
   profile_provenance_eligible: "Preferred technical eligibility flag: true only for non-intermediate, non-fallback records backed by a successful validated profiling/conversation call. Not independent scientific validation, diagnostic accuracy, student mastery, or learning gain.",
   profile_valid_for_learning_analysis: "Compatibility alias of profile_provenance_eligible. Same technical provenance filter, not a separate measurement or proof of diagnostic validity or student mastery.",
   profile_source_agent_call_public_id: "Public source AgentCall join key; blank when no source call was retained.",
@@ -137,6 +146,7 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   profile_source_output_validated: "Stored source output-validation flag. A validated planning call does not make its intermediate artifact a canonical learning profile.",
   profile_source_prompt_version: "Prompt version stored on the source call, not the current application prompt.",
   profile_source_schema_version: "Output schema version stored on the source call, not the export projection version.",
+  profile_source_provider: "Provider recorded on the source call: openai for live model output, mock for local test output that must not be analysed as student evidence.",
   profile_unavailable_reason: "profiling_fallback, intermediate_artifact, validation_provenance_unavailable, or blank for a validated record.",
   profile_dimensions_status: "integrated_dimensions for stored V2 integration artifacts; item_level_dimensions for canonical profiles; unavailable for fallback or unverified provenance. Missing aggregate categories are not reconstructed from per-item judgments.",
   profile_native_confidence_alignment: "Native confidence_alignment from a validated profile. It is not converted to the different legacy confidence_calibration vocabulary.",
