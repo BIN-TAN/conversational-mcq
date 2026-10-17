@@ -5480,8 +5480,17 @@ export async function updatePackageReviewItemResponse(input: {
         if (sealed) {
           throw publicConflict("These responses were already submitted. Refresh to see the current state.");
         }
+        // Precondition on the student's own answer fields, not updated_at: other
+        // writes to the row (for example the correctness-display acknowledgement)
+        // must not make a legitimate edit look like a conflicting save.
         const precondition = await tx.itemResponse.updateMany({
-          where: { id: response.id, updated_at: response.updated_at },
+          where: {
+            id: response.id,
+            revision_count: response.revision_count,
+            selected_option: response.selected_option,
+            reasoning_text: response.reasoning_text,
+            confidence_rating: response.confidence_rating
+          },
           data: { updated_at: now }
         });
         if (precondition.count !== 1) {
@@ -5804,8 +5813,17 @@ export async function updateInFlowItemResponse(input: {
             throw publicConflict("These responses were already submitted. Refresh to see the current state.");
           }
         }
+        // Precondition on the student's own answer fields, not updated_at: other
+        // writes to the row (for example the correctness-display acknowledgement)
+        // must not make a legitimate edit look like a conflicting save.
         const precondition = await tx.itemResponse.updateMany({
-          where: { id: response.id, updated_at: response.updated_at },
+          where: {
+            id: response.id,
+            revision_count: response.revision_count,
+            selected_option: response.selected_option,
+            reasoning_text: response.reasoning_text,
+            confidence_rating: response.confidence_rating
+          },
           data: { updated_at: now }
         });
         if (precondition.count !== 1) {

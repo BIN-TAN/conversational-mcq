@@ -273,6 +273,13 @@ async function assertItemAdminRuntimeModeResolution() {
   );
 }
 
+async function demoTeacherDbId() {
+  return (await prisma.assessment.findUniqueOrThrow({
+    where: { assessment_public_id: demoAssessmentPublicId },
+    select: { created_by_user_db_id: true }
+  })).created_by_user_db_id;
+}
+
 async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
   await ensureDemoStudentAssessment(prisma);
 
@@ -280,6 +287,9 @@ async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
   const student = await createSmokeStudent({
     prisma,
     prefix,
+    // Students only see their own teacher's mini tests (catalog-access.ts), and
+    // unassigned accounts never see the seeded demo.
+    teacherDbId: await demoTeacherDbId(),
     accessCode: `${prefix}_access`
   });
   const sessionPublicIds: string[] = [];
@@ -414,6 +424,9 @@ async function main() {
   const student = await createSmokeStudent({
     prisma,
     prefix,
+    // Students only see their own teacher's mini tests (catalog-access.ts), and
+    // unassigned accounts never see the seeded demo.
+    teacherDbId: await demoTeacherDbId(),
     accessCode: "phase13_quality_access"
   });
   const sessionPublicIds: string[] = [];

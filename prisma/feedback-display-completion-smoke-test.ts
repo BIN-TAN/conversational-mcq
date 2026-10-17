@@ -79,11 +79,13 @@ async function main() {
     const openingReceipt = await db.formativeConversationMessageReceipt.findFirstOrThrow({ where: { formative_conversation_session: { assessment_session_db_id: session.id } } });
     await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "failed" } });
     // D2 (DESIGN_ALIGNMENT_2026-10-17.md): an explicit stop is honoured even while a
-    // tutor response is failed or pending; the unanswered count is recorded.
+    // tutor response is failed or pending; unanswered student messages are counted.
     await lifecycle("end");
     const endEvent = await db.processEvent.findFirstOrThrow({ where: { assessment_session_db_id: session.id,
       event_type: "formative_conversation_ended_by_student" } });
-    assert.equal((endEvent.payload as { unanswered_message_count?: number }).unanswered_message_count, 1);
+    // The only unanswered receipt here is the system opening, which is not a student
+    // message, so it is not counted (research review L3).
+    assert.equal((endEvent.payload as { unanswered_message_count?: number }).unanswered_message_count, 0);
     await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "completed" } });
     assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: session.id } })).status, "active");
     const receipt = await db.formativeConversationMessageReceipt.findFirstOrThrow({ where: { formative_conversation_session: { assessment_session_db_id: session.id } } });
