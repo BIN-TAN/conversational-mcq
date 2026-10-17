@@ -81,8 +81,9 @@ not move PowerShell into that folder. Moving there needs `cd` and quotation mark
 4. Runs the 30 design-alignment checks and the two data-dictionary checks.
 5. With the database:
    - shows whether the local database is up to date (`npx prisma migrate status`);
-   - runs eight database tests (content, feedback and finish, response quality,
-     profile records, dashboard, item builder, research export, script review).
+   - runs nine database tests (content, feedback and finish, response quality,
+     item-administration audit, profile records, dashboard, item builder,
+     research export, script review).
 6. Builds the production version of the app (`npm run build`). This is the slowest
    step, about 2–5 minutes.
 

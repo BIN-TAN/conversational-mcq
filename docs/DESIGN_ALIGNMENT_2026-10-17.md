@@ -274,6 +274,9 @@ the reviews rated High or Medium was fixed, apart from the items listed under
 | Ending the conversation during a send could re-enable the composer (student L3) | The composer stays busy until the send settles |
 | Teacher JSON with a forbidden key made the report fail with an error 500 (deploy M4) | Forbidden keys are dropped before the provider call |
 | Two local checks failed on the researcher's computer | The response-quality test now clears a developer's `ALLOW_LOCAL_MOCK_RUNTIME`. The script-review test follows the documented policy that accepts an affective message as limited evidence |
+| Local checks on the release branch | `feedback-display-completion` follows the opening-excluded count. `student-response-quality` gives its test students a teacher (catalog rule). Its legacy end-to-end part is skipped by default: it expects prompt wording that no longer exists in the code, a letter reply rewritten as "I don't know the reason yet.", and an affective reply refused, all superseded by the current collection policy. The current behaviour is checked by the added step `13b-item-administration-audit` (`student-item-admin-audit-smoke-test.ts`) |
+| Edit refused as "just changed by another save" after the correctness-display acknowledgement (student L2) | In-flow and package-review edits check the student's answer fields and revision count instead of `updated_at` |
+| Retired route relied only on the middleware (student L5) | The route handler itself answers 410 (release branch; the working copy's file is beyond the bridge's folder depth) |
 
 ### Not changed (reasons)
 
@@ -281,13 +284,8 @@ the reviews rated High or Medium was fixed, apart from the items listed under
   no exception. Written explanations must be typed, for every student. Dictation
   tools that insert text by pasting will not work in those two fields; the
   conversation still accepts pasted text.
-- **Spurious "changed by another save" on transfer-item edits (student L2).** Rare.
-  Planned with F-A3a (client-sent version).
 - **Tab-claim ordering by server time (student L4).** Fine on a single Render
   instance.
-- **Retired route guarded only by middleware (student L5).** The route file is
-  beyond the bridge's folder depth. Delete or rewrite it on the Windows computer
-  when convenient.
 - **Legacy multi-topic attempts cannot finish (student L6; deploy H1).** Before
   deploying, check that every published mini test has one topic (Release guide,
   step 4). Restore an attempt for any student caught in an old multi-topic attempt.

@@ -86,6 +86,7 @@ if ($SkipDatabase) {
   Invoke-Step "11-content-smoke" "npx tsx prisma/content-smoke-test.ts"
   Invoke-Step "12-feedback-display-completion" "npx tsx prisma/feedback-display-completion-smoke-test.ts"
   Invoke-Step "13-student-response-quality" "npx tsx prisma/student-response-quality-smoke-test.ts"
+  Invoke-Step "13b-item-administration-audit" "npx tsx prisma/student-item-admin-audit-smoke-test.ts"
   Invoke-Step "14-profile-record-projection" "npx tsx prisma/profile-record-projection-smoke-test.ts"
   Invoke-Step "15-teacher-dashboard" "npx tsx prisma/teacher-dashboard-smoke-test.ts"
   Invoke-Step "16-teacher-item-builder" "npx tsx prisma/teacher-mcq-item-builder-smoke-test.ts"

@@ -418,6 +418,21 @@ async function main() {
   assertMultilingualResponseQuality();
   await assertItemAdminRuntimeModeResolution();
   await assertRuntimeBlocksOpenTextWhenReadinessFails();
+
+  // The end-to-end flow below predates the current item-administration policy and
+  // prompts, and is not a release check (17 Oct 2026 review). It expects wording that
+  // no longer exists in the code ("Since you indicated uncertainty", "I'll record that
+  // you are unsure about the reason"), a letter reply such as "B" to be rewritten as
+  // "I don't know the reason yet." (current policy stores the student's words), and an
+  // affective reply ("I'm confused.") to be refused (current policy accepts it as
+  // limited evidence). Current behaviour is checked by
+  // prisma/student-item-admin-audit-smoke-test.ts.
+  if (process.env.CMCQ_RUN_LEGACY_RESPONSE_QUALITY_FLOW !== "1") {
+    console.log("Student response-quality checks passed: prompt shape, multilingual quality, runtime mode and runtime block. Legacy end-to-end flow skipped (set CMCQ_RUN_LEGACY_RESPONSE_QUALITY_FLOW=1 to run it). No OpenAI calls are made by this script.");
+    await prisma.$disconnect();
+    return;
+  }
+
   await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase13_quality_${Date.now()}_${randomUUID().slice(0, 8)}`;
