@@ -528,6 +528,13 @@ async function main() {
     assert.match(dictionary, /family_attempt_number: "Order of this attempt/);
   });
 
+  await check("R8 attempts under the 2026-10-18 rules are distinguishable from the deployed 2026-10-17 rules", () => {
+    assert.match(source("src/lib/services/session-state.ts"), /DATA_COLLECTION_RULES_VERSION = "data-collection-rules-2026-10-18"/);
+    const exporter = source("src/lib/services/teacher-research-data/analysis-ready-export.ts");
+    assert.match(exporter, /version === "data-collection-rules-2026-10-17" && focusRecorded/);
+    assert.match(source("src/lib/services/teacher-research-data/dictionary.ts"), /data-collection-rules-2026-10-18 \(the same, plus final-review activity/);
+  });
+
   console.log(`\n${passed} design-alignment checks passed.`);
 }
 

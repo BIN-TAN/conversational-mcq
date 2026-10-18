@@ -880,9 +880,14 @@ function itemSnapshotRecord(response: AnalysisSession["concept_unit_sessions"][n
 function dataCollectionRulesFields(events: AnalysisSession["process_events"]) {
   const version = payloadString(firstEvent(events, ["session_started"])?.payload, ["data_collection_rules_version"]);
   const claimCount = events.filter((event) => event.event_type === "attempt_tab_claimed").length;
+  // An attempt started under the 2026-10-17 rules and continued after the 2026-10-18
+  // update shows window-focus observations, which only the newer application records.
+  const focusRecorded = events.some((event) => event.event_type === "response_stage_observation" &&
+    typeof asRecord(event.payload).document_has_focus === "boolean");
   return {
     data_collection_rules_version: version ?? "pre_2026_10_17_unversioned",
-    data_collection_rules_changed_during_attempt: !version && claimCount > 0,
+    data_collection_rules_changed_during_attempt: (!version && claimCount > 0) ||
+      (version === "data-collection-rules-2026-10-17" && focusRecorded),
     // Blank (not 0) when tab claims were not yet recorded for this attempt.
     attempt_tab_claim_count: version || claimCount > 0 ? claimCount : null
   };

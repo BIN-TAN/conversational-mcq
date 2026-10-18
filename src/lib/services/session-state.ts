@@ -15,7 +15,8 @@ import { resolveApplicationBuildInfo } from "../provenance/application-build-inf
  * no skipping, D10 typed explanations, D11 one active tab). Bump this when the meaning
  * of a recorded variable changes.
  */
-export const DATA_COLLECTION_RULES_VERSION = "data-collection-rules-2026-10-17";
+// 2026-10-18: adds review-phase activity attribution (R5) and window focus at each stage start (R6).
+export const DATA_COLLECTION_RULES_VERSION = "data-collection-rules-2026-10-18";
 let cachedBuildIdentity: { application_git_commit: string | null; application_git_commit_source: string | null } | null = null;
 export function attemptBuildIdentity() {
   if (!cachedBuildIdentity) {

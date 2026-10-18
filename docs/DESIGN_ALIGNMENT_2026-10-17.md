@@ -459,6 +459,12 @@ Three concerns were raised about how research data can be interpreted.
   all of the student's attempts in the family, by creation time. `attempt_number` is
   unchanged, because the comparison views need identical items within one version.
 
+**Rules version.** The 17 October release was deployed at 08:10 on 18 October, before
+these changes. New attempts therefore record `data-collection-rules-2026-10-18`, so they
+can be told apart from attempts collected under that deployment
+(`data-collection-rules-2026-10-17`, no review-phase attribution or focus field).
+Attempts that span the update are flagged `data_collection_rules_changed_during_attempt`.
+
 **Scope and checks.**
 - No prompt, model or approval-bound file changed.
 - The new fields apply to attempts recorded after deployment. Historical rows are

@@ -1899,6 +1899,11 @@ available and must not be summed with their new preferred aliases.
 
 ### Focused response time, activity attribution and attempt order (2026-10-18)
 
+New attempts record `data_collection_rules_version` `data-collection-rules-2026-10-18`.
+An attempt started under `data-collection-rules-2026-10-17` and continued after this
+update is flagged `data_collection_rules_changed_during_attempt` (detected from
+window-focus observations).
+
 `response-stage-derivation-v4` adds focused response time:
 - Each submission's student interval now reports `student_interval_hidden_ms`,
   `student_interval_unfocused_ms` and `student_focused_response_ms`. Unfocused time
