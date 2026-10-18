@@ -54,6 +54,16 @@ which is why they never run against the live database.
   running. Open the Windows **Services** app, find "postgresql" and check that it is
   **Running**.
 
+- **If you use the portable PostgreSQL in the project folder** (`.env.local` points at
+  `127.0.0.1:54329`; the program is in `.data\windows-tools\postgresql16`): start it
+  with this one line. It ends with "server started". After an abrupt shutdown it first
+  recovers its files, which can take a few minutes; if it prints "server did not start
+  in time", wait and try the checks again, because the recovery continues.
+
+  ```powershell
+  & "E:\New_Downloads\Conversational MCQ\.data\windows-tools\postgresql16\pgsql\bin\pg_ctl.exe" -D "E:\New_Downloads\Conversational MCQ\.data\windows-test\postgres-data" -l "E:\New_Downloads\Conversational MCQ\.data\windows-test\postgres.log" -w start
+  ```
+
 If you are not sure, skip this step and add `-SkipDatabase` in step 3. You can run
 the database checks later.
 

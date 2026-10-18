@@ -370,6 +370,16 @@ touched.
 | Opening a finished attempt's page recorded a new tab claim, inflating `attempt_tab_claim_count` and `replaced_other_tab` | Claims on finished attempts are accepted but not recorded |
 | A reply that arrived after the student ended the conversation was recorded as `assistant_response_persistence_failure`, so a student's choice to stop counted as a system failure | New category `conversation_closed_before_reply` (documented in the export dictionary). A paused conversation keeps the old category so its finished reply is reused on resume |
 
+Both new fixes were re-checked live after the update (18 Oct, new test database, all
+local checks passing). Reopening the finished attempt and a direct claim request both
+returned `attempt_closed` and left `attempt_tab_claim_count` at 1. The reply that
+arrived after the student ended the conversation is exported as
+`conversation_closed_before_reply`. `collecting_application_git_commit` showed the
+built commit. The teacher session pages (overview, conversation, item responses,
+transcript, process data, assessment log, advanced records), the dashboard, the
+student page, the research data and explorer pages, and the AI settings page loaded
+without errors.
+
 ### Seen, not changed
 
 - `feedback_shown` was false for some test attempts. Display acknowledgement needs
