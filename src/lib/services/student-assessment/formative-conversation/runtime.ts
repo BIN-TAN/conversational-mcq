@@ -30,6 +30,7 @@ import {
   type FormativeConversationV18R2AgentInput,
   type FormativeConversationV18R2AgentOutput
 } from "./agent-contract-v18r2";
+import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./availability";
 import { validateFormativeConversationV18CandidateAcceptance } from "./candidate-validation-v18";
 import {
@@ -1100,6 +1101,32 @@ async function executeOrResumeAgentCall(input: {
   };
 }
 
+/**
+ * The student ended the conversation or the attempt while this reply was being
+ * generated, so the reply was not shown. Recorded instead of
+ * "assistant_response_persistence_failure" so research data does not count a
+ * student's choice to stop as a system failure. A paused conversation is not
+ * included: its reply can still be recovered when the student resumes.
+ */
+export const FORMATIVE_CONVERSATION_CLOSED_BEFORE_REPLY = "conversation_closed_before_reply";
+
+async function formativeConversationClosedBeforeReply(conversationPublicId: string) {
+  try {
+    const conversation = await prisma.formativeConversationSession.findUnique({
+      where: { conversation_public_id: conversationPublicId },
+      select: {
+        status: true,
+        assessment_session: { select: { status: true, current_phase: true, completed_at: true } }
+      }
+    });
+    if (!conversation) return false;
+    return ["ended", "completed", "teacher_assistance_recommended"].includes(conversation.status) ||
+      resolveCanonicalAttemptLifecycle(conversation.assessment_session).terminal;
+  } catch {
+    return false;
+  }
+}
+
 function safeAssistantResponseFailureCategory(error: unknown) {
   if (formativeConversationUnavailableFromConfiguration(error)) {
     return "configuration_unavailable";
@@ -1726,7 +1753,9 @@ export async function processFormativeConversationStudentMessage(
       receipt_public_id: responseReceipt.receipt_public_id,
       attempt_index: responseAttempt.attempt_index,
       retry_count: responseReceipt.assistant_response_retry_count,
-      failure_category: "assistant_response_persistence_failure",
+      failure_category: (await formativeConversationClosedBeforeReply(input.conversation_public_id))
+        ? FORMATIVE_CONVERSATION_CLOSED_BEFORE_REPLY
+        : "assistant_response_persistence_failure",
       agent_call: agentResult.agent_call
     });
   }

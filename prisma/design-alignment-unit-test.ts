@@ -420,6 +420,19 @@ async function main() {
     assert.match(client, /if \(!attemptTabClaimConfirmed && sessionPublicId && !options\?\.keepalive\)/);
     assert.match(client, /pendingAttemptTabClaim && !options\?\.keepalive/);
   });
+  await check("Review: opening a finished attempt does not record a tab claim (keeps tab-claim counts per attempt accurate)", () => {
+    const tab = source("src/lib/services/student-assessment/attempt-tab.ts");
+    assert.match(tab, /resolveCanonicalAttemptLifecycle\(session\)\.terminal/);
+    assert.ok(tab.indexOf("attempt_closed: true") < tab.indexOf("event_type: ATTEMPT_TAB_CLAIM_EVENT,"));
+  });
+  await check("Review: a reply that arrives after the student ended the conversation is not recorded as a system failure", () => {
+    const runtime = source("src/lib/services/student-assessment/formative-conversation/runtime.ts");
+    assert.match(runtime, /FORMATIVE_CONVERSATION_CLOSED_BEFORE_REPLY = "conversation_closed_before_reply"/);
+    assert.match(runtime, /\(await formativeConversationClosedBeforeReply\(input\.conversation_public_id\)\)/);
+    // A paused conversation keeps the persistence-failure category so its completed reply is reused on resume.
+    assert.doesNotMatch(runtime, /\["ended", "completed", "teacher_assistance_recommended", "paused"\]/);
+    assert.match(source("src/lib/services/teacher-research-data/analysis-ready-export.ts"), /conversation_closed_before_reply means/);
+  });
 
   console.log(`\n${passed} design-alignment checks passed.`);
 }

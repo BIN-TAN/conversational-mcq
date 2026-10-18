@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
+import { resolveCanonicalAttemptLifecycle } from "./attempt-lifecycle";
 import { StudentAssessmentServiceError } from "./errors";
 
 /**
@@ -63,9 +64,19 @@ export async function claimAttemptTab(input: {
   browser_tab_id: unknown;
 }) {
   const browserTabId = BrowserTabIdSchema.parse(input.browser_tab_id);
-  const sessionDbId = await ownedSessionId(input.student_user_db_id, input.session_public_id);
-  if (!sessionDbId) {
+  const session = await prisma.assessmentSession.findFirst({
+    where: { session_public_id: input.session_public_id, user_db_id: input.student_user_db_id },
+    select: { id: true, status: true, current_phase: true, completed_at: true }
+  });
+  if (!session) {
     throw new StudentAssessmentServiceError("not_found", "Session was not found.", 404);
+  }
+  const sessionDbId = session.id;
+  // A finished attempt cannot be saved to, so there is nothing to protect. Recording
+  // claims after the attempt ended (for example, opening its page again later) would
+  // inflate the attempt's tab-claim counts in the research export.
+  if (resolveCanonicalAttemptLifecycle(session).terminal) {
+    return { browser_tab_id: browserTabId, current: true, replaced_other_tab: false, attempt_closed: true };
   }
   const previous = await latestAttemptTabClaim(sessionDbId);
   if (previous !== browserTabId) {

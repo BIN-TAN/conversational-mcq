@@ -314,6 +314,79 @@ the reviews rated High or Medium was fixed, apart from the items listed under
 - Not run here: the database tests and the paid simulation, which need the
   researcher's computer (steps in the Release guide).
 
+## Fifth pass (17–18 Oct 2026): live browser test with the paid models
+
+The release branch ran on the researcher's computer against a new local test
+database (`cmcq_ai_students_<hex>`), with the approved 13 October models (GPT-5.6
+Luna medium; GPT-6.1 Sol medium for the tutor) and the Render usage limits. A test
+teacher and test students used the app in a browser. No live site or pilot data was
+touched.
+
+### Checked and working
+
+- Teacher: the item design assistant (four items, four options, no fifth choice)
+  and publishing one topic.
+- Refusals: a second topic (on create, on JSON import, with nothing half-created),
+  an item's own option E (`reserved_option_label`), and changes after attempts
+  exist (`content_locked_after_student_session`).
+- Student, item administration: live classification. An incomplete reason gets one
+  neutral clarification. "I'm confused." and "I don't know yet" are accepted.
+- Student, other steps:
+  - package-review edit;
+  - feedback and profiling, with repairs logged and a retry after failure;
+  - pause and resume.
+- Tutor conversation (Sol): accurate, explanatory and personalized. A reply takes
+  about 15–45 s; the opening took 45–107 s after "Finish review".
+- D10: paste is blocked in both explanation fields and a notice is shown.
+- D11: one active tab. The older tab is refused and `attempt_save_refused_other_tab`
+  is logged.
+- D2: the student can end while a reply is pending. The late reply is not shown and
+  does not reopen the conversation. `payload_unanswered_message_count` = 1.
+- Attempt limit: "2 of 3" and then "1 of 3" are shown. After the third attempt there
+  is no start button, and the start API answers 409 `assessment_attempt_limit_reached`.
+- Review of past attempts is read-only, with no inputs. Saves to a finished attempt
+  are refused (409).
+- Server-side refusals:
+  - skipping an item (400);
+  - the retired route (410);
+  - a student calling teacher APIs, or another student's attempt (403).
+- Instructor report, dashboard and exports:
+  - The instructor report generated (about 46 s).
+  - The dashboard loaded.
+  - The ordinary export has no `ai_call_audit.csv`, no answer key, and no student
+    user IDs; students appear only as `rs_` pseudonyms.
+  - The restricted export adds only the AI-call audit and its dictionary (pseudonyms only).
+  - New attempts carry `data_collection_rules_version` =
+    `data-collection-rules-2026-10-17` and
+    `data_collection_rules_changed_during_attempt` = false.
+
+### Defects found and fixed
+
+| Defect | Fix |
+| --- | --- |
+| Real attempts did not record `data_collection_rules_version` or the build (only the unused session-state path did) | The student start path in `service.ts` records both on `session_started` |
+| Every instructor report request failed (error 500): `$queryRaw` cannot read the void result of `pg_advisory_xact_lock` | `$executeRaw` |
+| The end-conversation control was hidden for the first 10 seconds of a pending reply | Shown from the start |
+| Opening a finished attempt's page recorded a new tab claim, inflating `attempt_tab_claim_count` and `replaced_other_tab` | Claims on finished attempts are accepted but not recorded |
+| A reply that arrived after the student ended the conversation was recorded as `assistant_response_persistence_failure`, so a student's choice to stop counted as a system failure | New category `conversation_closed_before_reply` (documented in the export dictionary). A paused conversation keeps the old category so its finished reply is reused on resume |
+
+### Seen, not changed
+
+- `feedback_shown` was false for some test attempts. Display acknowledgement needs
+  the page to be visible on screen, and the test browser was minimized. Real
+  students see the page.
+- After a clarification, the rejected draft stays in the text box and the current
+  question is shown again. This is harmless, and the student can edit.
+- `collecting_application_git_commit` showed an older commit locally. Local
+  development reads `build/application-build-info.json` from the last
+  `npm run build`. Render runs `npm run build` on every deploy, so it is correct
+  there.
+- Items with more than four options and labels other than E (for example A–D and F)
+  can still be published through imports. The design screen allows only three or
+  four options. Check imported items by eye.
+- The ordinary export keeps the session-level `unsupported_correct_response_count`.
+  It does not reveal any item's answer key. This field predates this release.
+
 ## Verification
 
 All checks ran in an isolated cloud workspace without the app's full dependency set.

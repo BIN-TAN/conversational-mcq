@@ -2400,7 +2400,7 @@ function formativeConversationDataDictionaryRows() {
       return "Count of idempotent tutor-generation retries after the initial generation attempt for this persisted student message.";
     }
     if (variable === "assistant_response_failure_category") {
-      return "Safe terminal failure category for the latest unsuccessful tutor-generation attempt; raw provider errors and payloads are excluded.";
+      return "Safe terminal failure category for the latest unsuccessful tutor-generation attempt; raw provider errors and payloads are excluded. conversation_closed_before_reply means the student ended the conversation or the attempt while the reply was being generated, so the reply was not shown (not a system failure).";
     }
     if (variable === "assistant_response_failed_at") {
       return "Timestamp of the latest terminal tutor-generation failure for this persisted student message.";
