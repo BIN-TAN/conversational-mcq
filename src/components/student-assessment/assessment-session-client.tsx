@@ -436,7 +436,8 @@ function FormativeResponseWaitingStatus({
             Review your answers
           </button>
         ) : null}
-        {stage !== "preparing" && onEnd ? (
+        {/* D2: available from the first moment a reply is pending (the dialog confirms). */}
+        {onEnd ? (
           <button
             className="mt-3 ml-2 inline-flex items-center rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-red-300"
             data-testid="formative-conversation-end-while-pending"

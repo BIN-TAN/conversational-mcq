@@ -292,7 +292,9 @@ export async function generateInstructorReport(input: {
   const reserveCall = (data: Prisma.AgentCallUncheckedCreateInput, options: { first_attempt: boolean }) =>
     prisma.$transaction(async (tx) => {
       const prefix = invocationPrefix(input.assessment_public_id);
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
+      // $executeRaw: pg_advisory_xact_lock returns void, which $queryRaw cannot
+      // deserialize ("Failed to deserialize column of type 'void'").
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${prefix}))`;
       if (options.first_attempt) {
         const running = await tx.agentCall.findFirst({
           where: {

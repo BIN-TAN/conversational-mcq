@@ -367,6 +367,8 @@ async function main() {
   await check("R1 each attempt records the build and data-collection rules version", () => {
     const sessionState = source("src/lib/services/session-state.ts");
     assert.match(sessionState, /data_collection_rules_version: DATA_COLLECTION_RULES_VERSION/);
+    // The student start path (service.ts) is the one real attempts use.
+    assert.match(source("src/lib/services/student-assessment/service.ts"), /event_type: "session_started"[\s\S]{0,400}data_collection_rules_version: DATA_COLLECTION_RULES_VERSION/);
   });
 
   await check("D8 one-word quotes are rejected unless they are the student's whole answer", () => {

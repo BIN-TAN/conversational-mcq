@@ -17,7 +17,7 @@ import { resolveApplicationBuildInfo } from "../provenance/application-build-inf
  */
 export const DATA_COLLECTION_RULES_VERSION = "data-collection-rules-2026-10-17";
 let cachedBuildIdentity: { application_git_commit: string | null; application_git_commit_source: string | null } | null = null;
-function attemptBuildIdentity() {
+export function attemptBuildIdentity() {
   if (!cachedBuildIdentity) {
     try {
       const resolution = resolveApplicationBuildInfo({ allowGitFallback: false });

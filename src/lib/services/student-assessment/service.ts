@@ -27,7 +27,7 @@ import { generatePublicId } from "@/lib/services/ids";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
 import { getFollowupContextConfig } from "@/lib/agents/followup/context";
 import { logProcessEvent } from "@/lib/services/process-events";
-import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
+import { attemptBuildIdentity, DATA_COLLECTION_RULES_VERSION, updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { createResponsePackage } from "@/lib/services/response-packages";
 import { buildAssessmentInterpretationContextForItemAdministration } from "@/lib/services/student-assessment/assessment-interpretation-context";
 import { FORMATIVE_ACTIVITY_AGENT_NAME } from "@/lib/services/student-assessment/formative-activity-design";
@@ -2624,7 +2624,13 @@ export async function startOrResumeStudentAssessmentSession(
             event_type: "session_started",
             event_category: "session",
             event_source: "backend",
-            payload: { phase: "session_started", assessment_public_id: assessment.assessment_public_id },
+            // R1: the rules version and build that collected this attempt.
+            payload: {
+              phase: "session_started",
+              assessment_public_id: assessment.assessment_public_id,
+              data_collection_rules_version: DATA_COLLECTION_RULES_VERSION,
+              ...attemptBuildIdentity()
+            },
             occurred_at: now
           });
           await txLogProcessEvent(tx, {
