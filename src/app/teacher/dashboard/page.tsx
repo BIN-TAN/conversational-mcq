@@ -7,7 +7,7 @@ export default async function TeacherDashboardPage() {
   const user = await getCurrentUser();
 
   if (!user) {
-    redirect("/student/login");
+    redirect("/teacher/login");
   }
 
   if (user.role !== "teacher_researcher") {

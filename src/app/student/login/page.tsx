@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { LoginForm } from "@/components/login-form";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
 
@@ -13,6 +14,13 @@ export default function StudentLoginPage() {
           <div className="mt-6">
             <LoginForm />
           </div>
+          <p className="mt-6 text-sm text-muted">
+            Instructor?{" "}
+            <Link className="font-semibold text-ualberta-green underline-offset-2 hover:underline" href="/teacher/login">
+              Use the instructor sign-in page
+            </Link>
+            .
+          </p>
         </div>
       </section>
     </main>

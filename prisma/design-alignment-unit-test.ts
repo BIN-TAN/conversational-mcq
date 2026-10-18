@@ -433,6 +433,25 @@ async function main() {
     assert.doesNotMatch(runtime, /\["ended", "completed", "teacher_assistance_recommended", "paused"\]/);
     assert.match(source("src/lib/services/teacher-research-data/analysis-ready-export.ts"), /conversation_closed_before_reply means/);
   });
+  await check("Sign-in: teacher pages send signed-out visitors to /teacher/login, an instructor page outside the teacher layout", async () => {
+    const { readdirSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const path = await import("node:path");
+    const teacherDir = fileURLToPath(new URL("../src/app/teacher/", import.meta.url));
+    const files = (readdirSync(teacherDir, { recursive: true }) as string[])
+      .filter((file) => /\.(ts|tsx)$/.test(file));
+    assert.ok(files.length > 15);
+    const stale = files.filter((file) => readFileSync(path.join(teacherDir, file), "utf8").includes('redirect("/student/login")'));
+    assert.deepEqual(stale, []);
+    assert.match(source("src/app/teacher/layout.tsx"), /redirect\("\/teacher\/login"\)/);
+    assert.match(source("next.config.mjs"), /source: "\/teacher\/login", destination: "\/instructor-login"/);
+    const page = source("src/app/instructor-login/page.tsx");
+    assert.match(page, /<LoginForm audience="teacher" \/>/);
+    assert.match(page, /redirect\("\/teacher\/dashboard"\)/);
+    // Students keep their own page, which still accepts every account.
+    assert.match(source("src/app/student/login/page.tsx"), /<LoginForm \/>/);
+    assert.match(source("src/components/login-form.tsx"), /audience === "teacher"\s*\? \{ user_id: userId\.trim\(\), password: credential \}/);
+  });
 
   console.log(`\n${passed} design-alignment checks passed.`);
 }

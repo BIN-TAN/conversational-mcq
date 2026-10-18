@@ -397,6 +397,23 @@ without errors.
 - The ordinary export keeps the session-level `unsupported_correct_response_count`.
   It does not reveal any item's answer key. This field predates this release.
 
+## Instructor sign-in page (18 Oct 2026)
+
+Teachers and students used one sign-in page at `/student/login`, and every teacher
+page sent signed-out visitors there. Instructors found the address confusing.
+
+- New instructor sign-in page at `/teacher/login`, headed "Instructor sign in".
+  - It asks for a password only, because instructor accounts don't use access codes.
+  - A teacher who is already signed in is sent straight to the dashboard.
+- Every teacher page now sends signed-out visitors to `/teacher/login`.
+- The student page is unchanged and still accepts every account, so existing links and
+  bookmarks keep working. Each sign-in page links to the other.
+- **How it's built:** the page is `src/app/instructor-login/page.tsx`, and a rewrite in
+  `next.config.mjs` serves it at `/teacher/login`. It sits outside `src/app/teacher`
+  because the teacher layout redirects signed-out visitors, which would loop.
+- **Unchanged:** the sign-in API, session rules and roles. No prompt, model or
+  approval-bound file changed.
+
 ## Verification
 
 All checks ran in an isolated cloud workspace without the app's full dependency set.

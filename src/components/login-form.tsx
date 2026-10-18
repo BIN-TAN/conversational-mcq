@@ -12,7 +12,7 @@ type LoginResponse = {
   error?: string;
 };
 
-export function LoginForm() {
+export function LoginForm({ audience = "student" }: { audience?: "student" | "teacher" } = {}) {
   const [userId, setUserId] = useState("");
   const [credential, setCredential] = useState("");
   const [error, setError] = useState("");
@@ -27,11 +27,13 @@ export function LoginForm() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          user_id: userId.trim(),
-          password: credential,
-          access_code: credential
-        })
+        // Instructor accounts sign in with a password only; student accounts accept
+        // a temporary access code or a password. The account decides the role.
+        body: JSON.stringify(
+          audience === "teacher"
+            ? { user_id: userId.trim(), password: credential }
+            : { user_id: userId.trim(), password: credential, access_code: credential }
+        )
       });
       const data = (await response.json()) as LoginResponse;
 
@@ -69,7 +71,7 @@ export function LoginForm() {
       </label>
 
       <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-        Access code or password
+        {audience === "teacher" ? "Password" : "Access code or password"}
         <input
           className="rounded-md border border-border-light bg-white px-3 py-3 text-base outline-none transition focus:border-ualberta-green focus:ring-2 focus:ring-ualberta-gold"
           autoComplete="current-password"
