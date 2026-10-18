@@ -37,6 +37,8 @@ export const SESSIONS_COLUMNS = [
   "assessment_snapshot_public_id",
   "session_public_id",
   "attempt_number",
+  "assessment_family_public_id",
+  "family_attempt_number",
   "export_run_public_id",
   "export_generated_at",
   "export_schema_version",
@@ -1423,7 +1425,7 @@ function countDefinition(table: string, variable: string) {
     confidence_revision_count: "Number of confidence-change events recorded after the first confidence selection for the administered item.",
     navigation_event_count: "Number of item-scoped navigation process events recorded during the response.",
     page_hidden_count: "Number of item-scoped page-hidden, page-visibility-hidden, or window-blur events recorded during the response.",
-    typing_activity_event_count: "Number of item-scoped typing activity summaries or typing instrumentation events recorded for the response.",
+    typing_activity_event_count: "Number of item-scoped typing activity summaries or typing instrumentation events recorded for the response. Browser activity events (typing summaries, pastes, focus and visibility) are scoped to the question the student is working on. From the 2026-10-17 data-collection rules this includes revising the question in the final review; earlier attempts recorded review-phase activity without a question, so it is absent from their item counts. Students can edit only the current question during the item flow, so activity is not recorded against a later unfinished question.",
     response_quality_check_count: "Number of response-quality checks applied to the item response.",
     response_quality_rejection_count: "Number of response-quality checks that rejected or requested repair for the item response.",
     insufficient_knowledge_count: "Number of times the student selected or expressed insufficient knowledge for the item response.",
@@ -1473,7 +1475,7 @@ function measuredValueDefinition(table: string, variable: string) {
     confidence_response_time_ms: "Milliseconds between the confidence prompt and the accepted confidence selection.",
     tempting_option_response_time_ms: "Milliseconds between the tempting-option prompt and the accepted tempting-option response.",
     last_action_to_submission_ms: "Milliseconds between the latest accepted student action and item submission.",
-    item_elapsed_response_time_ms: "Milliseconds from item presentation to item submission under timing-contract-v3.",
+    item_elapsed_response_time_ms: "Milliseconds from item presentation to item submission under timing-contract-v3. Includes system and AI waiting, time with the page hidden or another window in front, pauses and idle time, so it is not time spent thinking about the item. For analysis prefer student_focused_response_time_ms in item_behavior_summary.csv (student intervals only, hidden and unfocused time removed).",
     item_response_time_ms: "Deprecated legacy backend-finalized item-response duration. Historical values may start at response-row creation rather than item presentation.",
     timing_contract_version: "Version label for timing formulas used to derive the exported timing fields.",
     timing_source_version: "Version label for timing source extraction and event-pairing logic.",
@@ -1503,7 +1505,7 @@ function definition(table: string, variable: string) {
   }
   const overrides: Record<string, string> = {
     attempt_number:
-      "Assessment-session attempt number used with session_public_id and item_public_id to distinguish repeated attempts or reruns.",
+      "Assessment-session attempt number within one assessment version, used with session_public_id and item_public_id to distinguish repeated attempts or reruns. A corrected version (new assessment_public_id, same assessment_family_public_id) starts again at 1 although the attempt limit counts the family; use family_attempt_number for the student's attempt order across versions.",
     research_student_id:
       "Pseudonymous student join key used to connect the same student's rows across authorized research tables under the same pseudonymization configuration. It is not the student's login username, email, or internal database UUID.",
     student_id:
@@ -1580,6 +1582,8 @@ function definition(table: string, variable: string) {
     ever_idk_selected: "True when the student chose \"I don't know yet\" at any point for the item, including a choice later changed.",
     ai_flagged_insufficient_knowledge: "True when the response-quality check classified the typed reasoning as an insufficient-knowledge statement; a system judgement, not a student choice.",
     collecting_application_git_commit: "Application Git commit that served the attempt when it started; blank for attempts started before this field was recorded.",
+    assessment_family_public_id: "Revision family of the assessment: the original version's assessment_public_id, shared by its corrected versions. The three-attempt limit applies per family, not per version.",
+    family_attempt_number: "Order of this attempt among all of the student's attempts in the assessment family (every version), by attempt creation time, starting at 1. attempt_number restarts at 1 on a corrected version even though the attempt limit counts the whole family, so use family_attempt_number for the student's attempt order. Waived (restored) chances are still counted.",
     data_collection_rules_version: "Version of the data-collection rules the attempt ran under (for example data-collection-rules-2026-10-17: timing from item presentation, no skipping, typed explanations, one active tab); pre_2026_10_17_unversioned for earlier attempts.",
     initial_package_sealed: "True when the attempt has a sealed initial response package for its topic (the student submitted the answers, reasoning, confidence and alternative reasoning).",
     feedback_shown: "True when package results, answer review or formative feedback were displayed to the student (a formative_feedback_shown, package_results_shown or item_correctness_status_shown event exists).",
@@ -1978,7 +1982,7 @@ function timingMetadata(variable: string, table: string) {
       end: "item_submitted_at",
       formula: "item_submitted_at minus item_presented_at",
       idle: "Includes idle periods unless paired with separate active-time variables.",
-      hidden: "Includes page-hidden periods unless paired with separate visibility-adjusted variables.",
+      hidden: "Includes page-hidden and unfocused periods and system/AI waiting; student_focused_response_time_ms in item_behavior_summary.csv removes them (idle time with the page visible and focused remains).",
       method: "Calculated by deriveItemTiming() from item_presented and item_submitted timestamps."
     },
     time_to_first_action_ms: {

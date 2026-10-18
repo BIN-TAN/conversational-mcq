@@ -448,6 +448,30 @@ const analysisSessionSelect = {
 
 type AnalysisSession = Prisma.AssessmentSessionGetPayload<{ select: typeof analysisSessionSelect }>;
 
+/**
+ * R7: attempt_number counts attempts within one assessment version, but the three-attempt
+ * limit counts the whole revision family (a corrected version continues the original's
+ * chances). family_attempt_number orders all of the student's attempts in the family, on
+ * any version, by creation time, so "attempt 1" of a corrected version can be told apart
+ * from a first attempt overall. Waived (restored) chances are still counted here; see
+ * chance_waived_at in attempt_records.csv.
+ */
+const familyAttemptIdentity = new WeakMap<object, { assessment_family_public_id: string; family_attempt_number: number }>();
+
+async function resolveFamilyAttemptIdentity(tx: Prisma.TransactionClient, session: AnalysisSession) {
+  const family = session.assessment.revision_family_public_id ?? session.assessment.assessment_public_id;
+  const earlier = await tx.assessmentSession.count({
+    where: {
+      user: { user_id: session.user.user_id },
+      assessment: { OR: [{ assessment_public_id: family }, { revision_family_public_id: family }] },
+      OR: [{ created_at: { lt: session.created_at } }, { created_at: session.created_at, id: { lt: session.id } }]
+    }
+  });
+  const identity = { assessment_family_public_id: family, family_attempt_number: earlier + 1 };
+  familyAttemptIdentity.set(session, identity);
+  return identity;
+}
+
 type SupplementalRecords = Awaited<ReturnType<typeof loadSupplementalRecords>>;
 
 const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
@@ -1021,6 +1045,9 @@ function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
     assessment_snapshot_public_id: assessmentSnapshotId(session),
     session_public_id: session.session_public_id,
     attempt_number: session.attempt_number,
+    assessment_family_public_id: familyAttemptIdentity.get(session)?.assessment_family_public_id
+      ?? session.assessment.revision_family_public_id ?? session.assessment.assessment_public_id,
+    family_attempt_number: familyAttemptIdentity.get(session)?.family_attempt_number ?? null,
     context_schema_version: "assessment-session-context-v1",
     assessment_context_hash: sha({
       assessment_public_id: session.assessment.assessment_public_id,
@@ -2929,6 +2956,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     await spool.append(file);
   };
   const attemptObservations: ReturnType<typeof observeAttempts> = [];
+  const familyAttemptNumbers = new Map<string, number>();
   // A single snapshot, but only one session's full event/profile graph in memory.
   // Files stay private until the transaction and every integrity check succeed.
   const snapshotAt = await prisma.$transaction(async (tx) => {
@@ -2943,6 +2971,9 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
       "No student sessions are available for this export scope.", 409);
     for (const reference of references) {
       const sessions = await loadSessions({ ...input, session_public_id: reference.session_public_id }, tx);
+      for (const session of sessions) {
+        familyAttemptNumbers.set(session.session_public_id, (await resolveFamilyAttemptIdentity(tx, session)).family_attempt_number);
+      }
       const supplemental = await loadSupplementalRecords([reference.session_public_id], tx);
       const chances = await tx.assessmentAttemptChance.findMany({
         where: { session_public_id: reference.session_public_id },
@@ -2982,7 +3013,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
   }
   // Comparisons retain compact sealed-attempt evidence, not all process logs.
   for (const file of attemptComparisonExportFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
-    pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope })) await emit(file);
+    pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope,
+    family_attempt_numbers: familyAttemptNumbers })) await emit(file);
   for (const file of researchStudyTemplateFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
     pseudonym: researchStudentId })) await emit(file);
   await spool.finishCoverage();

@@ -414,6 +414,58 @@ page sent signed-out visitors there. Instructors found the address confusing.
 - **Unchanged:** the sign-in API, session rules and roles. No prompt, model or
   approval-bound file changed.
 
+## Research-data review: activity attribution, response time and attempt order (18 Oct 2026)
+
+Three concerns were raised about how research data can be interpreted.
+
+**1. Activity recorded against the wrong question.**
+- **What the code does.** Students can edit only the current question during the item
+  flow (`updateInFlowItemResponse` refuses any other question). Earlier questions can be
+  revised only in the final review, when no question is current. So activity is never
+  recorded against a later unfinished question.
+- **The real gap.** During final-review edits, general browser activity events (typing
+  summaries, pastes, focus and visibility) had no question, so they did not count toward
+  the question being revised. The stage observations themselves were already attributed
+  correctly.
+- **Fix.** These events now carry the question being revised. The dictionary explains
+  the attribution and the gap in attempts recorded earlier.
+
+**2. Response time is not thinking time.**
+- **What was exported.** `item_elapsed_response_time_ms` runs from item display to
+  submission. It includes system/AI waiting, hidden pages, other windows and idle time.
+  The pieces needed to exclude this existed only per stage or submission; no item-level
+  measure was exported.
+- **New measures** (`response-stage-derivation-v4`):
+  - per submission: `student_interval_hidden_ms`, `student_interval_unfocused_ms`,
+    `student_focused_response_ms`;
+  - per item, in `item_behavior_summary.csv`: `student_response_time_ms` (student's
+    own intervals only), `student_unfocused_time_ms`, `student_focused_response_time_ms`
+    (recommended for analysis), `student_response_interval_count` and
+    `unsubmitted_visit_count`.
+- **New raw field.** The browser now records whether the window had focus when a stage
+  became ready (`document_has_focus`).
+- **Clock basis.** Durations use one page load's monotonic clock, so neither device
+  clock changes nor the browser/server clock difference affect them. Browser and server
+  timestamps must never be subtracted from each other; the notes file and dictionary
+  say so.
+- **Limitation.** Idle time with the page visible and focused cannot be told apart from
+  thinking and remains included.
+
+**3. Attempt numbering across corrected versions.**
+- **The problem.** `attempt_number` restarts at 1 on a corrected version, while the
+  three-attempt limit counts the whole revision family.
+- **Fix.** `sessions.csv` and `attempt_records.csv` now also carry
+  `assessment_family_public_id` and `family_attempt_number`: the attempt's order among
+  all of the student's attempts in the family, by creation time. `attempt_number` is
+  unchanged, because the comparison views need identical items within one version.
+
+**Scope and checks.**
+- No prompt, model or approval-bound file changed.
+- The new fields apply to attempts recorded after deployment. Historical rows are
+  derived where the raw data allow it: focused time without `document_has_focus`
+  assumes focus at ready.
+- Design checks 42 of 42; dictionary audits and export smoke tests pass.
+
 ## Verification
 
 All checks ran in an isolated cloud workspace without the app's full dependency set.

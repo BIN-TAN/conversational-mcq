@@ -17,7 +17,8 @@ export function useResponseStageObservations(input: {
   const recorder = useRef<ReturnType<typeof createResponseStageRecorder> | null>(null);
   if (!recorder.current) recorder.current = createResponseStageRecorder({
     send: (event, keepalive) => latest.current.send(event, keepalive),
-    now: () => performance.now(), wallNow: () => new Date().toISOString(), newId: () => crypto.randomUUID()
+    now: () => performance.now(), wallNow: () => new Date().toISOString(), newId: () => crypto.randomUUID(),
+    hasFocus: () => document.hasFocus()
   });
   const current = recorder.current;
   const key = input.context ? JSON.stringify(input.context) : "";

@@ -20,7 +20,10 @@ export const ResponseObservationPayloadSchema = z.object({
   result: z.enum(["response_received", "request_failed"]).optional(),
   input_length: z.number().int().nonnegative().max(100000).optional(),
   input_change_count: z.number().int().nonnegative().optional(),
-  reason: z.enum(["stage_changed", "view_left", "pause_requested", "end_requested"]).optional()
+  reason: z.enum(["stage_changed", "view_left", "pause_requested", "end_requested"]).optional(),
+  // R6: whether the browser window had focus when the stage became ready (ready
+  // observations only). Absent on observations recorded before this field existed.
+  document_has_focus: z.boolean().optional()
 }).strict();
 export type ResponseObservationPayload = z.infer<typeof ResponseObservationPayloadSchema>;
 

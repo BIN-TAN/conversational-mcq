@@ -1897,6 +1897,35 @@ current input may cover only the newly observed portion of a restored draft.
 Full display-to-reply timing is not reconstructed. Compatibility fields stay
 available and must not be summed with their new preferred aliases.
 
+### Focused response time, activity attribution and attempt order (2026-10-18)
+
+`response-stage-derivation-v4` adds focused response time:
+- Each submission's student interval now reports `student_interval_hidden_ms`,
+  `student_interval_unfocused_ms` and `student_focused_response_ms`. Unfocused time
+  is the union of hidden-to-visible and blur-to-focus spans inside the interval.
+- The browser records `document_has_focus` on ready observations, so a stage that
+  becomes ready behind another window starts unfocused.
+- `item_behavior_summary.csv` sums each item's initial/transfer submissions into
+  `student_response_time_ms` (system and AI waiting excluded) and
+  `student_focused_response_time_ms` (hidden and unfocused time also excluded).
+  `unsubmitted_visit_count` flags visits left without a submission, whose time is
+  not in these sums.
+- Idle time with the page visible and focused remains included. These are not
+  thinking-time measures.
+- Durations use one browser document's monotonic clock and never mix browser and
+  server timestamps.
+
+Activity attribution: general browser activity events (typing summaries, pastes,
+focus and visibility) are scoped to the question being revised during the final
+review, as well as the current question. Previously review-phase activity had no
+question. In-flow edits remain limited to the current question.
+
+Attempt order: `sessions.csv` and `attempt_records.csv` add
+`assessment_family_public_id` and `family_attempt_number`, the attempt's order
+across every version of the assessment family. `attempt_number` stays per
+version, so it restarts at 1 on a corrected version, while the three-attempt
+limit counts the family.
+
 See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for endpoint definitions, retry/pause
 semantics and formulas. These changes collect timing, not engagement judgments.
 

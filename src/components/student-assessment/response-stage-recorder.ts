@@ -8,6 +8,7 @@ export function createResponseStageRecorder(input: {
   now: () => number;
   wallNow: () => string;
   newId: () => string;
+  hasFocus?: () => boolean;
 }) {
   type Visit = ResponseStageContext & { id: string; sequence: number; firstInput: boolean; changes: number; pending?: string; requestFinished?: boolean };
   let visit: Visit | null = null;
@@ -32,7 +33,7 @@ export function createResponseStageRecorder(input: {
       if (visit && visit.item_public_id === context.item_public_id && visit.response_stage === context.response_stage && visit.response_phase === context.response_phase) return;
       close();
       visit = { ...context, id: input.newId(), sequence: 0, firstInput: false, changes: 0 };
-      emit(visit, "ready");
+      emit(visit, "ready", input.hasFocus ? { document_has_focus: input.hasFocus() } : {});
     },
     input(length: number) {
       if (!visit || visit.pending) return;

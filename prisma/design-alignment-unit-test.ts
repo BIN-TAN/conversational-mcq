@@ -453,6 +453,81 @@ async function main() {
     assert.match(source("src/components/login-form.tsx"), /audience === "teacher"\s*\? \{ user_id: userId\.trim\(\), password: credential \}/);
   });
 
+  await check("R5 review-phase activity events belong to the question being revised", () => {
+    const client = source("src/components/student-assessment/assessment-session-client.tsx");
+    assert.match(client, /currentItemPublicId: editingReviewItemId \?\? state\?\.current_item\?\.item_public_id/);
+    // In-flow edits are limited to the current question, so a later unfinished question
+    // never receives activity for an earlier one.
+    assert.match(source("src/lib/services/student-assessment/service.ts"), /state\.current_item\?\.item_public_id !== input\.item_public_id/);
+  });
+  await check("R6 focused response time removes hidden and unfocused time from student intervals", async () => {
+    const data = await import("../src/lib/services/student-assessment/response-stage-data");
+    const { randomUUID } = await import("node:crypto");
+    const tab = randomUUID();
+    let n = 0;
+    const visit = (stage: string, steps: Array<[string, number, Record<string, unknown>?]>) => {
+      const id = randomUUID();
+      const submission = randomUUID();
+      const events = steps.map(([kind, ms, extra], index) => ({
+        event_type: "response_stage_observation", event_source: "frontend", item_public_id: "item-1",
+        payload: { observation_version: "response-stage-observation-v1", stage_visit_id: id, response_stage: stage, response_phase: "initial",
+          observation_kind: kind, monotonic_ms: ms, observation_sequence: index + 1, client_event_id: randomUUID(), browser_tab_id: tab,
+          client_occurred_at: new Date(1_800_000_000_000 + ms + n++).toISOString(),
+          ...(["submitted", "request_finished", "controls_ready"].includes(kind) ? { submission_id: submission } : {}),
+          ...(kind === "request_finished" ? { result: "response_received" } : {}), ...(extra ?? {}) }
+      }));
+      events.push({ event_type: "response_stage_outcome", event_source: "backend", item_public_id: "item-1",
+        payload: { stage_visit_id: id, submission_id: submission, accepted: true, validation_rejected: false } } as never);
+      return events;
+    };
+    const reasoning = visit("reasoning", [["ready", 0, { document_has_focus: true }], ["first_input", 1000], ["hidden", 2000], ["blur", 2000],
+      ["visible", 5000], ["focus", 5000], ["blur", 6000], ["focus", 7000], ["submitted", 10000], ["request_finished", 10500], ["controls_ready", 11000], ["closed", 11001]]);
+    const confidence = visit("confidence", [["ready", 20000, { document_has_focus: false }], ["focus", 22000], ["submitted", 25000],
+      ["request_finished", 25100], ["controls_ready", 25200], ["closed", 25201]]);
+    const submissions = data.deriveResponseSubmissions([...reasoning, ...confidence]);
+    const r = submissions.find((row) => row.response_stage === "reasoning")!;
+    assert.equal(r.student_response_elapsed_ms, 10000);
+    assert.equal(r.student_interval_hidden_ms, 3000);
+    assert.equal(r.student_interval_unfocused_ms, 4000);
+    assert.equal(r.student_focused_response_ms, 6000);
+    const c = submissions.find((row) => row.response_stage === "confidence")!;
+    assert.equal(c.student_interval_unfocused_ms, 2000);
+    assert.equal(c.student_focused_response_ms, 3000);
+    const visits = data.deriveResponseStageVisits([...reasoning, ...confidence]);
+    const item = data.summarizeItemStudentTime(submissions, visits);
+    assert.equal(item.student_response_time_ms, 15000);
+    assert.equal(item.student_unfocused_time_ms, 6000);
+    assert.equal(item.student_focused_response_time_ms, 9000);
+    assert.equal(item.unsubmitted_visit_count, 0);
+    // A hidden span with no recorded return before submission leaves the value blank.
+    const open = data.deriveResponseSubmissions(visit("answer", [["ready", 0], ["hidden", 100], ["submitted", 900], ["request_finished", 950], ["controls_ready", 990]]));
+    assert.equal(open[0].student_focused_response_ms, null);
+    assert.match(String(open[0].timing_limitations), /unpaired_attention_observation/);
+    const dictionary = source("src/lib/services/teacher-research-data/response-stage-dictionary.ts");
+    for (const column of ["student_focused_response_time_ms", "student_response_time_ms", "student_unfocused_time_ms", "unsubmitted_visit_count", "student_interval_unfocused_ms", "document_has_focus"]) {
+      assert.match(dictionary, new RegExp(`${column}: `), column);
+    }
+    assert.match(source("src/components/student-assessment/use-response-stage-observations.ts"), /hasFocus: \(\) => document\.hasFocus\(\)/);
+  });
+  await check("R7 attempts carry a family-wide attempt number next to the per-version attempt_number", async () => {
+    const exporter = source("src/lib/services/teacher-research-data/analysis-ready-export.ts");
+    assert.match(exporter, /family_attempt_number: earlier \+ 1/);
+    assert.match(exporter, /revision_family_public_id: family/);
+    const { attemptComparisonExportFiles } = await import("../src/lib/services/teacher-research-data/attempt-comparison-export");
+    const files = attemptComparisonExportFiles({ attempts: [{ student_key: "s", session_public_id: "sess_b", assessment_public_id: "asmt_v2",
+      assessment_title: "t", assessment_family_public_id: "asmt_v1", attempt_number: 1, status: "completed", started_at: "2026-10-18T00:00:00.000Z",
+      submitted_at: null, items: [], limitation: null, chance_policy: null, chance_waived_at: null }],
+      snapshot_at: "2026-10-18T00:00:00.000Z", pseudonym: (value) => `rs_${value}`, include_restricted: false, scope: "all_authorized",
+      family_attempt_numbers: new Map([["sess_b", 2]]) });
+    const records = files.find((file) => file.path === "attempt_records.csv")!.data;
+    const [header, row] = String(records).trim().split("\n").map((line: string) => line.split(","));
+    assert.equal(row[header.indexOf("attempt_number")], "1");
+    assert.equal(row[header.indexOf("family_attempt_number")], "2");
+    const dictionary = source("src/lib/services/teacher-research-data/dictionary.ts");
+    assert.match(dictionary, /"family_attempt_number",/);
+    assert.match(dictionary, /family_attempt_number: "Order of this attempt/);
+  });
+
   console.log(`\n${passed} design-alignment checks passed.`);
 }
 

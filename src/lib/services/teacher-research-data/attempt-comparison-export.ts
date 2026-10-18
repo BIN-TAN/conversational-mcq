@@ -6,7 +6,7 @@ import { ATTEMPT_COMPARISON_VERSION, ATTEMPT_VIEWS, buildAttemptComparison, resp
 type Cell = string | number | boolean | null;
 type Row = Record<string, Cell>;
 const attemptColumns = ["research_student_id", "assessment_public_id", "assessment_family_public_id", "session_public_id",
-  "attempt_number", "session_status", "started_at", "initial_submitted_at", "comparison_eligible", "limitation",
+  "attempt_number", "family_attempt_number", "session_status", "started_at", "initial_submitted_at", "comparison_eligible", "limitation",
   "chance_policy_version", "chance_waived_at", "response_count"];
 const itemColumns = ["research_student_id", "assessment_public_id", "session_public_id", "attempt_number", "item_public_id",
   "item_snapshot_key", "item_version", "learning_objective", "initial_submitted_at", "first_selected_option", "selected_option",
@@ -20,12 +20,14 @@ const restrictedMetrics = ["correct_count", "scored_response_count", "correct_pe
 const metadata = ["calculation_version", "snapshot_at", "cohort_scope"];
 
 export function attemptComparisonExportFiles(input: { attempts: AttemptObservation[]; snapshot_at: string;
-  pseudonym: (student: string) => string; include_restricted: boolean; scope: string }) {
+  pseudonym: (student: string) => string; include_restricted: boolean; scope: string;
+  family_attempt_numbers?: ReadonlyMap<string, number> }) {
   const attempts: Row[] = [], items: Row[] = [], pairs: Row[] = [], summaries: Row[] = [];
   for (const attempt of input.attempts) {
     const identity = { research_student_id: input.pseudonym(attempt.student_key), assessment_public_id: attempt.assessment_public_id,
       session_public_id: attempt.session_public_id, attempt_number: attempt.attempt_number };
-    attempts.push({ ...identity, assessment_family_public_id: attempt.assessment_family_public_id, session_status: attempt.status,
+    attempts.push({ ...identity, assessment_family_public_id: attempt.assessment_family_public_id,
+      family_attempt_number: input.family_attempt_numbers?.get(attempt.session_public_id) ?? null, session_status: attempt.status,
       started_at: attempt.started_at, initial_submitted_at: attempt.submitted_at,
       comparison_eligible: Boolean(attempt.submitted_at && !attempt.chance_waived_at), limitation: attempt.limitation,
       chance_policy_version: attempt.chance_policy, chance_waived_at: attempt.chance_waived_at, response_count: attempt.items.length });
@@ -74,7 +76,9 @@ export function attemptComparisonExportFiles(input: { attempts: AttemptObservati
   const descriptions: Record<string, string> = {
     research_student_id: "Pseudonymous research student join key; never a login identifier.",
     item_pair_id: "Stable pair_ plus SHA-256 of JSON [research_student_id, assessment_public_id, from_session_public_id, to_session_public_id, item_snapshot_key]. Excludes comparison label: overlapping 1-2/1-3/first-latest views share this ID. Select one comparison or deduplicate by this ID; rows are not independent participants.",
-    attempt_number: "Original attempt number for this assessment version; never renumbered after a technical waiver.",
+    attempt_number: "Original attempt number for this assessment version; never renumbered after a technical waiver. A corrected version (new assessment_public_id in the same assessment_family_public_id) starts again at 1, although the three-attempt limit counts the whole family; use family_attempt_number for the student's attempt order across versions.",
+    family_attempt_number: "Order of this attempt among all of the student's attempts in the assessment family (every version), by attempt creation time, starting at 1. Waived (restored) chances are still counted; see chance_waived_at. Comparison labels (1-2, 2-3, 1-3, first-latest) use attempt_number within one version because items must be identical.",
+    assessment_family_public_id: "Revision family of the assessment: the original version's assessment_public_id, shared by its corrected versions. The three-attempt limit applies per family.",
     initial_submitted_at: "Timestamp of the first sealed initial package (last required package for attempt rows), before feedback within this attempt.",
     comparison_eligible: "True only for a full initial submission not waived for a technical problem.",
     limitation: "Unavailable or incomplete sealed evidence; never substituted with current mutable responses.",

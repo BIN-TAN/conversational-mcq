@@ -1,6 +1,6 @@
 import { researchCsv } from "./csv-contract";
 import { RESPONSE_STAGE_CALCULATION_VERSION, responseStageDictionaryRows } from "./response-stage-dictionary";
-import { deriveResponseStageVisits, deriveResponseSubmissions, RESPONSE_SUBMISSION_COLUMNS, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, type ResponseStageEvent } from "../student-assessment/response-stage-data";
+import { deriveResponseStageVisits, deriveResponseSubmissions, RESPONSE_SUBMISSION_COLUMNS, RESPONSE_STAGE_COLUMNS, summarizeItemStageVisits, summarizeItemStudentTime, type ResponseStageEvent } from "../student-assessment/response-stage-data";
 
 type Source = { session_public_id: string; research_student_id: string; assessment_public_id: string; attempt_number: number;
   events: ResponseStageEvent[]; items: { item_public_id: string; item_snapshot_public_id: string; item_version: number }[];
@@ -10,7 +10,7 @@ const record = (v: unknown): Row => v && typeof v === "object" && !Array.isArray
 const identity = ["research_student_id", "assessment_public_id", "session_public_id", "attempt_number"];
 const itemIdentity = ["item_public_id", "item_snapshot_public_id", "item_version"];
 const observedColumns = ["stage_visit_id", "browser_tab_id", "response_stage", "response_phase", "observation_kind", "observation_sequence", "monotonic_ms", "submission_id",
-  "result", "input_length", "input_change_count", "reason", "client_event_id", "client_occurred_at", "server_received_at", "observation_version"];
+  "result", "input_length", "input_change_count", "reason", "document_has_focus", "client_event_id", "client_occurred_at", "server_received_at", "observation_version"];
 
 export function responseStageExportFiles(sources: Source[]) {
   const stages: Row[] = [], submissions: Row[] = [], itemRows: Row[] = [], eventRows: Row[] = [], revisions: Row[] = [], exposures: Row[] = [];
@@ -20,11 +20,17 @@ export function responseStageExportFiles(sources: Source[]) {
     const visits = deriveResponseStageVisits(source.events);
     const item = (id?: string | null) => source.items.find(i => i.item_public_id === id) ?? { item_public_id: id ?? null, item_snapshot_public_id: null, item_version: null };
     for (const visit of visits) stages.push({ ...ids, ...item(visit.item_public_id), ...visit });
-    for (const submission of deriveResponseSubmissions(source.events)) submissions.push({ ...ids, ...item(submission.item_public_id), ...submission });
-    for (const i of source.items) itemRows.push({ ...ids, ...i, ...summarizeItemStageVisits(visits.filter(v => v.item_public_id === i.item_public_id)) });
+    const sessionSubmissions = deriveResponseSubmissions(source.events);
+    for (const submission of sessionSubmissions) submissions.push({ ...ids, ...item(submission.item_public_id), ...submission });
+    const itemSummary = (id: string | null) => {
+      const itemVisits = visits.filter(v => v.item_public_id === id);
+      return { ...summarizeItemStageVisits(itemVisits),
+        ...summarizeItemStudentTime(sessionSubmissions.filter(s => s.item_public_id === id), itemVisits) };
+    };
+    for (const i of source.items) itemRows.push({ ...ids, ...i, ...itemSummary(i.item_public_id) });
     for (const id of new Set(visits.map(v => v.item_public_id).filter(Boolean))) {
       if (source.items.some(i => i.item_public_id === id)) continue;
-      itemRows.push({ ...ids, ...item(id), ...summarizeItemStageVisits(visits.filter(v => v.item_public_id === id)) });
+      itemRows.push({ ...ids, ...item(id), ...itemSummary(id) });
     }
     for (const event of source.events) {
       const payload = record(event.payload);
@@ -62,7 +68,7 @@ export function responseStageExportFiles(sources: Source[]) {
   const tables = [
     { path: "response_submission_timing.csv", columns: [...identity, ...itemIdentity.filter(k => k !== "item_public_id"), ...RESPONSE_SUBMISSION_COLUMNS], rows: submissions },
     { path: "response_stage_visits.csv", columns: [...identity, ...itemIdentity.filter(k => k !== "item_public_id"), ...RESPONSE_STAGE_COLUMNS], rows: stages },
-    { path: "item_behavior_summary.csv", columns: [...identity, ...itemIdentity, "observed_stage_visit_count", "answer_time_ms", "first_action_ms", "reasoning_start_latency_ms", "reasoning_time_ms", "reasoning_input_elapsed_ms", "confidence_time_ms", "system_wait_ms", "hidden_duration_ms", "submission_count", "validation_rejection_count", "timing_quality_status"], rows: itemRows },
+    { path: "item_behavior_summary.csv", columns: [...identity, ...itemIdentity, "observed_stage_visit_count", "answer_time_ms", "first_action_ms", "reasoning_start_latency_ms", "reasoning_time_ms", "reasoning_input_elapsed_ms", "confidence_time_ms", "system_wait_ms", "hidden_duration_ms", "submission_count", "validation_rejection_count", "student_response_interval_count", "student_response_time_ms", "student_unfocused_time_ms", "student_focused_response_time_ms", "unsubmitted_visit_count", "timing_quality_status"], rows: itemRows },
     { path: "response_stage_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", ...observedColumns, "action_status", "accepted", "validation_rejected", "server_phase", "client_action_id"], rows: eventRows },
     { path: "response_revision_history.csv", columns: [...identity, ...itemIdentity, "source_turn_sequence_index", "changed_at", "changed_field", "previous_value", "new_value", "revision_phase", "coverage"], rows: revisions },
     { path: "feedback_exposure_events.csv", columns: [...identity, ...itemIdentity, "event_type", "event_source", "occurred_at", "client_occurred_at", "content_id", "observation_meaning", "server_received_at", "client_event_id", "display_event_contract_version", "content_kind", "observation_method", "minimum_visible_ms", "source_turn_sequence_index"], rows: exposures }
@@ -74,6 +80,6 @@ export function responseStageExportFiles(sources: Source[]) {
   const csv = researchCsv;
   return [...tables.map(t => ({ path: t.path, data: csv(t.rows, t.columns) })),
     { path: "response_stage_data_dictionary.csv", data: csv(responseStageDictionaryRows(tables)) },
-    { path: "response_stage_notes.txt", data: "Stage observations use response-stage-observation-v1. Browser data are observations, not authoritative response acceptance.\nDurations use monotonic time within one browser document. Backend outcome timestamps use a separate clock.\nFirst-observed visit summaries must be interpreted with all visit rows; a resumed visit is not necessarily first exposure.\nWaiting, hidden time and elapsed time overlap and must not be added. Abrupt closure/offline delivery may lose events.\nExplicit pause/end requests are recorded as visit close reasons; time between visits is not imputed as thinking or absence.\nRevisions reuse existing accepted transcript records; initial immutable packages and all prior exports remain available.\nFeedback acknowledgements show display, not reading. Before/after values are available only for newly recorded edits.\n" }
+    { path: "response_stage_notes.txt", data: "Stage observations use response-stage-observation-v1. Browser data are observations, not authoritative response acceptance.\nDurations use monotonic time within one browser document, so they are not affected by the device clock setting or by differences between the browser and server clocks. Never subtract a browser timestamp (client_occurred_at, *_at from browser observations) from a server timestamp (occurred_at of backend rows, accepted_at, server_received_at).\nResponse time is not thinking time. item_elapsed_response_time_ms (item_responses.csv) runs from item display to item submission and includes system/AI waiting, hidden pages, other windows and idle time. student_response_time_ms (item_behavior_summary.csv) keeps only the student's own intervals (ready controls to each submission); student_focused_response_time_ms also removes time the page was hidden or the window lacked focus. Time with the page visible and focused but the student idle, away or thinking cannot be distinguished and remains included. Check unsubmitted_visit_count: time in a visit left without a submission (reload, pause, end) is not in these sums.\nFirst-observed visit summaries must be interpreted with all visit rows; a resumed visit is not necessarily first exposure.\nWaiting, hidden time and elapsed time overlap and must not be added. Abrupt closure/offline delivery may lose events.\nExplicit pause/end requests are recorded as visit close reasons; time between visits is not imputed as thinking or absence.\nRevisions reuse existing accepted transcript records; initial immutable packages and all prior exports remain available.\nFeedback acknowledgements show display, not reading. Before/after values are available only for newly recorded edits.\n" }
   ];
 }

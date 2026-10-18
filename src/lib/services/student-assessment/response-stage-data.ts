@@ -41,8 +41,42 @@ function observationGroups(events: ResponseStageEvent[]) {
 export const RESPONSE_SUBMISSION_COLUMNS = ["stage_visit_id", "item_public_id", "browser_tab_id", "response_stage", "response_phase",
   "submission_id", "submission_index", "student_interval_start_kind", "student_interval_started_at", "submitted_at", "request_finished_at", "controls_ready_at",
   "student_interval_start_monotonic_ms", "submitted_monotonic_ms", "request_finished_monotonic_ms", "controls_ready_monotonic_ms",
-  "student_response_elapsed_ms", "submission_request_wait_ms", "post_request_controls_wait_ms", "submission_system_wait_ms",
+  "student_response_elapsed_ms", "student_interval_hidden_ms", "student_interval_unfocused_ms", "student_focused_response_ms",
+  "submission_request_wait_ms", "post_request_controls_wait_ms", "submission_system_wait_ms",
   "request_result", "accepted", "validation_rejected", "timing_quality_status", "timing_limitations"] as const;
+
+/**
+ * R6: spans of one stage visit during which the page was hidden or the browser window
+ * did not have focus (another tab, window or application in front), on the visit's
+ * monotonic clock. A visit that became ready without focus (document_has_focus=false)
+ * starts unfocused. Spans still open at the end of the capture have an unknown end.
+ */
+function attentionSpans(list: Observation[]) {
+  const hidden: Array<[number, number]> = [], unfocused: Array<[number, number]> = [];
+  let hiddenSince: number | null = null, blurSince: number | null = null;
+  for (const e of list) {
+    const t = e.monotonic_ms;
+    if (e.observation_kind === "ready" && e.document_has_focus === false && blurSince === null) blurSince = t;
+    if (e.observation_kind === "hidden" && hiddenSince === null) hiddenSince = t;
+    if (e.observation_kind === "visible" && hiddenSince !== null) { hidden.push([hiddenSince, t]); unfocused.push([hiddenSince, t]); hiddenSince = null; }
+    if (e.observation_kind === "blur" && blurSince === null) blurSince = t;
+    if (e.observation_kind === "focus" && blurSince !== null) { unfocused.push([blurSince, t]); blurSince = null; }
+  }
+  return { hidden, unfocused, openHiddenFrom: hiddenSince, openUnfocusedFrom: hiddenSince === null ? blurSince : blurSince === null ? hiddenSince : Math.min(hiddenSince, blurSince) };
+}
+
+/** Length of the union of spans inside [start, end]; null when an open span overlaps it. */
+function coveredWithin(spans: Array<[number, number]>, openFrom: number | null, start: number, end: number) {
+  if (openFrom !== null && openFrom < end) return null;
+  const clipped = spans.map(([a, b]) => [Math.max(a, start), Math.min(b, end)] as [number, number]).filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+  let total = 0, cursor = -Infinity;
+  for (const [a, b] of clipped) {
+    if (b <= cursor) continue;
+    total += b - Math.max(a, cursor);
+    cursor = b;
+  }
+  return Math.round(total);
+}
 
 export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
   return [...observationGroups(events)].flatMap(([id, list]) => {
@@ -53,6 +87,7 @@ export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
     const ready = list.filter(e => e.observation_kind === "ready");
     const submitted = list.filter(e => e.observation_kind === "submitted");
     const outcomes = events.filter(e => e.event_type === "response_stage_outcome" && e.event_source === "backend" && record(e.payload).stage_visit_id === id && (!e.item_public_id || e.item_public_id === base.item_public_id));
+    const attention = attentionSpans(list);
     const endpoint = (kind: string, submission?: Observation) => {
       const matches = submission?.submission_id ? list.filter(e => e.observation_kind === kind && e.submission_id === submission.submission_id) : [];
       return matches.length === 1 ? matches[0] : undefined;
@@ -76,6 +111,11 @@ export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
         return valid ? delta(a, b) : null;
       };
       const studentTime = span(start, s, "student_interval_endpoint_missing_or_invalid", true);
+      // Hidden or unfocused time inside this student interval; blank when the interval is
+      // unavailable or a hidden/unfocused span that began inside it has no recorded end.
+      const hiddenWithin = studentTime !== null && start ? coveredWithin(attention.hidden, attention.openHiddenFrom, start.monotonic_ms, s.monotonic_ms) : null;
+      const unfocusedWithin = studentTime !== null && start ? coveredWithin(attention.unfocused, attention.openUnfocusedFrom, start.monotonic_ms, s.monotonic_ms) : null;
+      if (studentTime !== null && (hiddenWithin === null || unfocusedWithin === null)) flags.push("unpaired_attention_observation");
       const requestTime = span(s, finished, "request_endpoint_missing_or_invalid");
       const controlsTime = span(finished, controls, "controls_endpoint_missing_or_invalid");
       const totalTime = requestTime !== null && controlsTime !== null ? delta(s, controls) : null;
@@ -93,7 +133,9 @@ export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
         request_finished_at: finished?.at ?? null, controls_ready_at: controls?.at ?? null,
         student_interval_start_monotonic_ms: start?.monotonic_ms ?? null, submitted_monotonic_ms: s.monotonic_ms,
         request_finished_monotonic_ms: finished?.monotonic_ms ?? null, controls_ready_monotonic_ms: controls?.monotonic_ms ?? null,
-        student_response_elapsed_ms: studentTime, submission_request_wait_ms: requestTime,
+        student_response_elapsed_ms: studentTime, student_interval_hidden_ms: hiddenWithin, student_interval_unfocused_ms: unfocusedWithin,
+        student_focused_response_ms: studentTime !== null && unfocusedWithin !== null ? Math.max(0, studentTime - unfocusedWithin) : null,
+        submission_request_wait_ms: requestTime,
         post_request_controls_wait_ms: controlsTime, submission_system_wait_ms: totalTime,
         request_result: finished?.result ?? null,
         accepted: outcomeValid && typeof record(matching[0].payload).accepted === "boolean" ? record(matching[0].payload).accepted : null,
@@ -223,6 +265,30 @@ export function browserItemTiming(events: ResponseStageEvent[], complete: boolea
     timing_limitations: [...new Set([...visits.flatMap(v => v.timing_limitations.split("|").filter(Boolean)),
       ...(!sameDocument ? ["item_spans_browser_documents"] : []), ...(!complete ? ["item_not_completed"] : []),
       "active_typing_time_unavailable", "client_observation_not_proof_of_attention"])] };
+}
+
+export type ResponseSubmission = ReturnType<typeof deriveResponseSubmissions>[number];
+
+/**
+ * R6: item-level student response time built from per-submission student intervals
+ * (each from the moment controls were ready to the student's submission), so system and
+ * AI waiting between a submission and the next ready controls is excluded. The focused
+ * variant also removes time the page was hidden or the window lacked focus. Blank when any
+ * initial/transfer submission of the item lacks a valid value.
+ */
+export function summarizeItemStudentTime(submissions: ResponseSubmission[], visits: ResponseStageVisit[]) {
+  const initial = submissions.filter(s => s.response_phase === "initial" || s.response_phase === "transfer");
+  const initialVisits = visits.filter(v => v.response_phase === "initial" || v.response_phase === "transfer");
+  const total = (key: "student_response_elapsed_ms" | "student_interval_unfocused_ms") =>
+    initial.length && initial.every(s => s[key] !== null) ? initial.reduce((n, s) => n + (s[key] ?? 0), 0) : null;
+  const elapsed = total("student_response_elapsed_ms"), unfocused = total("student_interval_unfocused_ms");
+  return {
+    student_response_interval_count: initial.length,
+    student_response_time_ms: elapsed,
+    student_unfocused_time_ms: unfocused,
+    student_focused_response_time_ms: elapsed !== null && unfocused !== null ? Math.max(0, elapsed - unfocused) : null,
+    unsubmitted_visit_count: initialVisits.filter(v => v.submission_count === 0).length
+  };
 }
 
 export function summarizeItemStageVisits(visits: ResponseStageVisit[]) {

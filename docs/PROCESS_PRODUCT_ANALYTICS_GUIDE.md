@@ -70,7 +70,7 @@ consent, eligibility, or withdrawal decisions.
 `response_stage_data_dictionary.csv` defines every exported field's source,
 calculation, unit, applicability, missing-value rule and calculation version.
 Unknown new columns fail the dictionary contract test instead of receiving a
-placeholder definition. Current derivation: `response-stage-derivation-v3`;
+placeholder definition. Current derivation: `response-stage-derivation-v4`;
 raw collector: `response-stage-observation-v1`.
 
 Let `m(e)` be the monotonic clock of an observed event in the **same browser

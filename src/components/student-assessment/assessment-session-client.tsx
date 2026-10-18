@@ -2697,7 +2697,11 @@ export function AssessmentSessionClient({
 
   const sendObservation = useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
-    currentItemPublicId: state?.current_item?.item_public_id,
+    // R5: general activity events (typing summaries, pastes, focus and visibility) belong
+    // to the question the student is working on: the question being revised during the
+    // final review, otherwise the current question. Without this, review-phase activity
+    // had no question and did not count toward the revised one.
+    currentItemPublicId: editingReviewItemId ?? state?.current_item?.item_public_id,
     enabled: !readOnlyReview && Boolean(state?.session_public_id)
   });
   const responseStageByState: Record<string, ResponseStageContext["response_stage"]> = {
