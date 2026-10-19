@@ -188,7 +188,12 @@ function assertDashboardSurface() {
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
   }
   assertIncludes(client, "Evidence behind these labels", "Understanding evidence disclosure");
-  assertIncludes(client, "Updated after conversation", "Understanding profile stage counts");
+  // D12: the understanding label always comes from the mini-test profile; conversation
+  // updates are counted separately and shown in their own "After the conversation" card.
+  assertIncludes(client, "Updated during the conversation", "Understanding profile stage counts");
+  assertIncludes(client, "After the conversation", "Conversation update card");
+  assertIncludes(service, "conversation_update_distribution", "Conversation update distribution");
+  assertIncludes(service, "miniTestProfile(", "Understanding label source");
 }
 
 function assertStandardTeacherNav() {

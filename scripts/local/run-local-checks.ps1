@@ -97,6 +97,13 @@ if ($SkipDatabase) {
 if ($SkipBuild) {
   Add-Skipped "20-build" "-SkipBuild was given"
 } else {
+  # The production build reloads webpack's persistent cache from earlier builds. In a
+  # folder that has built other branches it can exceed 1 GB and exhaust the build's
+  # memory ("JavaScript heap out of memory"). Clear only the production caches; they are
+  # rebuilt, and Render always builds from a clean checkout.
+  foreach ($cacheDir in @(".next\cache\webpack\server-production", ".next\cache\webpack\client-production", ".next\cache\webpack\edge-server-production")) {
+    if (Test-Path $cacheDir) { Remove-Item -Recurse -Force $cacheDir }
+  }
   Invoke-Step "20-build" "npm run build"
 }
 
