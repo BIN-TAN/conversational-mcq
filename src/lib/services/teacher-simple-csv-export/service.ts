@@ -2,7 +2,7 @@ import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { buildAbilityEvidencePacketForSession } from "@/lib/services/student-assessment/ability-evidence";
-import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -38,6 +38,7 @@ export const SESSION_CSV_COLUMNS = [
   "diagnostic_snapshot_count",
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
+  ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
   "latest_diagnostic_purpose",
   "unsupported_correct_response_count",
   "estimated_guessing_risk_max",
@@ -73,6 +74,7 @@ export const MATRIX_CSV_COLUMNS = [
 
 export const SIMPLE_CSV_DATA_DICTIONARY = [
   ...Object.entries(UNDERSTANDING_SUMMARY_DEFINITIONS).map(([field, definition]) => ({ field, definition })),
+  ...Object.entries(CONVERSATION_UPDATE_SUMMARY_DEFINITIONS).map(([field, definition]) => ({ field, definition })),
   { field: "latest_student_safe_status", definition: "Compatibility alias of understanding_label. A teacher/research summary, not a record of text actually shown to the student." },
   {
     field: "row grain",
@@ -557,7 +559,8 @@ async function buildSessionRow(
   const itemResponses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
   const responsePackages = session.concept_unit_sessions.flatMap((entry) => entry.response_packages);
   const decisions = session.concept_unit_sessions.flatMap((entry) => entry.formative_decisions);
-  const latestProfile = latestLearningProfile(session);
+  // Mini-test profile; conversation updates are reported in separate columns.
+  const latestProfile = initialLearningProfile(session);
   const latestDecision = latestByCreatedAt(decisions);
   const status = learningProfileSummary(latestProfile);
   const activityCounts = await loadActivityCounts(session.session_public_id);
@@ -594,6 +597,7 @@ async function buildSessionRow(
     diagnostic_snapshot_count: activityCounts.diagnostic_snapshot_count,
     latest_student_safe_status: status.understanding_label,
     ...status,
+    ...conversationUpdateSummary(session),
     latest_diagnostic_purpose:
       activityCounts.latest_diagnostic_purpose || latestDecision?.formative_value || "",
     unsupported_correct_response_count: correctness.unsupported_correct_response_count,

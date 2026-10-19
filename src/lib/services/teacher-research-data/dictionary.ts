@@ -2,7 +2,7 @@ import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
 import { PROFILE_PROVENANCE_COLUMNS, PROFILE_EVIDENCE_COLUMNS, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
 import { measurementAvailability } from "./measurement-availability";
-import { UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
@@ -148,6 +148,7 @@ export const SESSIONS_COLUMNS = [
   "engagement_review_category",
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
+  ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
   "evidence_sufficiency",
   "interpretation_limitations",
   "unsupported_correct_response_count",
@@ -460,6 +461,7 @@ export const ASSESSMENT_SUMMARY_COLUMNS = [
   "formative_activity_attempt_count",
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
+  ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
   "assessment_specific_understanding_category",
   "reasoning_quality_category",
   "confidence_calibration_category",
@@ -2274,6 +2276,9 @@ function allowedValues(variable: string) {
   if (variable === "expected_response_mode") return "short_text; free_text";
   if (variable in UNDERSTANDING_SUMMARY_DEFINITIONS) {
     return UNDERSTANDING_SUMMARY_DEFINITIONS[variable as keyof typeof UNDERSTANDING_SUMMARY_DEFINITIONS];
+  }
+  if (variable in CONVERSATION_UPDATE_SUMMARY_DEFINITIONS) {
+    return CONVERSATION_UPDATE_SUMMARY_DEFINITIONS[variable as keyof typeof CONVERSATION_UPDATE_SUMMARY_DEFINITIONS];
   }
   if (variable === "latest_student_safe_status") {
     return "Compatibility alias of understanding_label using the shared versioned dashboard/export projection. Not a record of wording shown to the student. Historical profile fields and messages are unchanged.";

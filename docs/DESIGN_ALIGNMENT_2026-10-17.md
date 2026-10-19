@@ -31,6 +31,7 @@ limited to one `try/catch`.
 | D9 | Five model configurations, one per module, with models chosen for accuracy, cost and response time (second pass, 17 Oct 01:27) | Researcher request: "five LLMs instead of 18" |
 | D10 | Students must type their written explanations; pasting is blocked in those fields (17 Oct 01:40) | Researcher request |
 | D11 | One active browser tab per attempt: opening the attempt in a new tab, window or browser makes older tabs read-only (17 Oct 02:15) | Researcher request; closes F-A3a |
+| D12 | The understanding category always comes from the profile produced from the submitted mini-test; profile updates recommended during the conversation are stored and reported as a separate variable (19 Oct) | Researcher request: the post-mini-test category and the conversation update must be analysable separately |
 | — | Recommend 3–5 items (system still accepts 3–12); three attempts per mini-test; 30 student turns per mini-test; multi-course support before the 2027 evaluation | Documentation only |
 
 ## Changes, rationale and effects
@@ -554,6 +555,14 @@ Then, with `LLM_PROVIDER=mock` against the local synthetic database, check the f
 - Six changed files are in the approval bundle's recorded source inventory: `config.ts`, `finish-assessment.ts`, `runtime.ts`, `formative-profile.ts`, `profile-record.ts` and `analysis-ready-export.ts`. No model, prompt or effort changed. The post-deploy check that compares deployed source hashes will still report them, so record the change in the release entry as the approval process requires.
 - **Release from `release/design-alignment-2026-10-17`, not from the working copy** (see Fourth pass, Critical, and `docs/RELEASE_GUIDE_2026-10-17.md`).
 - The V41 conversation-repair candidate in the same working copy has its own release prerequisites (`handover-2026-10-15.md`). In particular, its prompt version v7.25 needs a matching approved configuration. Release the two pieces of work separately if needed.
+
+## D12 Mini-test category kept separate from conversation updates (19 Oct 2026)
+
+- **Before:** profiles were already stored as separate records (the initial profile is never edited; each validated conversation update creates a new profile record and a transition). But the dashboard label and the session-level export columns (`understanding_label`, `latest_student_safe_status` and related fields) were derived from the *latest* profile, so a conversation update replaced the post-mini-test category in reports.
+- **Changed:** `learning-profile-summary.ts` adds `initialLearningProfile` and `conversationUpdateSummary`. The dashboard, the analysis-ready research export (`sessions.csv`, assessment summary), and the simple and detailed teacher CSV exports now derive the category from the mini-test profile. New columns report the conversation separately: `conversation_profile_update` (Sound understanding, Largely improved understanding, Instructor assistance recommended, No profile update), `conversation_profile_update_count`, `conversation_updated_understanding_label`, `conversation_updated_profile_record_id`, `conversation_update_summary_version`. The dashboard adds an "After the conversation" card.
+- **Unchanged:** the formative conversation still works from the latest validated profile (`current_student_profile`), the session detail page still shows both the initial and current profiles, and no stored profile, transition or student record is modified.
+- **Versions:** `understanding-summary-v3`, `conversation-update-summary-v1`, `teacher-assessment-dashboard-v3`. Exports made before this change used `understanding-summary-v2`, where the label could reflect a conversation update.
+- **Tests updated:** `learning-profile-summary-smoke-test.ts` (initial profile kept; unvalidated transitions ignored), `profile-record-projection-smoke-test.ts` (v3 and the new columns), `formative-conversation-v18r2-pipeline-runtime-smoke-test.ts` (with a validated transition, the category stays on the prior profile and the update is reported separately).
 
 ## Follow-ups (still open)
 

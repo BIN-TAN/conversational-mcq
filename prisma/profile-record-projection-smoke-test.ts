@@ -112,7 +112,9 @@ async function main() {
       for (const row of [research, simple, detailed]) {
         assert.equal(row.latest_student_safe_status, expected);
         assert.equal(row.understanding_label, expected);
-        assert.equal(row.understanding_summary_version, "understanding-summary-v2");
+        assert.equal(row.understanding_summary_version, "understanding-summary-v3");
+        assert.equal(row.conversation_profile_update, "No profile update", "Conversation updates are a separate variable");
+        assert.equal(String(row.conversation_profile_update_count), "0");
         assert.equal(row.understanding_profile_record_id, research.understanding_profile_record_id);
       }
       // Other suites may leave students owned by this demo teacher, but none took this fixture assessment.

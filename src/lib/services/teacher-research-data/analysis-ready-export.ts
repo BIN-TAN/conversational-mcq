@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
 import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
-import { learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
@@ -984,8 +984,9 @@ function optionsByLabel(value: unknown) {
   return result;
 }
 
+// Profile produced from the submitted mini-test; conversation updates are exported separately.
 function latestProfile(session: AnalysisSession) {
-  return latestLearningProfile(session);
+  return initialLearningProfile(session);
 }
 
 function evidenceProfileV2(profile: { item_level_evidence: unknown } | null) {
@@ -1344,6 +1345,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
       engagement_review_category: profile?.engagement_profile ?? null,
       latest_student_safe_status: studentSafeStatus(profile),
       ...learningProfileSummary(profile),
+      ...conversationUpdateSummary(session),
       ...(profile ? profileRecordProvenance(profile) : {}),
       ...(profile ? profileEvidenceCounts(profile) : {}),
       evidence_sufficiency: profile?.evidence_sufficiency ?? null,
@@ -1523,6 +1525,7 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
       formative_activity_attempt_count: row.formative_activity_attempt_count ?? 0,
       latest_student_safe_status: row.latest_student_safe_status ?? null,
       ...Object.fromEntries(UNDERSTANDING_SUMMARY_COLUMNS.map(column => [column, row[column] ?? null])),
+      ...Object.fromEntries(CONVERSATION_UPDATE_SUMMARY_COLUMNS.map(column => [column, row[column] ?? null])),
       assessment_specific_understanding_category: row.assessment_specific_understanding_category ?? null,
       reasoning_quality_category: row.reasoning_quality_category ?? null,
       confidence_calibration_category: row.confidence_calibration_category ?? null,

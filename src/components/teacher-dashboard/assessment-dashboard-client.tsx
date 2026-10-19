@@ -94,13 +94,13 @@ function ChartCard({
         <BarChart data={data} tone={tone} ariaLabel={`${title}: counts and percentages`} />
       </div>
       {understandingBasis && <div className="mt-4 border-t border-line pt-3 text-sm text-muted">
-        <p>Initial profiles: {understandingBasis.baseline_count}. Updated after conversation: {understandingBasis.updated_count}.</p>
+        <p>Profiles from the mini-test: {understandingBasis.baseline_count}. Updated during the conversation: {understandingBasis.updated_count} (shown separately).</p>
         <details className="mt-2">
           <summary className="cursor-pointer font-semibold text-ink">Evidence behind these labels</summary>
           <div className="mt-2 space-y-2 leading-6">
             <p>Percentages include all {sampleSize} students, including those who have not started. Missing or uncertain evidence is not a finding of poor understanding.</p>
             <p>Mostly understood means supported understanding of most assessed content, not complete mastery or proven transfer. Some reasoning may still need refinement. A profile of partial or fragile understanding remains Still developing.</p>
-            <p>Results use the latest fully submitted attempt and its current validated profile. Finishing or pausing alone does not create an updated profile. For a test with multiple topics, this is the most recent current topic profile, not an average.</p>
+            <p>Results use the latest fully submitted attempt and the profile produced from its responses, before any conversation. Updates recommended during the conversation never change these labels; they appear under After the conversation. For a test with multiple topics, this is the most recent topic profile, not an average.</p>
           </div>
         </details>
       </div>}
@@ -417,6 +417,12 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                   sampleSize={dashboard.eligible_student_count}
                   tone="green"
                   understandingBasis={dashboard.understanding_basis}
+                />
+                <ChartCard
+                  title="After the conversation"
+                  data={dashboard.conversation_update_distribution}
+                  sampleSize={dashboard.eligible_student_count}
+                  tone="gold"
                 />
               </section>
 

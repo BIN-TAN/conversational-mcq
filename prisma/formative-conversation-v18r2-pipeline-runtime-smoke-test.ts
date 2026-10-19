@@ -495,8 +495,12 @@ async function main() {
       assert.equal(exportedTransitions.length, 1);
       const summaryFile = researchBundle.files.find(file => file.path === "sessions.csv")!;
       const summaryRows = parse(String(summaryFile.data), { columns: true, skip_empty_lines: true }) as Record<string, string>[];
-      assert.equal(summaryRows[0].understanding_profile_record_id, exportedTransitions[0].updated_profile_record_id, "Summary selects the validated transition, not the initial profile or newest artifact");
-      assert.equal(summaryRows[0].understanding_profile_stage, "updated");
+      assert.equal(summaryRows[0].understanding_profile_record_id, exportedTransitions[0].prior_profile_record_id, "The reporting category stays on the mini-test profile after a validated conversation update");
+      assert.equal(summaryRows[0].understanding_profile_stage, "baseline");
+      assert.equal(summaryRows[0].conversation_updated_profile_record_id, exportedTransitions[0].updated_profile_record_id, "The conversation update is reported as a separate variable");
+      assert.equal(summaryRows[0].conversation_profile_update_count, "1");
+      assert.equal(summaryRows[0].conversation_profile_update, ({ sound: "Sound understanding", largely_improved: "Largely improved understanding",
+        teacher_assistance_recommended: "Instructor assistance recommended" } as Record<string, string>)[String(expectedOutcome)]);
       assert.equal(summaryRows[0].latest_student_safe_status, summaryRows[0].understanding_label);
       assert.equal(exportedTransitions[0].prior_confidence_alignment_scope, "initial_assessment", "Prior call provenance must be loaded, not exported as unavailable");
       assert.equal(exportedTransitions[0].updated_confidence_alignment_scope, "legacy_scope_unrecorded", "Historical host-v7.1 fixture must not masquerade as current confidence policy");

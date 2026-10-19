@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { learningProfileSummary } from "../src/lib/services/student-assessment/learning-profile-summary";
+import { conversationUpdateSummary, initialLearningProfile, latestLearningProfile, learningProfileSummary } from "../src/lib/services/student-assessment/learning-profile-summary";
 
 const profile = {
   id: "synthetic-profile", profile_type: "initial", item_level_evidence: [], misconception_indicators: [],
@@ -33,7 +33,7 @@ expect({ ability_profile: "misconception_based_understanding", integrated_diagno
 expect({ evidence_sufficiency: "insufficient", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Unavailable / insufficient evidence");
 const independentCaution = learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_independence_uncertain" });
 assert.equal(independentCaution.understanding_caution, "independent_understanding_uncertain");
-assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v2");
+assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v3");
 for (const integrated_diagnostic_profile of ["insufficient_evidence_for_formative_decision", "low_engagement_limits_interpretability", "conflicting_evidence_needs_clarification"]) expect({ integrated_diagnostic_profile }, "Unavailable / insufficient evidence");
 expect({ ability_profile: "insufficient_evidence" }, "Unavailable / insufficient evidence");
 expect({ evidence_sufficiency: "insufficient" }, "Unavailable / insufficient evidence");
@@ -48,4 +48,29 @@ assert.equal(learningProfileSummary({ ...profile, process_interpretation_caution
 assert.equal(learningProfileSummary(profile).understanding_profile_stage, "baseline");
 assert.equal(learningProfileSummary({ ...profile, profile_type: "updated" }).understanding_profile_stage, "updated");
 assert.equal(learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_fragile_understanding" }).understanding_caution, "reasoning_refinement_needed");
-console.log(`Learning-profile summary checks passed: ${checks + 9}.`);
+
+// The mini-test profile stays the reporting category; conversation updates are a separate variable.
+const updatedProfile = { ...profile, id: "synthetic-updated-profile", profile_type: "updated",
+  ability_profile: "robust_transfer_ready_understanding", created_at: new Date("2026-09-28T12:30:00Z") };
+const conversationSession = (transitions: unknown[]) => ({
+  concept_unit_sessions: [{ id: "unit-session", latest_student_profile: profile }],
+  formative_conversation_sessions: [{ concept_unit_session_db_id: "unit-session", initial_student_profile: profile, profile_transitions: transitions }]
+}) as unknown as Parameters<typeof initialLearningProfile>[0];
+const noUpdate = conversationSession([]);
+assert.equal(initialLearningProfile(noUpdate)?.id, profile.id);
+assert.deepEqual(
+  { label: conversationUpdateSummary(noUpdate).conversation_profile_update, count: conversationUpdateSummary(noUpdate).conversation_profile_update_count,
+    updated: conversationUpdateSummary(noUpdate).conversation_updated_understanding_label },
+  { label: "No profile update", count: 0, updated: null }
+);
+// An unvalidated transition never counts as a conversation update, and never replaces the mini-test profile.
+const unvalidated = conversationSession([{ transition_public_id: "t1", learning_outcome: "sound", transitioned_at: new Date("2026-09-28T12:30:00Z"),
+  profile_snapshot: {}, learning_observations: [], evidence_interpretation: null, supporting_turn_references: [],
+  prior_student_profile: profile, updated_student_profile: updatedProfile }]);
+assert.equal(initialLearningProfile(unvalidated)?.id, profile.id);
+assert.equal(latestLearningProfile(unvalidated)?.id, profile.id);
+assert.equal(conversationUpdateSummary(unvalidated).conversation_profile_update, "No profile update");
+const withoutConversation = { concept_unit_sessions: [{ id: "unit-session", latest_student_profile: profile }], formative_conversation_sessions: [] } as unknown as Parameters<typeof initialLearningProfile>[0];
+assert.equal(initialLearningProfile(withoutConversation)?.id, profile.id);
+assert.equal(conversationUpdateSummary(withoutConversation).conversation_profile_update_count, 0);
+console.log(`Learning-profile summary checks passed: ${checks + 18}.`);

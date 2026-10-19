@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
@@ -153,6 +153,7 @@ const analysisColumns = [
   "response_quality_summary",
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
+  ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
   "latest_diagnostic_purpose",
   "evidence_sufficiency",
   "interpretation_limitations",
@@ -596,7 +597,8 @@ function analysisRows(input: {
     const engagementByItem = new Map(engagementRows.map((row) => [row.item_public_id ?? "", row]));
     const agentFailedCount = session.agent_calls.filter((call) => ["failed", "invalid_output"].includes(call.call_status)).length;
     const agentValidationFailureCount = session.agent_calls.filter((call) => call.output_validated === false).length;
-    const latestProfile = latestLearningProfile(session);
+    // Mini-test profile; conversation updates are reported in separate columns.
+    const latestProfile = initialLearningProfile(session);
     const latestDecision = session.concept_unit_sessions.flatMap((entry) => entry.formative_decisions)[0];
     const allResponses = session.concept_unit_sessions.flatMap((entry) => entry.item_responses);
     const commonSession = {
@@ -639,6 +641,7 @@ function analysisRows(input: {
       diagnostic_snapshot_count: input.supplemental.snapshots.get(session.session_public_id) ?? 0,
       latest_student_safe_status: learningProfileSummary(latestProfile).understanding_label,
       ...learningProfileSummary(latestProfile),
+      ...conversationUpdateSummary(session),
       latest_diagnostic_purpose: latestDecision?.formative_value ?? "",
       evidence_sufficiency: latestProfile?.evidence_sufficiency ?? "",
       interpretation_limitations: "process_indicators_are_contextual_not_misconduct_or_ability_labels"

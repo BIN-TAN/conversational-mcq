@@ -5,9 +5,9 @@ import { ContentServiceError } from "@/lib/services/content/errors";
 import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
-import { learningConversationSelect, learningProfileInclude, latestLearningProfile, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
 
-export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v2" as const;
+export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v3" as const;
 
 const CANDIDATE_PATTERN_THRESHOLD = 3;
 const MAX_REASONING_SNIPPETS = 3;
@@ -167,6 +167,7 @@ export type TeacherAssessmentDashboard = {
     updated_count: number;
     unavailable_count: number;
   };
+  conversation_update_distribution: ChartDatum[];
   engagement_distribution: ChartDatum[];
   engagement_review_reasons: EngagementReviewReason[];
   time_indicator: TimeIndicator;
@@ -377,8 +378,9 @@ function itemStemPreview(value: string) {
   return truncate(value, 140);
 }
 
-function latestProfile(session: DashboardSession): DashboardProfile | null {
-  const profile = latestLearningProfile(session);
+// The profile produced from the submitted mini-test. Conversation updates are reported separately.
+function miniTestProfile(session: DashboardSession): DashboardProfile | null {
+  const profile = initialLearningProfile(session);
   return learningProfileSummary(profile).understanding_profile_stage === "unavailable" ? null : profile;
 }
 
@@ -439,7 +441,7 @@ function buildEngagementReviewReasons(attempts: CanonicalAttempt[]) {
 
   for (const attempt of attempts) {
     if (!attempt.session) continue;
-    const profile = latestProfile(attempt.session);
+    const profile = miniTestProfile(attempt.session);
     const label = engagementReviewReasonLabel({ profile, session: attempt.session });
     if (!label) continue;
     const current = counts.get(label) ?? {
@@ -814,6 +816,9 @@ function dashboardCsvRows(dashboard: TeacherAssessmentDashboard) {
   for (const row of dashboard.understanding_distribution) {
     rows.push({ row_type: "assessment_specific_understanding", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
+  for (const row of dashboard.conversation_update_distribution) {
+    rows.push({ row_type: "conversation_profile_update", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+  }
   for (const row of dashboard.engagement_distribution) {
     rows.push({ row_type: "engagement_review_signals", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
@@ -1051,6 +1056,7 @@ export async function getTeacherAssessmentDashboard(input: {
       progress_chart: [],
       understanding_distribution: [],
       understanding_basis: { version: UNDERSTANDING_SUMMARY_VERSION, baseline_count: 0, updated_count: 0, unavailable_count: 0 },
+      conversation_update_distribution: [],
       engagement_distribution: [],
       engagement_review_reasons: [],
       time_indicator: {
@@ -1143,14 +1149,17 @@ export async function getTeacherAssessmentDashboard(input: {
   const timeIndicator = buildTimeIndicator(completedSessions);
 
   const understandingValues = resultAttempts.map((attempt) =>
-    attempt.session ? understandingCategoryFromProfile(latestProfile(attempt.session)) : "Unavailable / insufficient evidence"
+    attempt.session ? understandingCategoryFromProfile(miniTestProfile(attempt.session)) : "Unavailable / insufficient evidence"
   );
   const understandingStages = resultAttempts.map(attempt => learningProfileSummary(
-    attempt.session ? latestProfile(attempt.session) : null
+    attempt.session ? miniTestProfile(attempt.session) : null
   ).understanding_profile_stage);
+  const conversationUpdates = resultAttempts.map((attempt) =>
+    attempt.session ? conversationUpdateSummary(attempt.session) : null
+  );
   const engagementValues = resultAttempts.map((attempt) =>
     engagementReviewSignal({
-      profile: attempt.session ? latestProfile(attempt.session) : null,
+      profile: attempt.session ? miniTestProfile(attempt.session) : null,
       session: attempt.session
     })
   );
@@ -1232,9 +1241,16 @@ export async function getTeacherAssessmentDashboard(input: {
     understanding_basis: {
       version: UNDERSTANDING_SUMMARY_VERSION,
       baseline_count: understandingStages.filter(stage => stage === "baseline").length,
-      updated_count: understandingStages.filter(stage => stage === "updated").length,
+      updated_count: conversationUpdates.filter(update => (update?.conversation_profile_update_count ?? 0) > 0).length,
       unavailable_count: understandingStages.filter(stage => stage === "unavailable").length
     },
+    conversation_update_distribution: chart(
+      countBy(
+        conversationUpdates.map(update => update?.conversation_profile_update ?? "No profile update"),
+        CONVERSATION_UPDATE_LABELS
+      ),
+      totalStudents
+    ),
     engagement_distribution: chart(
       countBy(
         engagementValues,
