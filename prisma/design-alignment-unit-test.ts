@@ -8,7 +8,7 @@
  * provenance, D6/D9 module grouping and the five-module model policy, D7
  * pseudonymization key policy, D8 instructor-report evidence validation, D10 typed
  * explanations, D11 one active tab, R1 attempt provenance, and the second-pass
- * follow-ups (F-D2a, F-D1a, F-A3, F-A4). Database-backed
+ * follow-ups (F-D2a, F-D1a, F-A3, F-A4), and D13 (no transfer labels in the mini-test profile). Database-backed
  * workflows are covered by the smoke tests listed in the change record.
  */
 import assert from "node:assert/strict";
@@ -533,6 +533,56 @@ async function main() {
     const exporter = source("src/lib/services/teacher-research-data/analysis-ready-export.ts");
     assert.match(exporter, /version === "data-collection-rules-2026-10-17" && focusRecorded/);
     assert.match(source("src/lib/services/teacher-research-data/dictionary.ts"), /data-collection-rules-2026-10-18 \(the same, plus final-review activity/);
+  });
+
+  await check("D13 the profile saved from the mini-test carries no transfer label", async () => {
+    const labels = await import("../src/lib/services/student-assessment/initial-profile-transfer-labels");
+    const plain = { ability_profile: "mostly_correct_understanding", ability_pattern_flags: ["no_clear_pattern"] };
+    assert.equal(labels.blockInitialProfileTransferLabels(plain), plain, "Outputs without a transfer label are returned unchanged");
+    assert.deepEqual(
+      labels.blockInitialProfileTransferLabels({ ability_profile: "robust_transfer_ready_understanding", ability_pattern_flags: ["transfer_ready"] }),
+      { ability_profile: "mostly_correct_understanding", ability_pattern_flags: ["no_clear_pattern"] }
+    );
+    assert.deepEqual(
+      labels.blockInitialProfileTransferLabels({ ability_profile: "partial_understanding", ability_pattern_flags: ["incomplete_reasoning", "transfer_ready"] }),
+      { ability_profile: "partial_understanding", ability_pattern_flags: ["incomplete_reasoning"] }
+    );
+
+    const { studentProfileCreateData } = await import("../src/lib/agents/student-profiling/persistence");
+    const output = {
+      profile_type: "initial", ability_profile: "robust_transfer_ready_understanding",
+      ability_pattern_flags: ["transfer_ready", "no_clear_pattern"], engagement_profile: "adequate_engagement",
+      engagement_pattern_flags: ["no_clear_pattern"], integrated_diagnostic_profile: "robust_understanding_ready_for_transfer",
+      integrated_profile_confidence: "medium", integrated_profile_rationale: "r", evidence_sufficiency: "adequate",
+      confidence_alignment: "well_calibrated", independence_interpretability: "interpretable", misconception_indicators: [],
+      item_level_evidence: [], reasoning_quality_summary: "s", engagement_summary: "e", process_interpretation_cautions: [],
+      profile_confidence: "medium", rationale: "r", recommended_next_evidence: []
+    };
+    const original = JSON.stringify(output);
+    const data = studentProfileCreateData({ concept_unit_session_db_id: "cus", based_on_agent_call_db_id: "call", output: output as never });
+    assert.equal(data.ability_profile, "mostly_correct_understanding");
+    assert.deepEqual(data.ability_pattern_flags, ["no_clear_pattern"]);
+    assert.equal(data.integrated_diagnostic_profile, "robust_understanding_ready_for_transfer", "The integrated code is kept (no non-transfer counterpart)");
+    assert.equal(JSON.stringify(output), original, "The model output itself is not modified");
+
+    const call = (payload: unknown) => ({ agent_name: "student_profiling_agent", output_payload: payload });
+    assert.equal(labels.initialProfileTransferRule({ ...data, based_on_agent_call: call(output) }), "transfer_label_replaced");
+    assert.equal(labels.initialProfileTransferRule({ ...data, based_on_agent_call: call({ ...output, ability_profile: "mostly_correct_understanding", ability_pattern_flags: ["no_clear_pattern"] }) }), "no_transfer_label");
+    assert.equal(labels.initialProfileTransferRule({ ability_profile: "robust_transfer_ready_understanding", ability_pattern_flags: [], based_on_agent_call: call(output) }), "saved_before_rule");
+    assert.equal(labels.initialProfileTransferRule({ ...data, based_on_agent_call: { agent_name: "formative_conversation_agent", output_payload: null } }), null);
+    assert.equal(labels.initialProfileTransferRule({ ...data, based_on_agent_call: null }), null);
+
+    assert.equal(labels.profileCodeReadableLabel("robust_understanding_ready_for_transfer", "initial"), "Robust understanding (transfer not assessed)");
+    assert.equal(labels.profileCodeReadableLabel("robust_understanding_ready_for_transfer", "updated"), "robust understanding ready for transfer");
+    assert.equal(labels.profileCodeReadableLabel("partial_understanding", "initial"), "partial understanding");
+
+    const { learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } = await import("../src/lib/services/student-assessment/learning-profile-summary");
+    assert.equal((UNDERSTANDING_SUMMARY_COLUMNS as readonly string[]).includes("transfer_evidence_status"), false);
+    assert.equal("transfer_evidence_status" in learningProfileSummary(null), false);
+    const exporter = source("src/lib/services/teacher-research-data/analysis-ready-export.ts");
+    assert.match(exporter, /initial_profile_transfer_rule: initialProfileTransferRule\(profile\)/);
+    assert.match(source("src/lib/services/teacher-research-data/dictionary.ts"), /initial_profile_transfer_rule: "D13 rule/);
+    assert.match(source("src/components/teacher-review/session-detail-client.tsx"), /profileCodeReadableLabel\(profile\.integrated_diagnostic_profile, profile\.profile_type\)/);
   });
 
   console.log(`\n${passed} design-alignment checks passed.`);

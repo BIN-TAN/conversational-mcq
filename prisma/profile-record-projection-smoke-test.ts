@@ -134,7 +134,7 @@ async function main() {
     await assertSummaryParity("Mostly understood");
     const uncertainIndependence = rows(await readBundle(), "sessions.csv")[0];
     assert.equal(uncertainIndependence.understanding_caution, "independent_understanding_uncertain");
-    assert.equal(uncertainIndependence.transfer_evidence_status, "not_established");
+    assert.equal("transfer_evidence_status" in uncertainIndependence, false, "No transfer status column: the mini-test has no transfer task");
     await prisma.studentProfile.update({ where: { id: initial.id }, data: { ability_profile: "fragile_correct_understanding" } });
     await assertSummaryParity("Still developing");
     await prisma.studentProfile.update({ where: { id: initial.id }, data: { integrated_diagnostic_profile: "misconception_with_sufficient_engagement", ability_profile: "misconception_based_understanding" } });

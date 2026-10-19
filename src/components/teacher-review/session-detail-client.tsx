@@ -65,6 +65,7 @@ import {
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 import { ProcessDataSection } from "./process-data-section";
 import { processEventLabel } from "@/lib/services/teacher-review/process-data-summary";
+import { profileCodeReadableLabel } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { ReviewResourceStatus, useReviewResource } from "./review-resource";
 
 const tabs = [
@@ -2298,9 +2299,10 @@ function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
   return (
     <div className="mt-4 space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <Fact labelText="Ability profile" value={<StatusPill value={profile.ability_profile} />} />
+        {/* D13: the mini-test has no transfer task; transfer codes in mini-test profiles are shown without the transfer claim. */}
+        <Fact labelText="Ability profile" value={<span title={profile.ability_profile}><StatusPill value={profileCodeReadableLabel(profile.ability_profile, profile.profile_type)} /></span>} />
         <Fact labelText="Engagement profile" value={<StatusPill value={profile.engagement_profile} />} />
-        <Fact labelText="Integrated diagnostic profile" value={<StatusPill value={profile.integrated_diagnostic_profile} tone="warn" />} />
+        <Fact labelText="Integrated diagnostic profile" value={<span title={profile.integrated_diagnostic_profile}><StatusPill value={profileCodeReadableLabel(profile.integrated_diagnostic_profile, profile.profile_type)} tone="warn" /></span>} />
         <Fact labelText="Integrated confidence" value={profile.integrated_profile_confidence} />
         <Fact labelText="Evidence sufficiency" value={profile.evidence_sufficiency} />
         <Fact labelText={confidenceScopeLabel(profile.profile_confidence_alignment_scope)} value={profile.confidence_alignment} />

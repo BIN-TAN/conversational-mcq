@@ -7,7 +7,8 @@ import {
 } from "./formative-conversation/profile-projection";
 
 // v3: the label always comes from the profile produced from the submitted mini-test; conversation
-// updates are reported separately (conversationUpdateSummary).
+// updates are reported separately (conversationUpdateSummary). v3 has no transfer_evidence_status:
+// the mini-test has no transfer task (D13, initial-profile-transfer-labels.ts).
 export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v3" as const;
 export const learningProfileInclude = { based_on_agent_call: { select: profileSourceCallSelect } } as const;
 
@@ -157,22 +158,17 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
         ? "independent_understanding_uncertain" : "none_added",
     understanding_profile_record_id: profile ? profileRecordIdentity(profile.id) : null,
     understanding_profile_stage: eligible ? provenance!.profile_record_role : "unavailable",
-    understanding_profile_created_at: profile?.created_at.toISOString() ?? null,
-    transfer_evidence_status: !eligible ? "unavailable" : label === "Mostly understood" &&
-      profile?.ability_profile === "robust_transfer_ready_understanding" &&
-      profile.integrated_diagnostic_profile === "robust_understanding_ready_for_transfer"
-      ? "supported_by_profile" : "not_established"
+    understanding_profile_created_at: profile?.created_at.toISOString() ?? null
   };
 }
 
 export const UNDERSTANDING_SUMMARY_DEFINITIONS = {
   understanding_summary_version: "Read-only classification version. Does not rewrite stored profiles, answers or historical AI messages.",
-  understanding_label: "Shared dashboard/export label from the profile produced from the submitted mini-test, before any conversation. Updates recommended during the conversation never change it; they are reported in the conversation update variables. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade or proof of independent transfer.",
+  understanding_label: "Shared dashboard/export label from the profile produced from the submitted mini-test, before any conversation. Updates recommended during the conversation never change it; they are reported in the conversation update variables. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade. The mini-test has no transfer task, so transfer is not assessed; from the 2026-10-19 rule (initial-profile-transfer-labels-blocked-v1) the mini-test profile is saved without transfer labels, so robust_transfer_ready_understanding appears only in mini-test profiles saved before that rule or in conversation updates backed by independent transfer evidence.",
   understanding_reason: "Deterministic mapping reason, not a new AI judgment; see understanding_label and the linked original profile.",
   understanding_caution: "reasoning_refinement_needed for the stored correct-but-fragile integrated diagnosis; independent_understanding_uncertain for that stored integrated diagnosis; profile_unavailable without eligible provenance; none_added otherwise. This is a retained diagnostic qualifier, not proof that no other limitations exist. Native mostly-correct understanding may coexist with a need to refine some reasoning.",
   understanding_profile_record_id: "Profile used for this summary; join profile_record_id. This is the conversation's initial profile, otherwise the topic's profile pointer for attempts without a conversation. Multiple topics use the most recently created profile, not an average across topics.",
   understanding_profile_stage: "baseline for an eligible mini-test profile, unavailable otherwise. updated appears only for legacy attempts whose profile pointer was replaced before conversation updates were stored separately.",
-  understanding_profile_created_at: "Original profile creation time, not the export time. Does not represent a new observation when re-exported.",
-  transfer_evidence_status: "supported_by_profile only when both native ability and integrated diagnosis indicate robust transfer and the shared label is Mostly understood; otherwise not_established, or unavailable without eligible provenance. This preserves a validated model interpretation, not proof of general transfer. Missing transfer evidence does not lower otherwise supported understanding."
+  understanding_profile_created_at: "Original profile creation time, not the export time. Does not represent a new observation when re-exported."
 } as const;
 export const UNDERSTANDING_SUMMARY_COLUMNS = Object.keys(UNDERSTANDING_SUMMARY_DEFINITIONS) as Array<keyof typeof UNDERSTANDING_SUMMARY_DEFINITIONS>;

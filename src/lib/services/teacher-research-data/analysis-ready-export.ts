@@ -4,6 +4,7 @@ import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../stud
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
 import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
+import { initialProfileTransferRule } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
 import { responseStageExportFiles } from "./response-stage-export";
 import { AI_CALL_AUDIT_COLUMNS, AI_CALL_AUDIT_DEFINITIONS, AI_CALL_AUDIT_DICTIONARY_FILE, AI_CALL_AUDIT_FILE, instructorReportAuditRows, sessionAiCallAuditRows } from "./ai-call-audit-export";
@@ -183,7 +184,10 @@ const analysisSessionSelect = {
         orderBy: [{ created_at: "desc" }],
         select: {
           id: true,
-          based_on_agent_call: { select: profileSourceCallSelect },
+          // output_payload: the profiling model's original output, compared with the saved
+          // profile for initial_profile_transfer_rule (D13).
+          based_on_agent_call: { select: { ...profileSourceCallSelect, output_payload: true } },
+          ability_pattern_flags: true,
           misconception_indicators: true,
           process_interpretation_cautions: true,
           confidence_alignment: true,
@@ -1739,6 +1743,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
           understanding_category: profile.integrated_diagnostic_profile,
           engagement_category: profile.engagement_profile,
           response_profile: profile.ability_profile,
+          initial_profile_transfer_rule: initialProfileTransferRule(profile),
           evidence_sufficiency: profile.evidence_sufficiency,
           uncertainty: profile.profile_type === "updated" ? "updated_profile" : "initial_profile",
           status: "recorded",

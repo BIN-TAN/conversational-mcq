@@ -72,11 +72,14 @@ completion, a teacher explanation, or an unvalidated model reply.
 
 ## Transfer and Evidence Stage
 
-`transfer_evidence_status=supported_by_profile` requires both the native robust
-transfer ability and integrated transfer-ready diagnosis, eligible provenance,
-and a Mostly understood summary. Otherwise it is `not_established`, or
-`unavailable` without an eligible profile. This reports the retained model
-interpretation; it is not independent proof of general transfer.
+The mini-test has no transfer task, so transfer is not assessed. From
+`understanding-summary-v3` the summary always uses the mini-test profile and has
+no `transfer_evidence_status` column (v2 reported `supported_by_profile`,
+`not_established` or `unavailable`). From 19 Oct 2026 the profile produced from
+the mini-test is saved without the `robust_transfer_ready_understanding` label or
+the `transfer_ready` flag (D13 in `docs/DESIGN_ALIGNMENT_2026-10-17.md`); the
+integrated code `robust_understanding_ready_for_transfer` is kept there and read as
+robust understanding with transfer not assessed.
 
 `understanding_profile_stage` distinguishes `baseline`, `updated`, and
 `unavailable`. An eligible baseline can still contain insufficient/conflicting
@@ -94,7 +97,6 @@ its understanding distribution; percentages continue to use all eligible student
 - `understanding_profile_record_id`: joins the original `profile_record_id`.
 - `understanding_profile_stage`: eligible baseline/updated, otherwise unavailable.
 - `understanding_profile_created_at`: original profile timestamp, never export time.
-- `transfer_evidence_status`: separate transfer interpretation described above.
 
 `latest_student_safe_status` is retained as a compatibility alias of
 `understanding_label`. Despite its historical name, it is not evidence of what

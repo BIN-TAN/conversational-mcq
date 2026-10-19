@@ -99,7 +99,7 @@ function ChartCard({
           <summary className="cursor-pointer font-semibold text-ink">Evidence behind these labels</summary>
           <div className="mt-2 space-y-2 leading-6">
             <p>Percentages include all {sampleSize} students, including those who have not started. Missing or uncertain evidence is not a finding of poor understanding.</p>
-            <p>Mostly understood means supported understanding of most assessed content, not complete mastery or proven transfer. Some reasoning may still need refinement. A profile of partial or fragile understanding remains Still developing.</p>
+            <p>Mostly understood means supported understanding of most assessed content, not complete mastery. The mini-test does not assess transfer to new situations. Some reasoning may still need refinement. A profile of partial or fragile understanding remains Still developing.</p>
             <p>Results use the latest fully submitted attempt and the profile produced from its responses, before any conversation. Updates recommended during the conversation never change these labels; they appear under After the conversation. For a test with multiple topics, this is the most recent topic profile, not an average.</p>
           </div>
         </details>

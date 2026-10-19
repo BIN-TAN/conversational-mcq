@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import type { AgentOutputByName } from "@/lib/agents/contracts";
 import { createCanonicalMisconceptionClaimCatalog } from "@/lib/domain/misconception-claim-identity";
 import { toPrismaJson } from "@/lib/services/json";
+import { blockInitialProfileTransferLabels } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import {
   bindCanonicalProfileToEmptyFormativeConversationInTransaction,
   createOrGetTrustedFormativeConversationSessionInTransaction
@@ -18,11 +19,14 @@ function json(value: unknown): Prisma.InputJsonValue {
   return (toPrismaJson(value) ?? []) as Prisma.InputJsonValue;
 }
 
-export function studentProfileCreateData(input: {
+export function studentProfileCreateData(rawInput: {
   concept_unit_session_db_id: string;
   based_on_agent_call_db_id: string | null;
   output: StudentProfileOutput;
 }) {
+  // D13: the mini-test has no transfer task, so the saved profile carries no transfer
+  // label. The model's original output stays in its AgentCall record.
+  const input = { ...rawInput, output: blockInitialProfileTransferLabels(rawInput.output) };
   const misconceptionClaimCatalog =
     createCanonicalMisconceptionClaimCatalog({
       identity_scope: [

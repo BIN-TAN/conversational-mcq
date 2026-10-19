@@ -9,17 +9,17 @@ const profile = {
   based_on_agent_call: { agent_name: "student_profiling_agent", call_status: "succeeded", output_validated: true }
 };
 let checks = 0;
-function expect(overrides: Partial<typeof profile>, label: string, transfer = "not_established") {
+function expect(overrides: Partial<typeof profile>, label: string) {
   const value = { ...profile, ...overrides };
   const original = JSON.stringify(value);
   const summary = learningProfileSummary(value);
   assert.equal(summary.understanding_label, label);
-  assert.equal(summary.transfer_evidence_status, transfer);
+  assert.equal("transfer_evidence_status" in summary, false, "The mini-test has no transfer task, so no transfer status is reported");
   assert.equal(JSON.stringify(value), original, "Read-only projection must preserve the original profile");
   checks += 3;
 }
 expect({}, "Mostly understood");
-expect({ ability_profile: "robust_transfer_ready_understanding", integrated_diagnostic_profile: "robust_understanding_ready_for_transfer" }, "Mostly understood", "supported_by_profile");
+expect({ ability_profile: "robust_transfer_ready_understanding", integrated_diagnostic_profile: "robust_understanding_ready_for_transfer" }, "Mostly understood");
 expect({ integrated_diagnostic_profile: "underconfident_but_reasoning_supported" }, "Mostly understood");
 for (const ability_profile of ["partial_understanding", "fragile_correct_understanding", "procedural_or_application_error"]) expect({ ability_profile }, "Still developing");
 for (const ability_profile of ["minimal_or_no_demonstrated_understanding", "fragmented_or_limited_understanding", "misconception_based_understanding"]) expect({ ability_profile }, "Need more work");
@@ -39,8 +39,8 @@ expect({ ability_profile: "insufficient_evidence" }, "Unavailable / insufficient
 expect({ evidence_sufficiency: "insufficient" }, "Unavailable / insufficient evidence");
 expect({ integrated_diagnostic_profile: "unknown_future_category" }, "Unavailable / insufficient evidence");
 expect({ ability_profile: "unknown_future_category" }, "Unavailable / insufficient evidence");
-expect({ based_on_agent_call: { ...profile.based_on_agent_call, output_validated: false } }, "Unavailable / insufficient evidence", "unavailable");
-expect({ based_on_agent_call: { ...profile.based_on_agent_call, call_status: "failed" } }, "Unavailable / insufficient evidence", "unavailable");
+expect({ based_on_agent_call: { ...profile.based_on_agent_call, output_validated: false } }, "Unavailable / insufficient evidence");
+expect({ based_on_agent_call: { ...profile.based_on_agent_call, call_status: "failed" } }, "Unavailable / insufficient evidence");
 assert.equal(learningProfileSummary(null).understanding_label, "Unavailable / insufficient evidence");
 assert.equal(learningProfileSummary({ ...profile, based_on_agent_call: null }).understanding_profile_stage, "unavailable");
 assert.equal(learningProfileSummary({ ...profile, item_level_evidence: { evidence_integrated_profile_v2: {} } }).understanding_profile_stage, "unavailable");
