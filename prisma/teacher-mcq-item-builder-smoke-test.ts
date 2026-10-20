@@ -228,16 +228,17 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
   assert(!source.includes("Weakens hypothesis"), "Structured distractor subfields should be hidden.");
   assert(!source.includes("Follow-up probe suggestion"), "Structured distractor subfields should be hidden.");
   assert(!source.includes("Student-safe feedback hint"), "Structured distractor subfields should be hidden.");
-  assert(source.includes("Optional diagnostic guidance"), "Diagnostic guidance should be grouped as optional.");
+  assert(source.includes("Reasoning and distractors"), "The editor should group reasoning and distractor guidance.");
   assert(source.includes("Target reasoning note (optional)"), "Correct-option notes should mark target reasoning optional.");
   assert(
-    source.includes("Strong reasoning should mention (optional)"),
-    "Correct-option notes should mark strong-reasoning guidance optional."
+    source.includes("Essential elements (1 to 3)") && source.includes("Required before publishing."),
+    "Item preparation v8 should identify one to three essential elements as required before publishing."
   );
   assert(
-    source.includes("Selecting a distractor is indirect evidence only"),
-    "Distractor note helper should state the indirect-evidence caution."
+    source.includes("they are hypotheses, not judgments of any student."),
+    "Distractor note helper should preserve the caution against diagnosing from an option alone."
   );
+  assert(source.includes("Why a student might choose this option"), "Each incorrect option should have its own rationale field.");
   assert(source.includes("Student preview"), "Item editor should expose a student preview.");
   assert(source.includes("Teacher preview"), "Item editor should expose a teacher preview.");
   assert(
@@ -401,7 +402,13 @@ async function main() {
       metadata.plain_language_distractor_diagnostic_notes.includes("possible interpretations only"),
       "Plain-language distractor diagnostic notes were not stored."
     );
-    assert(metadata.option_notes.length === 0, "New normal editor metadata should not require structured option notes.");
+    const expectedOptionNotes = optionNotes();
+    assert(metadata.option_notes.length === expectedOptionNotes.length, "Item preparation v8 should preserve one note per incorrect option.");
+    for (const expected of expectedOptionNotes) {
+      const stored = metadata.option_notes.find((note) => note.label === expected.label);
+      assert(stored?.idea_label === expected.idea_label, `Option ${expected.label} idea label was not preserved.`);
+      assert(stored?.misconception_reasoning_pattern === expected.misconception_reasoning_pattern, `Option ${expected.label} rationale was not preserved.`);
+    }
     assert(
       metadata.correct_option_notes.strong_reasoning_should_mention?.includes("discrimination"),
       "Correct-option reasoning notes were not stored."
@@ -462,7 +469,15 @@ async function main() {
         concept_unit_public_id: warningConceptUnit.concept_unit_public_id,
         data: {
           ...validGuidedItem(itemOrder + 10),
-          administration_rules: { item_role: "initial" }
+          // Keep v8's required essential elements while omitting optional diagnostic notes.
+          administration_rules: buildItemAdministrationRulesFromTeacherMetadata({
+            administration_rules: { item_role: "initial" },
+            metadata: {
+              correct_option_notes: {
+                strong_reasoning_should_mention: "Theta is a person-side ability location, not an item parameter."
+              }
+            }
+          })
         }
       });
     }
