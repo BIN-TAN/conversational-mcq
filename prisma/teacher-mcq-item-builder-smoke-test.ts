@@ -76,6 +76,15 @@ function plainDistractorNote() {
   ].join(" ");
 }
 
+// One rationale per incorrect option (item preparation v8); publishing warns when one is missing.
+function optionNotes() {
+  return [
+    { label: "B", idea_label: "ability = difficulty", misconception_reasoning_pattern: "Confuses student ability and item difficulty: treats the ability location as the item's difficulty parameter." },
+    { label: "C", idea_label: "latent trait = item format", misconception_reasoning_pattern: "Replaces the latent ability with a visible feature of the item format." },
+    { label: "D", idea_label: "ability = discrimination", misconception_reasoning_pattern: "Treats the ability location as the item's discrimination slope." }
+  ];
+}
+
 function guidedRules() {
   return buildItemAdministrationRulesFromTeacherMetadata({
     administration_rules: {
@@ -96,7 +105,8 @@ function guidedRules() {
         strong_reasoning_should_mention:
           "Theta is not an item difficulty or discrimination value."
       },
-      plain_language_distractor_diagnostic_notes: plainDistractorNote()
+      plain_language_distractor_diagnostic_notes: plainDistractorNote(),
+      option_notes: optionNotes()
     }
   });
 }
@@ -112,7 +122,7 @@ function validGuidedItem(itemOrder: number) {
       option_labels: itemOptions.map((option) => option.label),
       correct_option: "A",
       existing_rationales: {},
-      option_notes: [],
+      option_notes: optionNotes(),
       plain_language_distractor_diagnostic_notes: plainDistractorNote()
     }),
     expected_reasoning_patterns: [

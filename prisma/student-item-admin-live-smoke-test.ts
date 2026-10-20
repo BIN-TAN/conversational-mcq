@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { loadEnvConfig } from "@next/env";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 import {
   assert,
   assertStudentVisibleTextIsSafe,
@@ -17,7 +18,7 @@ import {
 import {
   ITEM_ADMINISTRATION_TUTOR_AGENT_NAME,
   ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION,
-  ItemAdministrationTutorOutputSchema
+  ItemAdministrationTutorActionSchema
 } from "../src/lib/services/student-assessment/item-administration-tutor";
 import {
   demoAssessmentPublicId,
@@ -26,6 +27,18 @@ import {
 
 const envLoadResult = loadEnvConfig(process.cwd());
 const prisma = new PrismaClient();
+
+// Item administration v4: each tutor call stores the collection record (collectionAuditPayload).
+const ItemAdminAuditPayloadSchema = z.object({
+  collection_action: ItemAdministrationTutorActionSchema,
+  collection_model_action: ItemAdministrationTutorActionSchema.nullable(),
+  saved_question: z.string().nullable(),
+  item_admin_tutor_source: z.string(),
+  should_advance: z.boolean(),
+  message_classification: z.string(),
+  response_quality: z.string(),
+  student_facing_message: z.string()
+}).passthrough();
 
 function envPresent(name: string) {
   return typeof process.env[name] === "string" && process.env[name]?.trim().length > 0;
@@ -71,9 +84,9 @@ async function latestItemAdminCall(
   sessionPublicId: string,
   expectedClassification: string,
   expected: {
-    response_quality?: string;
+    collection_action?: string;
     should_advance?: boolean;
-    deferred_concern_summary_present?: boolean;
+    saved_question_present?: boolean;
   } = {}
 ) {
   const session = await prisma.assessmentSession.findUniqueOrThrow({
@@ -145,7 +158,7 @@ async function latestItemAdminCall(
   });
 
   const callSummaries = calls.map((entry) => {
-    const parsed = ItemAdministrationTutorOutputSchema.safeParse(entry.output_payload);
+    const parsed = ItemAdminAuditPayloadSchema.safeParse(entry.output_payload);
 
     return {
       agent_call_id: entry.id,
@@ -156,10 +169,11 @@ async function latestItemAdminCall(
       live_call_allowed: entry.live_call_allowed,
       schema_version: entry.schema_version,
       output_payload_schema_shaped: parsed.success,
+      collection_action: parsed.success ? parsed.data.collection_action : null,
+      collection_model_action: parsed.success ? parsed.data.collection_model_action : null,
       message_classification: parsed.success ? parsed.data.message_classification : null,
-      response_quality: parsed.success ? parsed.data.response_quality : null,
       should_advance: parsed.success ? parsed.data.should_advance : null,
-      deferred_concern_summary_present: parsed.success ? Boolean(parsed.data.deferred_concern_summary) : null,
+      saved_question_present: parsed.success ? Boolean(parsed.data.saved_question) : null,
       output_validated: entry.output_validated,
       validation_error_present: Boolean(entry.validation_error),
       validation_error_summary: entry.validation_error
@@ -255,7 +269,7 @@ async function latestItemAdminCall(
   };
 
   const call = calls.find((entry) => {
-    const parsed = ItemAdministrationTutorOutputSchema.safeParse(entry.output_payload);
+    const parsed = ItemAdminAuditPayloadSchema.safeParse(entry.output_payload);
     return parsed.success && parsed.data.message_classification === expectedClassification;
   });
 
@@ -263,7 +277,7 @@ async function latestItemAdminCall(
     call,
     `Expected audited item-admin call with classification ${expectedClassification}.\n${JSON.stringify(diagnostics, null, 2)}`
   );
-  const output = ItemAdministrationTutorOutputSchema.parse(call.output_payload);
+  const output = ItemAdminAuditPayloadSchema.parse(call.output_payload);
   const matchingProcessEvidence = processEventSummaries.filter(
     (event) => event.agent_call_id === call.id || event.message_classification === expectedClassification
   );
@@ -285,10 +299,10 @@ async function latestItemAdminCall(
     ),
     `Validated live item-admin turn should store process-event evidence with live_llm tutor source.\n${JSON.stringify(diagnostics, null, 2)}`
   );
-  if (expected.response_quality) {
+  if (expected.collection_action) {
     assert(
-      output.response_quality === expected.response_quality,
-      `Expected response_quality ${expected.response_quality}, got ${output.response_quality}.\n${JSON.stringify(diagnostics, null, 2)}`
+      output.collection_action === expected.collection_action,
+      `Expected collection_action ${expected.collection_action}, got ${output.collection_action}.\n${JSON.stringify(diagnostics, null, 2)}`
     );
   }
   if (typeof expected.should_advance === "boolean") {
@@ -297,10 +311,10 @@ async function latestItemAdminCall(
       `Expected should_advance ${expected.should_advance}, got ${output.should_advance}.\n${JSON.stringify(diagnostics, null, 2)}`
     );
   }
-  if (typeof expected.deferred_concern_summary_present === "boolean") {
+  if (typeof expected.saved_question_present === "boolean") {
     assert(
-      Boolean(output.deferred_concern_summary) === expected.deferred_concern_summary_present,
-      `Deferred concern presence mismatch.\n${JSON.stringify(diagnostics, null, 2)}`
+      Boolean(output.saved_question) === expected.saved_question_present,
+      `Saved question presence mismatch.\n${JSON.stringify(diagnostics, null, 2)}`
     );
   }
 
@@ -411,14 +425,14 @@ async function main() {
     ).state;
     assert(state.assessment_state === "AWAIT_REASON", "Content question should not advance to confidence.");
     const contentCall = await latestItemAdminCall(started.session.session_public_id, "content_question", {
-      response_quality: "not_usable",
+      collection_action: "defer_question",
       should_advance: false,
-      deferred_concern_summary_present: true
+      saved_question_present: true
     });
     assert(contentCall.output.should_advance === false, "Content-question output must not advance.");
     assert(
-      /after the initial question set/i.test(contentCall.output.student_facing_message),
-      "Content-question output should defer explanation."
+      /saved your question for later/i.test(contentCall.output.student_facing_message),
+      "Content-question output should save the question for later."
     );
 
     state = (
@@ -433,11 +447,11 @@ async function main() {
       })
     ).state;
     assert(state.assessment_state === "AWAIT_CONFIDENCE", "Explicit uncertainty should advance to confidence.");
-    const unknownCall = await latestItemAdminCall(started.session.session_public_id, "insufficient_knowledge", {
-      response_quality: "low_information",
+    const unknownCall = await latestItemAdminCall(started.session.session_public_id, "accepted_response", {
+      collection_action: "accept",
       should_advance: true
     });
-    assert(unknownCall.output.response_quality === "low_information", "Unknown reason should be low-information evidence.");
+    assert(unknownCall.output.collection_action === "accept", "Honest uncertainty is accepted as the response.");
     assert(unknownCall.output.should_advance === true, "Unknown reason should advance.");
 
     const transcript = await getStudentSafeTranscript({

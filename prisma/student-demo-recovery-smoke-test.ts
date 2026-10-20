@@ -125,7 +125,7 @@ async function main() {
       exitStudentAssessmentSession(owner)
     ]);
     assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } })).status, "student_exited");
-    assert.equal(results.slice(0, 4).filter((result) => result.command_result.mutation_committed).length, 1);
+    assert.equal(results.slice(0, 4).filter((result) => result.command_result?.mutation_committed).length, 1);
     assert.equal(await db.processEvent.count({ where: { assessment_session_db_id: fixture.session.id, event_type: "attempt_ended_by_student" } }), 1);
     assert.equal(await db.formativeConversationLifecycleEvent.count({ where: { formative_conversation_session_db_id: conversation.id, event_type: "conversation_ended" } }), 1);
     assert.equal((await db.formativeConversationSession.findUniqueOrThrow({ where: { id: conversation.id } })).status, "ended");

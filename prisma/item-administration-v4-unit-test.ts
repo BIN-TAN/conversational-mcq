@@ -426,6 +426,10 @@ async function main() {
     }
     const fragment = await runText("B");
     assert.equal(fragment.collection_action, "clarify_once");
+    const editRequest = await runText("I want to change my reason.");
+    assert.equal(editRequest.collection_action, "procedural_help", "An edit request is answered, not saved as the explanation");
+    const reasonMentioningChange = await runText("I picked B because the probability of a correct answer will change when ability increases.");
+    assert.equal(reasonMentioningChange.collection_action, "accept", "A reason that mentions a change is accepted");
     for (const text of EMPTY) {
       for (const prompts of [0, 3]) {
         const result = await runText(text, { prior_neutral_prompt_count: prompts, prior_neutral_clarification_count: prompts });

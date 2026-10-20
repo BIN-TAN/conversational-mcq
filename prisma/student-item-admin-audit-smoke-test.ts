@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { resolveOpenAIModelConfigForRole } from "../src/lib/llm/config";
 import { PrismaClient } from "@prisma/client";
+import { z } from "zod";
 import {
   assert,
   cleanupSmokeStudentSessions,
@@ -20,7 +21,7 @@ import {
 import {
   ITEM_ADMINISTRATION_TUTOR_AGENT_NAME,
   ITEM_ADMINISTRATION_TUTOR_SCHEMA_VERSION,
-  ItemAdministrationTutorOutputSchema,
+  ItemAdministrationTutorActionSchema,
   resolveItemAdministrationTutorRuntimeMode,
   withItemAdministrationTutorProviderForTest,
   type ItemAdministrationTutorOutput
@@ -40,40 +41,35 @@ import type {
 
 const prisma = new PrismaClient();
 
-const validContentQuestionOutput: ItemAdministrationTutorOutput = {
-  message_classification: "content_question",
-  response_quality: "not_usable",
-  should_advance: false,
-  should_store_deferred_concern: true,
-  deferred_concern_summary: "Asked what theta means during item administration.",
-  student_facing_message:
-    "I can explain that after the initial question set. For now, give your best reason, or say 'I don't know the reason yet.'",
-  next_expected_action: "defer_content_question"
+// Item administration v4: the model returns one of five actions and an optional saved question.
+const deferQuestionOutput: ItemAdministrationTutorOutput = {
+  action: "defer_question",
+  saved_question: "What theta means."
 };
 
-const canonicalizedContentQuestionOutput: ItemAdministrationTutorOutput = {
-  message_classification: "content_question",
-  response_quality: "low_information",
-  should_advance: false,
-  should_store_deferred_concern: true,
-  deferred_concern_summary: "Asked what theta means during item administration.",
-  student_facing_message:
-    "I can explain that after the initial question set. For now, give your best reason, or say 'I don't know the reason yet.'",
-  next_expected_action: "defer_content_question"
-};
+const clarifyOnceOutput: ItemAdministrationTutorOutput = { action: "clarify_once", saved_question: null };
+const acceptOutput: ItemAdministrationTutorOutput = { action: "accept", saved_question: null };
 
-const invalidAdvanceOutput: ItemAdministrationTutorOutput = {
-  message_classification: "usable_reasoning",
-  response_quality: "adequate",
-  should_advance: true,
-  should_store_deferred_concern: false,
-  deferred_concern_summary: null,
-  student_facing_message: "Thanks.",
-  next_expected_action: "advance"
-};
+// "advance" is not a v4 action, so this output fails validation and the deterministic rules decide.
+const invalidActionOutput = { action: "advance", saved_question: null };
+
+// What each tutor call stores as output_payload (collectionAuditPayload).
+const ItemAdminAuditPayloadSchema = z.object({
+  tutor_version: z.string(),
+  collection_action: ItemAdministrationTutorActionSchema,
+  collection_model_action: ItemAdministrationTutorActionSchema.nullable(),
+  collection_application_override: z.string(),
+  collection_fallback_used: z.boolean(),
+  saved_question: z.string().nullable(),
+  item_admin_tutor_source: z.string(),
+  live_status: z.string(),
+  should_advance: z.boolean(),
+  message_classification: z.string(),
+  student_facing_message: z.string()
+}).passthrough();
 
 class SyntheticItemAdminProvider implements LlmProvider {
-  constructor(private readonly output: ItemAdministrationTutorOutput) {}
+  constructor(private readonly output: ItemAdministrationTutorOutput | Record<string, unknown>) {}
 
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
@@ -144,7 +140,7 @@ function findMatchingCallOrThrow(
   expectedClassification: string
 ) {
   const call = calls.find((entry) => {
-    const parsed = ItemAdministrationTutorOutputSchema.safeParse(entry.output_payload);
+    const parsed = ItemAdminAuditPayloadSchema.safeParse(entry.output_payload);
     return parsed.success && parsed.data.message_classification === expectedClassification;
   });
 
@@ -171,7 +167,7 @@ async function latestTutorCall(sessionPublicId: string) {
       live_call_allowed: true
     }
   });
-  const parsed = ItemAdministrationTutorOutputSchema.safeParse(call.output_payload);
+  const parsed = ItemAdminAuditPayloadSchema.safeParse(call.output_payload);
   assert(parsed.success, "Item-admin audit output should be schema-shaped.");
 
   return { call, output: parsed.data };
@@ -276,21 +272,16 @@ async function main() {
         ).state;
         assert(state.assessment_state === "AWAIT_REASON", "Answer should advance to reasoning.");
 
+        const action = { student_user_db_id: student.id, session_public_id: started.session.session_public_id,
+          item_public_id: item.item_public_id };
+
+        // 1. A validated live reply: the question is saved and the student stays on the explanation.
         state = await withItemAdministrationTutorProviderForTest(
-          new SyntheticItemAdminProvider(validContentQuestionOutput),
-          async () => (
-            await recordReasoning({
-              student_user_db_id: student.id,
-              session_public_id: started.session.session_public_id,
-              item_public_id: item.item_public_id,
-              data: {
-                reasoning_text: "What is theta?",
-                client_action_id: `${prefix}_valid_content_question`
-              }
-            })
-          ).state
+          new SyntheticItemAdminProvider(deferQuestionOutput),
+          async () => (await recordReasoning({ ...action, data: {
+            reasoning_text: "What is theta?", client_action_id: `${prefix}_live_content_question` } })).state
         );
-        assert(state.assessment_state === "AWAIT_REASON", "Content question should not advance.");
+        assert(state.assessment_state === "AWAIT_REASON", "A deferred content question should not advance.");
         const liveAudit = await latestTutorCall(started.session.session_public_id);
         assert(liveAudit.call.provider === "openai", "Simulated live call should be audited as OpenAI.");
         assert(liveAudit.call.call_status === "succeeded", "Valid simulated live output should succeed.");
@@ -302,11 +293,11 @@ async function main() {
           Boolean(liveAudit.call.provider_request_id || liveAudit.call.provider_response_id),
           "Simulated live audit should persist provider metadata."
         );
-        assert(liveAudit.output.message_classification === "content_question", "Live output classification mismatch.");
-        assert(
-          liveAudit.output.response_quality === "not_usable",
-          "Content-question live output should be canonicalized to not_usable."
-        );
+        assert(liveAudit.output.collection_action === "defer_question", "The live action should be applied.");
+        assert(liveAudit.output.collection_model_action === "defer_question", "The model action should be recorded.");
+        assert(liveAudit.output.message_classification === "content_question", "Deferred questions keep the content_question record.");
+        assert(Boolean(liveAudit.output.saved_question), "The student's question should be saved for the feedback.");
+        assert(liveAudit.output.item_admin_tutor_source === "live_llm", "Live source should be recorded.");
         await assertTutorProcessEvidence({
           sessionPublicId: started.session.session_public_id,
           agentCallId: liveAudit.call.id,
@@ -314,87 +305,10 @@ async function main() {
           expectedClassification: "content_question"
         });
 
-        state = await withItemAdministrationTutorProviderForTest(
-          new SyntheticItemAdminProvider(canonicalizedContentQuestionOutput),
-          async () => (
-            await recordReasoning({
-              student_user_db_id: student.id,
-              session_public_id: started.session.session_public_id,
-              item_public_id: item.item_public_id,
-              data: {
-                reasoning_text: "What is theta?",
-                client_action_id: `${prefix}_canonicalized_content_question`
-              }
-            })
-          ).state
-        );
-        assert(state.assessment_state === "AWAIT_REASON", "Canonicalized content question should not advance.");
-        const canonicalizedAudit = await latestTutorCall(started.session.session_public_id);
-        assert(canonicalizedAudit.call.provider === "openai", "Canonicalized simulated call should be audited as OpenAI.");
-        assert(
-          canonicalizedAudit.call.call_status === "succeeded",
-          "Canonicalized simulated live output should succeed."
-        );
-        assert(canonicalizedAudit.call.output_validated, "Canonicalized simulated live output should validate.");
-        assert(!canonicalizedAudit.call.validation_error, "Canonicalized live output should not store validation error.");
-        assert(
-          Boolean(canonicalizedAudit.call.provider_request_id || canonicalizedAudit.call.provider_response_id),
-          "Canonicalized live audit should persist provider metadata."
-        );
-        assert(
-          canonicalizedAudit.output.response_quality === "not_usable",
-          "Content-question live output needing canonicalization should persist not_usable."
-        );
-        await assertTutorProcessEvidence({
-          sessionPublicId: started.session.session_public_id,
-          agentCallId: canonicalizedAudit.call.id,
-          expectedSource: "live_llm",
-          expectedClassification: "content_question"
-        });
-
-        state = await withItemAdministrationTutorProviderForTest(
-          new SyntheticItemAdminProvider(invalidAdvanceOutput),
-          async () => (
-            await recordReasoning({
-              student_user_db_id: student.id,
-              session_public_id: started.session.session_public_id,
-              item_public_id: item.item_public_id,
-              data: {
-                reasoning_text: "What is theta?",
-                client_action_id: `${prefix}_fallback_content_question`
-              }
-            })
-          ).state
-        );
-        assert(state.assessment_state === "AWAIT_REASON", "Fallback content question should not advance.");
-        const fallbackAudit = await latestTutorCall(started.session.session_public_id);
-        assert(fallbackAudit.call.call_status === "invalid_output", "Invalid live output should be audited honestly.");
-        assert(!fallbackAudit.call.output_validated, "Invalid live output should not be marked validated.");
-        assert(fallbackAudit.call.validation_error, "Invalid live output should preserve validation error.");
-        assert(
-          fallbackAudit.output.message_classification === "incomplete",
-          "Invalid live output should persist a non-advancing blocked effective output."
-        );
-        await assertTutorProcessEvidence({
-          sessionPublicId: started.session.session_public_id,
-          agentCallId: fallbackAudit.call.id,
-          expectedSource: "safe_block_after_live_failure",
-          expectedClassification: "incomplete"
-        });
-
-        const action = { student_user_db_id: student.id, session_public_id: started.session.session_public_id,
-          item_public_id: item.item_public_id };
-        const incomplete: ItemAdministrationTutorOutput = { ...invalidAdvanceOutput,
-          message_classification: "incomplete", response_quality: "not_usable", should_advance: false,
-          next_expected_action: "ask_repair",
-          student_facing_message: "Focus on whether the scores use a reference group or a predefined standard." };
-        await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(incomplete), async () => {
+        // 2. One neutral clarification, then the reply is accepted: never an indefinite loop.
+        await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(clarifyOnceOutput), async () => {
           const first = await recordReasoning({ ...action, data: { reasoning_text: "That part", client_action_id: `${prefix}_fragment_1` } });
-          assert(first.state.assessment_state === "AWAIT_REASON", "Content requests and failed calls must not count as a neutral clarification.");
-          const shown = await prisma.conversationTurn.findFirstOrThrow({ where: {
-            assessment_session: { session_public_id: action.session_public_id }, actor_type: "agent"
-          }, orderBy: { sequence_index: "desc" } });
-          assert(!shown.message_text?.includes("reference group"), "Do not show provider-authored content hints.");
+          assert(first.state.assessment_state === "AWAIT_REASON", "The first clarification keeps the explanation open.");
           const second = await recordReasoning({ ...action, data: { reasoning_text: "B", client_action_id: `${prefix}_fragment_2` } });
           assert(second.state.assessment_state === "AWAIT_CONFIDENCE", "One neutral clarification must not become an indefinite rejection loop.");
           const stored = await prisma.itemResponse.findFirstOrThrow({ where: {
@@ -402,18 +316,19 @@ async function main() {
           } });
           assert(stored.reasoning_text === "B", "Never replace a letter response with an invented unknown-reason admission.");
           const acceptedAudit = await latestTutorCall(action.session_public_id);
-          assert(acceptedAudit.output.response_quality === "weak_but_usable", "Acceptance is not a mastery judgment.");
+          assert(acceptedAudit.output.collection_action === "accept", "The second reply is accepted.");
+          assert(acceptedAudit.output.collection_model_action === "clarify_once", "The model's own action stays in the audit.");
+          assert(acceptedAudit.output.collection_application_override === "clarification_already_used", "The application rule is recorded.");
           const raw = await prisma.agentCall.findUniqueOrThrow({ where: { id: acceptedAudit.call.id }, select: { raw_output: true } });
-          assert(JSON.stringify(raw.raw_output).includes('"message_classification":"incomplete"'), "Original classification remains in audit.");
           assert(JSON.stringify(raw.raw_output).includes('"prior_neutral_clarification_count":1'), "Bounded clarification is auditable.");
         });
         await recordConfidence({ ...action, data: { confidence_rating: "medium" } });
         const alternative = item.options.find(option => option.label !== selectedOption)!.label;
         await recordTemptingOption({ ...action, data: { tempting_option: alternative } });
-        const confused: ItemAdministrationTutorOutput = { ...incomplete, message_classification: "affective_expression" };
-        const finished = await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(confused), () =>
+        const finished = await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(acceptOutput), () =>
           recordTemptingOption({ ...action, data: { tempting_option: alternative, tempting_option_reason: "This option confused me.", client_action_id: `${prefix}_tempting_confusion` } }));
-        assert(finished.state.current_item?.item_public_id !== item.item_public_id, "Accepted tempting uncertainty must open the next item.");
+        const nextItem = finished.state.current_item;
+        assert(nextItem && nextItem.item_public_id !== item.item_public_id, "Accepted tempting uncertainty must open the next item.");
         const submitted = await prisma.itemResponse.findFirstOrThrow({ where: { item: { item_public_id: item.item_public_id },
           concept_unit_session: { assessment_session: { session_public_id: action.session_public_id } } } });
         assert(submitted.item_submitted_at, "Progression requires a persisted submission timestamp.");
@@ -421,6 +336,33 @@ async function main() {
           assert(await prisma.processEvent.count({ where: { assessment_session: { session_public_id: action.session_public_id },
             item: { item_public_id: item.item_public_id }, event_type: eventType } }) === 1, `${eventType} must be recorded once.`);
         }
+
+        // 3. Invalid model output: the deterministic rules prompt once, then never hold the student.
+        const nextAction = { ...action, item_public_id: nextItem.item_public_id };
+        state = (await recordSelectedOption({ ...nextAction, data: {
+          selected_option: nextItem.options[0]?.label ?? "A", client_action_id: `${prefix}_answer_2` } })).state;
+        assert(state.assessment_state === "AWAIT_REASON", "The second item should reach the explanation.");
+        await withItemAdministrationTutorProviderForTest(new SyntheticItemAdminProvider(invalidActionOutput), async () => {
+          const first = await recordReasoning({ ...nextAction, data: { reasoning_text: "What is theta?", client_action_id: `${prefix}_fallback_1` } });
+          assert(first.state.assessment_state === "AWAIT_REASON", "The fallback defers a content question once.");
+          const fallbackAudit = await latestTutorCall(action.session_public_id);
+          assert(fallbackAudit.call.call_status === "invalid_output", "Invalid live output should be audited honestly.");
+          assert(!fallbackAudit.call.output_validated, "Invalid live output should not be marked validated.");
+          assert(fallbackAudit.call.validation_error, "Invalid live output should preserve validation error.");
+          assert(fallbackAudit.output.collection_fallback_used, "The deterministic fallback should be recorded.");
+          assert(fallbackAudit.output.item_admin_tutor_source === "deterministic_fallback_after_live_failure", "Fallback source mismatch.");
+          await assertTutorProcessEvidence({
+            sessionPublicId: action.session_public_id,
+            agentCallId: fallbackAudit.call.id,
+            expectedSource: "deterministic_fallback_after_live_failure",
+            expectedClassification: "content_question"
+          });
+          const second = await recordReasoning({ ...nextAction, data: { reasoning_text: "What is theta?", client_action_id: `${prefix}_fallback_2` } });
+          assert(second.state.assessment_state === "AWAIT_CONFIDENCE", "A model failure never holds a student after one prompt.");
+          const acceptedAudit = await latestTutorCall(action.session_public_id);
+          assert(acceptedAudit.output.collection_action === "accept", "The fallback accepts the second reply.");
+          assert(acceptedAudit.output.collection_application_override === "fallback_prompt_already_given", "The fallback rule is recorded.");
+        });
           }
         );
       }

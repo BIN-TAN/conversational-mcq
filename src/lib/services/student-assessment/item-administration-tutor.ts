@@ -523,6 +523,14 @@ function givesAReason(text: string) {
   return mentionsAReason(text) && contentUnits(text) >= 6;
 }
 
+/** Words that name what the student wants to edit ("my reason", "my choice"); they state no reason. */
+const EDIT_OBJECT_PATTERN = /\b(reasons?|answers?|choices?|chose|choose|picked|options?|explanations?)\b/gi;
+
+/** A reason given alongside an edit request, with the edited object's name set aside. */
+function givesAReasonBesideAnEdit(text: string) {
+  return givesAReason(text.replace(EDIT_OBJECT_PATTERN, " "));
+}
+
 /** A single real-looking word (for example "because"), which the classifier may call gibberish. */
 function looksLikeASingleWord(text: string) {
   const word = lowerText(text).replace(/[.!?,;:]+$/, "");
@@ -639,8 +647,9 @@ export function deterministicCollectionProposal(input: {
     case "procedural_question":
       return { action: "procedural_help", saved_question: null, classification };
     case "edit_request":
-      // "...the probability of a correct answer will change..." is a reason, not an edit request.
-      return { action: reason && !question ? "accept" : "procedural_help", saved_question: null, classification };
+      // "...the probability of a correct answer will change..." is a reason, not an edit request;
+      // "I want to change my reason." asks to edit and is answered with procedural help.
+      return { action: givesAReasonBesideAnEdit(input.text) && !question ? "accept" : "procedural_help", saved_question: null, classification };
     case "gibberish":
     case "off_topic":
       if (honestUncertainty) {

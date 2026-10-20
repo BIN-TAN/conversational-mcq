@@ -366,7 +366,7 @@ async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
               session_public_id: started!.session.session_public_id,
               item_public_id: item.item_public_id,
               data: {
-                reasoning_text: "This should not advance while live auth is invalid.",
+                reasoning_text: "Theta describes the person, so the item parameters cannot change it.",
                 client_action_id: `${prefix}_blocked_reason`
               }
             })
@@ -375,7 +375,10 @@ async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
       }
     );
 
-    assert(state.assessment_state === "AWAIT_REASON", "Invalid live readiness must keep reasoning open.");
+    // Item administration v4: a configuration block falls back to the deterministic rules,
+    // so the student is never held; the explanation is saved and the fallback is recorded.
+    // state is reassigned inside the callbacks above, so read it without the earlier narrowing.
+    assert((state.assessment_state as string) === "AWAIT_CONFIDENCE", "Invalid live readiness falls back and the student continues.");
     const response = await prisma.itemResponse.findFirstOrThrow({
       where: {
         item: { item_public_id: item.item_public_id },
@@ -383,7 +386,10 @@ async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
       },
       select: { reasoning_text: true }
     });
-    assert(!response.reasoning_text, "Blocked live readiness must not store open-text evidence as valid reasoning.");
+    assert(
+      response.reasoning_text === "Theta describes the person, so the item parameters cannot change it.",
+      "The fallback saves the student's own explanation."
+    );
 
     const events = await prisma.processEvent.findMany({
       where: {
@@ -392,10 +398,14 @@ async function assertRuntimeBlocksOpenTextWhenReadinessFails() {
       select: { event_type: true, payload: true }
     });
     const counts = eventCounts(events);
-    assert((counts.llm_runtime_blocked ?? 0) > 0, "Runtime LLM block event should be logged.");
+    assert((counts.llm_runtime_blocked ?? 0) === 0, "A fallback that accepts the reply is not a runtime block.");
     assert(
-      JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"configuration_blocked"'),
-      "Runtime block process event should record configuration_blocked tutor source."
+      JSON.stringify(events.map((event) => event.payload)).includes('"item_admin_tutor_source":"deterministic_fallback_after_configuration_block"'),
+      "The process event should record the configuration fallback as the tutor source."
+    );
+    assert(
+      JSON.stringify(events.map((event) => event.payload)).includes('"collection_fallback_used":true'),
+      "The process event should record that the deterministic fallback decided."
     );
   } finally {
     await cleanupSmokeStudentSessions({
