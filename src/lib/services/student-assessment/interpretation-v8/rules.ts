@@ -99,7 +99,16 @@ export function summaryRule(statuses: ItemStatus[]): RuleResult {
   return { ...c, label: "Still developing", reason: "mixed" };
 }
 
-export type SummaryItem = { item_id: string; status: ItemStatus; flagged_for_review: boolean };
+export type SummaryItem = {
+  item_id: string;
+  status: ItemStatus;
+  flagged_for_review: boolean;
+  /**
+   * The item's rating failed the application's checks and was left out (salvaged output).
+   * It is administered but not counted: a failed model check is not evidence about the student.
+   */
+  rating_unavailable?: boolean;
+};
 export type InstructorItemDecision = "kept" | "excluded";
 
 export type TopicSummary = StatusCounts & {
@@ -113,6 +122,8 @@ export type TopicSummary = StatusCounts & {
   label_without_pending: TopicSummaryLabel | null;
   administered_items: number;
   excluded_item_ids: string[];
+  /** Items without a rating (salvaged output), administered but not counted. */
+  unrated_item_ids?: string[];
   pending_review_item_ids: string[];
   /** "based on k of n items": k = interpretable counted items, n = items administered. */
   based_on: { interpretable_items: number; administered_items: number };
@@ -120,7 +131,7 @@ export type TopicSummary = StatusCounts & {
 
 /**
  * Section 4.4. Counted items are the items administered minus the instructor's
- * exclusions. A flagged item stays counted; when leaving out the items still awaiting
+ * exclusions and minus items left without a rating by salvage. A flagged item stays counted; when leaving out the items still awaiting
  * review would change the label, the label is withheld as "Pending item review".
  */
 export function topicSummary(
@@ -128,8 +139,9 @@ export function topicSummary(
   decisions: ReadonlyMap<string, InstructorItemDecision> = new Map()
 ): TopicSummary {
   const administered = items?.length ?? 0;
-  const counted = (items ?? []).filter((item) => decisions.get(item.item_id) !== "excluded");
+  const counted = (items ?? []).filter((item) => decisions.get(item.item_id) !== "excluded" && !item.rating_unavailable);
   const excludedIds = (items ?? []).filter((item) => decisions.get(item.item_id) === "excluded").map((item) => item.item_id);
+  const unratedIds = (items ?? []).filter((item) => item.rating_unavailable && decisions.get(item.item_id) !== "excluded").map((item) => item.item_id);
   const rule = summaryRule(counted.map((item) => item.status));
   const base = {
     counted_items: rule.counted_items,
@@ -142,6 +154,7 @@ export function topicSummary(
     rule_reason: rule.reason,
     administered_items: administered,
     excluded_item_ids: excludedIds,
+    unrated_item_ids: unratedIds,
     based_on: { interpretable_items: rule.interpretable_items, administered_items: administered }
   };
   if (!items) {

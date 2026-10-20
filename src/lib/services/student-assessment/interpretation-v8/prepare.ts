@@ -69,7 +69,7 @@ export async function prepareInitialInterpretationV8(input: {
    * instead of saving the fallback profile. The last attempt always saves a profile, so
    * the student is never held.
    */
-  defer_transient_failures?: boolean;
+  defer_transient_failures?: boolean | (() => boolean);
 }) {
   const fallbackOnly = input.mode === "fallback_only";
   await input.assert_preparation_active?.();
@@ -107,9 +107,10 @@ export async function prepareInitialInterpretationV8(input: {
           concept_unit_session_db_id: conceptUnitSession.id,
           response_package_id: input.response_package_id,
           model_input: loaded.input,
-          provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed
+          provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed,
+          prefer_deferral_on_transient_failure: input.defer_transient_failures
         });
-    if (result.status === "failed" && result.transient && input.defer_transient_failures) {
+    if (result.status === "failed" && "deferrable" in result && result.deferrable) {
       throw new InterpretationDeferredError(result.reason);
     }
     // Whatever the outcome (validated, rejected twice, model unreachable or not approved), a

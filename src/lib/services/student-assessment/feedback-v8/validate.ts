@@ -1,4 +1,5 @@
 import {
+  courseContentTermsFromTexts,
   interpretationTextProblem,
   normalizeForQuote,
   processReferenceProblem
@@ -31,7 +32,7 @@ const INTERNAL_NOUNS =
 // attributed to the student is a label about the student (rule 2: describe ideas, not the
 // student).
 const STUDENT_MISCONCEPTION =
-  /\b(?:you|your|you've|you're)\b[^.?!]{0,40}\bmisconceptions?\b|\bmisconceptions? (?:you|in your|about your|that you)\b/i;
+  /\bpossible misconceptions?\b|\b(?:you|your|you've|you're)\b[^.?!]*\bmisconceptions?\b|\b(?:this|that|the) (?:answer|explanation|reasoning|response|choice)\b[^.?!]*\bmisconceptions?\b|\bmisconceptions? (?:you|in your|about your|that you)\b/i;
 
 // Process data and anything inferred from them (section 3.1). Second-person phrasing keeps
 // course content ("response time studies", "copy and paste a formula") out of the check.
@@ -60,6 +61,12 @@ const words = (value: string) => normalizeForQuote(value).split(" ").filter(Bool
 
 export function validateFeedbackV8Output(input: FeedbackV8Input, output: FeedbackV8Output): FeedbackIssue[] {
   const issues: FeedbackIssue[] = [];
+  // Course wording (for example "response time" in an item about it) is not a process claim.
+  const courseTerms = courseContentTermsFromTexts([
+    input.topic.title, input.topic.learning_objective, input.topic.description,
+    ...input.items.flatMap((item) => [item.stem, ...item.options.map((option) => option.text), item.instructor_explanation,
+      item.essential_elements, ...item.distractor_rationales.map((entry) => entry.rationale)])
+  ]);
   const push = (path: string, code: string, message: string) => issues.push({ path, code, message });
 
   for (const code of studentFacingTextProblems(output.student_visible_message)) {
@@ -96,7 +103,7 @@ export function validateFeedbackV8Output(input: FeedbackV8Input, output: Feedbac
       if (output.focus_status === "corrected_reasoning_expressed" && quote && normalizedTutor.includes(quote)) {
         push(`student_evidence[${index}].quote`, "echo_is_not_evidence", "Words that repeat the tutor's previous message are not new evidence.");
       }
-      const noteProblem = interpretationTextProblem(entry.note) ?? processReferenceProblem(entry.note);
+      const noteProblem = interpretationTextProblem(entry.note, courseTerms) ?? processReferenceProblem(entry.note, courseTerms);
       if (noteProblem) push(`student_evidence[${index}].note`, noteProblem, "Instructor-facing notes use neutral third-person wording with no process data.");
     });
     if (output.focus_status === "corrected_reasoning_expressed" && output.student_evidence.length === 0) {
@@ -108,7 +115,7 @@ export function validateFeedbackV8Output(input: FeedbackV8Input, output: Feedbac
     push("instructor_review.reason", "reason_required", "Give the reason for an instructor-review flag.");
   }
   for (const [path, text] of [["instructor_review.reason", output.instructor_review.reason], ["focus.concept", output.focus.concept]] as const) {
-    const problem = interpretationTextProblem(text) ?? processReferenceProblem(text);
+    const problem = interpretationTextProblem(text, courseTerms) ?? processReferenceProblem(text, courseTerms);
     if (problem) push(path, problem, "Instructor-facing text uses neutral third-person wording with no process data.");
   }
   return issues;

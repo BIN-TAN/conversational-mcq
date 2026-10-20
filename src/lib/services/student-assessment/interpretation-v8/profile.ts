@@ -17,6 +17,7 @@ import {
   topicSummary,
   type InstructorItemDecision,
   type ItemStatus,
+  type SummaryItem,
   type TopicSummary
 } from "./rules";
 
@@ -135,7 +136,7 @@ export function buildStoredInterpretationV8(input: {
       error_source: rating?.error_source ?? null,
       side_remark: rating?.side_remark ?? null,
       uncertainty_note: rating?.uncertainty_note ?? null,
-      // With an output, an item without a rating (salvaged output) is not interpretable.
+      // An item without a rating (salvaged output) has no status; it is not counted.
       status: rating
         ? itemStatus({
             answer_correct: item.response.answer_correct,
@@ -143,15 +144,12 @@ export function buildStoredInterpretationV8(input: {
             explanation_quality: rating.explanation_quality,
             rapid_selection: typeof rapid === "boolean" ? rapid : null
           })
-        : input.output ? "not_interpretable" : null,
+        : null,
       item_review_flag: rating?.error_source === "possible_item_issue",
       ...(input.output && !rating ? { rating_unavailable: true } : {})
     };
   });
-  // With an output every item has a status (an unrated item of a salvaged output is not interpretable).
-  const summaryItems = input.output
-    ? items.flatMap((item) => (item.status ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }] : []))
-    : null;
+  const summaryItems = input.output ? summaryItemsOf(items) : null;
   return {
     profile_schema: INTERPRETATION_V8_PROFILE_SCHEMA,
     prompt_version: INTERPRETATION_V8_PROMPT_VERSION,
@@ -186,10 +184,19 @@ export function decisionAdjustedTopicSummary(
   decisions: ReadonlyMap<string, InstructorItemDecision>
 ): TopicSummary {
   if (stored.generation_mode === "fallback") return stored.topic_summary;
-  const items = stored.items.flatMap((item) =>
-    item.status ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }] : []
-  );
-  return topicSummary(items, decisions);
+  return topicSummary(summaryItemsOf(stored.items), decisions);
+}
+
+/**
+ * The items a summary is computed from: rated items with their status, and items left
+ * without a rating by salvage (administered, never counted).
+ */
+export function summaryItemsOf(items: StoredItemInterpretationV8[]): SummaryItem[] {
+  return items.flatMap((item) => item.status
+    ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }]
+    : item.rating_unavailable
+      ? [{ item_id: item.item_id, status: "not_interpretable" as const, flagged_for_review: false, rating_unavailable: true }]
+      : []);
 }
 
 function legacyAbilityProfile(stored: StoredInterpretationV8) {

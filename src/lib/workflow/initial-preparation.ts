@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { PREPARATION_FINISH_AFTER_MS } from "./initial-preparation-status";
 import { z } from "zod";
 import { Prisma, type WorkflowJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
@@ -97,6 +98,22 @@ export async function renewInitialPreparationLease(job: WorkflowJob) {
   if (!updated.count) throw new PreparationInterrupted("lost_lease");
 }
 
+/** One full interpretation attempt at its worst: two provider calls at their timeout and the wait between them. */
+const INTERPRETATION_ATTEMPT_WORST_CASE_MS = 2 * 180_000 + 30_000;
+
+/**
+ * Asked at the moment of a transient interpretation failure: defer to the job's next attempt
+ * only when one is left and it would still end, at its worst, before the student may finish
+ * without learning support. Otherwise the usable parts are salvaged or a fallback is saved now.
+ */
+export function canDeferInterpretationFailure(job: Pick<WorkflowJob, "attempt_count" | "max_attempts" | "created_at">,
+  now = Date.now()) {
+  if (job.attempt_count >= job.max_attempts) return false;
+  const config = getWorkflowJobConfig();
+  const nextDelayAtMost = Math.min(config.max_retry_ms, config.base_retry_ms * 2 ** Math.max(0, job.attempt_count - 1) * 1.2);
+  return now - job.created_at.getTime() + nextDelayAtMost + INTERPRETATION_ATTEMPT_WORST_CASE_MS < PREPARATION_FINISH_AFTER_MS;
+}
+
 export async function processInitialPreparationJob(job: WorkflowJob, options: {
   prepare?: (assertActive: () => Promise<void>) => Promise<void>;
 } = {}) {
@@ -135,8 +152,10 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
         concept_unit_public_id: payload.concept_unit_public_id, execution_mode: payload.execution_mode,
         assert_preparation_active: assertActive,
         // A transient model failure waits for the next job attempt (with backoff) rather than
-        // saving a fallback profile; the last attempt always saves a profile.
-        defer_transient_interpretation_failures: job.attempt_count < job.max_attempts
+        // saving a fallback profile; the last attempt always saves a profile. Waiting is
+        // allowed only while another full attempt still ends before the student may finish
+        // without learning support, so a profile always exists by then.
+        defer_transient_interpretation_failures: () => canDeferInterpretationFailure(job)
       });
       const conversation = result.state.formative_conversation;
       // A failed opening is retried automatically. When retrying cannot help (the opening is

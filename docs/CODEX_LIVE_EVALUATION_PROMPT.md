@@ -107,7 +107,11 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
    - salvaged outputs, unrated items and dropped claims
    - the mechanical repairs applied, counted by code
    - first-attempt success
-2. **Label use against the plan.** Copy the tables under "How often each label was used: plan against model" for the four fields. Name every label whose share differs from the plan by more than 10 percentage points, and say which way the shift goes. For example, "limited 25% vs 11% planned: the model rates complete explanations as limited". Use the situation table to show which ways of expressing reasoning cause each shift.
+2. **Label use against the plan.** Copy the tables under "How often each label was used: plan against model" for the four fields.
+   - Each table gives, per label, the planned count and share, the model's count and share, how many planned uses the model kept exactly, and how many it rated within the accepted alternatives. A row `rating_unavailable` counts items that salvage left unrated.
+   - Name every label whose share differs from the plan by more than 10 percentage points, and say which way the shift goes. For example, "limited 25% vs 11% planned: the model rates complete explanations as limited".
+   - Say whether each shift stays within the accepted alternatives (a defensible difference of judgement) or goes outside them (an error).
+   - Use the situation table to show which ways of expressing reasoning cause each shift.
 3. **Strictness review.** For every rejected attempt in `runs.jsonl` (`attempts[].issues`), classify each issue code:
    - **Correct rejection:** the output really broke a rule.
    - **False rejection:** the output was acceptable and the check fired anyway, for example a wording pattern matched course content, or a quote differed only in punctuation or spacing.

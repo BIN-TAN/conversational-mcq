@@ -294,7 +294,7 @@ async function main() {
   });
 
   const { repairInterpretationOutputV8, salvageInterpretationOutputV8 } = await import("../src/lib/services/student-assessment/interpretation-v8/repair");
-  await check("Mechanical slips are repaired by fixed rules, and every repair is recorded", () => {
+  await check("Mechanical slips in rating evidence are repaired by fixed rules, and every repair is recorded", () => {
     const sloppy = {
       ...good,
       items: [{
@@ -302,37 +302,84 @@ async function main() {
         evidence_quote: "\"Because the scores are spread out ... the SD is large\"",
         missing_elements: null,
         process_interpretation: null
-      }],
-      considered_ideas: [{ ...good.considered_ideas[0], student_quote: "maybe the same range means the same SD", quote_source: "explanation" as const }]
+      }]
     };
     assert.ok(validateInterpretationOutputV8(built, sloppy).length > 0);
     const { output, repairs } = repairInterpretationOutputV8(built, sloppy);
     assert.deepEqual(validateInterpretationOutputV8(built, output), []);
-    assert.equal(output.items[0].evidence_quote, "Because the scores are spread out", "An ellipsis quote is cut to an exact excerpt");
+    assert.equal(output.items[0].evidence_quote, "Because the scores are spread out, the SD is large",
+      "An ellipsis quote becomes the student's continuous words from its first part to its last");
     assert.equal(output.items[0].missing_elements, "One or more essential elements are not stated.");
-    assert.equal(output.considered_ideas[0].quote_source, "tempting_option_reason", "The quote's real source is found");
     const codes = repairs.map((repair) => repair.code);
-    assert.ok(codes.includes("evidence_quote_trimmed_to_exact_words"));
+    assert.ok(codes.includes("evidence_quote_ellipsis_joined"));
     assert.ok(codes.includes("missing_elements_default"));
-    assert.ok(codes.includes("claim_quote_trimmed_to_exact_words"));
     const wrongAnswer = { ...built, items: [{ ...built.items[0], response: { ...built.items[0].response, answer_correct: false } }] };
     const noSource = repairInterpretationOutputV8(wrongAnswer, { ...good, items: [{ ...good.items[0], error_source: null }] });
     assert.equal(noSource.output.items[0].error_source, "unclear", "A missing error source becomes the neutral 'unclear'");
     const copied = { ...built, items: [{ ...built.items[0], response: { ...built.items[0].response, explanation: "Set 2.", explanation_first_version: null } }] };
     const copiedRepair = repairInterpretationOutputV8(copied, { ...good, considered_ideas: [], items: [{ ...good.items[0],
       explanation_quality: "adequate", missing_elements: null, evidence_quote: "Set 2", process_interpretation: null,
-      rationale: "The student copied option C." }] });
+      rationale: "The student copied the option text." }] });
     assert.equal(copiedRepair.output.items[0].adds_beyond_option_text, false, "The flag the application can compute is set");
-    assert.equal(copiedRepair.output.items[0].rationale, "The student repeated option C.");
+    assert.equal(copiedRepair.output.items[0].rationale, "The student repeated the option text.");
     assert.deepEqual(validateInterpretationOutputV8(copied, copiedRepair.output), []);
+    const fromClassmate = repairInterpretationOutputV8(copied, { ...good, considered_ideas: [], items: [{ ...copiedRepair.output.items[0],
+      rationale: "The text may have been copied from another student." }] });
+    assert.ok(fromClassmate.output.items[0].rationale.includes("copied"), "\"copied\" is rewritten only when it describes option wording");
     const paraphrase = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], evidence_quote: "the scores are spread out so the SD is large" }] });
     assert.equal(paraphrase.output.items[0].evidence_quote, built.items[0].response.explanation, "A close paraphrase of a short explanation becomes the explanation itself");
+    const negatedParaphrase = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], evidence_quote: "the scores are not spread out so the SD is large" }] });
+    assert.notEqual(negatedParaphrase.output.items[0].evidence_quote, built.items[0].response.explanation, "A quote that adds or drops a negation is not a paraphrase");
     const invented = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], evidence_quote: "the median is the middle score" }] });
     assert.equal(invented.output.items[0].evidence_quote, "the median is the middle score", "An invented quote is not repaired");
     assert.ok(validateInterpretationOutputV8(built, invented.output).some((issue) => issue.code === "evidence_quote_not_found"));
+    const incorrectInvented = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], explanation_quality: "incorrect",
+      missing_elements: null, error_source: "conceptual", reference_id: "q1:target", evidence_quote: "the scores are spread out so the SD is large" }] });
+    assert.notEqual(incorrectInvented.output.items[0].evidence_quote, built.items[0].response.explanation,
+      "An incorrect rating's evidence is never replaced by the explanation");
+    const question = { ...built, items: [{ ...built.items[0], response: { ...built.items[0].response,
+      explanation: "Does a larger spread mean a larger SD? Yes, set 2 is spread out." } }] };
+    const grown = repairInterpretationOutputV8(question, { ...good, considered_ideas: [], items: [{ ...good.items[0], process_interpretation: null, evidence_quote: "larger spread mean" }] });
+    assert.notEqual(grown.output.items[0].evidence_quote, "Does a larger spread mean a larger SD?", "A short quote never grows into a question");
   });
 
-  await check("Salvage drops failing claims and leaves only failing items unrated; nothing usable means fallback", () => {
+  await check("Claims are never repaired into another of the student's texts", () => {
+    const misquoted = { ...good, items: [{ ...good.items[0], process_interpretation: null }], considered_ideas: [],
+      possible_misconceptions: [{ item_ids: ["q1"], idea: "Equal ranges imply equal SD.", student_quote: "the same range means the same SD",
+        quote_item_id: "q1", quote_source: "explanation" as const, endorsement: "endorsed" as const, contradicts_reference_id: "q1:target",
+        matching_distractor_reference_id: null, alternative_explanation: null }] };
+    const repaired = repairInterpretationOutputV8(built, misquoted);
+    assert.equal(repaired.output.possible_misconceptions[0].quote_source, "explanation",
+      "A quote found only in the tempting-option reason is not moved there (that idea was only tempting)");
+    assert.ok(validateInterpretationOutputV8(built, repaired.output).some((issue) => issue.path.startsWith("possible_misconceptions[0]")));
+    const stitched = { ...misquoted, possible_misconceptions: [{ ...misquoted.possible_misconceptions[0], student_quote: "Because the scores ... the SD is large" }] };
+    assert.equal(repairInterpretationOutputV8(built, stitched).output.possible_misconceptions[0].student_quote, "Because the scores ... the SD is large",
+      "A claim's ellipsis quote is never re-joined");
+    const consideredMoved = { ...good, considered_ideas: [{ ...good.considered_ideas[0], quote_source: "explanation" as const }] };
+    assert.equal(repairInterpretationOutputV8(built, consideredMoved).output.considered_ideas[0].quote_source, "explanation");
+  });
+
+  await check("Wording checks catch conduct and process claims but not course content", () => {
+    for (const claim of ["The answer was written independently.", "Independence of the response cannot be established.",
+      "The student lacked motivation.", "Motivation appears low.", "The student did not work independently."]) {
+      assert.equal(interpretationTextProblem(claim), "forbidden_wording", claim);
+    }
+    for (const claim of ["Engagement was low.", "Shows limited engagement with the item.", "The student disengaged."]) {
+      assert.equal(processReferenceProblem(claim), "process_reference_outside_process_interpretation", claim);
+    }
+    for (const content of ["States that reliability is independent of the group tested.", "Uses independent samples correctly.",
+      "Refers to test-taking motivation as a source of error."]) {
+      assert.equal(interpretationTextProblem(content), null, content);
+    }
+    assert.equal(processReferenceProblem("Explains why student engagement surveys need validity evidence."), null);
+    const responseTimeItem = { ...built, items: [{ ...built.items[0], stem: "Which use of response time is supported as validity evidence?" }] };
+    const onTopic = { ...good, items: [{ ...good.items[0], process_interpretation: null, rationale: "States that response time can flag rapid guessing." }] };
+    assert.deepEqual(validateInterpretationOutputV8(responseTimeItem, onTopic), [], "Wording the item itself uses is course content");
+    assert.ok(validateInterpretationOutputV8(built, onTopic).some((issue) => issue.code === "process_reference_outside_process_interpretation"),
+      "The same words about an item that does not use them are still caught");
+  });
+
+  await check("Salvage drops failing claims, leaves only failing items unrated, and unrated items are not counted", () => {
     const twoItems = { ...built, items: [built.items[0], { ...built.items[0], item_id: "q2", position: 2,
       references: built.items[0].references.map((reference) => ({ ...reference, reference_id: reference.reference_id.replace("q1", "q2") })),
       process_indicators: built.items[0].process_indicators.map((indicator) => ({ ...indicator, indicator_id: indicator.indicator_id.replace("q1", "q2") })) }] };
@@ -340,27 +387,36 @@ async function main() {
       rationale: "The student hesitated and changed their answer." };
     const output = {
       items: [{ ...good.items[0], process_interpretation: null }, second],
-      possible_misconceptions: [{ item_ids: ["q1"], idea: "Spread means a large mean.", student_quote: "the mean is huge here", quote_item_id: "q1",
-        quote_source: "explanation" as const, endorsement: "endorsed" as const, contradicts_reference_id: "q1:target",
-        matching_distractor_reference_id: null, alternative_explanation: null }],
+      possible_misconceptions: [
+        { item_ids: ["q1"], idea: "Spread means a large mean.", student_quote: "the mean is huge here", quote_item_id: "q1",
+          quote_source: "explanation" as const, endorsement: "endorsed" as const, contradicts_reference_id: "q1:target",
+          matching_distractor_reference_id: null, alternative_explanation: null },
+        { item_ids: ["q2"], idea: "Spread is the same as the SD being large.", student_quote: "Because the scores are spread out", quote_item_id: "q2",
+          quote_source: "explanation" as const, endorsement: "endorsed" as const, contradicts_reference_id: "q2:target",
+          matching_distractor_reference_id: null, alternative_explanation: null }
+      ],
       considered_ideas: []
     };
     const issues = validateInterpretationOutputV8(twoItems, output);
-    assert.ok(issues.length >= 2);
     const salvaged = salvageInterpretationOutputV8(twoItems, output, issues)!;
     assert.ok(salvaged);
     assert.deepEqual(salvaged.salvage.unrated_item_ids, ["q2"]);
-    assert.equal(salvaged.salvage.dropped_misconceptions, 1);
-    assert.equal(salvaged.output.possible_misconceptions.length, 0, "A claim that fails is dropped, never kept");
+    assert.equal(salvaged.salvage.dropped_misconceptions, 2, "A failing claim and a claim on an unrated item are dropped");
+    assert.equal(salvaged.output.possible_misconceptions.length, 0);
     const stored = buildStoredInterpretationV8({ model_input: twoItems, output: salvaged.output, generation_mode: "live_model",
       fallback_reason: null, response_package_id: "pkg-1", answer_review_v2: null, output_adjustments: { repairs: [], salvage: salvaged.salvage } });
-    assert.equal(stored.items[1].status, "not_interpretable");
+    assert.equal(stored.items[1].status, null);
     assert.equal(stored.items[1].rating_unavailable, true);
     assert.equal(stored.items[0].status, "partly_supported");
-    assert.equal(stored.topic_summary.counted_items, 2);
+    assert.equal(stored.topic_summary.administered_items, 2);
+    assert.equal(stored.topic_summary.counted_items, 1, "An unrated item is administered but not counted");
+    assert.deepEqual(stored.topic_summary.unrated_item_ids, ["q2"]);
     assert.deepEqual(stored.output_adjustments?.salvage?.unrated_item_ids, ["q2"]);
     const allBad = { ...output, items: [second] };
     assert.equal(salvageInterpretationOutputV8(twoItems, allBad, validateInterpretationOutputV8(twoItems, allBad)), null);
+    const conflicting = repairInterpretationOutputV8(twoItems, { ...output, possible_misconceptions: [],
+      items: [output.items[0], { ...output.items[0], explanation_quality: "adequate", missing_elements: null }, { ...second, rationale: "Names spread." }] });
+    assert.deepEqual(conflicting.output.items.map((entry) => entry.item_id), ["q2"], "Two different ratings of one item: neither is kept");
   });
 
   const { generateInterpretationV8 } = await import("../src/lib/services/student-assessment/interpretation-v8/generate");
@@ -403,6 +459,18 @@ async function main() {
     const invented = scripted([completed({ ...good, items: [{ ...good.items[0], evidence_quote: "something the student never wrote" }] }), providerFailure("timeout")]);
     const inventedResult = await generateInterpretationV8({ provider: invented.provider as never, model_config: { model_name: "m" }, model_input: built, sleep });
     assert.equal(inventedResult.status, "failed", "An invented quote is never accepted; its item stays unrated");
+    const deferRun = scripted([completed({ ...good, items: [{ ...good.items[0], evidence_quote: "something the student never wrote" }] }), providerFailure("timeout")]);
+    const deferred = await generateInterpretationV8({ provider: deferRun.provider as never, model_config: { model_name: "m" }, model_input: built, sleep,
+      prefer_deferral_on_transient_failure: true });
+    assert.equal(deferred.status === "failed" && deferred.transient, true, "When the job can retry, a transient last failure defers instead of salvaging");
+    assert.equal(deferred.status === "failed" && deferred.deferrable, true);
+    const lateRun = scripted([completed({ ...good, items: [{ ...good.items[0], evidence_quote: "something the student never wrote" }] }), providerFailure("timeout")]);
+    const late = await generateInterpretationV8({ provider: lateRun.provider as never, model_config: { model_name: "m" }, model_input: built, sleep,
+      prefer_deferral_on_transient_failure: () => false });
+    assert.equal(late.status === "failed" && late.deferrable, false, "Asked at the failure: no time left means no deferral");
+    const schemaRun = scripted([providerFailure("schema_validation", false), completed(good)]);
+    const schemaResult = await generateInterpretationV8({ provider: schemaRun.provider as never, model_config: { model_name: "m" }, model_input: built, sleep });
+    assert.equal(schemaResult.status, "validated", "A provider-side schema failure gets one regeneration");
   });
 
   const contract = await import("../src/lib/services/student-assessment/interpretation-v8/contract");

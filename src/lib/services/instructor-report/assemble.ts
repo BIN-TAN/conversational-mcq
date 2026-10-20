@@ -1,6 +1,6 @@
 import { FeedbackV8OutputSchema, type FeedbackV8Output } from "@/lib/services/student-assessment/feedback-v8/contract";
 import { itemReferences } from "@/lib/services/student-assessment/interpretation-v8/input-builder";
-import { readStoredInterpretationV8, type StoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import { readStoredInterpretationV8, summaryItemsOf, type StoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { topicSummary, type InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
 import {
   ATTEMPT_SECTIONS,
@@ -226,7 +226,7 @@ function prepareConversation(
 
 function summaryLabel(v8: StoredInterpretationV8, decisions: ReadonlyMap<string, InstructorItemDecision>) {
   return topicSummary(
-    v8.items.flatMap((item) => (item.status ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }] : [])),
+    summaryItemsOf(v8.items),
     decisions
   );
 }

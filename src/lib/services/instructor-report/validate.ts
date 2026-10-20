@@ -1,4 +1,5 @@
 import {
+  courseContentTermsFromTexts,
   interpretationTextProblem,
   normalizeForQuote,
   processReferenceProblem
@@ -162,10 +163,11 @@ type TextScope = {
 
 function textIssues(path: string, text: string, scope: TextScope): InstructorReportIssue[] {
   const codes: string[] = [];
-  const wording = interpretationTextProblem(text);
+  const courseTerms = courseContentTermsFromTexts(scope.reference_texts);
+  const wording = interpretationTextProblem(text, courseTerms);
   if (wording) codes.push(wording);
   const processText = scope.limits ? text.replace(/\bprocess (data|indicators?|evidence)\b/gi, " ") : text;
-  const processProblem = processReferenceProblem(processText);
+  const processProblem = processReferenceProblem(processText, courseTerms);
   if (processProblem) codes.push(processProblem);
   codes.push(...numberProblems(text, scope.allowed_numbers));
   const plain = withoutQuotations(text);

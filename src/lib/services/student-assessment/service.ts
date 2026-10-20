@@ -6340,7 +6340,7 @@ export async function completeInitialConceptUnitAdministration(input: {
   execution_mode?: FormativeExecutionMode;
   assert_preparation_active?: () => Promise<void>;
   /** See prepareInitialInterpretationV8: set by the preparation job while it has attempts left. */
-  defer_transient_interpretation_failures?: boolean;
+  defer_transient_interpretation_failures?: boolean | (() => boolean);
 }) {
   await input.assert_preparation_active?.();
   const owned = await getOwnedSession(input);

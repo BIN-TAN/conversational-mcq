@@ -52,7 +52,7 @@ The application records, computes and checks; the model interprets language. Eac
 | --- | --- | --- | --- |
 | Item preparation | Required fields (stem, options, one key, instructor explanation, learning objective, expected reasoning, distractor rationales), versions, one topic per mini-test | Suggests items, target reasoning and one rationale per incorrect option; flags ambiguous wording, cues and weak distractors | Never changes a confirmed key; the instructor approves every item |
 | Item administration | Saves the answer, confidence, typed explanation (paste blocked), tempting option and reason, events and attempt count | Decides whether an explanation can be accepted or needs one neutral clarification, without seeing the key | Shows fixed neutral wording; no correctness hints; one clarification at most |
-| Student profiling | Answer correctness, reported confidence, the confidence–correctness pairing, process indicators, item status and the topic summary | Rates each explanation, names possible misconceptions, gives the error source and what stays uncertain, and interprets process indicators within their roles | Quotes are exact excerpts; references exist; misconception conditions met; one regeneration, then a fallback profile with no claims |
+| Student profiling | Answer correctness, reported confidence, the confidence–correctness pairing, process indicators, item status and the topic summary | Rates each explanation, names possible misconceptions, gives the error source and what stays uncertain, and interprets process indicators within their roles | Quotes are exact excerpts; references exist; misconception conditions met; one regeneration, then only the failing parts are removed, and a fallback profile with no claims when nothing usable remains |
 | Formative feedback (opening message and conversation) | Answer review (result, correct option, instructor explanation), the mini-test profile, the turn limit, stop and pause | Chooses one focus and a strategy, using process interpretations without mentioning them; writes the message; records learning evidence per turn | No scores or internal labels in messages; quotes in turn records are exact; the profile is never changed |
 | Instructor reporting | Counts, completion, option distribution, attempts, summary distribution, misconception counts | Synthesizes patterns, picks quoted examples, suggests teaching actions | Every number is copied from the application; every quote is exact and attributed to a study ID |
 
@@ -141,7 +141,7 @@ No answer selected is its own state, never counted as incorrect. A possible item
 
 ### 4.4 Topic summary (application rule)
 
-**Counted items** are every item administered in the attempt, minus items the instructor has excluded after review. **Interpretable items** are counted items that are not Not interpretable.
+**Counted items** are every item administered in the attempt, minus items the instructor has excluded after review and items left without a rating because the model's rating of them failed the checks (9.4). **Interpretable items** are counted items that are not Not interpretable.
 
 | Summary | Rule, applied in this order |
 | --- | --- |
@@ -205,7 +205,7 @@ Every substantive judgment must be traceable to the student's words.
 - Quotes come from the same item's explanation, its tempting-option reason, or the clarification reply given during the mini-test. They never come from options, items or instructor text.
 - A quote is at least four words long, unless the student's whole response is shorter. Matching ignores differences in spacing and quotation marks.
 
-The application rejects an output when a quote is not an exact excerpt of the right response, a reference ID does not exist, a misconception lacks either condition, or an adequate rating carries a conceptual error source. A rejected output is regenerated once with the list of problems. If it fails again, or the model cannot be reached, a fallback profile is saved: it keeps the answer review but has no ratings or claims, its label is Unavailable, and the student continues (11.2).
+The application rejects an output when a quote is not an exact excerpt of the right response, a reference ID does not exist, a misconception lacks either condition, or an adequate rating carries a conceptual error source. Before any rejection, fixed rules repair mechanical slips that do not change what the output claims: a rating quote wrapped in quotation marks or cut with an ellipsis, a short rating quote that is a close paraphrase of the student's own sentence, a missing error source (set to unclear) and the option-text flag. Quotes in claims are only unwrapped. Every repair is recorded. A rejected output is regenerated once with the list of problems. If it fails again, only its failing parts are removed: a failing claim is dropped, a failing note is cleared, and a failing item is left without a rating, together with any claim that relies on it. Such an item is shown as administered but is not counted. A fallback profile is saved only when no item keeps a rating, or when the model cannot be reached: it keeps the answer review but has no ratings or claims, its label is Unavailable, and the student continues (11.2). A transient provider failure is first retried by the preparation job, but only when that retry can still end before the student may finish without learning support.
 
 ## 6. Process data in interpretation
 
@@ -594,7 +594,7 @@ Proposed criteria:
 - Misconceptions: precision of at least 0.90 and recall of at least 0.70. Precision has the higher bar because a false claim about a student is the costlier error.
 - No misconception claimed from a distractor choice, a quoted-and-rejected idea, a tempting-option reason or a process indicator alone.
 - The same summary label in all three runs for at least 90% of students.
-- Outputs rejected twice (fallback profile saved) for under 5% of submissions.
+- Fallback profiles saved for under 5% of submissions, and items left without a rating for under 5% of item responses.
 
 **Audience and feedback.**
 
@@ -612,7 +612,7 @@ No rejection or model failure stops a student. Responses are saved before any mo
 
 | Output | After two rejected attempts, or when the model cannot be reached | What the student can do |
 | --- | --- | --- |
-| Interpretation (9.4) | A fallback profile: the answer review, no ratings or claims, label Unavailable, and the reason recorded for the instructor | Sees the answer review and goes on to the opening |
+| Interpretation (9.4) | The failing parts are removed and the rest is kept; when nothing usable remains, a fallback profile: the answer review, no ratings or claims, label Unavailable, and the reason recorded for the instructor | Sees the answer review and goes on to the opening |
 | Opening message (9.5) | Retried automatically up to three times; after that the student is taken to the conversation anyway | Retries the opening, or ends the conversation and finishes |
 | Conversation reply (9.6) | The student's message stays saved and the reply can be retried | Retries, or ends the conversation at any point |
 | Possible item issue | The instructor's label is withheld as "Pending item review" | Nothing changes for the student |

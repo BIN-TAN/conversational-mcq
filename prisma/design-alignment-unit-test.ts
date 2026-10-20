@@ -109,6 +109,16 @@ async function main() {
       jobs: [{ status: "retryable", created_at: recent }], automation_paused_at: new Date()
     })), true);
   });
+  await check("No dead end: a transient model failure waits for the next job attempt only if that attempt ends before the finish rule", async () => {
+    const { canDeferInterpretationFailure } = await import("../src/lib/workflow/initial-preparation");
+    const { PREPARATION_FINISH_AFTER_MS } = await import("../src/lib/workflow/initial-preparation-status");
+    const now = Date.now();
+    const job = (attempt_count: number, ageMs: number) => ({ attempt_count, max_attempts: 3, created_at: new Date(now - ageMs) });
+    assert.equal(canDeferInterpretationFailure(job(1, 30_000), now), true, "An early quick failure waits for the next attempt");
+    assert.equal(canDeferInterpretationFailure(job(3, 30_000), now), false, "The last attempt always saves a profile");
+    assert.equal(canDeferInterpretationFailure(job(1, PREPARATION_FINISH_AFTER_MS - 120_000), now), false,
+      "Late in the window the usable parts are kept now instead");
+  });
   await check("No dead end: item administration accepts the next reply after two prompts, whatever the model says", async () => {
     const { applyItemAdministrationCollectionRules, ITEM_ADMINISTRATION_MAX_PROMPTS_PER_STEP } = await import(
       "../src/lib/services/student-assessment/item-administration-tutor"

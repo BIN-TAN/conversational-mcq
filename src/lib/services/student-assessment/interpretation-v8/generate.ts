@@ -63,7 +63,12 @@ export type InterpretationGenerationResult =
       /** Set when no attempt passed every check and the failing parts of the last checked output were removed. */
       salvage: (InterpretationSalvage & { from_attempt: number }) | null;
     }
-  | { status: "failed"; reason: string; transient: boolean; attempts: InterpretationAttemptRecord[] };
+  | {
+      status: "failed"; reason: string; transient: boolean;
+      /** The failure is transient and the caller can still retry later, so nothing was salvaged. */
+      deferrable: boolean;
+      attempts: InterpretationAttemptRecord[];
+    };
 
 export async function generateInterpretationV8(input: {
   provider: LlmProvider;
@@ -77,6 +82,12 @@ export async function generateInterpretationV8(input: {
   on_attempt_end?: (record: InterpretationAttemptRecord) => Promise<void>;
   /** Waits between attempts after a transient provider failure (tests pass a no-op). */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * When a later retry is possible (the preparation job has attempts left and time to finish),
+   * a transient last failure is returned as deferrable instead of salvaging an earlier, failing
+   * output. A function is asked at the moment of that failure, so time already spent counts.
+   */
+  prefer_deferral_on_transient_failure?: boolean | (() => boolean);
 }): Promise<InterpretationGenerationResult> {
   const attempts: InterpretationAttemptRecord[] = [];
   let previousIssues: InterpretationIssue[] = [];
@@ -127,7 +138,8 @@ export async function generateInterpretationV8(input: {
       };
       attempts.push(record);
       await input.on_attempt_end?.(record);
-      if (result.error?.retryable === false) break;
+      // A provider-side schema failure can pass on regeneration; other non-retryable failures cannot.
+      if (result.error?.retryable === false && result.error.category !== "schema_validation") break;
       continue;
     }
     const parsed = InterpretationOutputV8Schema.safeParse(result.parsed_output);
@@ -157,7 +169,10 @@ export async function generateInterpretationV8(input: {
   }
   // No attempt passed every check. When the last checked output can be salvaged (only its
   // failing parts removed), it is used; the fallback profile is the last resort.
-  if (lastInvalid) {
+  const transient = lastReason === "provider_exception" || TRANSIENT_PROVIDER_FAILURES.has(lastReason);
+  const prefer = input.prefer_deferral_on_transient_failure;
+  const deferrable = transient && (typeof prefer === "function" ? prefer() : Boolean(prefer));
+  if (lastInvalid && !deferrable) {
     const salvaged = salvageInterpretationOutputV8(input.model_input, lastInvalid.output, lastInvalid.issues);
     if (salvaged) {
       return {
@@ -166,10 +181,5 @@ export async function generateInterpretationV8(input: {
       };
     }
   }
-  return {
-    status: "failed",
-    reason: lastReason,
-    transient: lastReason === "provider_exception" || TRANSIENT_PROVIDER_FAILURES.has(lastReason),
-    attempts
-  };
+  return { status: "failed", reason: lastReason, transient, deferrable, attempts };
 }

@@ -128,18 +128,22 @@ export async function runInterpretationCase(input: {
   const provider = input.engine.kind === "live" ? input.engine.provider : localStandInProvider;
   const modelConfig = input.engine.kind === "live" ? input.engine.interpretation_model : LOCAL_MODEL;
   const sleep = input.engine.kind === "live" ? (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) : async () => undefined;
-  const generate = () => generateInterpretationV8({
+  const jobRetries = input.job_retries ?? 2;
+  // As in production: while a later job attempt remains, a transient last failure defers
+  // instead of salvaging; the last attempt salvages.
+  const generate = (canRetryLater: boolean) => generateInterpretationV8({
     provider,
     model_config: modelConfig,
     model_input: buildCaseInput(input.bank, input.evaluation_case),
-    sleep
+    sleep,
+    prefer_deferral_on_transient_failure: canRetryLater
   });
-  let result = await generate();
+  let result = await generate(jobRetries > 0);
   const earlierAttempts: typeof result.attempts = [];
-  for (let retry = 0; retry < (input.job_retries ?? 2) && result.status === "failed" && result.transient; retry += 1) {
+  for (let retry = 0; retry < jobRetries && result.status === "failed" && result.transient; retry += 1) {
     earlierAttempts.push(...result.attempts);
     await sleep(JOB_LIKE_RETRY_DELAYS_MS[Math.min(retry, JOB_LIKE_RETRY_DELAYS_MS.length - 1)]);
-    result = await generate();
+    result = await generate(retry + 1 < jobRetries);
   }
   result = { ...result, attempts: [...earlierAttempts, ...result.attempts] };
   return {

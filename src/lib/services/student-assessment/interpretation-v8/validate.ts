@@ -46,49 +46,74 @@ export function quoteProblem(item: InterpretationItemInputV8 | undefined, source
   return null;
 }
 
-// Instructor-facing and internal text never uses misconduct, tool-use, independence or
-// character words, and is never addressed to the student.
-// Narrow on purpose (the owner asked that checks not be stricter than needed): course content
-// such as "independent of the group", "independent samples" or "test-taking motivation" is
-// allowed; only claims about the student's conduct, effort, independence or tool use are not.
+// Instructor-facing and internal text never uses misconduct, tool-use, independence, effort
+// or character words, and is never addressed to the student. Statistical uses ("independent
+// of the group", "independent samples") and test-taking motivation as a topic are allowed,
+// and so is any wording the item itself uses (course content, see courseContentTerms).
 const FORBIDDEN_INTERPRETATION_WORDS =
-  /\b(cheat\w*|dishonest\w*|plagiar\w*|copied|copying|misconduct|lazy|careless\w*|unmotivated|(?:lack(?:s|ed)? of|low|little|no|poor) motivation|not motivated|work(?:ed|ing)? independently|independent work|not independent|independently (?:produced|written|completed)|gen ?ai|chatgpt|artificial intelligence|ai tool\w*|ai assistance)\b/i;
-const SECOND_PERSON = /\b(you|your|yours|yourself)\b/i;
+  /\b(cheat\w*|dishonest\w*|plagiar\w*|copied|copying|misconduct|lazy|careless\w*|(?<!test-taking |examinee |respondent )(?:un)?motivat\w*(?! for (?:using|choosing|the|this|that|a)\b)|independen\w*(?! of\b(?! (?:the |this |that |their |his |her |its )?(?:response|answer|work|student|explanation|submission|writing|reasoning|attempt)s?\b)| (?:samples?|events?|variables?|observations?|errors?|groups?|measures?|raters?|coders?|scorers?|items?|t-tests?|random|and identically)\b)|gen ?ai|chatgpt|artificial intelligence|ai tool\w*|ai assistance)\b/gi;
+const SECOND_PERSON = /\b(you|your|yours|yourself)\b/gi;
 
 /** Quoted student words are exempt: a student may write "you" or name a tool. */
 function withoutQuotations(text: string) {
   return text.replace(/"[^"]*"|“[^”]*”/g, " ");
 }
 
-export function interpretationTextProblem(text: string | null | undefined) {
-  if (!text) return null;
-  const own = withoutQuotations(text);
-  if (FORBIDDEN_INTERPRETATION_WORDS.test(own)) return "forbidden_wording";
-  if (SECOND_PERSON.test(own)) return "addressed_to_student";
-  return null;
+function matchesOf(pattern: RegExp, text: string) {
+  return [...withoutQuotations(text).matchAll(pattern)].map((match) => match[0].toLowerCase());
 }
 
 // Process inferences belong only in process_interpretation (prompt rule 11). Instructor-
 // facing fields describe what the student selected and wrote. The phrases are specific so
 // that ordinary subject wording ("a rapid reaction", "seconds") is not caught.
 const PROCESS_REFERENCE =
-  /\b(rapid(ly)? (selection|selected|choice|chose|answer\w*|response)|(answered|selected|chose|responded) (too |very )?(quickly|fast|rapidly)|response time|time (spent|taken|on (the )?(item|task|page))|focus(ed)? (loss|time)|lost focus|left the page|(switched|switching) (tabs?|away|pages?)|(tab|page) switch\w*|paste attempt\w*|pasted|pasting|long pause\w*|paused|hesitat\w*|changed (the|their|his|her|its) (answer|option|choice|confidence)|answer changes?|confidence changes?|revised (the|their|his|her) (answer|explanation)|(?:low|limited|little|poor|no|minimal) engagement|engagement (?:with the (?:item|task|question)|evidence|level)|disengage\w*|process (data|indicators?|evidence))\b/i;
+  /\b(rapid(ly)? (selection|selected|choice|chose|answer\w*|response)|(answered|selected|chose|responded) (too |very )?(quickly|fast|rapidly)|response time|time (spent|taken|on (the )?(item|task|page))|focus(ed)? (loss|time)|lost focus|left the page|(switched|switching) (tabs?|away|pages?)|(tab|page) switch\w*|paste attempt\w*|pasted|pasting|long pause\w*|paused|hesitat\w*|changed (the|their|his|her|its) (answer|option|choice|confidence)|answer changes?|confidence changes?|revised (the|their|his|her) (answer|explanation)|(?:dis)?engag(?:ed|ement|ing)(?! (?:surveys?|scales?|measures?|questionnaires?|items?|scores?|instruments?)\b)|process (data|indicators?|evidence))\b/gi;
 
-export function processReferenceProblem(text: string | null | undefined) {
+/**
+ * Wording the item and topic themselves use (stem, options, target reasoning, essential
+ * elements, option rationales, objective): course content such as "response time" or
+ * "careless responding" in an item about them is never a claim about the student.
+ */
+export function courseContentTerms(input: InterpretationInputV8, items: InterpretationItemInputV8[]) {
+  return courseContentTermsFromTexts([
+    input.topic.title, input.topic.learning_objective, input.topic.description,
+    ...items.flatMap((item) => [item.stem, ...item.options.map((option) => option.text), item.target_reasoning ?? "",
+      item.essential_elements ?? "", ...item.references.map((reference) => reference.text)])
+  ]);
+}
+
+/** The checked words that occur in the given course texts (items, references, topic). */
+export function courseContentTermsFromTexts(texts: Array<string | null | undefined>) {
+  const joined = texts.filter(Boolean).join("\n");
+  return new Set([...matchesOf(FORBIDDEN_INTERPRETATION_WORDS, joined), ...matchesOf(PROCESS_REFERENCE, joined)]);
+}
+
+const offending = (pattern: RegExp, text: string, exempt?: ReadonlySet<string>) =>
+  matchesOf(pattern, text).filter((match) => !exempt?.has(match));
+
+export function interpretationTextProblem(text: string | null | undefined, exempt?: ReadonlySet<string>) {
   if (!text) return null;
-  return PROCESS_REFERENCE.test(withoutQuotations(text)) ? "process_reference_outside_process_interpretation" : null;
+  if (offending(FORBIDDEN_INTERPRETATION_WORDS, text, exempt).length) return "forbidden_wording";
+  if (matchesOf(SECOND_PERSON, text).length) return "addressed_to_student";
+  return null;
+}
+
+export function processReferenceProblem(text: string | null | undefined, exempt?: ReadonlySet<string>) {
+  if (!text) return null;
+  return offending(PROCESS_REFERENCE, text, exempt).length ? "process_reference_outside_process_interpretation" : null;
 }
 
 /**
  * The words that made a text fail, for the regeneration message: a model told which word to
  * avoid fixes it far more often than one told only to "use neutral wording".
  */
-export function offendingWords(text: string | null | undefined) {
+export function offendingWords(text: string | null | undefined, exempt?: ReadonlySet<string>) {
   if (!text) return "";
-  const own = withoutQuotations(text);
-  const found = [FORBIDDEN_INTERPRETATION_WORDS, SECOND_PERSON, PROCESS_REFERENCE]
-    .map((pattern) => pattern.exec(own)?.[0])
-    .filter((word): word is string => Boolean(word));
+  const found = [
+    ...offending(FORBIDDEN_INTERPRETATION_WORDS, text, exempt),
+    ...matchesOf(SECOND_PERSON, text),
+    ...offending(PROCESS_REFERENCE, text, exempt)
+  ];
   return found.length ? ` Remove or rephrase: ${[...new Set(found)].map((word) => `"${word}"`).join(", ")}.` : "";
 }
 
@@ -117,6 +142,7 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     const path = `items[${index}]`;
     const item = itemsById.get(entry.item_id);
     if (!item) { push(path, "unknown_item", `Unknown item_id ${entry.item_id}.`); return; }
+    const exempt = courseContentTerms(input, [item]);
     if (seen.has(entry.item_id)) push(path, "duplicate_item", `Item ${entry.item_id} is rated more than once.`);
     seen.add(entry.item_id);
 
@@ -153,10 +179,10 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
       push(path, "adequate_with_conceptual_error", "An adequate explanation cannot have a conceptual error source.");
     }
     for (const [field, text] of [["rationale", entry.rationale], ["uncertainty_note", entry.uncertainty_note], ["side_remark", entry.side_remark], ["missing_elements", entry.missing_elements]] as const) {
-      const problem = interpretationTextProblem(text);
-      if (problem) push(`${path}.${field}`, problem, `Use neutral, third-person assessment wording.${offendingWords(text)}`);
-      const processProblem = processReferenceProblem(text);
-      if (processProblem) push(`${path}.${field}`, processProblem, `Write inferences from process indicators only in process_interpretation.${offendingWords(text)}`);
+      const problem = interpretationTextProblem(text, exempt);
+      if (problem) push(`${path}.${field}`, problem, `Use neutral, third-person assessment wording.${offendingWords(text, exempt)}`);
+      const processProblem = processReferenceProblem(text, exempt);
+      if (processProblem) push(`${path}.${field}`, processProblem, `Write inferences from process indicators only in process_interpretation.${offendingWords(text, exempt)}`);
     }
 
     const processEntry = entry.process_interpretation;
@@ -179,8 +205,8 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
         push(`${path}.process_interpretation`, "role_violation", "context_noted cites context indicators only.");
       }
       for (const text of [processEntry.note, ...processEntry.alternatives]) {
-        const problem = interpretationTextProblem(text);
-        if (problem) { push(`${path}.process_interpretation`, problem, `Use neutral wording with no claims about tools, independence or character.${offendingWords(text)}`); break; }
+        const problem = interpretationTextProblem(text, exempt);
+        if (problem) { push(`${path}.process_interpretation`, problem, `Use neutral wording with no claims about tools, independence or character.${offendingWords(text, exempt)}`); break; }
       }
     }
   });
@@ -198,9 +224,10 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     if (entry.matching_distractor_reference_id && !referenceIds.has(entry.matching_distractor_reference_id)) {
       push(path, "unknown_reference", "Unknown matching distractor reference.");
     }
+    const claimExempt = courseContentTerms(input, entry.item_ids.map((id) => itemsById.get(id)).filter((item): item is InterpretationItemInputV8 => Boolean(item)));
     for (const text of [entry.idea, entry.alternative_explanation]) {
-      const issue = interpretationTextProblem(text) ?? processReferenceProblem(text);
-      if (issue) { push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(text)}`); break; }
+      const issue = interpretationTextProblem(text, claimExempt) ?? processReferenceProblem(text, claimExempt);
+      if (issue) { push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(text, claimExempt)}`); break; }
     }
   });
 
@@ -209,8 +236,10 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     const problem = quoteProblem(itemsById.get(entry.item_id), entry.quote_source, entry.student_quote);
     if (problem) push(path, `quote_${problem}`, "A considered idea quotes the student's own words exactly.");
     if (!referenceIds.has(entry.contradicts_reference_id)) push(path, "unknown_reference", "Name the reference the idea contradicts.");
-    const issue = interpretationTextProblem(entry.idea) ?? processReferenceProblem(entry.idea);
-    if (issue) push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(entry.idea)}`);
+    const ideaItem = itemsById.get(entry.item_id);
+    const ideaExempt = courseContentTerms(input, ideaItem ? [ideaItem] : []);
+    const issue = interpretationTextProblem(entry.idea, ideaExempt) ?? processReferenceProblem(entry.idea, ideaExempt);
+    if (issue) push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(entry.idea, ideaExempt)}`);
   });
 
   return issues;

@@ -180,10 +180,10 @@ A fallback profile has no ratings and no claims, so every fallback weakens the a
 | Cause | What the system does now |
 | --- | --- |
 | The prompt's approval hash is not set | Every submission is a fallback until `INTERPRETATION_V8_APPROVED_PROMPT_HASH` is set. This is the largest cause, and it ends when the evaluation passes. |
-| A transient provider failure (rate limit, timeout, network, server error) | The call waits and retries once. If it fails again, the preparation job tries again later with backoff, and only its last attempt saves a fallback. |
-| A mechanical slip in the output | Fixed rules repair it without changing what the output claims: a quote with "…" is cut to the student's exact words, a short quote grows to its sentence, a missing error source becomes "unclear", and the option-text flag is computed. Every repair is recorded. |
-| An output that still fails after one regeneration | Only the failing parts are removed. A failing claim is dropped, a failing note is cleared, and a failing item is left unrated (it counts as not interpretable). A fallback is saved only when no item keeps a rating. |
-| A check that fires on ordinary course wording | The wording checks now catch only statements about the student's conduct, effort, independence or tool use. Phrases such as "independent of the group", "test-taking motivation" and "a common misconception is…" pass. |
+| A transient provider failure (rate limit, timeout, network, server error) | The call waits and retries once. If it fails again, the preparation job tries again later with backoff, but only while an attempt is left and a retry can still finish within the 10-minute rule. Otherwise the usable parts are kept as described below, or a fallback is saved. |
+| A mechanical slip in the output | Fixed rules repair it without changing what the output claims. A rating quote with "…" becomes the student's continuous words from its first part to its last. For an adequate or limited rating, a short quote grows to its sentence (never into a question), and a close paraphrase of a short explanation becomes the explanation itself (never when it adds or drops a negation). A missing error source becomes "unclear", and the option-text flag is computed. Quotes in claims are only unwrapped; they are never joined or moved to another of the student's texts. Every repair is recorded. |
+| An output that still fails after one regeneration | Only the failing parts are removed. A failing claim is dropped, a failing note is cleared, and a failing item is left unrated, together with any claim that relies on it. An unrated item is shown as administered but is not counted in the topic summary. A fallback is saved only when no item keeps a rating. |
+| A check that fires on ordinary course wording | The wording checks now catch only statements about the student's conduct, effort, independence or tool use. Phrases such as "independent of the group", "test-taking motivation" and "a common misconception is…" pass, and so do words the item itself uses (for example "response time" in an item about response time). "Independence of the response", "lacked motivation" and "engagement was low" are still caught. |
 
 These checks are never loosened:
 
@@ -198,7 +198,7 @@ The evaluation reports, for every run:
 - **Salvage:** salvaged outputs, unrated items and dropped claims.
 - **Repairs:** each repair, by code.
 - **Rejections:** the rejection codes.
-- **Label use:** a table of how often each label was planned and how often the model used it, for explanation quality, error source, item status and the summary label.
+- **Label use:** a table of how often each label was planned and how often the model used it, for explanation quality, error source, item status and the summary label. The table also shows, for each planned label, how many ratings kept it exactly and how many were within its accepted alternatives. Unrated items appear as their own row.
 
 A shift of more than 10 percentage points against the plan, such as complete explanations rated limited, is examined situation by situation.
 

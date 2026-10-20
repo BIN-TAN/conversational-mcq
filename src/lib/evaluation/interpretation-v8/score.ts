@@ -146,7 +146,8 @@ export type ItemComparison = {
   model_error_source: string | null;
   error_source_acceptable: boolean | null;
   expected_status: ItemStatus;
-  model_status: ItemStatus;
+  /** "rating_unavailable" when a salvaged output left the item without a rating. */
+  model_status: ItemStatus | "rating_unavailable";
   side_remark_expected: boolean;
   side_remark_recorded: boolean;
   explanation: string | null;
@@ -224,7 +225,7 @@ export function compareInterpretation(input: {
           expected_beyond: expected.beyond_option_text, model_beyond: null,
           expected_error_source: expected.error_source, model_error_source: null,
           error_source_acceptable: expected.error_source ? false : null,
-          expected_status: expectedStatuses.get(response.item_id)!, model_status: "not_interpretable",
+          expected_status: expectedStatuses.get(response.item_id)!, model_status: "rating_unavailable",
           side_remark_expected: expected.side_remark, side_remark_recorded: false,
           explanation: response.explanation, model_rationale: "(no rating: the item's rating failed the checks and was left out)"
         });
@@ -317,7 +318,13 @@ function summaryFromStatuses(evaluationCase: EvaluationCase, expectation: CaseEx
 export type InterpretationReport = ReturnType<typeof scoreInterpretation>;
 
 /** How often each label was planned (the standard) and how often the model used it. */
-export function labelDistribution<T>(rows: readonly T[], planned: (row: T) => string, model: (row: T) => string, labels: readonly string[]) {
+export function labelDistribution<T>(
+  rows: readonly T[],
+  planned: (row: T) => string,
+  model: (row: T) => string,
+  labels: readonly string[],
+  accepted?: (row: T) => boolean
+) {
   const total = rows.length;
   const all = [...new Set([...labels, ...rows.map(planned), ...rows.map(model)])];
   return all.map((label) => {
@@ -331,7 +338,9 @@ export function labelDistribution<T>(rows: readonly T[], planned: (row: T) => st
       model_share: total ? round(modelCount / total) : null,
       share_difference: total ? round((modelCount - plannedCount) / total) : null,
       /** Of the rows planned with this label, how many the model gave exactly this label. */
-      kept: rows.filter((row) => planned(row) === label && model(row) === label).length
+      kept: rows.filter((row) => planned(row) === label && model(row) === label).length,
+      /** Of the rows planned with this label, how many the model gave an accepted label (this or an accepted alternative). */
+      accepted: accepted ? rows.filter((row) => planned(row) === label && accepted(row)).length : null
     };
   }).filter((row) => row.planned || row.model || labels.includes(row.label));
 }
@@ -351,7 +360,11 @@ export function scoreInterpretation(input: {
   const repairCounts = new Map<string, number>();
   for (const record of input.records) for (const repair of record.repairs ?? []) repairCounts.set(repair.code, (repairCounts.get(repair.code) ?? 0) + 1);
   const unratedItems = items.filter((item) => item.model_quality === "rating_unavailable").length;
-  const firstAttempt = input.records.filter((record) => record.status === "validated" && record.attempts.length === 1).length;
+  // Outputs the model produced (provider failures and transient retries are not outputs).
+  const modelOutputs = (record: InterpretationRunRecord) => record.attempts.filter((attempt) => attempt.outcome === "validated" || attempt.outcome === "invalid_output").length;
+  const firstAttempt = input.records.filter((record) => record.status === "validated" && !record.salvage && modelOutputs(record) === 1).length;
+  const transientRecovered = input.records.filter((record) => record.status === "validated" &&
+    record.attempts.some((attempt) => attempt.outcome === "provider_failure" || attempt.outcome === "provider_exception")).length;
   const issueCounts = new Map<string, number>();
   for (const record of input.records) {
     for (const attempt of record.attempts) for (const issue of attempt.issues) issueCounts.set(issue.code, (issueCounts.get(issue.code) ?? 0) + 1);
@@ -360,7 +373,8 @@ export function scoreInterpretation(input: {
   const qualityPairs: LabelPair[] = items.map((item) => [item.expected_quality[0], item.model_quality]);
   // Agreement with acceptable alternatives: a rating in the acceptable list counts as the reference.
   const acceptablePairs: LabelPair[] = items.map((item) => [item.quality_acceptable ? item.model_quality : item.expected_quality[0], item.model_quality]);
-  const qualityCategories = [...EXPLANATION_QUALITIES];
+  const qualityCategories: string[] = [...EXPLANATION_QUALITIES];
+  if (items.some((item) => item.model_quality === "rating_unavailable")) qualityCategories.push("rating_unavailable");
   const adequateIncorrect = items.filter((item) =>
     (item.expected_quality[0] === "adequate" && item.model_quality === "incorrect" && !item.quality_acceptable)
     || (item.expected_quality[0] === "incorrect" && item.model_quality === "adequate" && !item.quality_acceptable)).length;
@@ -446,7 +460,8 @@ export function scoreInterpretation(input: {
     generation: {
       submissions,
       validated_first_attempt: firstAttempt,
-      validated_after_regeneration: submissions - fallback - firstAttempt,
+      validated_after_regeneration: submissions - fallback - firstAttempt - salvaged.length,
+      validated_after_transient_failure: transientRecovered,
       fallback,
       fallback_rate: submissions ? round(fallback / submissions) : null,
       fallback_rate_interval: wilsonInterval(fallback, submissions),
@@ -528,12 +543,14 @@ export function scoreInterpretation(input: {
     quality_stability: stability(qualityRuns),
     situations,
     label_distributions: {
-      explanation_quality: labelDistribution(items, (item) => item.quality_acceptable ? item.model_quality : item.expected_quality[0],
-        (item) => item.model_quality, [...EXPLANATION_QUALITIES, "rating_unavailable"]),
-      error_source: labelDistribution(items.filter((item) => item.expected_error_source || item.model_error_source),
-        (item) => item.error_source_acceptable ? item.model_error_source ?? "none" : item.expected_error_source?.[0] ?? "none",
-        (item) => item.model_error_source ?? "none", [...ERROR_SOURCES, "none"]),
-      item_status: labelDistribution(items, (item) => item.expected_status, (item) => item.model_status, [...ITEM_STATUSES]),
+      // Planned = the first-listed (reference) category, so a systematic shift shows even
+      // when the model's label is an accepted alternative; "accepted" counts those.
+      explanation_quality: labelDistribution(items, (item) => item.expected_quality[0], (item) => item.model_quality,
+        [...EXPLANATION_QUALITIES, "rating_unavailable"], (item) => item.quality_acceptable),
+      error_source: labelDistribution(items.filter((item) => item.model_quality !== "rating_unavailable" && (item.expected_error_source || item.model_error_source)),
+        (item) => item.expected_error_source?.[0] ?? "none", (item) => item.model_error_source ?? "none", [...ERROR_SOURCES, "none"],
+        (item) => item.error_source_acceptable ?? (item.model_error_source === null)),
+      item_status: labelDistribution(items, (item) => item.expected_status, (item) => item.model_status, [...ITEM_STATUSES, "rating_unavailable"]),
       summary_label: labelDistribution(summaries, (entry) => entry.expected, (entry) => entry.model,
         ["Mostly understood", "Still developing", "Need more work", "Pending item review", "Unavailable / insufficient evidence"])
     },

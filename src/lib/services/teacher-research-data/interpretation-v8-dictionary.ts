@@ -542,12 +542,12 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     side_remark: model("An incorrect remark outside the essential elements, recorded without changing the rating.", `${STORED}: items[].side_remark.`),
     uncertainty_note: model("What remains uncertain about this item, according to the model.", `${STORED}: items[].uncertainty_note.`),
     item_status: rule(
-      "Application status of the item. " + RULE_TEXT.status + " Blank for fallback profiles.",
+      "Application status of the item. " + RULE_TEXT.status + " Blank for fallback profiles and for items left without a rating by salvage (rating_unavailable true; those items are not counted).",
       `${STORED}: items[].status, computed at submission by rules.itemStatus from answer_correct, explanation_quality and the rapid-selection indicator.`,
       { allowed_values: list(ITEM_STATUSES) }
     ),
     rating_unavailable: rule(
-      "true when the model's output was salvaged and this item's rating failed the application's checks: the item has no rating and counts as not interpretable. Blank for earlier profiles and for fallback profiles.",
+      "true when the model's output was salvaged and this item's rating failed the application's checks: the item has no rating and no status, and it is not counted in the summary label (a failed model check is not evidence about the student). Blank for fallback profiles.",
       `${STORED}: items[].rating_unavailable (set by interpretation-v8/repair.ts salvage).`,
       { data_type: "boolean", allowed_values: "true; false" }
     ),

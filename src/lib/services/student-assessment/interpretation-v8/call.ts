@@ -41,7 +41,7 @@ export type InterpretationCallResult =
       repairs?: InterpretationRepair[];
       salvage?: (InterpretationSalvage & { from_attempt: number }) | null;
     }
-  | { status: "failed" | "blocked"; reason: string; agent_call_id: string | null; transient?: boolean };
+  | { status: "failed" | "blocked"; reason: string; agent_call_id: string | null; transient?: boolean; deferrable?: boolean };
 
 type Plan =
   | { mode: "local_test" }
@@ -95,6 +95,8 @@ export async function callInterpretationV8(input: {
   response_package_id: string;
   model_input: InterpretationInputV8;
   provider_generation_allowed: boolean;
+  /** When the preparation job can retry later: a transient last failure is returned, not salvaged. */
+  prefer_deferral_on_transient_failure?: boolean | (() => boolean);
 }): Promise<InterpretationCallResult> {
   const callPlan = plan(input.provider_generation_allowed);
   const invocationBase = `interpretation-v8:${input.concept_unit_session_db_id}:${input.response_package_id}`;
@@ -157,6 +159,7 @@ export async function callInterpretationV8(input: {
     provider: callPlan.provider,
     model_config: model,
     model_input: input.model_input,
+    prefer_deferral_on_transient_failure: input.prefer_deferral_on_transient_failure,
     async on_attempt_start({ attempt, client_request_id, provider_input }) {
       const call = await prisma.agentCall.create({
         data: {
@@ -230,7 +233,9 @@ export async function callInterpretationV8(input: {
           output_validated: true,
           call_status: "succeeded",
           error_category: null,
-          validation_error: `salvaged: ${JSON.stringify(generation.salvage)}`.slice(0, 4000)
+          // The rejected output stays in raw_output; the issues that led to salvage are kept here.
+          validation_error: `salvaged: ${JSON.stringify(generation.salvage)}; issues: ${(generation.attempts.find((attempt) =>
+            attempt.attempt === generation.salvage!.from_attempt)?.issues ?? []).map((issue) => `${issue.path}: ${issue.code}`).join("; ")}`.slice(0, 4000)
         }
       });
       return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: salvagedCallId,
@@ -239,5 +244,6 @@ export async function callInterpretationV8(input: {
     return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: lastCallId!,
       repairs: generation.repairs, salvage: null };
   }
-  return { status: "failed", reason: generation.reason, agent_call_id: lastCallId, transient: generation.transient };
+  return { status: "failed", reason: generation.reason, agent_call_id: lastCallId, transient: generation.transient,
+    deferrable: generation.deferrable };
 }

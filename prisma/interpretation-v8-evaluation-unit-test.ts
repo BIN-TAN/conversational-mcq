@@ -38,6 +38,7 @@ import {
   coderAgreement,
   expectationsFromFixtures,
   expectationsFromReference,
+  labelDistribution,
   scoreInterpretation,
   type ReferenceCodingRow
 } from "../src/lib/evaluation/interpretation-v8/score";
@@ -326,6 +327,25 @@ async function main() {
       ]
     });
     assert.deepEqual([...tags.entries()], [["itm_1", "reliability = validity"], ["itm_2", null], ["itm_3", null]]);
+  });
+
+  await check("label use is compared with the plan, with exact and accepted counts", () => {
+    const rows = [
+      { planned: "adequate", model: "adequate", ok: true },
+      { planned: "adequate", model: "limited", ok: true },
+      { planned: "limited", model: "limited", ok: true },
+      { planned: "incorrect", model: "rating_unavailable", ok: false }
+    ];
+    const table = labelDistribution(rows, (row) => row.planned, (row) => row.model,
+      ["adequate", "limited", "incorrect", "no_usable_explanation", "rating_unavailable"], (row) => row.ok);
+    const byLabel = new Map(table.map((row) => [row.label, row]));
+    assert.equal(byLabel.get("adequate")!.planned_share, 0.5);
+    assert.equal(byLabel.get("adequate")!.model_share, 0.25);
+    assert.equal(byLabel.get("adequate")!.kept, 1);
+    assert.equal(byLabel.get("adequate")!.accepted, 2, "An accepted alternative counts as accepted, not as kept");
+    assert.equal(byLabel.get("limited")!.share_difference, 0.25);
+    assert.equal(byLabel.get("rating_unavailable")!.model, 1, "Unrated items are shown, not hidden");
+    assert.equal(byLabel.get("no_usable_explanation")!.planned, 0, "Every planned label is listed even when unused");
   });
 
   console.log(`interpretation-v8-evaluation-unit-test: ${checks} checks passed`);
