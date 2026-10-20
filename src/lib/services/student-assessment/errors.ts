@@ -2,7 +2,6 @@ export type StudentAssessmentErrorCode =
   | "assessment_attempt_limit_reached"
   | "attempt_still_open"
   | "existing_resumable_attempt"
-  | "interpretation_validation_failed"
   | "assessment_not_available"
   | "assessment_archived"
   | "assessment_not_published"

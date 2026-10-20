@@ -131,7 +131,13 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
         concept_unit_public_id: payload.concept_unit_public_id, execution_mode: payload.execution_mode,
         assert_preparation_active: assertActive
       });
-      if (result.state.formative_conversation?.opening_status !== "ready") {
+      const conversation = result.state.formative_conversation;
+      // A failed opening is retried automatically. On the last automatic attempt, if the
+      // profile and conversation exist, preparation completes anyway: the student then sees
+      // the answer review, a retry for the opening and the End button, instead of being held
+      // at "learning support could not be prepared" with no way forward.
+      const handOverToConversation = Boolean(conversation) && job.attempt_count >= job.max_attempts;
+      if (conversation?.opening_status !== "ready" && !handOverToConversation) {
         throw new Error("preparation_opening_not_ready");
       }
     }

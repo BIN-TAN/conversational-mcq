@@ -11,7 +11,6 @@ import {
   type FormativeExecutionMode
 } from "@/lib/services/student-assessment/formative-execution-mode";
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
-import { StudentAssessmentServiceError } from "../errors";
 import { attemptContextForSession } from "./attempts";
 import { callInterpretationV8 } from "./call";
 import { loadInterpretationInputV8 } from "./input-builder";
@@ -85,14 +84,10 @@ export async function prepareInitialInterpretationV8(input: {
       model_input: loaded.input,
       provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed
     });
-    if (result.status === "failed" && result.reason === "validation_failed") {
-      // Two rejected outputs: no profile is saved and preparation is retried later.
-      throw new StudentAssessmentServiceError(
-        "interpretation_validation_failed",
-        "The interpretation did not pass the application's checks; preparation will be retried.",
-        503
-      );
-    }
+    // Whatever the outcome (validated, rejected twice, model unreachable or not approved), a
+    // profile is saved and the student continues. A rejection never blocks the student: the
+    // fallback profile carries the deterministic answer review but no ratings or claims, its
+    // label is Unavailable, and the rejected outputs stay in the AgentCall records for review.
     const responsePackage = await prisma.responsePackage.findUniqueOrThrow({
       where: { id: input.response_package_id },
       select: { payload: true }

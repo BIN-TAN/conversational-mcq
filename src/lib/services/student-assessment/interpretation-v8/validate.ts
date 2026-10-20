@@ -7,8 +7,8 @@ import type {
 
 /**
  * Application checks on a v8 profiling output (docs/AI_MODULE_REDESIGN_2026-10-19.md,
- * section 5). A rejected output is regenerated once with the issue list; a second failure
- * saves no profile.
+ * section 5). A rejected output is regenerated once with the issue list; after a second
+ * rejection the fallback profile is saved (no ratings or claims) and the student continues.
  */
 export type InterpretationIssue = { path: string; code: string; message: string };
 

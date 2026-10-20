@@ -173,6 +173,15 @@ function explanationSummary(stored: StoredInterpretationV8) {
 
 const NOT_PRODUCED = "Not produced by interpretation v8; see the item interpretations.";
 
+/** Instructor-facing reason for a fallback profile. */
+export function fallbackReasonText(reason: string | null) {
+  if (reason === "validation_failed") return "The interpretation did not pass the application's checks after one regeneration.";
+  if (reason && /^(provider_generation_not_allowed|operational_agent_mode_disabled|live_calls_disabled|interpretation_v8_not_approved|configuration_)/.test(reason)) {
+    return `No model call was allowed (${reason}).`;
+  }
+  return `The model could not be reached (${reason ?? "unknown"}).`;
+}
+
 export function studentProfileDataV8(input: {
   concept_unit_session_db_id: string;
   based_on_agent_call_db_id: string | null;
@@ -204,7 +213,7 @@ export function studentProfileDataV8(input: {
     engagement_summary: NOT_PRODUCED,
     process_interpretation_cautions: (fallback ? [FALLBACK_PROFILE_CAUTION] : []) as Prisma.InputJsonValue,
     profile_confidence: "low" as const,
-    rationale: fallback ? `Fallback profile: ${input.stored.fallback_reason ?? "no interpretation"}.` : NOT_PRODUCED,
+    rationale: fallback ? `Fallback profile, no diagnostic claims. ${fallbackReasonText(input.stored.fallback_reason)}` : NOT_PRODUCED,
     recommended_next_evidence: [] as Prisma.InputJsonValue,
     based_on_agent_call_db_id: input.based_on_agent_call_db_id
   } satisfies Prisma.StudentProfileUncheckedCreateInput;

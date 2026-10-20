@@ -272,6 +272,22 @@ async function main() {
     assert.equal(fallback.items[0].status, null);
   });
 
+  const { studentProfileDataV8, fallbackReasonText } = await import("../src/lib/services/student-assessment/interpretation-v8/profile");
+  await check("Two rejected outputs save a fallback profile with no claims, so the student continues", () => {
+    const stored = buildStoredInterpretationV8({
+      model_input: built, output: null, generation_mode: "fallback", fallback_reason: "validation_failed",
+      response_package_id: "pkg-1", answer_review_v2: { review: "kept" }
+    });
+    const data = studentProfileDataV8({ concept_unit_session_db_id: "unit-1", based_on_agent_call_db_id: "call-1", stored });
+    assert.deepEqual(data.process_interpretation_cautions, ["Fallback-derived profile"]);
+    assert.equal(data.evidence_sufficiency, "insufficient");
+    assert.deepEqual(stored.answer_review_v2, { review: "kept" }, "The answer review is still shown to the student");
+    assert.equal(stored.possible_misconceptions.length + stored.considered_ideas.length, 0);
+    assert.match(data.rationale, /did not pass the application's checks/);
+    assert.match(fallbackReasonText("interpretation_v8_not_approved"), /No model call was allowed/);
+    assert.match(fallbackReasonText("provider_exception"), /could not be reached/);
+  });
+
   const contract = await import("../src/lib/services/student-assessment/interpretation-v8/contract");
   await check("The prompt matches the documented rules and has a stable hash", () => {
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /Report a possible misconception only when both conditions hold/);
