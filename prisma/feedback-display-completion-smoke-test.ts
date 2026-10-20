@@ -104,6 +104,9 @@ async function main() {
     await assert.rejects(lifecycle("finish"), /Finish is available/);
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: concept.initial_completed_at } });
     await assert.rejects(updateStudentFormativeConversationLifecycle({ ...input, student_user_db_id: assessment.created_by_user_db_id!, action: "finish" }));
+    // Restore the student-stop fixture after checking the platform-failure guard;
+    // the export assertions below exercise a student ending after seeing the opening.
+    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "student_ended_conversation" } });
     await Promise.all([lifecycle("finish"), lifecycle("finish")]);
     const completed = await db.assessmentSession.findUniqueOrThrow({ where: { id: session.id } });
     assert.equal(completed.status, "completed"); assert.equal(completed.current_phase, "session_completed"); assert(completed.completed_at);
