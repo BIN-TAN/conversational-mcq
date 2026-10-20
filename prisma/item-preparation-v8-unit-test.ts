@@ -317,7 +317,8 @@ async function main() {
 
   const prep = await import("../src/lib/services/content/item-preparation/contract");
   await check("The item preparation prompt is section 9.2 verbatim, with a stable hash", () => {
-    const doc = readFileSync(path.join(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8");
+    // Line endings are normalised: a Windows checkout may turn the document into CRLF.
+    const doc = readFileSync(path.join(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8").replace(/\r\n/g, "\n");
     const section = doc.slice(doc.indexOf("### 9.2 Item preparation"), doc.indexOf("### 9.3 Item administration"));
     const block = section.match(/```text\n([\s\S]*?)\n```/);
     assert.ok(block, "Section 9.2 has a text block");

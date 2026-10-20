@@ -104,7 +104,8 @@ async function main() {
 
   // 1. Prompt and versions --------------------------------------------------------------------
   await check("The prompt is the 9.3 code block verbatim; versions and hash follow it", () => {
-    const doc = readFileSync(path.resolve(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8");
+    // Line endings are normalised: a Windows checkout may turn the document into CRLF.
+    const doc = readFileSync(path.resolve(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8").replace(/\r\n/g, "\n");
     const section = doc.split("### 9.3 Item administration")[1].split("### 9.4")[0];
     const block = /```text\n([\s\S]*?)\n```/.exec(section)?.[1];
     assert.ok(block, "9.3 code block not found");

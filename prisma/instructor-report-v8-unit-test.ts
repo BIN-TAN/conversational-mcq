@@ -402,7 +402,8 @@ async function main() {
   });
 
   await check("The prompt is the document's section 9.7 text, verbatim, with its own versions and hash", () => {
-    const doc = readFileSync(new URL("../docs/AI_MODULE_REDESIGN_2026-10-19.md", import.meta.url), "utf8");
+    // Line endings are normalised: a Windows checkout may turn the document into CRLF.
+    const doc = readFileSync(new URL("../docs/AI_MODULE_REDESIGN_2026-10-19.md", import.meta.url), "utf8").replace(/\r\n/g, "\n");
     const section = doc.slice(doc.indexOf("### 9.7 Instructor reporting"));
     const block = /```text\n([\s\S]*?)\n```/.exec(section)![1];
     assert.equal(contract.INSTRUCTOR_REPORT_V8_INSTRUCTIONS, block);
