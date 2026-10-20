@@ -31,6 +31,15 @@ import {
   type FormativeConversationV18R2AgentOutput
 } from "./agent-contract-v18r2";
 import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
+import {
+  FEEDBACK_V8_CONTRACT_VERSION,
+  FeedbackV8OutputSchema,
+  type FeedbackV8Input,
+  type FeedbackV8Output
+} from "../feedback-v8/contract";
+import { compileFeedbackV8Context } from "../feedback-v8/context";
+import { FeedbackV8ExecutionError, type FeedbackV8Runner } from "../feedback-v8/runner";
+import { validateFeedbackV8Output } from "../feedback-v8/validate";
 import { FormativeConversationUnavailableError, formativeConversationUnavailableFromConfiguration } from "./availability";
 import { validateFormativeConversationV18CandidateAcceptance } from "./candidate-validation-v18";
 import {
@@ -103,7 +112,8 @@ const FormativeConversationAgentIdentitySchema = z
     schema_version: z.union([
       z.literal(FORMATIVE_CONVERSATION_AGENT_CONTRACT_VERSION),
       z.literal(FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION),
-      z.literal(FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION)
+      z.literal(FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION),
+      z.literal(FEEDBACK_V8_CONTRACT_VERSION)
     ]),
     prompt_hash: z.string().min(1),
     reasoning_effort: z.string().min(1).nullable().optional(),
@@ -183,15 +193,63 @@ export interface FormativeConversationV18R2AgentRunner {
 export type AnyFormativeConversationAgentRunner =
   | FormativeConversationAgentRunner
   | FormativeConversationV18AgentRunner
-  | FormativeConversationV18R2AgentRunner;
+  | FormativeConversationV18R2AgentRunner
+  | FeedbackV8Runner;
 type AnyFormativeConversationAgentInput =
   | FormativeConversationAgentInput
   | FormativeConversationV18AgentInput
-  | FormativeConversationV18R2AgentInput;
+  | FormativeConversationV18R2AgentInput
+  | FeedbackV8Input;
 type AnyFormativeConversationAgentOutput =
   | FormativeConversationAgentOutput
   | FormativeConversationV18AgentOutput
-  | FormativeConversationV18R2AgentOutput;
+  | FormativeConversationV18R2AgentOutput
+  | FeedbackV8Output;
+
+function isFeedbackV8Runner(
+  runner: AnyFormativeConversationAgentRunner
+): runner is FeedbackV8Runner {
+  return runner.identity.schema_version === FEEDBACK_V8_CONTRACT_VERSION;
+}
+
+function isFeedbackV8Context(
+  context: AnyFormativeConversationAgentInput
+): context is FeedbackV8Input {
+  return context.contract_version === FEEDBACK_V8_CONTRACT_VERSION;
+}
+
+/** Feedback v8: the turn record's instructor-review flag becomes an open review signal. */
+async function recordFeedbackV8ReviewSignal(input: {
+  conversation_public_id: string;
+  source_tutor_turn_db_id: string;
+  output: FeedbackV8Output;
+}) {
+  if (input.output.instructor_review.flag === "none") return null;
+  const conversation = await prisma.formativeConversationSession.findUniqueOrThrow({
+    where: { conversation_public_id: input.conversation_public_id },
+    select: { id: true, initial_student_profile_db_id: true }
+  });
+  const existing = await prisma.formativeConversationReviewSignal.findFirst({
+    where: { formative_conversation_session_db_id: conversation.id, source_turn_db_id: input.source_tutor_turn_db_id },
+    select: { id: true }
+  });
+  if (existing) return existing;
+  return prisma.formativeConversationReviewSignal.create({
+    data: {
+      formative_conversation_session_db_id: conversation.id,
+      source_student_profile_db_id: conversation.initial_student_profile_db_id,
+      source_turn_db_id: input.source_tutor_turn_db_id,
+      signal_type: "feedback_v8_instructor_review",
+      reason_code: input.output.instructor_review.flag,
+      evidence_summary: prismaJson({
+        reason: input.output.instructor_review.reason,
+        focus: input.output.focus,
+        student_evidence: input.output.student_evidence
+      })
+    },
+    select: { id: true }
+  });
+}
 
 function isV18Runner(
   runner: AnyFormativeConversationAgentRunner
@@ -220,6 +278,9 @@ function isV18R2SchemaVersion(schemaVersion: string) {
 }
 
 function parseOutputForSchema(schemaVersion: string, value: unknown) {
+  if (schemaVersion === FEEDBACK_V8_CONTRACT_VERSION) {
+    return FeedbackV8OutputSchema.safeParse(value);
+  }
   if (isV18R2SchemaVersion(schemaVersion)) {
     return FormativeConversationV18R2AgentOutputSchema.safeParse(value);
   }
@@ -233,6 +294,18 @@ function validateOutputForContext(input: {
   output: AnyFormativeConversationAgentOutput;
   context: AnyFormativeConversationAgentInput;
 }) {
+  if (isFeedbackV8Context(input.context)) {
+    const parsed = FeedbackV8OutputSchema.safeParse(input.output);
+    const issues = parsed.success
+      ? validateFeedbackV8Output(input.context, parsed.data)
+      : [{ path: "$", code: "schema_mismatch", message: "schema" }];
+    return {
+      valid: parsed.success && issues.length === 0,
+      output: parsed.success && issues.length === 0 ? parsed.data : null,
+      issue_paths: issues.map((issue) => `${issue.path}:${issue.code}`),
+      validation_status: parsed.success && issues.length === 0 ? "valid" : "feedback_v8_checks_failed"
+    };
+  }
   if (
     input.context.contract_version ===
     FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
@@ -281,7 +354,10 @@ async function compileRuntimeContext(input: {
   conversation_public_id: string;
   context: FormativeConversationRuntimeContextSeed;
   schema_version: string;
-}) {
+}): Promise<{ context: AnyFormativeConversationAgentInput }> {
+  if (input.schema_version === FEEDBACK_V8_CONTRACT_VERSION) {
+    return compileFeedbackV8Context({ conversation_public_id: input.conversation_public_id });
+  }
   if (isV18R2SchemaVersion(input.schema_version)) {
     return compilePersistedFormativeConversationV18R2Context({
       conversation_public_id: input.conversation_public_id,
@@ -405,6 +481,20 @@ async function persistAgentProfileEvidence(input: {
   output: AnyFormativeConversationAgentOutput;
   context: AnyFormativeConversationAgentInput;
 }) {
+  if (isFeedbackV8Context(input.context)) {
+    // Feedback v8 never changes the profile: no evidence references, no transitions. The
+    // turn record stays in the AgentCall output; a review flag becomes a review signal.
+    await recordFeedbackV8ReviewSignal({
+      conversation_public_id: input.conversation_public_id,
+      source_tutor_turn_db_id: input.source_tutor_turn_db_id,
+      output: FeedbackV8OutputSchema.parse(input.output)
+    });
+    return {
+      evidence: { references: [] as Awaited<ReturnType<typeof prisma.formativeConversationProfileEvidenceReference.findMany>> },
+      profile_transition: null,
+      profile_transition_rejection: null
+    };
+  }
   if (
     input.context.contract_version ===
       FORMATIVE_CONVERSATION_V18_AGENT_CONTRACT_VERSION ||
@@ -773,8 +863,14 @@ async function executeOrResumeAgentCall(input: {
     await assertAgentCallUsageAllowed(started.agent_call.id);
     execution = FormativeConversationAgentExecutionSchema.parse(
       await executeFormativeConversationProviderOutsidePersistence({
-        execute: () =>
-          isV18R2Runner(input.runner)
+        execute: (): Promise<FormativeConversationAgentExecution> =>
+          isFeedbackV8Runner(input.runner)
+            ? input.runner.execute({
+                agent_call_db_id: started.agent_call.id,
+                invocation_key: key,
+                context: input.context as FeedbackV8Input
+              })
+            : isV18R2Runner(input.runner)
             ? input.runner.execute({
                 agent_call_db_id: started.agent_call.id,
                 invocation_key: key,
@@ -796,6 +892,38 @@ async function executeOrResumeAgentCall(input: {
   } catch (error) {
     if (error instanceof LlmUsageBlockedError) {
       throw new FormativeConversationUnavailableError(error.reason);
+    }
+    if (error instanceof FeedbackV8ExecutionError) {
+      await prisma.agentCall.update({
+        where: { id: started.agent_call.id },
+        data: {
+          raw_output: prismaJson(redactForAudit({ feedback_v8_attempts: error.attempts })),
+          output_validated: false,
+          validation_error: JSON.stringify({
+            category: error.failure_class,
+            attempts: error.attempts.map((attempt) => ({
+              attempt: attempt.attempt,
+              status: attempt.status,
+              issue_paths: attempt.issues.map((issue) => `${issue.path}:${issue.code}`)
+            }))
+          }).slice(0, 8000),
+          error_category: `feedback_v8_${error.failure_class}`,
+          call_status: error.failure_class === "transport_failure" ? "failed" : "invalid_output",
+          latency_ms: Math.max(0, error.completed_at.getTime() - error.started_at.getTime()),
+          retry_count: Math.max(0, error.attempts.length - 1),
+          input_tokens: error.usage.input_tokens,
+          output_tokens: error.usage.output_tokens,
+          total_tokens: error.usage.total_tokens,
+          started_at: error.started_at,
+          completed_at: error.completed_at
+        }
+      });
+      const finalTurn = isFeedbackV8Context(input.context) && input.context.lifecycle.final_allowed_turn;
+      throw new FormativeConversationRuntimeError(
+        error.failure_class === "transport_failure" ? "agent_call_failed" : "agent_output_invalid",
+        "The feedback v8 provider result failed closed.",
+        finalTurn ? "final_turn_semantic_regeneration_exhausted" : error.failure_class
+      );
     }
     if (
       error instanceof FormativeConversationV18ExecutionError ||
@@ -1339,7 +1467,16 @@ export async function processFormativeConversationOpening(
     });
   }
 
-  const openingValidation = isV18R2Runner(runner)
+  const openingValidation = isFeedbackV8Runner(runner)
+    ? (() => {
+        const result = validateOutputForContext({ output: agentResult.output, context: compiled.context });
+        return {
+          valid: result.valid,
+          output: result.output as FeedbackV8Output | null,
+          validation_issue_paths: result.issue_paths
+        };
+      })()
+    : isV18R2Runner(runner)
     ? validateFormativeConversationV18R2CandidateAcceptance({
         candidate: agentResult.output,
         context: compiled.context as FormativeConversationV18R2AgentInput
@@ -1421,6 +1558,13 @@ export async function processFormativeConversationOpening(
     event_source: "backend",
     occurred_at: tutorMessage.assistant_turn.created_at
   });
+  if (isFeedbackV8Runner(runner)) {
+    await recordFeedbackV8ReviewSignal({
+      conversation_public_id: input.conversation_public_id,
+      source_tutor_turn_db_id: tutorMessage.assistant_turn.id,
+      output: FeedbackV8OutputSchema.parse(openingValidation.output)
+    });
+  }
 
   return {
     receipt: tutorMessage.receipt,
@@ -1660,7 +1804,9 @@ export async function processFormativeConversationStudentMessage(
       FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION
         ? (compiled.context as FormativeConversationV18R2AgentInput)
             .formative_lifecycle
-        : null;
+        : isFeedbackV8Context(compiled.context)
+          ? compiled.context.lifecycle
+          : null;
     if (
       error instanceof FormativeConversationRuntimeError &&
       error.reason_code ===
@@ -1786,10 +1932,11 @@ export async function processFormativeConversationStudentMessage(
     context: compiled.context
   });
   if (
-    compiled.context.contract_version ===
+    (compiled.context.contract_version ===
       FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
-    (compiled.context as FormativeConversationV18R2AgentInput)
-      .formative_lifecycle.final_allowed_turn
+      (compiled.context as FormativeConversationV18R2AgentInput)
+        .formative_lifecycle.final_allowed_turn) ||
+    (isFeedbackV8Context(compiled.context) && compiled.context.lifecycle.final_allowed_turn)
   ) {
     try {
       await closeFormativeConversationAtStudentTurnLimit({

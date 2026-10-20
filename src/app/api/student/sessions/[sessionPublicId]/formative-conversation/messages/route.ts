@@ -5,8 +5,8 @@ import {
   studentAssessmentRouteError
 } from "@/lib/services/student-assessment/api";
 import {
-  buildFormativeConversationRuntimeContextSeed,
-  createLiveFormativeConversationV18R2AgentRunner,
+  formativeConversationReplyRunnerFactory,
+  formativeConversationRuntimeSeed,
   FormativeConversationResponseGenerationError,
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
@@ -86,7 +86,7 @@ export async function POST(
       );
     }
     // Reservation serializes new messages and permits exact replays of saved ones.
-    const seed = await buildFormativeConversationRuntimeContextSeed({
+    const seed = await formativeConversationRuntimeSeed({
       conversation_public_id: body.conversation_public_id,
       student_user_db_id: auth.user.user_db_id
     });
@@ -126,7 +126,7 @@ export async function POST(
               }
             : undefined
         },
-        { runner_factory: createLiveFormativeConversationV18R2AgentRunner }
+        { runner_factory: await formativeConversationReplyRunnerFactory(body.conversation_public_id) }
       );
     } catch (error) {
       if (!(error instanceof FormativeConversationResponseGenerationError)) {

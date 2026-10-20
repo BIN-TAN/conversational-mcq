@@ -8,6 +8,8 @@ import {
   type FormativeExecutionMode
 } from "@/lib/services/student-assessment/formative-execution-mode";
 import { FormativeConversationUnavailableError } from "./availability";
+import { conversationUsesFeedbackV8 } from "../feedback-v8/context";
+import { createFeedbackV8Runner } from "../feedback-v8/runner";
 import { createFormativeConversationOpeningRunner } from "./opening-runner";
 import {
   FormativeConversationRuntimeError,
@@ -49,7 +51,12 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
     };
   }
 
-  try {
+  const feedbackV8 = await conversationUsesFeedbackV8({
+    concept_unit_session_db_id: input.concept_unit_session_db_id
+  });
+  // Interpretation v8 saved the profile already (always, with a fallback when needed), so
+  // the legacy profiling repair step does not run for these conversations.
+  if (!feedbackV8) try {
     const profileReadiness = await runInitialStudentProfiling({
       concept_unit_session_db_id: input.concept_unit_session_db_id,
       invocation_reason:
@@ -90,7 +97,9 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
       },
       {
         runner_factory: () =>
-          createFormativeConversationOpeningRunner(input.execution_mode)
+          feedbackV8
+            ? createFeedbackV8Runner(input.execution_mode)
+            : createFormativeConversationOpeningRunner(input.execution_mode)
       }
     );
 

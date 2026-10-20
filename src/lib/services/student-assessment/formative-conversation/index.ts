@@ -17,6 +17,7 @@ export * from "./profile-projection";
 export * from "./profile-update";
 export * from "./runtime";
 export * from "./runtime-context";
+export * from "./runner-selection";
 export * from "./safety-boundary";
 export * from "./service";
 export * from "./telemetry-contract";

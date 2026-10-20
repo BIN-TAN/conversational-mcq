@@ -4,6 +4,7 @@ import { Prisma, type WorkflowJob } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
+import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { getWorkflowJobConfig, retryDelayMs } from "./config";
 
 export const INITIAL_PREPARATION_JOB = "prepare_initial_conversation" as const;
@@ -132,11 +133,28 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
         assert_preparation_active: assertActive
       });
       const conversation = result.state.formative_conversation;
-      // A failed opening is retried automatically. On the last automatic attempt, if the
-      // profile and conversation exist, preparation completes anyway: the student then sees
-      // the answer review, a retry for the opening and the End button, instead of being held
-      // at "learning support could not be prepared" with no way forward.
-      const handOverToConversation = Boolean(conversation) && job.attempt_count >= job.max_attempts;
+      // A failed opening is retried automatically. When retrying cannot help (the opening is
+      // unavailable, for example its prompt is not approved) or on the last automatic
+      // attempt, preparation completes anyway if the profile and conversation exist: the
+      // student then sees the answer review, a retry for the opening when one can work, and
+      // the End button, instead of "learning support could not be prepared".
+      // (While this job runs the projection reports the opening as "preparing", so the stored
+      // opening receipt is read directly to see whether a retry can help.)
+      const openingReceipt = conversation && conversation.opening_status !== "ready"
+        ? await prisma.formativeConversationMessageReceipt.findFirst({
+            where: {
+              formative_conversation_session: { conversation_public_id: conversation.conversation_public_id },
+              client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+            },
+            select: { status: true, response_payload: true }
+          })
+        : null;
+      const openingPayload = openingReceipt?.response_payload;
+      const retryCannotHelp = openingReceipt?.status === "failed" && Boolean(openingPayload) &&
+        typeof openingPayload === "object" && !Array.isArray(openingPayload) &&
+        (openingPayload as Record<string, unknown>).retryable === false;
+      const handOverToConversation = Boolean(conversation) &&
+        (job.attempt_count >= job.max_attempts || retryCannotHelp);
       if (conversation?.opening_status !== "ready" && !handOverToConversation) {
         throw new Error("preparation_opening_not_ready");
       }
