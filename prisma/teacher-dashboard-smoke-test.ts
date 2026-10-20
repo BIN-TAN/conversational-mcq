@@ -57,9 +57,7 @@ function assertDashboardSurface() {
     "Average elapsed time",
     "Median elapsed time",
     "Response-time data available for",
-    "Engagement overview",
     "Understanding overview",
-    "Engagement review reasons",
     "Item-level diagnostic view",
     "Candidate misconception patterns",
     "response patterns",
@@ -76,6 +74,10 @@ function assertDashboardSurface() {
   }
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
+  // Instructors see understanding, not engagement labels, and no internal snapshot identifiers (20 Oct 2026).
+  for (const removed of ["Engagement overview", "Engagement review reasons", "Administered snapshot"]) {
+    assertExcludes(client, removed, "Teacher assessment dashboard client");
+  }
   assertExcludes(client, "Active interaction time", "Teacher assessment dashboard client");
   assertExcludes(
     client,

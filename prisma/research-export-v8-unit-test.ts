@@ -37,7 +37,7 @@ async function main() {
   const v8export = await import("../src/lib/services/teacher-research-data/interpretation-v8-export");
   const v8dictionary = await import("../src/lib/services/teacher-research-data/interpretation-v8-dictionary");
   const dictionary = await import("../src/lib/services/teacher-research-data/dictionary");
-  const { researchInstructorId, researchStudentId } = await import("../src/lib/services/teacher-research-data/pseudonymization");
+  const { researchInstructorId, researchStudentId, researchStudyCode, studyCodeFromResearchStudentId } = await import("../src/lib/services/teacher-research-data/pseudonymization");
 
   // Four items on one topic; the same items for every student (one mini-test).
   const spec = (id: string, key: string, distractors: Record<string, string>) => ({
@@ -402,6 +402,63 @@ async function main() {
       "A rejected draft's process interpretation is never presented as the model's interpretation");
   });
 
+  await check("Study code: the short form of the research student ID that students see and enter in the forms", () => {
+    const id = researchStudentId("Student_07");
+    assert.match(researchStudyCode("Student_07"), /^[0-9A-F]{4}-[0-9A-F]{4}$/);
+    assert.equal(researchStudyCode("student_07"), studyCodeFromResearchStudentId(id), "Same code as the exported research_student_id, whatever the case of the user ID");
+    assert.equal(studyCodeFromResearchStudentId(id), `${id.slice(3, 7).toUpperCase()}-${id.slice(7, 11).toUpperCase()}`);
+  });
+
+  await check("Data for the research questions: rapid selection, counted items, generation record, feedback seen before", () => {
+    // The rapid-selection value the status rule used is stored and exported with each item.
+    const ratings = v8export.interpretationItemRatingRows(sessionA1, noDecisions, { include_restricted: false });
+    const expectedRapid = inputA.items.map((item) => {
+      const value = item.process_indicators.find((indicator) => indicator.name === "rapid_selection")?.value;
+      return typeof value === "boolean" ? value : null;
+    });
+    assert.deepEqual(ratings.map((row) => row.rapid_selection), expectedRapid);
+    // Items left unrated by salvage have no status and are not counted.
+    const salvaged = buildStoredInterpretationV8({ model_input: inputA, output: { ...outputA, items: outputA.items.filter((item) => item.item_id !== "q2") },
+      generation_mode: "live_model", fallback_reason: null, response_package_id: "pkg-s1", answer_review_v2: null, attempt: attemptFirst("sess_s1") });
+    const salvagedRows = v8export.interpretationItemRatingRows(baseSession("sess_s1", "rs_student_s", 1, [
+      { profile_record_id: "profile_s1", concept_unit_public_id: "cu_sd", created_at: t("2026-10-20T12:00:00.000Z"), item_level_evidence: salvaged, source_agent_call_public_id: null }
+    ]), noDecisions, { include_restricted: false });
+    const q2 = salvagedRows.find((row) => row.item_public_id === "q2")!;
+    assert.equal(q2.rating_unavailable, true);
+    assert.equal(q2.item_counted_with_decisions, false, "An unrated item is not counted in the summary");
+    assert.ok(salvagedRows.filter((row) => row.item_public_id !== "q2").every((row) => row.item_counted_with_decisions === true));
+    const fallbackRows = v8export.interpretationItemRatingRows(sessionFallback, noDecisions, { include_restricted: false });
+    assert.ok(fallbackRows.every((row) => row.item_counted_with_decisions === false), "Fallback items are not counted");
+    // Generation record (Table 3.2): one rejected output then a pass; a blocked call is a provider failure.
+    const [a1] = v8export.interpretationSummaryRows(sessionA1, noDecisions);
+    assert.equal(a1.profiling_call_count, 2);
+    assert.equal(a1.profiling_output_rejected_count, 1);
+    assert.equal(a1.profiling_provider_failure_count, 0);
+    assert.equal(a1.first_output_passed, false);
+    const [fallback] = v8export.interpretationSummaryRows(sessionFallback, noDecisions);
+    assert.equal(fallback.profiling_provider_failure_count, 1);
+    assert.equal(fallback.first_output_passed, null, "No passing output to judge for a fallback profile");
+    const [b1] = v8export.interpretationSummaryRows(sessionB, noDecisions);
+    assert.equal(b1.first_output_passed, true);
+    // attempt-context-v2: feedback counts as seen only when it was recorded on screen.
+    const storedV2 = buildStoredInterpretationV8({ model_input: inputA, output: buildLocalTestInterpretationV8(inputA), generation_mode: "local_test",
+      fallback_reason: null, response_package_id: "pkg-a3", answer_review_v2: null,
+      attempt: { attempt_context_version: "attempt-context-v2", session_public_id: "sess_a3", attempt_number: 3, role: "after_feedback",
+        started_at: "2026-10-22T09:00:00.000Z",
+        feedback_seen_before: [{ session_public_id: "sess_a1", attempt_number: 1, submitted_at: "2026-10-20T09:20:00.000Z", answer_review_shown: true,
+          answer_review_displayed_at: "2026-10-20T09:20:02.000Z", opening_message_at: "2026-10-20T09:21:00.000Z", opening_message_displayed_at: null,
+          student_turns: 0, tutor_turns: 1, last_conversation_turn_at: "2026-10-20T09:21:00.000Z" }] } });
+    const [v2] = v8export.interpretationSummaryRows(baseSession("sess_a3", "rs_student_a", 3, [
+      { profile_record_id: "profile_a3", concept_unit_public_id: "cu_sd", created_at: t("2026-10-22T09:30:00.000Z"), item_level_evidence: storedV2, source_agent_call_public_id: null }
+    ]), noDecisions);
+    assert.equal(v2.attempt_context_version, "attempt-context-v2");
+    assert.equal(v2.answer_review_seen_before, true);
+    assert.equal(v2.opening_message_seen_before, false, "An opening that was created but never displayed was not seen");
+    assert.equal(v2.feedback_seen_attempt_numbers, "1");
+    const [v1] = v8export.interpretationSummaryRows(sessionA2, noDecisions);
+    assert.equal(v1.opening_message_seen_before, true, "attempt-context-v1 records keep their availability meaning");
+  });
+
   await check("Feedback turn records: one row per validated opening or reply, linked to its turn", () => {
     const rows = v8export.feedbackTurnRecordRows(sessionA1);
     assert.equal(rows.length, 2, "Rejected and non-v8 calls are not turn records");
@@ -414,7 +471,7 @@ async function main() {
     assert.equal(opening.strategy, "explain");
     assert.equal(opening.focus_status, null);
     assert.equal(opening.student_evidence_count, 0);
-    assert.equal(opening.mode_prompt_version, "formative-opening-v8.1");
+    assert.equal(opening.mode_prompt_version, "formative-opening-v8", "The prompt the call stored, not the current release");
     assert.equal(opening.review_signal_public_id, null);
     assert.equal(reply.feedback_mode, "reply");
     assert.equal(reply.turn_sequence_index, 42);
@@ -427,7 +484,7 @@ async function main() {
     assert.equal(reply.instructor_review_reason, "Question 4's options may read as equivalent.");
     assert.equal(reply.review_signal_public_id, "sig_a1");
     assert.equal(reply.review_signal_status, "open");
-    assert.equal(reply.mode_prompt_version, "formative-conversation-v8.1");
+    assert.equal(reply.mode_prompt_version, "formative-conversation-v8", "The prompt the call stored, not the current release");
     assert.equal(reply.prompt_hash, "hash-feedback");
     assert.ok(!("message_text" in reply) && !("student_visible_message" in reply), "The tutor text stays in formative_conversation_turns.csv");
   });

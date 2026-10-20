@@ -73,6 +73,7 @@ export const INTERPRETATION_ITEM_RATINGS_COLUMNS = [
   "selected_option",
   "answer_correct",
   "reported_confidence",
+  "rapid_selection",
   "explanation_quality",
   "no_usable_reason",
   "adds_beyond_option_text",
@@ -151,6 +152,12 @@ export const INTERPRETATION_SUMMARIES_COLUMNS = [
   "output_salvaged",
   "salvage_unrated_item_ids",
   "salvage_dropped_claim_count",
+  "profiling_call_count",
+  "profiling_output_rejected_count",
+  "profiling_provider_failure_count",
+  "first_output_passed",
+  "profiling_model_name",
+  "profiling_prompt_hash",
   "attempt_context_version",
   "earlier_attempt_count",
   "feedback_seen_attempt_numbers",
@@ -352,7 +359,7 @@ const RULE_TEXT = {
   pending:
     "Items pending review: an item the model flagged as a possible item issue stays counted. The rule is also applied without the flagged items that have no instructor decision; when the two labels differ the label is withheld as \"" + PENDING_ITEM_REVIEW_LABEL + "\" (reason flagged_items_change_label), otherwise the rule label is kept and label_without_pending records the agreeing label. A kept decision clears the flag; an excluded decision removes the item from the counted items for every student who took it. The stored profile is never changed: labels with decisions are recomputed at export time from the stored item statuses and the current decisions.",
   attempts:
-    "Attempts (section 4.6): every submission has its own profile, created once and never overwritten. attempt_role initial_diagnosis marks the student's first submitted attempt (a later attempt number with no earlier submission is still the initial diagnosis); after_feedback marks an attempt started after an earlier attempt in the same revision family was submitted. feedback_seen_before lists each earlier attempt with the answer review (shown once an attempt is submitted), the time of the opening message and the student and tutor conversation turns created before this attempt started. First and later attempts are analysed separately, never merged.",
+    "Attempts (section 4.6): every submission has its own profile, created once and never overwritten. attempt_role initial_diagnosis marks the student's first submitted attempt (a later attempt number with no earlier submission is still the initial diagnosis); after_feedback marks an attempt started after an earlier attempt in the same assessment family (the original mini-test and its corrected versions) was submitted. feedback_seen_before lists each earlier attempt with its submission time, the first time its answer review and its feedback were recorded on screen before this attempt started (attempt-context-v2: package_results_shown and formative_feedback_shown, compared by server receipt time), the creation time of its opening message, and the student and tutor conversation turns created before this attempt started. Records of attempt-context-v1 (pre-release test data only) matched the revision family on one field and counted a review as seen once the attempt was submitted. First and later attempts are analysed separately, never merged.",
   audit:
     "Audit-only process records (section 6): the application computes " + Object.keys(PROCESS_INDICATOR_DEFINITIONS).length + " process indicators per item (" + PROCESS_INDICATORS_VERSION + ") from the item's own events up to submission and sends them, each with a fixed role, to the profiling model; the model may return one bounded process interpretation per item. These records serve the profiling and feedback models only: they were never shown to instructors or students, never support a possible misconception, never change a rating and never establish independence or tool use. Only the rapid selection enters an application rule (item status). They are exported for audit, in restricted exports only."
 } as const;
@@ -526,6 +533,11 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
       { data_type: "boolean", allowed_values: "true; false", category: "Outcome and scoring data", research_category_id: "item_responses_metacognitive_reports", caution: "Restricted scoring context; with selected_option it reveals the key." }
     ),
     reported_confidence: recorded("Confidence the student reported for the item, copied exactly (low, medium or high); blank when not rated.", `${STORED}: items[].reported_confidence.`, { source_nature: "student_reported", allowed_values: "low; medium; high", category: "Item response data", research_category_id: "item_responses_metacognitive_reports" }),
+    rapid_selection: rule(
+      "true when the student's first answer to the item came less than " + RAPID_SELECTION_THRESHOLD_MS / 1000 + " seconds after the item appeared (the application's rapid-selection indicator), false when it came later; blank when the time could not be computed or the profile was saved before 2026-10-20. This is the value the item-status rule used: a rapid selection with no usable explanation is not_interpretable. A process indicator, not evidence of guessing or effort.",
+      `${STORED}: items[].rapid_selection, the rapid_selection process indicator computed by interpretation-v8/indicators.ts at submission (time to first option selection, falling back to the sealed package's response_time_answer_ms).`,
+      { data_type: "boolean", allowed_values: "true; false", category: "Process event data", research_category_id: "timing_and_interaction" }
+    ),
     explanation_quality: model(
       "The model's rating of the item's explanation against its essential elements (section 4.2). " + RULE_TEXT.ratings.replace(/^Explanation quality \(section 4\.2\), judged against the item's essential elements \(the one to three points under "Strong reasoning should mention"\): /, "") + " Blank for fallback profiles.",
       `${STORED}: items[].explanation_quality, from the validated profiling output.`,
@@ -562,7 +574,7 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
       method: "Copied from item_review_decisions.decided_at of the current decision.",
       source_nature: "timestamp_derived", data_type: "datetime", unit: "ISO 8601 UTC timestamp", timing: POINT_TIMESTAMP("decision")
     },
-    item_counted_with_decisions: rule("false when the instructor's current decision excludes the item from the counted items (section 4.4), true otherwise.", "Computed by interpretation-v8-export.ts as instructor_item_decision is not excluded.", { data_type: "boolean", allowed_values: "true; false" })
+    item_counted_with_decisions: rule("true when the item counts in the topic summary with the instructor's current decisions (section 4.4): it has a status and is not excluded. false for excluded items, items left unrated by salvage and items of fallback profiles.", "Computed by interpretation-v8-export.ts as item_status is present and instructor_item_decision is not excluded.", { data_type: "boolean", allowed_values: "true; false" })
   },
   interpretation_claims: {
     claim_id: rule("Stable claim identifier: profile_record_id, the claim type and claim_index, joined by colons. Use it to link human coding of claims (RQ2).", "Built by interpretation-v8-export.ts from profile_record_id, claim_type and claim_index."),
@@ -608,14 +620,20 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     output_salvaged: rule("true when no attempt passed every check and the failing parts of the last checked output were removed (claims dropped, notes cleared, failing items left unrated) instead of saving a fallback profile.", `${STORED}: output_adjustments.salvage is set.`, { data_type: "boolean", allowed_values: "true; false" }),
     salvage_unrated_item_ids: rule("Pipe-separated item IDs left without a rating by salvage (they count as not interpretable). Blank when the output was not salvaged.", `${STORED}: output_adjustments.salvage.unrated_item_ids.`),
     salvage_dropped_claim_count: rule("Number of possible misconceptions and considered ideas dropped by salvage because they failed the checks.", `${STORED}: output_adjustments.salvage.dropped_misconceptions + dropped_considered_ideas.`, { data_type: "integer", unit: "count" }),
-    attempt_context_version: version(`Version of the stored attempt context (${ATTEMPT_CONTEXT_VERSION}); blank when none was stored.`, `${STORED}: attempt.attempt_context_version.`),
+    profiling_call_count: recorded("Number of interpretation v8 profiling calls recorded for this attempt: the first call, each regeneration after an output failed the checks, and calls repeated after a provider failure. 0 when no call was allowed (a fallback saved without a call).", "Counted by interpretation-v8-export.ts over the attempt's AgentCall rows of student_profiling_agent with a v8 schema version.", { data_type: "integer", unit: "count", source_nature: "system_configuration", category: "Export, provenance, and versioning data", research_category_id: "data_quality_research_provenance" }),
+    profiling_output_rejected_count: rule("Number of model outputs that failed the application's checks for this attempt (Table 3.2: regenerated after failing the checks). A salvaged output counts as rejected.", "Counted by interpretation-v8-export.ts: v8 profiling calls with call_status invalid_output, plus one when output_salvaged is true (salvage stores its call as succeeded).", { data_type: "integer", unit: "count" }),
+    profiling_provider_failure_count: rule("Number of profiling calls that failed at the provider (no output to check), for example a timeout.", "Counted by interpretation-v8-export.ts over the attempt's v8 profiling calls with call_status failed.", { data_type: "integer", unit: "count" }),
+    first_output_passed: rule("true when the profile rests on model output that passed every check without a regeneration or salvage (profiling_output_rejected_count = 0); false when at least one output was rejected; blank for fallback and local_test profiles.", "Computed by interpretation-v8-export.ts from generation_mode and profiling_output_rejected_count.", { data_type: "boolean", allowed_values: "true; false" }),
+    profiling_model_name: version("Model that produced the output the profile rests on (for example gpt-5.6-luna); blank for fallback profiles.", "Copied from AgentCall.model_name of the profile's source call (StudentProfile.based_on_agent_call)."),
+    profiling_prompt_hash: version("SHA-256 hash of the profiling prompt sent in the source call; equals INTERPRETATION_V8_APPROVED_PROMPT_HASH for approved live calls.", "Copied from AgentCall.prompt_hash of the profile's source call."),
+    attempt_context_version: version(`Version of the stored attempt context (${ATTEMPT_CONTEXT_VERSION}; attempt-context-v1 only in pre-release test data); blank when none was stored.`, `${STORED}: attempt.attempt_context_version.`),
     earlier_attempt_count: rule("Number of the student's earlier attempts in the same revision family that existed when this attempt started.", `${STORED}: length of attempt.feedback_seen_before.`, { data_type: "integer", unit: "count" }),
-    feedback_seen_attempt_numbers: rule("Pipe-separated attempt numbers of earlier attempts whose answer review had been shown (submitted) before this attempt started.", `${STORED}: attempt.feedback_seen_before[].attempt_number where answer_review_shown.`),
-    answer_review_seen_before: rule("true when the answer review of at least one earlier attempt had been shown before this attempt started (an attempt's review is shown once it is submitted; viewing is not tracked separately).", `${STORED}: any attempt.feedback_seen_before[].answer_review_shown.`, { data_type: "boolean", allowed_values: "true; false" }),
-    opening_message_seen_before: rule("true when an earlier attempt's opening message existed before this attempt started (its creation, not proof of reading).", `${STORED}: any attempt.feedback_seen_before[].opening_message_at.`, { data_type: "boolean", allowed_values: "true; false" }),
+    feedback_seen_attempt_numbers: rule("Pipe-separated attempt numbers of earlier attempts whose answer review was recorded on screen before this attempt started.", `${STORED}: attempt.feedback_seen_before[].attempt_number where answer_review_displayed_at is set (attempt-context-v1: where answer_review_shown).`),
+    answer_review_seen_before: rule("true when the answer review of at least one earlier attempt was recorded on screen (package_results_shown) before this attempt started. Display, not proof of reading.", `${STORED}: any attempt.feedback_seen_before[].answer_review_displayed_at (attempt-context-v1: answer_review_shown, i.e. submitted).`, { data_type: "boolean", allowed_values: "true; false" }),
+    opening_message_seen_before: rule("true when feedback from an earlier attempt (the opening message or a reply) was recorded on screen (formative_feedback_shown) before this attempt started. Display, not proof of reading.", `${STORED}: any attempt.feedback_seen_before[].opening_message_displayed_at (attempt-context-v1: opening_message_at, the creation time).`, { data_type: "boolean", allowed_values: "true; false" }),
     student_turns_seen_before: rule("Student conversation turns of earlier attempts created before this attempt started.", `${STORED}: sum of attempt.feedback_seen_before[].student_turns.`, { data_type: "integer", unit: "count" }),
     tutor_turns_seen_before: rule("Tutor conversation turns (opening included) of earlier attempts created before this attempt started.", `${STORED}: sum of attempt.feedback_seen_before[].tutor_turns.`, { data_type: "integer", unit: "count" }),
-    feedback_seen_before_json: rule("JSON array of the earlier attempts as stored (session_public_id, attempt_number, submitted_at, answer_review_shown, opening_message_at, student_turns, tutor_turns, last_conversation_turn_at). " + RULE_TEXT.attempts, `${STORED}: attempt.feedback_seen_before.`, { data_type: "json string" })
+    feedback_seen_before_json: rule("JSON array of the earlier attempts as stored (session_public_id, attempt_number, submitted_at, answer_review_shown, answer_review_displayed_at, opening_message_at, opening_message_displayed_at, student_turns, tutor_turns, last_conversation_turn_at). " + RULE_TEXT.attempts, `${STORED}: attempt.feedback_seen_before.`, { data_type: "json string" })
   },
   interpretation_process_audit: {
     audience: rule("Always audit_only_never_shown: these indicators and interpretations served the profiling and feedback models only and were never shown to instructors or students.", "Constant written by interpretation-v8-export.ts.", { allowed_values: "audit_only_never_shown" }),
@@ -655,7 +673,7 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     provider: recorded("Provider of the feedback call: openai for live model output, mock for the local test stand-in.", "Copied from AgentCall.provider of the feedback v8 call behind this turn record.", { source_nature: "system_configuration", tier: "supplementary_research" }),
     model_name: recorded("Model recorded for the feedback call.", "Copied from AgentCall.model_name of the feedback v8 call behind this turn record.", { source_nature: "system_configuration", tier: "supplementary_research" }),
     prompt_version: version(`Prompt version stored on the call (${FEEDBACK_V8_OPENING_PROMPT_VERSION}+${FEEDBACK_V8_CONVERSATION_PROMPT_VERSION}: both prompts are approved together).`, "Copied from AgentCall.prompt_version of the feedback v8 call behind this turn record."),
-    mode_prompt_version: version(`Prompt that produced this output: ${FEEDBACK_V8_OPENING_PROMPT_VERSION} for the opening, ${FEEDBACK_V8_CONVERSATION_PROMPT_VERSION} for replies.`, "Chosen by interpretation-v8-export.ts from feedback_mode."),
+    mode_prompt_version: version(`Prompt that produced this output (currently ${FEEDBACK_V8_OPENING_PROMPT_VERSION} for the opening, ${FEEDBACK_V8_CONVERSATION_PROMPT_VERSION} for replies).`, "Taken by interpretation-v8-export.ts from the call's stored prompt_version (\"opening+conversation\"), the part matching feedback_mode."),
     schema_version: version(`Output contract of the feedback call (${FEEDBACK_V8_CONTRACT_VERSION}).`, "Copied from AgentCall.schema_version of the feedback v8 call behind this turn record."),
     prompt_hash: version("Hash of both feedback prompts and the output schema; identical hashes mean identical instructions.", "Copied from AgentCall.prompt_hash of the feedback v8 call behind this turn record."),
     call_completed_at: { definition: "Time the feedback call finished (server time).", method: "Copied from AgentCall.completed_at of the feedback v8 call behind this turn record.", source_nature: "timestamp_derived", data_type: "datetime", unit: "ISO 8601 UTC timestamp", timing: POINT_TIMESTAMP("call completion") }

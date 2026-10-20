@@ -171,9 +171,6 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
           ) : (
             <p className="mt-2 text-sm text-muted">No submitted responses yet.</p>
           )}
-          <p className="mt-1 text-xs text-muted">
-            Administered snapshot: {item.item_snapshot_public_id}. Version: {item.item_version ?? "not recorded"}.
-          </p>
         </div>
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
@@ -241,7 +238,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
                   {pattern.unique_student_count} unique students; {pattern.response_count} latest submitted responses. {pattern.confidence_summary}.
                 </p>
                 <p className="mt-1 text-xs text-muted">
-                  Administered snapshot: {pattern.item_snapshot_public_id}. Threshold: {pattern.threshold_unique_student_count} unique students.
+                  Shown when at least {pattern.threshold_unique_student_count} students choose this option.
                 </p>
               </div>
               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
@@ -411,13 +408,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
             <>
               <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ParticipationStatusCard dashboard={dashboard} />
-                {/* Engagement labels are not produced by the current interpretation. */}
-                {dashboard.interpretation_v8 ? null : <ChartCard
-                  title="Engagement overview"
-                  data={dashboard.engagement_distribution}
-                  sampleSize={dashboard.eligible_student_count}
-                  tone="slate"
-                />}
                 <ChartCard
                   title="Understanding overview"
                   data={dashboard.understanding_distribution}
@@ -436,33 +426,6 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               {dashboard.interpretation_v8 ? (
                 <InterpretationV8Panel data={dashboard.interpretation_v8} onOpenItemReview={() => setView("items")} />
               ) : null}
-
-          {dashboard.engagement_review_reasons.length > 0 ? (
-            <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
-              <h2 className="text-lg font-semibold text-ualberta-green-dark">Engagement review reasons</h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-                These teacher-only reasons explain flagged engagement review signals using persisted evidence. They are not cheating,
-                motivation, laziness, ability, or confirmed guessing labels.
-              </p>
-              <ul className="mt-4 space-y-3 text-sm">
-                {dashboard.engagement_review_reasons.map((reason) => (
-                  <li className="rounded-md border border-line bg-slate-50 p-3" key={reason.label}>
-                    <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-                      <span className="font-semibold text-ink">{reason.label}</span>
-                      <span className="text-muted">{formatCount(reason.count)} unique students</span>
-                    </div>
-                    {reason.limitations.length > 0 ? (
-                      <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
-                        {reason.limitations.map((limitation) => (
-                          <li key={limitation}>{limitation}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          ) : null}
 
           <section className="space-y-4">
             <h2 className="text-xl font-semibold text-ualberta-green-dark">Item-level diagnostic view</h2>

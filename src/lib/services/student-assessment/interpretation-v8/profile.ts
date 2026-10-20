@@ -55,6 +55,12 @@ export type StoredItemInterpretationV8 = {
   side_remark: string | null;
   uncertainty_note: string | null;
   status: ItemStatus | null;
+  /**
+   * The rapid-selection indicator the status rule used (first answer under the threshold after
+   * the item appeared); null when it could not be computed. Absent on profiles saved before
+   * 2026-10-20.
+   */
+  rapid_selection?: boolean | null;
   /** The model's possible item issue: a flag for the instructor, never a status change. */
   item_review_flag: boolean;
   /**
@@ -145,6 +151,7 @@ export function buildStoredInterpretationV8(input: {
             rapid_selection: typeof rapid === "boolean" ? rapid : null
           })
         : null,
+      rapid_selection: typeof rapid === "boolean" ? rapid : null,
       item_review_flag: rating?.error_source === "possible_item_issue",
       ...(input.output && !rating ? { rating_unavailable: true } : {})
     };

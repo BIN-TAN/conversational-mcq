@@ -100,7 +100,7 @@ export function AttemptComparisonPanel({ assessmentPublicId }: { assessmentPubli
         {data.items.map((item, index) => <details key={item.item_key} className="border-b border-line py-3">
           <summary className="flex cursor-pointer list-none items-start gap-3 text-sm font-semibold"><ChevronDown className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="min-w-0 break-words">{index + 1}. {item.stem}</span></summary>
           <div className="mt-4 space-y-4">
-            <p className="text-xs text-muted">{item.objective} | Version {item.item_version ?? "unknown"}</p>
+            <p className="text-xs text-muted">{item.objective}</p>
             <ul className="space-y-1 text-sm">{item.options.map(option => <li key={option.label}><strong>{option.label}.</strong> {option.text}</li>)}</ul>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">{item.columns.map((column, columnIndex) => <div key={column.view} className="min-w-0">
               <h4 className="text-sm font-semibold">{headings[columnIndex]}</h4>

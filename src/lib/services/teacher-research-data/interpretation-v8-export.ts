@@ -4,9 +4,10 @@ import {
   readStoredInterpretationV8,
   type StoredInterpretationV8
 } from "@/lib/services/student-assessment/interpretation-v8/profile";
-import { InterpretationOutputV8Schema, INTERPRETATION_V8_SCHEMA_VERSION } from "@/lib/services/student-assessment/interpretation-v8/contract";
+import { INTERPRETATION_V8_AGENT_NAME, InterpretationOutputV8Schema, INTERPRETATION_V8_SCHEMA_VERSION } from "@/lib/services/student-assessment/interpretation-v8/contract";
 import type { InstructorItemDecision, TopicSummary } from "@/lib/services/student-assessment/interpretation-v8/rules";
 import {
+  FEEDBACK_V8_AGENT_NAME,
   FEEDBACK_V8_CONTRACT_VERSION,
   FEEDBACK_V8_CONVERSATION_PROMPT_VERSION,
   FEEDBACK_V8_OPENING_PROMPT_VERSION,
@@ -64,6 +65,9 @@ export type V8ProfilingCall = {
   call_status: string;
   output_validated: boolean;
   provider: string | null;
+  model_name?: string | null;
+  prompt_hash?: string | null;
+  created_at?: Date;
   prompt_version: string | null;
   schema_version: string | null;
   input_payload: unknown;
@@ -226,6 +230,7 @@ export function interpretationItemRatingRows(
         ...itemIdentity(session, stored, item.item_id, item.position),
         selected_option: item.selected_option,
         reported_confidence: item.reported_confidence,
+        rapid_selection: item.rapid_selection ?? null,
         explanation_quality: item.explanation_quality,
         no_usable_reason: item.no_usable_reason,
         adds_beyond_option_text: item.adds_beyond_option_text,
@@ -242,7 +247,8 @@ export function interpretationItemRatingRows(
         rating_unavailable: item.rating_unavailable ?? (stored.generation_mode === "fallback" ? null : false),
         instructor_item_decision: decision?.decision ?? null,
         instructor_item_decision_at: iso(decision?.decided_at),
-        item_counted_with_decisions: decision?.decision !== "excluded",
+        // Counted in the summary only with a status (unrated and fallback items have none) and no exclusion.
+        item_counted_with_decisions: item.status !== null && decision?.decision !== "excluded",
         ...versions(stored),
         fallback_reason: stored.fallback_reason,
         profile_created_at: iso(profile.created_at)
@@ -299,11 +305,43 @@ export function v8SummaryWithDecisions(stored: StoredInterpretationV8, decisions
   return decisionAdjustedTopicSummary(stored, decisionMap(decisions));
 }
 
+/**
+ * Generation record of one profile from the attempt's profiling calls (Table 3.2: profiles
+ * regenerated after failing the checks, fallbacks). Each regeneration is its own call row.
+ * A salvaged output is stored on its call as succeeded, so it counts as one rejected output.
+ */
+export function profilingGeneration(session: V8ExportSession, profile: V8ExportProfile, stored: StoredInterpretationV8) {
+  const calls = session.profiling_calls;
+  const source = calls.find((call) => call.agent_call_public_id === profile.source_agent_call_public_id) ?? null;
+  const salvaged = Boolean(stored.output_adjustments?.salvage);
+  const rejected = calls.filter((call) => call.call_status === "invalid_output").length + (salvaged ? 1 : 0);
+  const providerFailures = calls.filter((call) => call.call_status === "failed").length;
+  return {
+    profiling_call_count: calls.length,
+    profiling_output_rejected_count: rejected,
+    profiling_provider_failure_count: providerFailures,
+    first_output_passed: stored.generation_mode === "live_model" ? rejected === 0 : null,
+    profiling_model_name: source?.model_name ?? null,
+    profiling_prompt_hash: source?.prompt_hash ?? null
+  };
+}
+
+/** Earlier-attempt feedback counted as seen: display records (attempt-context-v2) or availability (v1). */
+function seenBefore(entry: { answer_review_shown: boolean; answer_review_displayed_at?: string | null; opening_message_at: string | null; opening_message_displayed_at?: string | null }, version: string | null) {
+  const displayed = version !== "attempt-context-v1";
+  return {
+    answer_review: displayed ? Boolean(entry.answer_review_displayed_at) : entry.answer_review_shown,
+    opening: displayed ? Boolean(entry.opening_message_displayed_at) : Boolean(entry.opening_message_at)
+  };
+}
+
 export function interpretationSummaryRows(session: V8ExportSession, decisions: CurrentItemDecisions): V8Row[] {
   return v8Profiles(session).map(({ profile, stored }) => {
     const summary = stored.topic_summary;
     const adjusted = v8SummaryWithDecisions(stored, decisions);
     const earlier = stored.attempt?.feedback_seen_before ?? [];
+    const contextVersion = stored.attempt?.attempt_context_version ?? null;
+    const seen = earlier.map((entry) => ({ entry, ...seenBefore(entry, contextVersion) }));
     return {
       ...attemptIdentity(session, profile, stored),
       generation_mode: stored.generation_mode,
@@ -337,11 +375,12 @@ export function interpretationSummaryRows(session: V8ExportSession, decisions: C
       salvage_unrated_item_ids: stored.output_adjustments?.salvage ? pipe(stored.output_adjustments.salvage.unrated_item_ids) : null,
       salvage_dropped_claim_count: stored.output_adjustments?.salvage
         ? stored.output_adjustments.salvage.dropped_misconceptions + stored.output_adjustments.salvage.dropped_considered_ideas : null,
+      ...profilingGeneration(session, profile, stored),
       attempt_context_version: stored.attempt?.attempt_context_version ?? null,
       earlier_attempt_count: stored.attempt ? earlier.length : null,
-      feedback_seen_attempt_numbers: pipe(earlier.filter((entry) => entry.answer_review_shown).map((entry) => entry.attempt_number)),
-      answer_review_seen_before: stored.attempt ? earlier.some((entry) => entry.answer_review_shown) : null,
-      opening_message_seen_before: stored.attempt ? earlier.some((entry) => Boolean(entry.opening_message_at)) : null,
+      feedback_seen_attempt_numbers: pipe(seen.filter((entry) => entry.answer_review).map(({ entry }) => entry.attempt_number)),
+      answer_review_seen_before: stored.attempt ? seen.some((entry) => entry.answer_review) : null,
+      opening_message_seen_before: stored.attempt ? seen.some((entry) => entry.opening) : null,
       student_turns_seen_before: stored.attempt ? earlier.reduce((total, entry) => total + entry.student_turns, 0) : null,
       tutor_turns_seen_before: stored.attempt ? earlier.reduce((total, entry) => total + entry.tutor_turns, 0) : null,
       feedback_seen_before_json: stored.attempt ? json(earlier) : null,
@@ -413,6 +452,16 @@ export function interpretationProcessAuditRows(session: V8ExportSession): V8Row[
   });
 }
 
+/**
+ * The prompt of this mode, from the call's stored "opening+conversation" prompt version, so a
+ * later prompt release cannot relabel earlier rows; the constants apply only when absent.
+ */
+function modePromptVersion(stored: string | null, mode: "opening" | "reply") {
+  const [opening, conversation] = (stored ?? "").split("+");
+  if (opening && conversation) return mode === "opening" ? opening : conversation;
+  return mode === "opening" ? FEEDBACK_V8_OPENING_PROMPT_VERSION : FEEDBACK_V8_CONVERSATION_PROMPT_VERSION;
+}
+
 /** One row per validated feedback v8 output (opening or reply), in transcript order. */
 export function feedbackTurnRecordRows(session: V8ExportSession): V8Row[] {
   const numbering = new Map(session.conversations.map((conversation) => {
@@ -422,7 +471,7 @@ export function feedbackTurnRecordRows(session: V8ExportSession): V8Row[] {
     return [conversation.conversation_public_id, byNumber] as const;
   }));
   const rows = session.feedback_calls.flatMap((call) => {
-    if (call.schema_version !== FEEDBACK_V8_CONTRACT_VERSION || call.call_status !== "succeeded" || !call.output_validated) return [];
+    if (!call.schema_version?.startsWith(FEEDBACK_V8_CONTRACT_VERSION) || call.call_status !== "succeeded" || !call.output_validated) return [];
     const parsed = FeedbackV8OutputSchema.safeParse(call.output_payload);
     if (!parsed.success) return [];
     const output = parsed.data;
@@ -469,7 +518,7 @@ export function feedbackTurnRecordRows(session: V8ExportSession): V8Row[] {
         provider: call.provider,
         model_name: call.model_name,
         prompt_version: call.prompt_version,
-        mode_prompt_version: mode === "opening" ? FEEDBACK_V8_OPENING_PROMPT_VERSION : FEEDBACK_V8_CONVERSATION_PROMPT_VERSION,
+        mode_prompt_version: modePromptVersion(call.prompt_version, mode),
         schema_version: call.schema_version,
         prompt_hash: call.prompt_hash,
         call_completed_at: iso(call.completed_at)
@@ -626,17 +675,19 @@ export function itemAdministrationV4Fields(events: ItemAdminEvent[]): { columns:
 export async function loadInterpretationV8CallRecords(tx: Prisma.TransactionClient, assessmentSessionDbId: string) {
   const [profilingCalls, feedbackCalls, signals] = await Promise.all([
     tx.agentCall.findMany({
-      where: { assessment_session_db_id: assessmentSessionDbId, schema_version: INTERPRETATION_V8_SCHEMA_VERSION },
+      // The v8 schema family (later schema releases keep the prefix), so a schema bump never drops earlier calls.
+      where: { assessment_session_db_id: assessmentSessionDbId, agent_name: INTERPRETATION_V8_AGENT_NAME, schema_version: { startsWith: INTERPRETATION_V8_SCHEMA_VERSION } },
       orderBy: [{ created_at: "asc" }],
       select: {
-        agent_call_public_id: true, call_status: true, output_validated: true, provider: true,
-        prompt_version: true, schema_version: true, input_payload: true, output_payload: true
+        agent_call_public_id: true, call_status: true, output_validated: true, provider: true, model_name: true, prompt_hash: true,
+        created_at: true, prompt_version: true, schema_version: true, input_payload: true, output_payload: true
       }
     }),
     tx.agentCall.findMany({
       where: {
         assessment_session_db_id: assessmentSessionDbId,
-        schema_version: FEEDBACK_V8_CONTRACT_VERSION,
+        agent_name: FEEDBACK_V8_AGENT_NAME,
+        schema_version: { startsWith: FEEDBACK_V8_CONTRACT_VERSION },
         call_status: "succeeded",
         output_validated: true
       },

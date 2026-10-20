@@ -123,7 +123,7 @@ function formatAttemptDate(value: string) {
   }).format(new Date(value));
 }
 
-export function AvailableAssessmentsClient({ userId }: { userId: string }) {
+export function AvailableAssessmentsClient({ userId, studyCode = null }: { userId: string; studyCode?: string | null }) {
   const router = useRouter();
   const [assessments, setAssessments] = useState<AvailableAssessment[]>([]);
   const [error, setError] = useState<StructuredStudentApiError | null>(null);
@@ -249,6 +249,12 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
             </p>
             <h1 className="mt-1 text-3xl font-semibold text-ink">Assessments</h1>
             <p className="mt-2 text-sm text-muted">Signed in as {userId}</p>
+            {studyCode ? (
+              <p className="mt-1 text-sm text-muted">
+                Study code: <span className="font-mono font-semibold text-ink">{studyCode}</span>. Enter this code when the
+                research consent form or the course-end questionnaire asks for it.
+              </p>
+            ) : null}
           </div>
           <div className="flex flex-wrap gap-2">
             <button
