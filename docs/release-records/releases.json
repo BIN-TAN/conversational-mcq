@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-13T19:15:46.988Z",
+  "updated_at": "2026-10-20T17:04:30.601038+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3100,6 +3100,119 @@
         "src/lib/operational/luna-profile-fidelity-identity.ts",
         "src/lib/agents/student-profiling/semantic-repair.ts",
         "scripts/ai-session-cost-report.mjs"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-01",
+      "date": "2026-10-20",
+      "title": "Interpretation and formative feedback v8 approved and deployed",
+      "application_commit": "a1d8e220d9d636d28dec010f3c3f2240bdc73232",
+      "push_status": "Application a1d8e220d9d636d28dec010f3c3f2240bdc73232 fast-forwarded from 417d5cb5a8ee14a88e4479fde980d567ce4903cf to origin/main, verified at 2026-10-20T16:54:16.9546658Z. The later ledger and Word commit is documentation only and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbbppkbl550s73fqie00",
+        "source_commit": "a1d8e220d9d636d28dec010f3c3f2240bdc73232",
+        "verified_at": "2026-10-20T17:04:06.030Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dbbppkbl550s73fqie00",
+        "evidence": [
+          "Manual exact-commit deployment began building at 2026-10-20T16:54:43Z; Live was observed at 2026-10-20T17:01:07.195Z. The former Live deployment was dep-dbad6j3m8hqs73b92o7g at 417d5cb5a8ee14a88e4479fde980d567ce4903cf. The 17 October release was already live and is not newly attributed to this deployment.",
+          "Read-only verification at 2026-10-20T17:04:06.030Z confirmed the deployed SHA and RENDER_GIT_COMMIT, HTTP 200 health with database reachable and schema ready, the applied 20261020090000_item_review_decisions migration, and exactly one preparation worker.",
+          "Operational approval remains valid at e429857f69fbb4c55094f80e6f511e750e93a750a4a9d434570b883580a060b8. Profiling resolves to gpt-5.6-luna, medium, 4000 tokens; conversation resolves to gpt-6.1-sol, medium, 7000. Both v8 prompt hashes match the approved evaluation.",
+          "The application log view was checked through 2026-10-20T17:04:06.030Z, more than three minutes after startup at 17:00:46Z. No errors, exceptions, configuration failures, interpretation_v8_not_approved or feedback_v8_not_approved appeared. No rollback was needed.",
+          "Preflight read-only SQL found no published multi-topic mini-tests. The research pseudonymization key length was 64; its value was not exposed. Instructor-report effort was already lowercase medium. No production student sign-in, generation request, worker job or student-record write was performed.",
+          "The actual service had Auto-Deploy On Commit despite the handover's false premise. Auto-Deploy was set Off before pushing to perform the requested manual deployment and keep the record-only push separate. Only the two approved prompt-hash environment variables were added, using Save only; no other environment variable or key was changed."
+        ]
+      },
+      "summary": "One interpretation v8.1 call now creates the submission profile, and feedback v8.1 supplies the opening and subsequent conversation. Item review decisions and versioned research exports accompany the redesign. Three local fixes resolved release-specific regressions before deployment. Synthetic evaluation supports the covered behavior; human reference coding remains outstanding.",
+      "changes": [
+        {
+          "area": "Interpretation and feedback",
+          "problem": "Separate interpretation calls duplicated work and mixed profile and conversation updates.",
+          "fix": "Use one student-profiling-v8.1 call per submission and formative-opening-v8.1 / formative-conversation-v8.1. Derive summaries from stored item evidence; conversation turns record supported learning evidence without replacing the initial profile.",
+          "impact": "Teacher views retain item ratings, exact evidence quotes and uncertainty. Students receive individualized support. Ability, engagement and integrated labels stay blank for new profiles."
+        },
+        {
+          "area": "Repairs and item review",
+          "problem": "Mechanical output defects could discard usable evidence, and suspected item problems needed instructor decisions.",
+          "fix": "Apply bounded deterministic repairs, preserve rejected output, salvage valid items when some fail, and retry eligible transient provider failures within the existing preparation time limit. Add instructor item-review decisions with an additive table.",
+          "impact": "Unrated items remain visible and are excluded from counted summaries. Instructor review changes the derived summary without overwriting the original profile or answer key."
+        },
+        {
+          "area": "Item collection and local release fixes",
+          "problem": "Fallback rules could save an edit request or the unfinished text I think as an explanation, or treat a complete embedded clause as unfinished.",
+          "fix": "Retain bundle fix 3bf7d1f for edit requests. Commit a1d8e220d9d636d28dec010f3c3f2240bdc73232 fixes fragment detection, adds coverage for complete embedded clauses and the one-clarification limit, and improves scripted state diagnostics. Prompts and contracts are unchanged.",
+          "impact": "Item administration v4 keeps application-owned transitions and fixed neutral wording. No correctness feedback is exposed during initial collection; a model failure never traps the student."
+        },
+        {
+          "area": "Tests aligned with approved design",
+          "problem": "Legacy tests still blocked Finish after platform closure and expected absent option notes and optional essential elements.",
+          "fix": "5dc73552922a66c3ef7a7d5a83bd3b74c10ab08b verifies never-stuck closure while retaining ownership, sealed submission, idempotency and failed-receipt preservation. 430a4feac4cd21047f32b04269f25d0692a29911 verifies v8 per-option notes and required essential elements while preserving preview safety and diagnostic caution.",
+          "impact": "The tests now assert the approved behavior instead of obsolete requirements. No safety, answer-key protection, research-data or student-progress guard was weakened."
+        },
+        {
+          "area": "Teacher access and research export",
+          "problem": "The instructor entry and new interpretation fields needed explicit release provenance.",
+          "fix": "Include the /teacher/login page from 6b35841 and export the v8 item interpretations, misconception and considered-idea evidence, review decisions and feedback turn records with their dictionary and version fields.",
+          "impact": "Earlier records remain unchanged and must be analysed separately from v8 records. The local instructor-login and prior record merge were incorporated in the release bundle."
+        },
+        {
+          "area": "Prompt approvals",
+          "problem": "New profiling and feedback must not run live without matching approval hashes.",
+          "fix": "Set INTERPRETATION_V8_APPROVED_PROMPT_HASH to 79e756fbe1136e0af8c7c12a83e4fe9050f5d3b6972d7c661a2cfc475c1f0f89 and FORMATIVE_FEEDBACK_V8_APPROVED_PROMPT_HASH to c05d9a2808c5ced5f8cc916f36ea3793b18362fb7e3e735f1d8d2e1b42111f6a, following the user's approval of the three-run evaluation.",
+          "impact": "ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH and INSTRUCTOR_REPORT_V8_APPROVED_PROMPT_HASH remain unset pending live evaluations. Item import uses manual editing, publishing retains deterministic checks, and instructor reporting shows counts only."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Local migration and complete release checks",
+          "result": "All substantive checks passed; transient client-generation failure recovered",
+          "detail": "67 migrations are current on a verified loopback-only database. The full local script ran through production build twice, without interruption. The final run passed typecheck, lint (0 errors, 9 existing warnings), design checks, dictionaries, content, feedback display/completion, response quality, item audit, profile projection, dashboard, item builder, export and all 18 scripted scenarios; build passed in 106 seconds."
+        },
+        {
+          "name": "Control comparisons and repaired failures",
+          "result": "Three release-specific failures fixed and retested",
+          "detail": "Checks 12, 16 and 18 initially failed only on v8 and passed on configured control 8d500166c6582774c9d7dfccb97f7f7d85b09bc2. The three scoped commits address them. A later Prisma generate EPERM DLL rename failed during overlapping local work; control generation and a standalone release retry both passed. Initial control trials loaded only DATABASE_URL and were setup-invalid; comparisons used the same full environment-loading procedure afterward."
+        },
+        {
+          "name": "Redesign and approval checks",
+          "result": "180 checks passed; both operational configurations valid",
+          "detail": "50 design alignment, 24 interpretation, 9 feedback, 22 item preparation, 20 item administration, 17 instructor report, 18 export and 20 evaluation checks passed. Control and release approval checks returned valid true with no issues. Both prompt hashes exactly match the saved v6 stability-3 evaluation."
+        },
+        {
+          "name": "Three-run synthetic live evaluation",
+          "result": "0/93 fallback profiles and 54/54 first-call feedback deliveries",
+          "detail": "Profile fallback Wilson 95% CI was 0–4.0%. Explanation ratings had AC1 .987, with 368/372 within predefined labels. Possible misconceptions had precision .985 and recall .971. One profile was salvaged with three unrated items. This was synthetic data only; human reference coding has not yet been performed."
+        },
+        {
+          "name": "Live verification boundary",
+          "result": "Read-only deployment checks passed; human test remains",
+          "detail": "Exact SHA, health/schema, migration, worker, approval and saved hash settings were checked without generation calls or student records being changed. The user should run one short mini-test and a conversation reply with a test account and review the teacher evidence display."
+        }
+      ],
+      "data_impact": [
+        "The new item_review_decisions table is additive. The production migration was run by Render's existing pre-deploy command; no manual production migration or student-record change was made.",
+        "New profiles retain the v8 prompt and summary versions. Earlier responses, confidence, conversation records, profiles and exports are unchanged and must be analysed by version.",
+        "Ability, engagement and integrated labels remain blank on new profiles. Repaired and salvaged outputs retain their provenance; rejected drafts are not silently replaced.",
+        "All scripted attempts and application regression writes occurred only on the local test database. Production preflight queried published topic counts and operational state read-only."
+      ],
+      "limitations": [
+        "Synthetic reference agreement is not human validation or evidence of classroom learning gains. Human reference coding remains pending.",
+        "F12 recorded corrected reasoning as not discussed further in all three evaluation runs. One F11 reply asked two questions in one run. Considered-idea recall was .708.",
+        "The local scripted review retains one medium issue also present on the control: a deferred item-parameter question was not visible in the post-package summary. There were no high-severity scripted issues.",
+        "Item preparation and instructor reporting require their own live evaluations before approval hashes are set. No live student acceptance test was performed by the agent."
+      ],
+      "references": [
+        "docs/AI_MODULE_REDESIGN_2026-10-19.md",
+        "docs/INTERPRETATION_V8_EVALUATION_PLAN.md",
+        "docs/DESIGN_ALIGNMENT_2026-10-17.md",
+        "src/lib/services/student-assessment/item-administration-tutor.ts",
+        "prisma/item-administration-v4-unit-test.ts",
+        "prisma/feedback-display-completion-smoke-test.ts",
+        "prisma/teacher-mcq-item-builder-smoke-test.ts",
+        "prisma/student-script-review-smoke-test.ts",
+        "prisma/migrations/20261020090000_item_review_decisions/migration.sql"
       ]
     }
   ],
