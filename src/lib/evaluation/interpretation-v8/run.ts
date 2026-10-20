@@ -113,21 +113,35 @@ export const localStandInProvider: LlmProvider = {
 
 const LOCAL_MODEL: AgentModelConfig = { model_name: "local-test-stand-in" };
 
+/** Like the preparation job: 3 attempts in all, with 5 s then 10 s (base 5 s, doubling) before a retry. */
+export const JOB_LIKE_RETRY_DELAYS_MS = [5_000, 10_000];
+
 export async function runInterpretationCase(input: {
   bank: ItemBank;
   evaluation_case: EvaluationCase;
   run: number;
   engine: EvaluationEngine;
+  /** Retries after a transient provider failure, as the preparation job does in production (default 2). */
+  job_retries?: number;
 }): Promise<InterpretationRunRecord> {
   const startedAt = new Date();
   const provider = input.engine.kind === "live" ? input.engine.provider : localStandInProvider;
   const modelConfig = input.engine.kind === "live" ? input.engine.interpretation_model : LOCAL_MODEL;
-  const result = await generateInterpretationV8({
+  const sleep = input.engine.kind === "live" ? (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)) : async () => undefined;
+  const generate = () => generateInterpretationV8({
     provider,
     model_config: modelConfig,
     model_input: buildCaseInput(input.bank, input.evaluation_case),
-    sleep: input.engine.kind === "live" ? undefined : async () => undefined
+    sleep
   });
+  let result = await generate();
+  const earlierAttempts: typeof result.attempts = [];
+  for (let retry = 0; retry < (input.job_retries ?? 2) && result.status === "failed" && result.transient; retry += 1) {
+    earlierAttempts.push(...result.attempts);
+    await sleep(JOB_LIKE_RETRY_DELAYS_MS[Math.min(retry, JOB_LIKE_RETRY_DELAYS_MS.length - 1)]);
+    result = await generate();
+  }
+  result = { ...result, attempts: [...earlierAttempts, ...result.attempts] };
   return {
     kind: "interpretation",
     case_id: input.evaluation_case.case_id,

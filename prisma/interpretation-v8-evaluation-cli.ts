@@ -155,7 +155,8 @@ async function run() {
   for (let runNumber = 1; runNumber <= runs; runNumber += 1) {
     for (const evaluationCase of interpretationCases) {
       const key = `i:${evaluationCase.case_id}:${runNumber}`;
-      if (!done.has(key)) pending.push({ key, task: (engine) => runInterpretationCase({ bank, evaluation_case: evaluationCase, run: runNumber, engine }) });
+      if (!done.has(key)) pending.push({ key, task: (engine) => runInterpretationCase({ bank, evaluation_case: evaluationCase, run: runNumber, engine,
+        job_retries: Number(option("--job-retries") ?? 2) }) });
     }
     for (const feedbackCase of feedbackCases) {
       const key = `f:${feedbackCase.feedback_case_id}:${runNumber}`;
@@ -163,9 +164,10 @@ async function run() {
       if (!done.has(key)) pending.push({ key, task: (engine) => runFeedbackCase({ bank, base_case: base, feedback_case: feedbackCase, run: runNumber, engine }) });
     }
   }
-  const maxCalls = Number(option("--max-calls") ?? 500);
-  const worstCase = pending.length * 2;
-  console.log(`${pending.length} runs to do (${existing.length} already in ${dir}); at most ${worstCase} model calls.`);
+  const maxCalls = Number(option("--max-calls") ?? 1000);
+  const interpretationRuns = pending.filter((entry) => entry.key.startsWith("i:")).length;
+  const worstCase = interpretationRuns * 2 * (1 + Number(option("--job-retries") ?? 2)) + (pending.length - interpretationRuns) * 2;
+  console.log(`${pending.length} runs to do (${existing.length} already in ${dir}); usually about ${Math.round(pending.length * 1.3)} model calls, at most ${worstCase}.`);
   if (engineKind === "live" && worstCase > maxCalls) throw new Error(`At most ${worstCase} calls exceeds --max-calls ${maxCalls}.`);
   if (!pending.length) return dir;
   const engine: EvaluationEngine = engineKind === "live" ? await liveEngine() : { kind: "local" };

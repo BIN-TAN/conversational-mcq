@@ -450,6 +450,14 @@ export function scoreInterpretation(input: {
       fallback,
       fallback_rate: submissions ? round(fallback / submissions) : null,
       fallback_rate_interval: wilsonInterval(fallback, submissions),
+      fallback_by_reason: [...input.records.filter((record) => record.status === "failed").reduce((map, record) =>
+        map.set(record.reason ?? "unknown", (map.get(record.reason ?? "unknown") ?? 0) + 1), new Map<string, number>()).entries()]
+        .map(([reason, count]) => ({ reason, count })),
+      tokens: {
+        input: input.records.reduce((sum, record) => sum + record.attempts.reduce((inner, attempt) => inner + (attempt.input_tokens ?? 0), 0), 0),
+        output: input.records.reduce((sum, record) => sum + record.attempts.reduce((inner, attempt) => inner + (attempt.output_tokens ?? 0), 0), 0),
+        attempts: input.records.reduce((sum, record) => sum + record.attempts.length, 0)
+      },
       salvaged_outputs: salvaged.length,
       unrated_items: unratedItems,
       dropped_claims: salvaged.reduce((sum, record) => sum + (record.salvage?.dropped_misconceptions ?? 0) + (record.salvage?.dropped_considered_ideas ?? 0), 0),

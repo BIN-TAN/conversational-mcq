@@ -56,6 +56,12 @@ export function renderMarkdownReport(input: {
       "",
       `${report.generation.submissions} submissions: ${report.generation.validated_first_attempt} validated on the first attempt, ${report.generation.validated_after_regeneration} after regeneration or salvage, ${report.generation.fallback} fallback (${pct(report.generation.fallback_rate)}). Salvaged outputs: ${report.generation.salvaged_outputs} (${report.generation.unrated_items} items left unrated, ${report.generation.dropped_claims} claims dropped).`,
       "",
+      report.generation.fallback_by_reason.length
+        ? `Fallback by reason: ${report.generation.fallback_by_reason.map((entry) => `${entry.reason} (${entry.count})`).join(", ")}. Transient provider failures were retried as the preparation job does (--job-retries, default 2) before counting as fallback.`
+        : "No fallback.",
+      "",
+      `Model calls: ${report.generation.tokens.attempts}; input tokens ${report.generation.tokens.input}; output tokens ${report.generation.tokens.output}.`,
+      "",
       report.generation.repairs.length
         ? `Mechanical repairs applied to accepted outputs: ${report.generation.repairs.map((entry) => `${entry.code} (${entry.count})`).join(", ")}.`
         : "No repairs were needed.",
