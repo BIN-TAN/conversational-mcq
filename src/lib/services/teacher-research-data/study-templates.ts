@@ -14,7 +14,7 @@ export function researchStudyTemplateFiles(input: {
 }) {
   const definitions: Record<string, string> = {
     research_student_id: "Existing pseudonymous account key. Account count is not research participant count; use the approved cohort and never insert login names or email addresses.",
-    study_code: "Study code of the student (XXXX-XXXX, as in student_roster.csv), prefilled so consent-form and questionnaire records can be matched without names. Check student_roster.study_code_shared before matching.",
+    study_code: "Study code of the student (XXXX-XXXX, as in student_roster.csv), prefilled so records kept outside the system can be matched without names. Check student_roster.study_code_shared before matching.",
     snapshot_at: "Database snapshot time of this export; not observation or consent time.",
     template_version: "Version of this unfilled study worksheet, not a runtime collection version.",
     study_participant_id: "Optional external pseudonymous participant key assigned under the study protocol.",
@@ -83,7 +83,7 @@ export function researchStudyTemplateFiles(input: {
     { path: "research_study_notes.txt", data: [
       "Study worksheets, not collected data",
       "The three *_template.csv files are optional offline research worksheets. No import, random assignment, student record update, consent decision, rating or outcome collection is performed. They are excluded from data_coverage.csv.",
-      "1. Complete the cohort worksheet from approved consent and eligibility records; exclude instructor/demo accounts as appropriate. Do not infer consent from system use. Keep the identity crosswalk separately under access control. It lists every student_roster.csv student (students with no attempts included) with the prefilled study_code, which the consent form and course-end questionnaire record; check student_roster.study_code_shared before matching. An export with a participant filter (study codes) already lists only the included students.",
+      "1. Complete the cohort worksheet from approved consent and eligibility records; exclude instructor/demo accounts as appropriate. Do not infer consent from system use. Keep the identity crosswalk separately under access control. It lists every student_roster.csv student (students with no attempts included) with the prefilled study_code; check student_roster.study_code_shared before matching. An export with a participant filter (study codes) already lists only the included students.",
       "2. For human review, join human_review_template.csv to attempt_submission_items.csv by session_public_id and item_snapshot_key. Join original administered content by session_public_id/item_public_id through item_responses.csv to assessment_content.csv using both snapshot IDs. Never join by title or option label alone.",
       "Use the first sealed initial package (responses finalized for submission), including the sealed tempting alternative, for pre-feedback coding. Current item_responses and later conversations are different observation stages. Review original turns to distinguish the first utterance from first accepted reasoning. A prior attempt may already have exposed answers.",
       "Give blinded reviewers only the evidence allowed by the protocol, excluding AI labels, profile categories and later feedback. These templates contain no AI labels or copied student text. Blinding must be implemented in the review material, not merely asserted here.",

@@ -140,10 +140,9 @@ export function researchInstructorId(userId: string, env: NodeJS.ProcessEnv = pr
 }
 
 /**
- * Short study code shown to the student on the account page and exported beside
- * research_student_id, so the consent form and the course-end questionnaire can be linked to
- * system records without names (Appendix G): the first eight hexadecimal characters of the
- * research student ID, upper-cased, as XXXX-XXXX.
+ * Short study code exported beside research_student_id for linking records kept outside the
+ * system without names: the first eight hexadecimal characters of the research student ID,
+ * upper-cased, as XXXX-XXXX. Students do not see it in the system.
  */
 export function studyCodeFromResearchStudentId(researchStudentIdValue: string) {
   const hex = researchStudentIdValue.replace(/^rs_/, "").slice(0, 8).toUpperCase();

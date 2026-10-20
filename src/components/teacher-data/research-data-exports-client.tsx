@@ -5,7 +5,6 @@ import { BookOpen, Download, Loader2, RefreshCw } from "lucide-react";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { errorFromUnknown, fetchExportJobs, fetchResearchExportReadiness } from "./api";
 import { EmptyPanel, ErrorPanel, formatDate, StatusPill } from "./ui";
-import { parseStudyCodeList, splitStudyCodeText } from "@/lib/services/teacher-research-data/study-code";
 import type { ExportJob, ResearchExportReadiness, StructuredApiError } from "./types";
 
 type ExportAvailabilityCounts = {
@@ -633,7 +632,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [scopeMode, setScopeMode] = useState<ScopeMode>("all");
   const [includeIncomplete, setIncludeIncomplete] = useState(true);
   const [includeRestricted, setIncludeRestricted] = useState(false);
-  const [studyCodesText, setStudyCodesText] = useState("");
   const [dictionary, setDictionary] = useState<DataDictionaryResponse | null>(null);
   const [dictionaryEntityType, setDictionaryEntityType] = useState<DictionaryEntityType>("research_variable");
   const [dictionarySearch, setDictionarySearch] = useState("");
@@ -791,9 +789,6 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     includeRestricted
   });
   const readinessBlocked = readiness ? !readiness.ready : true;
-  // Consent filter: sent in the request body (never in the URL); the server applies the same rules.
-  const studyCodeList = useMemo(() => parseStudyCodeList(splitStudyCodeText(studyCodesText)), [studyCodesText]);
-  const studyCodesInvalid = studyCodeList.invalid.length > 0;
 
   async function generateDataset() {
     setGeneratingDataset(true);
@@ -801,8 +796,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
     try {
       const response = await fetch(`/api/teacher/research-data/analysis-ready${datasetQuery}`, {
         method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(studyCodeList.codes.length ? { include_study_codes: studyCodeList.codes } : {})
+        headers: { Accept: "application/json" }
       });
       const payload = (await response.json().catch(() => null)) as
         | { export_job?: ExportJob; error?: StructuredApiError }
@@ -985,31 +979,8 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 </span>
               </label>
             </div>
-            <label className="mt-3 flex flex-col gap-2 rounded-lg border border-line p-3 text-sm">
-              <span className="font-semibold text-ink">Include only these study codes (consenting participants), one per line</span>
-              <span className="text-muted">
-                Leave empty to include every student in scope. Codes look like 3F9A-0C12 (hyphen optional); the export
-                keeps only matching students in every file, and the manifest records counts and a hash of the list, not the codes.
-              </span>
-              <textarea
-                aria-invalid={studyCodesInvalid}
-                className="min-h-24 rounded-md border border-line bg-white px-3 py-2 font-mono text-sm"
-                onChange={(event) => setStudyCodesText(event.target.value)}
-                placeholder={"3F9A-0C12\n7B21-D4E8"}
-                spellCheck={false}
-                value={studyCodesText}
-              />
-              {studyCodesInvalid ? (
-                <span className="text-red-700" role="alert">
-                  Not study codes: {studyCodeList.invalid.slice(0, 5).join(", ")}
-                  {studyCodeList.invalid.length > 5 ? ` and ${studyCodeList.invalid.length - 5} more` : ""}. Correct or remove them.
-                </span>
-              ) : studyCodeList.codes.length ? (
-                <span className="text-muted">{studyCodeList.codes.length} distinct study codes will be applied.</span>
-              ) : null}
-            </label>
             <div className="mt-5 flex flex-wrap gap-3">
-              <ActionButton disabled={!hasData || readinessBlocked || generatingDataset || studyCodesInvalid} onClick={() => void generateDataset()}>
+              <ActionButton disabled={!hasData || readinessBlocked || generatingDataset} onClick={() => void generateDataset()}>
                 {generatingDataset ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (

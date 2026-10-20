@@ -1,7 +1,7 @@
 /**
- * Study codes (XXXX-XXXX) that students enter in the Google Forms consent form and the
- * course-end questionnaire (pseudonymization.ts: studyCodeFromResearchStudentId). Pure and
- * browser-safe, so the research export page and the API apply the same rules to a consent list.
+ * Study codes (XXXX-XXXX), the short form of research_student_id
+ * (pseudonymization.ts: studyCodeFromResearchStudentId). Pure and browser-safe, so a page and
+ * the API can apply the same rules to a list of consenting participants.
  */
 export const MAX_INCLUDED_STUDY_CODES = 5000;
 

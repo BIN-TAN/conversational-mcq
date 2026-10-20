@@ -274,6 +274,8 @@ export type ItemDiagnosticSummary = {
   incorrect_count: number;
   correct_percentage: number;
   incorrect_percentage: number;
+  /** Correct and incorrect initial responses (plus not answered / not scored when present). */
+  correctness_distribution: ChartDatum[];
   option_distribution: ChartDatum[];
   confidence_distribution: ChartDatum[];
   reasoning_quality_summary: string;
@@ -696,6 +698,8 @@ function buildItemDiagnostics(items: DashboardItem[], responses: CanonicalRespon
 
     const correct = responses.filter((response) => response.correctness === "correct").length;
     const incorrect = responses.filter((response) => response.correctness === "incorrect").length;
+    const unanswered = responses.filter((response) => response.correctness === "unanswered").length;
+    const notScored = responses.length - correct - incorrect - unanswered;
 
     return {
       item_public_id: entry.item_public_id,
@@ -709,6 +713,12 @@ function buildItemDiagnostics(items: DashboardItem[], responses: CanonicalRespon
       incorrect_count: incorrect,
       correct_percentage: percent(correct, responses.length),
       incorrect_percentage: percent(incorrect, responses.length),
+      correctness_distribution: chart([
+        ["Correct", correct],
+        ["Incorrect", incorrect],
+        ...(unanswered > 0 ? [["Not answered", unanswered] as [string, number]] : []),
+        ...(notScored > 0 ? [["Not scored", notScored] as [string, number]] : [])
+      ], responses.length),
       option_distribution: chart(optionCounts, responses.length),
       confidence_distribution: chart(
         countBy(
@@ -778,7 +788,7 @@ function buildCandidatePatterns(responses: CanonicalResponse[]) {
         threshold_unique_student_count: CANDIDATE_PATTERN_THRESHOLD,
         limitations: [
           "Exact normalized text grouping is conservative and does not claim semantic equivalence.",
-          "One canonical latest-attempt response per unique student is used for threshold counting."
+          "Each student's initial response (first submitted attempt) is counted once."
         ],
         representative_reasoning_snippets: snippets,
         review_note:
@@ -1152,17 +1162,21 @@ export async function getTeacherAssessmentDashboard(input: {
   } })), chanceRecords);
   const selected = selectSubmittedAttempts(observations, "latest");
   const submittedByStudent = new Map(selected.map(row => [row.student_key, row]));
-  // First submitted (non-waived) attempt per student: the initial diagnosis, before any feedback.
+  // First submitted (non-waived) attempt per student, in attempt order: the initial diagnosis,
+  // before any feedback. The Initial understanding overview, the item-level view and the
+  // candidate patterns use it.
   const firstSubmittedByStudent = new Map<string, (typeof observations)[number]>();
   for (const observation of observations) {
     if (!observation.submitted_at || observation.chance_waived_at) continue;
     const current = firstSubmittedByStudent.get(observation.student_key);
-    if (!current || new Date(observation.submitted_at).getTime() < new Date(current.submitted_at!).getTime()) {
+    if (!current || observation.attempt_number < current.attempt_number
+      || (observation.attempt_number === current.attempt_number && observation.started_at < current.started_at)) {
       firstSubmittedByStudent.set(observation.student_key, observation);
     }
   }
-  const resultAttempts = attempts.map(attempt => {
-    const observation = submittedByStudent.get(attempt.student_key);
+  // The sealed initial submission of the chosen attempt (responses before any feedback).
+  const sealedAttempts = (chosen: ReadonlyMap<string, (typeof observations)[number]>) => attempts.map(attempt => {
+    const observation = chosen.get(attempt.student_key);
     const source = observation && sessions.find(session => session.session_public_id === observation.session_public_id);
     if (!source || !observation) return { student_key: attempt.student_key, session: null };
     const sealed = new Map(observation.items.map(item => [item.item_public_id, item]));
@@ -1175,6 +1189,8 @@ export async function getTeacherAssessmentDashboard(input: {
       })
     })) } };
   });
+  const resultAttempts = sealedAttempts(submittedByStudent);
+  const initialAttempts = sealedAttempts(firstSubmittedByStudent);
   const completedSessions = attempts
     .map((attempt) => attempt.session)
     .filter((session): session is DashboardSession => Boolean(session) && dashboardStatus(session) === "Completed");
@@ -1238,7 +1254,8 @@ export async function getTeacherAssessmentDashboard(input: {
   );
   const engagementReviewReasons = buildEngagementReviewReasons(resultAttempts);
   const items = assessment.concept_units.flatMap((conceptUnit) => conceptUnit.items);
-  const responses = canonicalResponses(resultAttempts, assessment.assessment_public_id);
+  // Item-level results and candidate patterns: each student's initial responses.
+  const responses = canonicalResponses(initialAttempts, assessment.assessment_public_id);
   const statusDistribution = hasStudentData
     ? chart(
         countBy(
@@ -1285,7 +1302,7 @@ export async function getTeacherAssessmentDashboard(input: {
     eligibility_basis: eligible.basis,
     attempt_policy: {
       policy: ATTEMPT_POLICY_LATEST_PER_STUDENT,
-      description: "Participation uses the latest attempt; results use the latest full initial submission before feedback."
+      description: "Participation uses the latest attempt. The Initial understanding overview, item results and candidate patterns use each student's first submitted attempt; the Latest understanding overview uses the most recent submitted attempt. Both use the responses submitted before feedback."
     },
     has_student_data: hasStudentData,
     candidate_pattern_threshold: CANDIDATE_PATTERN_THRESHOLD,
@@ -1352,10 +1369,10 @@ export async function getTeacherAssessmentDashboard(input: {
         ? "No eligible student denominator is available for this assessment."
         : `Eligible student denominator uses ${totalStudents} ${eligible.basis === ELIGIBILITY_BASIS_ALL_ACTIVE_TEACHER_STUDENTS ? "active student accounts created by this teacher; this system does not currently model assessment-specific assigned rosters." : "students with sessions for this assessment because no teacher-created active roster was found."}`,
       hasStudentData
-        ? "Participation uses the latest attempt. Understanding, engagement and item results use the latest fully submitted attempt."
+        ? "Participation uses the latest attempt. The Initial understanding overview, item results and candidate patterns use each student's first submitted attempt; the Latest understanding overview uses the most recent submitted attempt."
         : "No student data are available for this assessment.",
       "Dashboard categories are assessment-specific diagnostic signals, not stable learner traits.",
-      "Understanding uses the current canonical profile of the latest full initial submission, not the newest pipeline artifact. For multiple topics it uses the most recently created current topic profile, not an average. Missing, invalid or insufficient evidence remains unavailable; Mostly understood does not require transfer evidence.",
+      "Each understanding overview uses the current canonical profile of its submitted attempt, not the newest pipeline artifact. For multiple topics it uses the most recently created current topic profile, not an average. Missing, invalid or insufficient evidence remains unavailable; Mostly understood does not require transfer evidence.",
       "Engagement review signals come from persisted profile engagement evidence or defined engagement/evidence-quality review flags; missing profile evidence is counted as insufficient evidence, not as no concern.",
       "Flagged for review is an overlapping review indicator and is not part of the mutually exclusive status distribution.",
       ...timeIndicator.limitations,

@@ -131,9 +131,9 @@ export const STUDY_PARTICIPATION_ATTEMPT_POLICY: Record<StudyParticipationTable,
 
 /** Lines for the bundle README (analysis-ready-export.ts). */
 export const STUDY_PARTICIPATION_README_LINES = [
-  "Study design files (" + STUDY_PARTICIPATION_EXPORT_VERSION + "): mini_test_catalog.csv lists every mini-test version in scope (whole-class exports: all of the teacher's mini-tests, including archived and superseded versions, with status, publication, release and close times and effective_release_at); student_roster.csv lists every student in scope, including students with no attempts, with study_code (XXXX-XXXX, the code students enter in the consent form and the course-end questionnaire); student_participation_summary.csv has one row per roster student (released mini-tests, families started and submitted, completion proportion, attempts, submission times, release-to-submission time, conversation turns and first-attempt item counts). Every column is in research_data_dictionary.csv.",
+  "Study design files (" + STUDY_PARTICIPATION_EXPORT_VERSION + "): mini_test_catalog.csv lists every mini-test version in scope (whole-class exports: all of the teacher's mini-tests, including archived and superseded versions, with status, publication, release and close times and effective_release_at); student_roster.csv lists every student in scope, including students with no attempts, with study_code (XXXX-XXXX, the short form of research_student_id); student_participation_summary.csv has one row per roster student (released mini-tests, families started and submitted, completion proportion, attempts, submission times, release-to-submission time, conversation turns and first-attempt item counts). Every column is in research_data_dictionary.csv.",
   "Restricted exports only: summative_outcomes.csv (imported exam scores and grades by research_student_id and study_code; no names, user IDs or note text) and the first_attempt_items_correct and first_attempt_proportion_correct columns of student_participation_summary.csv.",
-  "Join study files to attempt files by research_student_id, and mini-tests by assessment_public_id or assessment_family_id (= assessment_family_public_id elsewhere). Questionnaire and consent records join by study_code; check student_roster.study_code_shared first, because two students can share a code."
+  "Join study files to attempt files by research_student_id, and mini-tests by assessment_public_id or assessment_family_id (= assessment_family_public_id elsewhere). Records kept outside the system can join by study_code; check student_roster.study_code_shared first, because two students can share a code."
 ] as const;
 
 export type StudyColumnDoc = V8ColumnDoc & { aggregation?: string; zero?: string; missing?: string };
@@ -175,7 +175,7 @@ const SHARED: Record<string, StudyColumnDoc> = {
     { ...IDENTIFIER, privacy: "pseudonymous_research_id" }
   ),
   study_code: derived(
-    "Short study code the student sees and enters in the consent form and the course-end questionnaire: the first eight hexadecimal characters of research_student_id (after rs_), upper-cased, as XXXX-XXXX. Links consent and questionnaire records to export rows without names. Codes are short (32 bits), so two students can share one: check student_roster.study_code_shared.",
+    "Short form of research_student_id: the first eight hexadecimal characters (after rs_), upper-cased, as XXXX-XXXX. Students do not see it in the system; it links records kept outside the system to export rows without names. Codes are short (32 bits), so two students can share one: check student_roster.study_code_shared.",
     "Computed by studyCodeFromResearchStudentId(research_student_id) in pseudonymization.ts.",
     { ...IDENTIFIER, privacy: "pseudonymous_research_id", allowed_values: "XXXX-XXXX with hexadecimal digits 0-9 and A-F" }
   ),
@@ -253,7 +253,7 @@ const TABLE_DOCS: Record<StudyParticipationTable, Record<string, StudyColumnDoc>
   },
   student_roster: {
     study_code_shared: derived(
-      "true when another student in this export's scope (before the participant filter) has the same study_code. Such a code cannot identify one student in consent or questionnaire records, and an include list containing it includes every student with that code; resolve these cases before analysis. false otherwise.",
+      "true when another student in this export's scope (before the participant filter) has the same study_code. Such a code cannot identify one student in records kept outside the system, and an include list containing it includes every student with that code; resolve these cases before analysis. false otherwise.",
       "Computed by studentRosterRows by counting study codes over every student in scope before the participant filter is applied.",
       { ...IDENTIFIER, data_type: "boolean", allowed_values: "true; false" }),
     account_status: recorded(

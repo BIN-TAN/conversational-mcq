@@ -92,10 +92,10 @@ try {
   await createRecordedAttempt(db, results, 1, 1, "A");
   const s2 = await createRecordedAttempt(db, results, 1, 2, "B");
   await createRecordedAttempt(db, results, 1, 3, null);
-  await createRecordedAttempt(db, results, 2, 1, "B");
+  const s3 = await createRecordedAttempt(db, results, 2, 1, "B");
   const originals = await db.responsePackage.findMany({ where: { concept_unit_session: { assessment_session: { assessment_db_id: results.assessment.id } } }, orderBy: { id: "asc" } });
   // A later mutable response must not replace its sealed pre-feedback submission.
-  await db.itemResponse.updateMany({ where: { concept_unit_session: { assessment_session_db_id: s2.id } }, data: { selected_option: "A", correctness: "correct" } });
+  await db.itemResponse.updateMany({ where: { concept_unit_session: { assessment_session_db_id: { in: [s2.id, s3.id] } } }, data: { selected_option: "A", correctness: "correct" } });
   const obs = await db.$transaction(tx => loadAttemptObservations(tx, { assessment_db_id: results.assessment.id }));
   const comparison = buildAttemptComparison(obs, { snapshot_at: new Date().toISOString(), eligible_student_count: 4 });
   assert.deepEqual(comparison.columns.map(row => row.student_count), [3, 2, 1, 3]);
@@ -103,9 +103,11 @@ try {
   assert.equal(comparison.transition_summary.incorrect_to_correct, 3);
   assert.equal(comparison.transition_summary.correct_to_incorrect, 3);
   const dashboard = await getTeacherAssessmentDashboard({ teacher_user_db_id: results.teacher.id, assessment_public_id: results.assessment.assessment_public_id });
+  // The item-level view uses each student's initial responses (first submitted attempt).
   assert.equal(dashboard.item_diagnostics[0].response_count, 3);
   assert.equal(dashboard.item_diagnostics[0].correct_percentage, 33.3);
-  check("dashboard and comparison agree on sealed submissions despite a newer unfinished attempt and mutable revisions");
+  assert.equal(dashboard.item_diagnostics[0].correct_percentage, comparison.columns[0].correct_percentage);
+  check("dashboard initial responses match attempt 1 on sealed submissions despite later attempts and mutable revisions");
   for (const restricted of [false, true]) {
     const bundle = await buildAnalysisReadyResearchDataBundle({ teacher_user_db_id: results.teacher.id,
       scope: "selected_assessment", assessment_public_id: results.assessment.assessment_public_id,
@@ -122,9 +124,10 @@ try {
   assert.deepEqual(await db.responsePackage.findMany({ where: { concept_unit_session: { assessment_session: { assessment_db_id: results.assessment.id } } }, orderBy: { id: "asc" } }), originals);
   await restoreAttemptChance({ teacher_user_db_id: results.teacher.id, session_public_id: s2.session_public_id, reason: "Synthetic technical problem for testing" });
   const after = await getTeacherAssessmentDashboard({ teacher_user_db_id: results.teacher.id, assessment_public_id: results.assessment.assessment_public_id });
-  assert.equal(after.item_diagnostics[0].correct_percentage, 66.7);
+  // Restoring a later attempt leaves every student's first submitted attempt unchanged.
+  assert.equal(after.item_diagnostics[0].correct_percentage, 33.3);
   assert.equal(await db.agentCall.count(), callsBefore);
-  check("technical restoration updates results consistently; source packages unchanged; zero AI calls");
+  check("technical restoration of a later attempt leaves initial results unchanged; source packages unchanged; zero AI calls");
   console.log(JSON.stringify({ passed, synthetic_fixture: results.assessment.assessment_public_id }));
 } finally { await db.$disconnect(); await prisma.$disconnect(); }
 }

@@ -25,9 +25,11 @@ current topic profile. It is not a cross-topic average or a claim that all topic
 are understood. Per-topic profiles and transitions remain in the research data.
 Profile timestamp ties use profile ID only for stable ordering, not causal inference.
 
-Dashboard participation still uses the latest attempt. Understanding and item
-results use the latest full initial submission, excluding waived attempts, so
-a new unfinished attempt does not erase prior submitted evidence. CSV session
+Dashboard participation still uses the latest attempt. The Initial understanding
+overview, item results and candidate patterns use each student's first submitted
+attempt; the Latest understanding overview uses the most recent submitted attempt.
+Both exclude waived attempts and use the responses sealed before feedback, so a
+new unfinished attempt does not erase prior submitted evidence. CSV session
 rows describe their own attempt; comparisons must align the session IDs.
 
 ## Classification Precedence

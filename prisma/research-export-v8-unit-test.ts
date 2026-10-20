@@ -402,7 +402,7 @@ async function main() {
       "A rejected draft's process interpretation is never presented as the model's interpretation");
   });
 
-  await check("Study code: the short form of the research student ID that students see and enter in the forms", () => {
+  await check("Study code: the short form of the research student ID", () => {
     const id = researchStudentId("Student_07");
     assert.match(researchStudyCode("Student_07"), /^[0-9A-F]{4}-[0-9A-F]{4}$/);
     assert.equal(researchStudyCode("student_07"), studyCodeFromResearchStudentId(id), "Same code as the exported research_student_id, whatever the case of the user ID");

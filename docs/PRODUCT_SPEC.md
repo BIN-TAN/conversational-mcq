@@ -76,7 +76,10 @@ reset closes the affected attempt and restores its chance; it does not copy its
 responses into the next attempt or remove the original research records.
 
 The teacher dashboard defaults to **Overview**. Participation reflects the latest
-attempt, while item results use the latest full initial submission, so a new
+attempt. The Initial understanding overview, the item-level view (correct and
+incorrect responses, confidence distribution) and the candidate patterns use each
+student's first submitted attempt; the Latest understanding overview uses the most
+recent submitted attempt. Both use the responses sealed before feedback, so a new
 unfinished attempt cannot erase earlier results. **Compare attempts** provides
 attempt 1/2/3/latest distributions and matched-student changes, with item details
 collapsed initially. Rich research tables remain in the existing research ZIP.

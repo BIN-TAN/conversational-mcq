@@ -63,8 +63,11 @@ function assertDashboardSurface() {
     "Candidate misconception patterns",
     "response patterns",
     "No student data are available for this assessment.",
-    "No submitted responses yet.",
-    "No response data are available for this item yet.",
+    "Initial responses: each student&apos;s first submitted attempt, before any feedback.",
+    "No initial responses to this item yet.",
+    "Correct and incorrect",
+    "item.correctness_distribution",
+    "Confidence distribution",
     "ariaLabel",
     "role=\"list\"",
     "sr-only",
@@ -76,7 +79,9 @@ function assertDashboardSurface() {
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
   // Instructors see understanding, not engagement labels, and no internal snapshot identifiers (20 Oct 2026).
-  for (const removed of ["Engagement overview", "Engagement review reasons", "Administered snapshot"]) {
+  // The item-level view reports initial responses only: correct and incorrect, and confidence (20 Oct 2026).
+  for (const removed of ["Engagement overview", "Engagement review reasons", "Administered snapshot",
+    "latest submitted responses", "Option selection distribution", "No submitted responses yet."]) {
     assertExcludes(client, removed, "Teacher assessment dashboard client");
   }
   assertExcludes(client, "Active interaction time", "Teacher assessment dashboard client");
@@ -763,17 +768,25 @@ async function assertDashboardAggregationService() {
       administeredSnapshot.item_stem_preview.includes("Which option best represents"),
       "Dashboard should use administered item stem snapshot, not the edited current item."
     );
+    // Initial responses: each student's first submitted attempt (students 1-7), so student 2's
+    // later submission (C) and student 5's second attempt do not replace their first responses.
+    assert(administeredSnapshot.response_count === 7, "Item diagnostics count one initial response per student.");
     assert(
-      administeredSnapshot.option_distribution.some((entry) => entry.label === "B" && entry.count === 4),
-      "Item diagnostics should retain the latest full submission when a newer attempt is unfinished."
+      administeredSnapshot.option_distribution.some((entry) => entry.label === "B" && entry.count === 5),
+      "Item diagnostics should use each student's first submitted attempt."
+    );
+    assert(
+      JSON.stringify(administeredSnapshot.correctness_distribution.map((entry) => [entry.label, entry.count, entry.percentage]))
+        === JSON.stringify([["Correct", 0, 0], ["Incorrect", 7, 100]]),
+      "Item diagnostics should report correct and incorrect initial responses."
     );
     assert(
       dashboard.candidate_misconception_patterns.length === 1,
       "Only the repeated exact reasoning pattern should meet the unique-student threshold."
     );
     const candidate = dashboard.candidate_misconception_patterns[0];
-    assert(candidate.unique_student_count === 4, "Candidate threshold should count unique students with full submissions.");
-    assert(candidate.response_count === 4, "Repeated attempts from one student should not inflate response count.");
+    assert(candidate.unique_student_count === 5, "Candidate threshold should count students' initial responses.");
+    assert(candidate.response_count === 5, "Repeated attempts from one student should not inflate response count.");
     assert(candidate.threshold_unique_student_count === 3, "Candidate should report the configured threshold.");
     assert(candidate.item_snapshot_public_id.endsWith(":v1"), "Candidate should bind to administered item snapshot.");
     assert(

@@ -2348,7 +2348,10 @@ human rating, experimental allocation or production record migration.
   SHA-256 of JSON `[session_public_id, item_snapshot_key]` for stable linkage.
 - `research-study-templates-v2` adds `study_code` to the cohort worksheet,
   prefilled from `student_roster.csv` (every student in scope, including students
-  with no attempts), so consent-form and questionnaire records match by code.
+  with no attempts), so records kept outside the system can match by code.
+  Students do not see the study code, and the research data page has no
+  study-code filter; the API filter (`include_study_codes`) is kept for the
+  2027 courses.
 
 See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for interpretation and joining rules.
 The manifest declares serialization, measurement-availability, template and
