@@ -265,7 +265,7 @@ async function main() {
     }
     const defaultContentHeader = new Set(csvHeader(fileData(normalized.files, "assessment_content.csv")));
     const restrictedContentHeader = new Set(csvHeader(fileData(normalizedRestricted.files, "assessment_content.csv")));
-    for (const restrictedColumn of ["distractor_diagnostic_notes", "teacher_llm_media_description"]) {
+    for (const restrictedColumn of ["option_rationales_json", "teacher_llm_media_description"]) {
       assert(!defaultContentHeader.has(restrictedColumn), `Unrestricted assessment_content.csv leaked ${restrictedColumn}.`);
       assert(restrictedContentHeader.has(restrictedColumn), `Restricted assessment_content.csv did not include ${restrictedColumn}.`);
     }

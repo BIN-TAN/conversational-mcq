@@ -1,4 +1,4 @@
-import { deriveItemTiming, deriveSessionTiming, recordedEventTimestamp, type TimingEventLike } from "../student-assessment/timing-contract";
+import { deriveItemTiming, deriveSessionTiming, recordedEventTimestamp, summarizePageVisibility, type TimingEventLike } from "../student-assessment/timing-contract";
 import { insertedPasteCount, isBlockedPasteEvent } from "@/lib/services/student-assessment/blocked-paste";
 import { deriveResponseStageVisits, summarizeItemStageVisits } from "../student-assessment/response-stage-data";
 import { RESPONSE_STAGE_CALCULATION_VERSION } from "../teacher-research-data/response-stage-dictionary";
@@ -232,7 +232,7 @@ export function buildProcessDataSummary(input: {
       limitations: timing.timing_limitations
     },
     core: {
-      page_hidden_count: observed ? count("page_visibility_hidden", "page_hidden") : null,
+      page_hidden_count: observed ? summarizePageVisibility(input.events).hidden_count : null,
       matched_return_count: observed ? timing.page_hidden_interval_count : null,
       idle_interval_count: observed ? count("long_pause") : null,
       extended_idle_interval_count: observed ? count("inactivity_detected") : null,

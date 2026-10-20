@@ -682,6 +682,176 @@ async function main() {
     assert.equal(report.timing_variables_missing_formula, 0);
   });
 
+  // Research export fixes (time to first answer, item process columns, answer review text,
+  // reference notes, shared page-visibility counts).
+  const timing = await import("../src/lib/services/student-assessment/timing-contract");
+  const indicators = await import("../src/lib/services/student-assessment/interpretation-v8/indicators");
+  const columns = await import("../src/lib/services/teacher-research-data/item-research-columns");
+  const { buildEngagementProcessFeatureRows } = await import("../src/lib/services/teacher-review/engagement-process-features");
+  const { randomUUID } = await import("node:crypto");
+  const tab = randomUUID();
+  const answerVisit = (submittedAtMs: number) => {
+    const id = randomUUID();
+    const submission = randomUUID();
+    const steps: Array<[string, number]> = [["ready", 0], ["submitted", submittedAtMs], ["request_finished", submittedAtMs + 200],
+      ["controls_ready", submittedAtMs + 300], ["closed", submittedAtMs + 301]];
+    return [
+      ...steps.map(([kind, ms], index) => ({
+        event_type: "response_stage_observation", event_source: "frontend", item_public_id: "q1",
+        payload: { observation_version: "response-stage-observation-v1", stage_visit_id: id, response_stage: "answer", response_phase: "initial",
+          observation_kind: kind, monotonic_ms: ms, observation_sequence: index + 1, client_event_id: randomUUID(), browser_tab_id: tab,
+          client_occurred_at: new Date(1_800_000_000_000 + ms).toISOString(),
+          ...(["submitted", "request_finished", "controls_ready"].includes(kind) ? { submission_id: submission } : {}),
+          ...(kind === "request_finished" ? { result: "response_received" } : {}) } as Record<string, unknown>
+      })),
+      { event_type: "response_stage_outcome", event_source: "backend", item_public_id: "q1",
+        payload: { stage_visit_id: id, submission_id: submission, accepted: true, validation_rejected: false } as Record<string, unknown> }
+    ];
+  };
+  const indicatorResponse = (ms: number | null) => ({ item_public_id: "q1", selected_answer_initial: "C", selected_answer_final: "C", answer_changed: false,
+    correct_option: "C", reasoning_text_initial: null, reasoning_text_final: null, confidence_initial: null, confidence_final: null, response_time_answer_ms: ms });
+  const at = (seconds: number) => new Date(Date.UTC(2026, 9, 20, 10, 0, seconds)).toISOString();
+
+  await check("Time to first answer is the value and source interpretation v8's rapid-selection indicator reads", () => {
+    const cases: Array<[ReturnType<typeof answerVisit>, number | null, number | null, string]> = [
+      [answerVisit(6_000), 25_000, 6_000, "browser"],
+      [[], 9_000, 9_000, "server_package"],
+      [[], 12_000, 12_000, "server_package"],
+      [[], null, null, "none"]
+    ];
+    for (const [events, packageMs, expected, source] of cases) {
+      const result = timing.firstOptionSelectionTiming(events, packageMs);
+      assert.deepEqual(result, { time_to_first_option_selection_ms: expected, time_to_first_option_selection_source: source });
+      assert.equal(result.time_to_first_option_selection_ms, indicators.timeToFirstChoiceMs(indicatorResponse(packageMs), events));
+      const rapid = indicators.computeProcessIndicators(indicatorResponse(packageMs), events).find((entry) => entry.name === "rapid_selection")!.value;
+      assert.equal(rapid, expected === null ? null : expected < 10_000, "Below 10 000 ms is rapid selection");
+    }
+    // Merge: a browser record without an answer stage keeps the server-derived values.
+    const serverEvents = [
+      { event_type: "item_presented", occurred_at: at(0) },
+      { event_type: "option_selected", occurred_at: at(7) },
+      ...answerVisit(4_000).map((event) => ({ ...event, payload: { ...event.payload, response_stage: "reasoning" } }))
+    ];
+    const merged = timing.deriveItemTiming({ events: serverEvents, item_submitted_at: new Date(at(30)) });
+    assert.equal(merged.time_to_first_option_selection_ms, 7_000, "A null browser value no longer blanks the server value");
+    assert.equal(merged.item_submitted_at?.toISOString(), at(30));
+    assert.equal(merged.timing_contract_version, "timing-contract-v4", "Browser values still win where recorded");
+  });
+
+  await check("Page visibility: one shared count of page exits, blur apart, paired hidden time", () => {
+    // One tab switch: hidden (after 50 s visible), blur, then 10 s later visible and focus.
+    const tabSwitch = [
+      { event_type: "page_visibility_hidden", occurred_at: at(50), visibility_duration_ms: 50_000 },
+      { event_type: "window_blur", occurred_at: at(50) },
+      { event_type: "page_visibility_visible", occurred_at: at(60) },
+      { event_type: "window_focus", occurred_at: at(60) }
+    ];
+    assert.deepEqual(timing.summarizePageVisibility(tabSwitch), { hidden_count: 1, blur_count: 1, hidden_time_ms: 10_000 });
+    const legacy = [{ event_type: "page_hidden", occurred_at: at(1) }, { event_type: "page_visible", occurred_at: at(4) }];
+    assert.deepEqual(timing.summarizePageVisibility(legacy), { hidden_count: 1, blur_count: 0, hidden_time_ms: 3_000 });
+    assert.deepEqual(timing.summarizePageVisibility([{ event_type: "page_visibility_hidden", occurred_at: at(1) }]),
+      { hidden_count: 1, blur_count: 0, hidden_time_ms: null }, "No recorded return: time away unknown");
+    assert.deepEqual(timing.summarizePageVisibility([{ event_type: "window_blur", occurred_at: at(1) }]), { hidden_count: 0, blur_count: 1, hidden_time_ms: 0 });
+    // Focus-adjusted time removes the 10 s away, not the 50 s the page was visible before.
+    const base = { session_public_id: "s", concept_unit_public_id: null, item_public_id: "q1", item_order: 1, event_category: "student_process",
+      event_source: "frontend", pause_duration_ms: null, payload: {}, created_at: null };
+    const [row] = buildEngagementProcessFeatureRows({
+      itemResponses: [{ session_public_id: "s", student_user_id: "u", assessment_public_id: "a", concept_unit_public_id: null, item_public_id: "q1",
+        item_order: 1, item_started_at: at(0), item_submitted_at: at(120), item_response_time_ms: null, revision_count: 0 }],
+      processEvents: [{ ...base, event_type: "item_presented", visibility_duration_ms: null, occurred_at: at(0) },
+        ...tabSwitch.map((event) => ({ ...base, event_type: event.event_type, occurred_at: event.occurred_at, visibility_duration_ms: event.visibility_duration_ms ?? null })),
+        { ...base, event_type: "item_submitted", visibility_duration_ms: null, occurred_at: at(120) }]
+    });
+    assert.equal(row.focus_adjusted_time_ms, 110_000);
+  });
+
+  await check("Item process columns: blocked pastes, longest pause, explanation lengths in Unicode characters", () => {
+    const events = [
+      { event_type: "paste_detected", payload: { paste_blocked: true } },
+      { event_type: "paste_detected", payload: { paste_blocked: false } },
+      { event_type: "long_pause", pause_duration_ms: 121_000 },
+      { event_type: "inactivity_detected", pause_duration_ms: 301_500 }
+    ];
+    const chinese = "信度不等于效度，因为分数稳定";
+    const result = columns.itemProcessColumns({ events, first_explanation: "  信度不等于效度  ", final_explanation: chinese });
+    assert.equal(result.blocked_paste_count, 1);
+    assert.equal(result.longest_pause_ms, 301_500);
+    assert.equal(result.first_explanation_length_chars, 7);
+    assert.equal(result.final_explanation_length_chars, 14);
+    assert.ok(result.final_explanation_word_count! > 3, "Chinese text is split into words, not counted as one");
+    assert.equal(columns.textWordCount("Values further from the mean, 2 sets."), 7);
+    assert.equal(columns.textLengthChars("SD 😀"), 4, "Code points, not UTF-16 units");
+    assert.deepEqual(columns.itemProcessColumns({ events: [], first_explanation: null, final_explanation: null }), { blocked_paste_count: 0,
+      longest_pause_ms: 0, first_explanation_length_chars: null, final_explanation_length_chars: null, final_explanation_word_count: null });
+    const v8 = indicators.computeProcessIndicators(indicatorResponse(null), events);
+    assert.equal(v8.find((entry) => entry.name === "blocked_paste_attempts")!.value, result.blocked_paste_count);
+    assert.equal(v8.find((entry) => entry.name === "longest_pause")!.value, Math.round(result.longest_pause_ms / 1000));
+  });
+
+  await check("Reference notes and answer review text come from the sealed package item, as the model received them", () => {
+    const item = {
+      ...response("q9", 1, "C", "A", "A larger mean"),
+      item_snapshot: { item_stem: "Which set varies more?", options: [{ label: "A", text: "Set 1" }, { label: "B", text: "Both" }, { label: "C", text: "Set 2" }, { label: "D", text: "Neither" }] },
+      teacher_diagnostic_context: {
+        teacher_diagnostic_context: {
+          correct_option_notes: { target_reasoning_note: "Values further from the mean give a larger SD.", strong_reasoning_should_mention: "1) distance from the mean\n2) applies to every value" },
+          option_notes: [{ label: "A", idea_label: "mean = spread" }, { label: "B", why_tempting: "Equal ranges look alike." }]
+        },
+        distractor_rationales: { A: "Confuses a larger mean with larger spread." }
+      },
+      student_safe_answer_explanation: "Set 2's values lie further from its mean."
+    };
+    const notes = columns.itemReferenceColumns(item, "q9");
+    assert.equal(notes.target_reasoning_note, "Values further from the mean give a larger SD.");
+    assert.equal(notes.essential_elements, "distance from the mean|applies to every value");
+    const options = JSON.parse(notes.option_rationales_json!) as Array<{ label: string; reference_id: string | null; rationale: string | null; idea_label: string | null }>;
+    assert.deepEqual(options, [
+      { label: "A", reference_id: "q9:option:A", rationale: "Confuses a larger mean with larger spread.", idea_label: "mean = spread" },
+      { label: "B", reference_id: "q9:option:B", rationale: "Equal ranges look alike.", idea_label: null },
+      { label: "D", reference_id: null, rationale: null, idea_label: null }
+    ]);
+    const modelInput = buildInterpretationInputV8FromPackage(packagePayload([item]), new Map()).items[0];
+    const exported = new Map<string, string | null>([["q9:target", notes.target_reasoning_note],
+      ...options.flatMap((entry): Array<[string, string | null]> => entry.reference_id ? [[entry.reference_id, entry.rationale]] : [])]);
+    assert.equal(modelInput.essential_elements, "1) distance from the mean\n2) applies to every value");
+    for (const reference of modelInput.references.filter((entry) => entry.kind !== "essential_elements")) {
+      assert.equal(exported.get(reference.reference_id), reference.text, `${reference.reference_id} resolves to the text the model received`);
+    }
+    assert.equal(columns.answerReviewExplanation(item), "Set 2's values lie further from its mean.");
+    assert.deepEqual(columns.itemReferenceColumns(undefined, "q9"), { target_reasoning_note: null, essential_elements: null, option_rationales_json: null });
+  });
+
+  await check("Dictionary: new columns, restricted notes, one page-hidden definition and the 10-second rule", () => {
+    for (const column of ["time_to_first_option_selection_source", "blocked_paste_count", "longest_pause_ms", "first_explanation_length_chars",
+      "final_explanation_length_chars", "final_explanation_word_count", "answer_review_explanation"]) {
+      assert.ok((dictionary.ITEM_RESPONSES_COLUMNS as readonly string[]).includes(column), column);
+      assert.ok(byName.get(`item_responses.${column}`)!.definition.length > 60, column);
+    }
+    for (const column of ["target_reasoning_note", "essential_elements", "option_rationales_json", "topic_learning_objective", "topic_description"]) {
+      assert.ok((dictionary.ASSESSMENT_CONTENT_COLUMNS as readonly string[]).includes(column), column);
+    }
+    assert.ok(!(dictionary.ASSESSMENT_CONTENT_COLUMNS as readonly string[]).includes("strong_reasoning_note"));
+    for (const name of ["item_responses.answer_review_explanation", "assessment_content.target_reasoning_note", "assessment_content.essential_elements",
+      "assessment_content.option_rationales_json"]) {
+      assert.equal(byName.get(name)!.export_policy, "restricted_research_dataset_only", name);
+    }
+    assert.equal(byName.get("assessment_content.topic_learning_objective")!.export_policy, "research_dataset");
+    const first = byName.get("item_responses.time_to_first_option_selection_ms")!;
+    assert.match(first.definition, /10 seconds/);
+    assert.match(first.calculation_formula, /response_time_answer_ms/);
+    assert.equal(byName.get("item_responses.time_to_first_option_selection_source")!.allowed_values, "browser; server_package; none");
+    const hidden = byName.get("item_responses.page_hidden_count")!;
+    for (const text of [hidden.definition, hidden.calculation_formula, hidden.collection_or_generation_method]) {
+      assert.match(text, /window_blur/, text);
+      assert.doesNotMatch(text, /window_blur (process )?events? (are|is) counted|page_visibility_hidden, and window_blur/, text);
+    }
+    assert.match(byName.get("item_responses.longest_pause_ms")!.definition, /cluster just above 120000 and 300000 ms/);
+    assert.equal(byName.get("item_responses.final_explanation_length_chars")!.data_type, "integer");
+    for (const name of ["interpretation_item_ratings.reference_id", "interpretation_claims.contradicts_reference_id", "interpretation_claims.matching_distractor_reference_id"]) {
+      assert.match(byName.get(name)!.definition, /option_rationales_json entry with that reference_id/, name);
+    }
+  });
+
   console.log(`\n${passed} research export v8 checks passed.`);
 }
 

@@ -34,8 +34,11 @@ import {
   deriveSessionTiming,
   deriveVisibilityIntervals,
   eventTimestamp,
+  firstOptionSelectionTiming,
+  summarizePageVisibility,
   timingLimitationsText
 } from "@/lib/services/student-assessment/timing-contract";
+import { answerReviewExplanation, itemProcessColumns, itemReferenceColumns } from "./item-research-columns";
 import {
   canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition,
@@ -101,8 +104,10 @@ const restrictedDefaultColumns = new Set([
   "answer_selection_evidence_weight",
   "teacher_llm_media_description",
   "target_reasoning_note",
-  "strong_reasoning_note",
-  "distractor_diagnostic_notes",
+  "essential_elements",
+  "option_rationales_json",
+  // The answer review text names or paraphrases the keyed option.
+  "answer_review_explanation",
   // Interpretation v8 item ratings: correctness, withheld from default exports like item_responses.correctness.
   "answer_correct"
 ]);
@@ -981,6 +986,16 @@ function packageEvidenceByItem(session: AnalysisSession) {
   return evidence;
 }
 
+function firstSealedPackageItem(conceptUnitSession: AnalysisSession["concept_unit_sessions"][number], itemPublicId: string) {
+  for (const responsePackage of conceptUnitSession.response_packages) {
+    if (responsePackage.package_type !== "initial_concept_unit_response_package") continue;
+    const payload = asRecord(responsePackage.payload);
+    const item = asArray(payload.item_responses).map(asRecord).find((entry) => entry.item_public_id === itemPublicId);
+    if (item) return { item, topic: asRecord(payload.concept_unit) };
+  }
+  return null;
+}
+
 function isInitialResponse(response: AnalysisSession["concept_unit_sessions"][number]["item_responses"][number]) {
   const snapshot = itemSnapshotRecord(response);
   const role = snapshot.item_role ?? asRecord(snapshot.administration_rules ?? response.item.administration_rules).item_role;
@@ -1427,6 +1442,13 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           item_submitted_at: response.item_submitted_at,
           persisted_item_response_time_ms: response.item_response_time_ms
         });
+        // The value interpretation v8's rapid-selection indicator read (browser, else sealed package).
+        const firstOption = firstOptionSelectionTiming(itemEvents, evidence.response_time_answer_ms);
+        const itemProcess = itemProcessColumns({
+          events: itemEvents,
+          first_explanation: typeof evidence.reasoning_text_initial === "string" ? evidence.reasoning_text_initial : null,
+          final_explanation: response.reasoning_text
+        });
         // Item administration v4 records collection decisions, not quality levels.
         const itemAdministration = itemAdministrationV4Fields(itemEvents);
         const aiFlaggedInsufficientKnowledge = countEvents(itemEvents, ["insufficient_knowledge_marked"]) > 0;
@@ -1473,7 +1495,7 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           time_to_first_action_ms: timing.time_to_first_response_action_ms,
           time_to_first_response_action_ms: timing.time_to_first_response_action_ms,
           first_option_selected_at: iso(timing.first_option_selected_at),
-          time_to_first_option_selection_ms: timing.time_to_first_option_selection_ms,
+          ...firstOption,
           post_option_completion_time_ms: timing.post_option_completion_time_ms,
           reasoning_prompted_at: iso(timing.reasoning_prompted_at),
           reasoning_started_at: iso(timing.reasoning_started_at),
@@ -1509,7 +1531,8 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           confidence_selection_count: canonicalActionCount(itemEvents, ["confidence_selected", "confidence_clicked", "transfer_confidence_clicked"]),
           confidence_revision_count: itemEvents.filter(isConfidenceRevisionEvent).length,
           navigation_event_count: countEvents(itemEvents, ["navigation_event"]),
-          page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden"]),
+          page_hidden_count: summarizePageVisibility(itemEvents).hidden_count,
+          ...itemProcess,
           typing_activity_event_count: countEvents(itemEvents, ["typing_activity_summary"]),
           response_quality_check_count: countEvents(itemEvents, ["response_quality_checked"]),
           response_quality_rejection_count: countEvents(itemEvents, ["response_quality_rejected"]),
@@ -1537,6 +1560,7 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           row.estimated_guessing_risk = typeof evidence.estimated_guessing_risk === "string" ? evidence.estimated_guessing_risk : null;
           row.answer_selection_evidence_weight =
             typeof evidence.answer_selection_evidence_weight === "string" ? evidence.answer_selection_evidence_weight : null;
+          row.answer_review_explanation = answerReviewExplanation(packageEvidence.get(response.item.item_public_id));
         }
         rows.push(row);
       }
@@ -1963,11 +1987,15 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
         const options = optionsByLabel(snapshot.options ?? response.item.options);
         const media = response.item.media_assets;
         const key = `${session.session_public_id}:${response.item.item_public_id}:${response.item_version_snapshot}`;
+        // What interpretation v8 judged against: the first sealed package holding the item.
+        const sealed = firstSealedPackageItem(conceptUnitSession, response.item.item_public_id);
         const row: CsvRow = {
           assessment_public_id: session.assessment.assessment_public_id,
           assessment_snapshot_public_id: assessmentSnapshotId(session),
           assessment_title: session.assessment.title,
           assessment_diagnostic_focus: session.assessment.diagnostic_focus,
+          topic_learning_objective: payloadString(sealed?.topic, ["learning_objective"]),
+          topic_description: payloadString(sealed?.topic, ["related_concept_description"]),
           folder_week_module: session.assessment.folder_label,
           item_public_id: response.item.item_public_id,
           item_snapshot_public_id: itemSnapshotId(response),
@@ -1989,9 +2017,7 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
             .map((asset) => asset.teacher_llm_media_description)
             .filter(Boolean)
             .join("; ");
-          row.target_reasoning_note = asArray(snapshot.expected_reasoning_patterns).join("; ");
-          row.strong_reasoning_note = asArray(snapshot.expected_reasoning_patterns).join("; ");
-          row.distractor_diagnostic_notes = JSON.stringify(snapshot.possible_misconception_indicators ?? response.item.possible_misconception_indicators ?? null);
+          Object.assign(row, itemReferenceColumns(sealed?.item, response.item.item_public_id));
           row.correct_option = response.correct_option_snapshot;
         }
         rows.set(key, row);

@@ -93,7 +93,10 @@ All timestamps are UTC ISO strings unless noted. Blank cells mean the source val
 
 These are neutral event counts. They are not misconduct labels.
 
-- `page_switch_count`
+- `page_switch_count`: number of times the assessment page was hidden
+  (`page_visibility_hidden` or legacy `page_hidden` events), the same count as
+  `item_responses.page_hidden_count` in the research dataset; returns to the page
+  and `window_blur` (focus moved to another window) are not counted.
 - `long_pause_count`
 - `inactivity_count`
 - `navigation_event_count`

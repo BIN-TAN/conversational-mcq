@@ -5,6 +5,7 @@ import { getServerEnv } from "@/lib/env";
 import { sessionStatuses } from "@/lib/domain/enums";
 import { generatePublicId } from "@/lib/services/ids";
 import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import { summarizePageVisibility } from "@/lib/services/student-assessment/timing-contract";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { MasterExportServiceError } from "./errors";
 import {
@@ -71,7 +72,8 @@ function hasRevisionPayload(payload: unknown) {
 
 function aggregateEvents(events: Array<{ event_type: string; payload: unknown }>, followupTurnCount: number) {
   return {
-    page_switch_count: countEvent(events, ["page_hidden", "page_visible"]),
+    // Times the page was hidden, as item_responses.page_hidden_count (returns and window blur not counted).
+    page_switch_count: summarizePageVisibility(events).hidden_count,
     long_pause_count: countEvent(events, ["long_pause"]),
     inactivity_count: countEvent(events, ["inactivity_detected"]),
     navigation_event_count: countEvent(events, ["navigation_event"]),

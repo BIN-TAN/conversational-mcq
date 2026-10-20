@@ -2,6 +2,8 @@ import { stringify } from "csv-stringify/sync";
 import { processEventTypes } from "@/lib/domain/enums";
 import { PROFILE_PROVENANCE_COLUMNS, PROFILE_EVIDENCE_COLUMNS, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
 import { measurementAvailability } from "./measurement-availability";
+import { RAPID_SELECTION_THRESHOLD_MS } from "@/lib/services/student-assessment/interpretation-v8/rules";
+import { FIRST_OPTION_SELECTION_SOURCES } from "@/lib/services/student-assessment/timing-contract";
 import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 import {
   INTERPRETATION_V8_MEASUREMENT_LEVELS,
@@ -202,6 +204,7 @@ export const ITEM_RESPONSES_COLUMNS = [
   "reveal_trigger",
   "explanation_version",
   "student_display_acknowledged_at",
+  "answer_review_explanation",
   "submitted_at",
   "revised_at",
   "revision_count",
@@ -217,6 +220,7 @@ export const ITEM_RESPONSES_COLUMNS = [
   "time_to_first_response_action_ms",
   "first_option_selected_at",
   "time_to_first_option_selection_ms",
+  "time_to_first_option_selection_source",
   "post_option_completion_time_ms",
   "reasoning_prompted_at",
   "reasoning_started_at",
@@ -253,6 +257,11 @@ export const ITEM_RESPONSES_COLUMNS = [
   "confidence_revision_count",
   "navigation_event_count",
   "page_hidden_count",
+  "blocked_paste_count",
+  "longest_pause_ms",
+  "first_explanation_length_chars",
+  "final_explanation_length_chars",
+  "final_explanation_word_count",
   "typing_activity_event_count",
   "response_quality_check_count",
   "response_quality_rejection_count",
@@ -433,6 +442,8 @@ export const ASSESSMENT_CONTENT_COLUMNS = [
   "assessment_snapshot_public_id",
   "assessment_title",
   "assessment_diagnostic_focus",
+  "topic_learning_objective",
+  "topic_description",
   "folder_week_module",
   "item_public_id",
   "item_snapshot_public_id",
@@ -449,8 +460,8 @@ export const ASSESSMENT_CONTENT_COLUMNS = [
   "student_alt_text",
   "teacher_llm_media_description",
   "target_reasoning_note",
-  "strong_reasoning_note",
-  "distractor_diagnostic_notes",
+  "essential_elements",
+  "option_rationales_json",
   "correct_option",
   "snapshot_created_at"
 ] as const;
@@ -971,7 +982,7 @@ function researchCategoryIdFor(table: string, variable: string): ResearchCategor
   if (table === "assessment_content" || /assessment_title|assessment_status|release_at|close_at|folder_week_module|item_order|item_version|media|option_[a-d]_text|diagnostic_guidance|teacher_guidance/.test(variable)) {
     return "assessment_and_item_context";
   }
-  if (isTimingVariable(variable) || variable.endsWith("_at") || /duration|latency|idle|hidden|pause|typing|first_action|selection_count|revision_count|event_count|_ms|_ratio/.test(variable)) {
+  if (isTimingVariable(variable) || variable.endsWith("_at") || /duration|latency|idle|hidden|pause|typing|first_action|time_to_first|blocked_paste|selection_count|revision_count|event_count|_ms|_ratio/.test(variable)) {
     return "timing_and_interaction";
   }
   if (table === "conversation_turns" || /revision|revised|message_text|actor_type|turn_|next_choice/.test(variable)) {
@@ -1042,8 +1053,9 @@ const RESTRICTED_COLUMNS = new Set([
   "answer_selection_evidence_weight",
   "teacher_llm_media_description",
   "target_reasoning_note",
-  "strong_reasoning_note",
-  "distractor_diagnostic_notes",
+  "essential_elements",
+  "option_rationales_json",
+  "answer_review_explanation",
   ...INTERPRETATION_V8_RESTRICTED_COLUMNS
 ]);
 
@@ -1240,7 +1252,7 @@ function sentenceTitle(name: string) {
 function guessDataType(variable: string) {
   if (variable.endsWith("_at")) return "datetime";
   if (variable.endsWith("_ms")) return "integer";
-  if (variable.endsWith("_count") || variable.endsWith("_index") || variable === "attempt_number" || variable === "item_order") return "integer";
+  if (variable.endsWith("_count") || variable.endsWith("_chars") || variable.endsWith("_index") || variable === "attempt_number" || variable === "item_order") return "integer";
   if (variable.endsWith("_pct") || variable.endsWith("_ratio") || variable.endsWith("_proportion")) return "decimal";
   if (
     variable === "profile_valid_for_learning_analysis" ||
@@ -1279,6 +1291,10 @@ function isTimingVariable(variable: string) {
 
 function sourceNature(table: string, variable: string): string {
   if (variable.endsWith("confidence_alignment_scope")) return "deterministic_derived";
+  if (variable === "answer_review_explanation" || variable === "time_to_first_option_selection_source" || variable.endsWith("_length_chars")) {
+    return "deterministic_derived";
+  }
+  if (table === "assessment_content" && variable.startsWith("topic_")) return "teacher_authored";
   if (variable === "profile_native_confidence_alignment") return "persisted_llm_interpretation";
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "deterministic_derived";
@@ -1450,7 +1466,9 @@ function countDefinition(table: string, variable: string) {
     confidence_selection_count: "Number of accepted confidence selections recorded for the administered item.",
     confidence_revision_count: "Number of confidence-change events recorded after the first confidence selection for the administered item.",
     navigation_event_count: "Number of item-scoped navigation process events recorded during the response.",
-    page_hidden_count: "Number of item-scoped page-hidden, page-visibility-hidden, or window-blur events recorded during the response.",
+    page_hidden_count: "Number of times the page was hidden while this item was current: item-scoped page_visibility_hidden events, legacy page_hidden included. window_blur (another window or application in front) is not counted, so one tab switch counts once although it also logs a blur. page_switch_count in the master and detailed exports and the process summary's page-hidden count use the same definition.",
+    blocked_paste_count: "Number of paste attempts blocked in this item's written answer fields (paste_detected with paste_blocked true); no text was inserted. Computed as interpretation v8's blocked_paste_attempts indicator, which counts only events up to the sealed response package.",
+    final_explanation_word_count: "Number of words in the final explanation (reasoning_text in this row) by Unicode word segmentation, so Chinese text written without spaces is split into dictionary words; numbers count as words, punctuation and spaces do not. Blank when no explanation was recorded.",
     typing_activity_event_count: "Number of item-scoped typing activity summaries or typing instrumentation events recorded for the response. Browser activity events (typing summaries, pastes, focus and visibility) are scoped to the question the student is working on. From the 2026-10-18 data-collection rules this includes revising the question in the final review; attempts under earlier rules recorded review-phase activity without a question, so it is absent from their item counts. Students can edit only the current question during the item flow, so activity is not recorded against a later unfinished question.",
     response_quality_check_count: "Number of response-quality checks applied to the item response.",
     response_quality_rejection_count: "Number of response-quality checks that rejected or requested repair for the item response.",
@@ -1489,7 +1507,8 @@ function measuredValueDefinition(table: string, variable: string) {
     maximum_long_pause_ms: "Largest recorded long-pause duration in milliseconds for the assessment session.",
     time_to_first_action_ms: "Milliseconds between item presentation and the first accepted student action for the administered item.",
     time_to_first_response_action_ms: "Milliseconds between item presentation and the first qualifying student response action for the administered item.",
-    time_to_first_option_selection_ms: "Milliseconds between item presentation and the first accepted option selection.",
+    time_to_first_option_selection_ms: `Milliseconds from item presentation to the student's first answer choice: the browser's answer-stage observation (ready to first submission) when recorded, otherwise the sealed response package's server value; time_to_first_option_selection_source names which, and the value is blank when neither exists. It is exactly the value interpretation v8's rapid-selection indicator reads: a first choice under ${RAPID_SELECTION_THRESHOLD_MS / 1000} seconds (below ${RAPID_SELECTION_THRESHOLD_MS} ms) is rapid selection, which makes an incorrect answer with no usable explanation not interpretable instead of not supported (rules.ts itemStatus). It can differ from first_option_selected_at minus item_presented_at, which may come from other events.`,
+    longest_pause_ms: "Longest pause attributed to this item, in milliseconds: the largest pause_duration_ms among its long_pause and inactivity_detected events (computed as interpretation v8's longest_pause indicator, which reports seconds and uses only events up to the sealed response package). The browser logs a pause when inactivity crosses its threshold (long_pause at 2 minutes, inactivity_detected at 5 minutes by default, checked every 30 seconds) with the inactivity so far, so values cluster just above 120000 and 300000 ms and are lower bounds of the full pause. 0 when no pause was recorded.",
     post_option_completion_time_ms: "Milliseconds between first accepted option selection and completed item submission.",
     reasoning_prompt_to_submission_ms: "Compatibility alias for reasoning_elapsed_time_ms.",
     reasoning_elapsed_time_ms: "Milliseconds between the reasoning prompt and the accepted reasoning submission. V4 uses browser-ready and linked accepted-submission monotonic observations; V3 uses legacy timestamps.",
@@ -1510,7 +1529,7 @@ function measuredValueDefinition(table: string, variable: string) {
     derived_at: "Timestamp when the exported derived timing value was generated.",
     instrumentation_complete: "Boolean indicating whether all required instrumentation for the timing construct was available.",
     duration_ms: "Allow-listed process-event duration in milliseconds when an event payload reports a measured interval.",
-    visibility_duration_ms: "Legacy raw event duration value. For page-hidden analysis use visibility_interval_duration_ms and total_page_hidden_ms.",
+    visibility_duration_ms: "Raw browser value. On page_visibility_hidden events it is the time the page had been visible before it was hidden, not time away; other events leave it blank or carry historical values. For time away use visibility_interval_duration_ms and total_page_hidden_ms.",
     visibility_interval_duration_ms: "Duration in milliseconds for a paired page-hidden interval derived from hidden and visible event timestamps.",
     pause_duration_ms: "Duration in milliseconds for a recorded pause or inactivity interval.",
     response_or_action_latency_ms: "Compatibility field for prompt_to_student_action_latency_ms, stored on the preceding agent prompt turn.",
@@ -1683,6 +1702,15 @@ function definition(table: string, variable: string) {
     evidence_stage: "Furthest evidence stage reached, independent of session_status: responses_incomplete, package_sealed, feedback_shown, conversation_participated or finished. Recommended for selecting attempts in analyses.",
     data_collection_rules_changed_during_attempt: "True when an attempt was continued after an application update changed the data-collection rules: started before the 2026-10-17 rules (pre_2026_10_17_unversioned) and continued with the newer application (detected from tab claims), or started under data-collection-rules-2026-10-17 and continued after the 2026-10-18 update (detected from window-focus observations). Its later items used the newer rules; exclude or analyse such attempts separately when comparing timing or activity across rule versions.",
     attempt_tab_claim_count: "Number of times the attempt was opened in a browser tab or window under the one-active-tab rule (each reload, new tab or device counts, so values above 1 indicate reloads or multi-tab use and do not distinguish the two); blank for attempts with no recorded tab claim before those rules.",
+    time_to_first_option_selection_source: `Source of time_to_first_option_selection_ms: browser (the answer stage's response_stage_observation records, ready to first submission on one browser document's clock), server_package (the sealed initial response package's server time from item start to the first accepted answer) or none (neither was recorded; the value is blank). The order is that of interpretation v8's rapid-selection indicator (first choice under ${RAPID_SELECTION_THRESHOLD_MS / 1000} seconds).`,
+    answer_review_explanation: "Restricted. The answer explanation shown to the student for this item in the answer review after the responses were sealed (displayed only when answer_explanation_revealed is true). It explains why the keyed option is correct, so it reveals the key.",
+    first_explanation_length_chars: "Length of the student's first submitted explanation for the item (reasoning_text_initial in the sealed response package), in Unicode characters after trimming: each Chinese character, letter, digit, space or punctuation mark counts once. Blank without a sealed package or explanation.",
+    final_explanation_length_chars: "Length of the final explanation (reasoning_text in this row) in Unicode characters after trimming: each Chinese character, letter, digit, space or punctuation mark counts once. Blank when no explanation was recorded.",
+    topic_learning_objective: "Learning objective of the item's topic as sealed in the first response package of the session holding the item. Interpretation v8 reference topic:objective (interpretation_item_ratings.reference_id, interpretation_claims.contradicts_reference_id). Blank without a sealed package.",
+    topic_description: "Related concept description of the item's topic as sealed in the first response package of the session holding the item. Interpretation v8 reference topic:description. Blank without a sealed package.",
+    target_reasoning_note: "Restricted. Target reasoning interpretation v8 judged the item's explanations against, reference <item_public_id>:target: the instructor's target reasoning note, else the first two expected reasoning patterns joined, else the student-safe answer explanation. From the first sealed response package of the session holding the item; blank without one.",
+    essential_elements: "Restricted. Essential elements (the one to three points under \"Strong reasoning should mention\") interpretation v8 rated explanations against, reference <item_public_id>:elements, pipe-separated in the order written. From the first sealed response package of the session holding the item; blank when none were written or no package exists.",
+    option_rationales_json: "Restricted. JSON array with one entry per incorrect option of the administered item, in option order: label; reference_id, the interpretation v8 reference <item_public_id>:option:<label> (null when the model received no rationale for that option); rationale, the text the model received (the item's distractor rationale for the option, else the option note's misconception reasoning pattern, else its why-tempting note; null when none); idea_label, the instructor's idea label used for answer patterns (null when none). From the first sealed response package of the session holding the item.",
     payload_paste_blocked: "True when the recorded paste was blocked in a written-explanation field (D10), so no text was inserted; empty for events recorded before typed explanations were required.",
     payload_unanswered_message_count: "For formative_conversation_ended_by_student events: number of student messages still awaiting a tutor reply when the student ended the conversation (the system opening message is not counted); empty for other events.",
     payload_replaced_other_tab: "For attempt_tab_claimed events: true when an earlier page load or another tab or window already held the attempt (a reload also counts, because each page load is a new tab identity), false for the first claim; empty for other events."
@@ -1778,7 +1806,20 @@ function collectionMethod(table: string, variable: string) {
     time_to_first_response_action_ms:
       "Calculated in itemResponseRows() as first_student_action_at minus item_presented_at for the same administered item when both timestamps are available.",
     time_to_first_option_selection_ms:
-      "Calculated in itemResponseRows() as first_option_selected_at minus item_presented_at for the same administered item when both timestamps are available.",
+      "Calculated in itemResponseRows() by firstOptionSelectionTiming() (timing-contract.ts): the answer stage's response_elapsed_ms from browserItemTiming() over the item's response_stage_observation events when present, else response_time_answer_ms of the item in the latest sealed initial response package (ItemResponse.item_started_at to the first accepted answer turn). The same order as timeToFirstChoiceMs() in interpretation-v8/indicators.ts.",
+    time_to_first_option_selection_source:
+      "Set in itemResponseRows() by firstOptionSelectionTiming() (timing-contract.ts) to the source it used for time_to_first_option_selection_ms.",
+    blocked_paste_count: "Calculated in itemResponseRows() by itemProcessColumns() (item-research-columns.ts) from the item's paste_detected events whose payload.paste_blocked is true (isBlockedPasteEvent).",
+    longest_pause_ms: "Calculated in itemResponseRows() by itemProcessColumns() as the maximum ProcessEvent.pause_duration_ms over the item's long_pause and inactivity_detected events, as computeProcessIndicators() does for longest_pause.",
+    first_explanation_length_chars: "Calculated in itemResponseRows() by itemProcessColumns() as the code-point count (Array.from) of the trimmed reasoning_text_initial of the item in the latest sealed initial response package.",
+    final_explanation_length_chars: "Calculated in itemResponseRows() by itemProcessColumns() as the code-point count (Array.from) of the trimmed ItemResponse.reasoning_text.",
+    final_explanation_word_count: "Calculated in itemResponseRows() by itemProcessColumns() as the number of word-like segments of ItemResponse.reasoning_text under Intl.Segmenter word granularity.",
+    answer_review_explanation: "Copied in itemResponseRows(), restricted exports only, with studentSafeAnswerExplanationFromResponse(), the function that builds the answer review, from the item in the latest sealed initial response package (its student_safe_answer_explanation: the first two expected reasoning patterns, else a sentence with the keyed option's text).",
+    topic_learning_objective: "Copied in assessmentContentRows() from concept_unit.learning_objective of the first sealed initial response package of the session holding the item, the topic reference interpretation v8 received.",
+    topic_description: "Copied in assessmentContentRows() from concept_unit.related_concept_description of the first sealed initial response package of the session holding the item, the topic reference interpretation v8 received.",
+    target_reasoning_note: "Rebuilt in assessmentContentRows(), restricted exports only, by itemReferenceColumns() (item-research-columns.ts), which applies the profiling input builder's itemReferences() to the item in the first sealed initial response package of the session holding it (its teacher_diagnostic_context and student_safe_answer_explanation), so the text is what the model received.",
+    essential_elements: "Rebuilt in assessmentContentRows(), restricted exports only, by itemReferenceColumns(): itemReferences() on the first sealed package item, split into elements with essentialElementsList() and joined with |.",
+    option_rationales_json: "Rebuilt in assessmentContentRows(), restricted exports only, by itemReferenceColumns(): itemReferences() on the first sealed package item gives each incorrect option's rationale and reference_id; optionIdeaLabels() reads the idea labels from the same teacher_diagnostic_context.",
     item_elapsed_response_time_ms:
       "Calculated in itemResponseRows() as item_submitted_at minus item_presented_at under timing-contract-v3.",
     post_option_completion_time_ms:
@@ -1796,7 +1837,7 @@ function collectionMethod(table: string, variable: string) {
     option_revision_count: "Calculated in itemResponseRows() from item-scoped answer_changed process events after the first option selection.",
     reasoning_revision_count: "Calculated in itemResponseRows() from item-scoped reasoning_revised and reasoning_edited process events.",
     confidence_revision_count: "Count item-scoped confidence_changed events, confidence_selected with payload.revised=true, and legacy confidence_clicked in event_category=package_review (emitted only on a changed value). New package-review edits emit confidence_changed instead of the legacy alias, not both. Raw event names remain unchanged in historical exports.",
-    page_hidden_count: "Calculated in itemResponseRows() by counting item-scoped page_hidden and page_visibility_hidden events; window_blur is not treated as a page-hidden interval.",
+    page_hidden_count: "Calculated in itemResponseRows() by summarizePageVisibility() (timing-contract.ts), the helper shared with the master export, detailed CSV export, teacher process log and process summary: item-scoped page_visibility_hidden and legacy page_hidden events. window_blur is counted separately by that helper and is not included.",
     long_pause_count: "Calculated in sessionRows() by counting session-scoped long_pause process events.",
     idle_ratio: "Calculated in sessionRows() as total_idle_time_ms divided by elapsed_session_time_ms; null when the denominator is missing or zero.",
     item_response_time_ms: "Read from legacy ItemResponse.item_response_time_ms for backward compatibility; use item_elapsed_response_time_ms for corrected timing-contract-v3 analysis.",
@@ -2093,11 +2134,32 @@ function timingMetadata(variable: string, table: string) {
       method: "Calculated by deriveItemTiming() using only qualifying student response actions."
     },
     time_to_first_option_selection_ms: {
-      construct: "item_prompt_to_first_option_selection_latency",
-      start: "item_presented_at",
-      end: "first_option_selected_at",
-      formula: "first_option_selected_at minus item_presented_at",
-      method: "Calculated by deriveItemTiming() using accepted option-selection events."
+      construct: "item_presentation_to_first_answer_choice_latency",
+      start: "answer stage ready (browser) or ItemResponse.item_started_at (sealed package value)",
+      end: "first answer submission (browser) or first accepted answer turn (sealed package value)",
+      formula: `answer stage first submission monotonic_ms minus its ready monotonic_ms when observed, otherwise response_time_answer_ms of the sealed package item; rapid selection when below ${RAPID_SELECTION_THRESHOLD_MS}`,
+      idle: "Includes reading, thinking and idle time before the first choice.",
+      hidden: "Includes page-hidden and unfocused time before the first choice.",
+      method: "Calculated by firstOptionSelectionTiming() in timing-contract.ts with the precedence of interpretation v8's rapid-selection indicator."
+    },
+    time_to_first_option_selection_source: {
+      construct: "item_first_answer_choice_latency_source",
+      start: "not applicable: labels the source of time_to_first_option_selection_ms",
+      end: "not applicable: labels the source of time_to_first_option_selection_ms",
+      formula: "browser when the answer stage was observed in the browser; otherwise server package when the sealed package holds the value; otherwise none (time_to_first_option_selection_ms blank)",
+      idle: "Not a duration; see time_to_first_option_selection_ms.",
+      hidden: "Not a duration; see time_to_first_option_selection_ms.",
+      method: "Set by firstOptionSelectionTiming() in timing-contract.ts with time_to_first_option_selection_ms."
+    },
+    longest_pause_ms: {
+      construct: "item_longest_recorded_pause",
+      start: "start of the pause (event time minus pause_duration_ms)",
+      end: "long_pause or inactivity_detected event time",
+      formula: "maximum pause_duration_ms among the item's long_pause and inactivity_detected events; 0 when none",
+      idle: "This variable is a recorded idle duration, a lower bound because the browser logs the pause when its threshold is crossed.",
+      hidden: "Includes page-hidden time when the student was away without activity.",
+      aggregation: "Maximum within the item.",
+      method: "Calculated by itemProcessColumns() in item-research-columns.ts."
     },
     post_option_completion_time_ms: {
       construct: "post_option_completion_time",
@@ -2191,11 +2253,11 @@ function timingMetadata(variable: string, table: string) {
       construct: "item_page_hidden_event_count",
       start: "item_presented_at",
       end: "item_submitted_at",
-      formula: "count of page_hidden, page_visibility_hidden, and window_blur process events for the item",
-      idle: "Not an idle-duration measure; it counts visibility/blur events.",
-      hidden: "This count is evidence that page-hidden or blur events occurred, not their duration.",
-      aggregation: "Counted across item-scoped visibility events.",
-      method: "Calculated in itemResponseRows() from item-scoped visibility process events."
+      formula: "count of page_hidden and page_visibility_hidden process events for the item; window_blur is not counted",
+      idle: "Not an idle-duration measure; it counts page-hidden events.",
+      hidden: "This count is evidence that the page was hidden, not for how long; window_blur is not counted.",
+      aggregation: "Counted across item-scoped page-hidden events.",
+      method: "Calculated by summarizePageVisibility() in timing-contract.ts, shared with every export that counts page switches."
     },
     idle_ratio: {
       construct: "session_idle_time_ratio",
@@ -2328,6 +2390,8 @@ function missingValueMeaning(variable: string) {
 }
 
 function zeroValueMeaning(variable: string) {
+  if (variable.endsWith("_chars")) return "Zero means a text was recorded but was empty after trimming.";
+  if (variable.endsWith("_source")) return "Not a numeric count or duration field.";
   if (variable.endsWith("_count")) return "Zero means the construct was applicable and observed, but no qualifying records or events occurred.";
   if (variable.endsWith("_ratio")) return "Zero means the ratio was evaluated and the numerator was zero while the denominator was positive.";
   if (isTimingVariable(variable)) return "Zero means the interval was applicable and the recorded start and end were simultaneous or the observed duration was zero.";
@@ -2365,6 +2429,7 @@ function allowedValues(variable: string) {
   if (variable === "actor_type") return "student; agent; system; orchestrator; teacher_researcher";
   if (variable === "event_type") return "See process_event_codebook.csv.";
   if (variable === "reveal_trigger") return "initial_package_completed";
+  if (variable === "time_to_first_option_selection_source") return FIRST_OPTION_SELECTION_SOURCES.join("; ");
   if (variable === "expected_response_mode") return "short_text; free_text";
   if (variable in UNDERSTANDING_SUMMARY_DEFINITIONS) {
     return UNDERSTANDING_SUMMARY_DEFINITIONS[variable as keyof typeof UNDERSTANDING_SUMMARY_DEFINITIONS];
@@ -2582,11 +2647,13 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
         data_type: guessDataType(variable),
         unit: variable.endsWith("_ms")
           ? "milliseconds"
+          : variable.endsWith("_chars")
+            ? "Unicode characters"
           : variable.endsWith("_count")
             ? "count"
             : variable.endsWith("_ratio")
               ? "ratio"
-              : variable.endsWith("_status") || variable.endsWith("_on_turn")
+              : variable.endsWith("_status") || variable.endsWith("_on_turn") || variable.endsWith("_source")
                 ? "category"
               : variable.endsWith("_at")
                 ? "ISO 8601 UTC timestamp"
@@ -3679,6 +3746,7 @@ function formulaReferenceIssues(research: DataDictionaryEntry[]) {
     "visibility_duration_ms",
     "active_typing_time_ms",
     "reasoning_input_elapsed_time_ms",
+    "response_time_answer_ms", // sealed response package item field
     "typing_duration_ms",
     "text_length",
     "message_length",

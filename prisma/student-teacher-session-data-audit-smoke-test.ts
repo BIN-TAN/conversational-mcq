@@ -118,9 +118,10 @@ async function main() {
     assert(audit.behavior_summary.timeline.length > 0, "Expected readable activity timeline.");
     assertNoProtectedAuditData(audit.behavior_summary);
     const log = await getTeacherReviewProcessEvents(teacherReviewSessionPublicId, { page: 1, page_size: 100 });
-    const expectedVisibilityCount = ["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible"]
+    // Page exits only, legacy and current names; returns and window blur are not switches.
+    const expectedVisibilityCount = ["page_hidden", "page_visibility_hidden"]
       .reduce((sum, type) => sum + (log.aggregates.event_count_by_type[type] ?? 0), 0);
-    assert(log.aggregates.page_switch_count === expectedVisibilityCount, "Visibility aliases must all count.");
+    assert(log.aggregates.page_switch_count === expectedVisibilityCount, "Both page-hidden names must count, and only they.");
     assert(
       audit.process_data_summary.observed_event_type_count > 0,
       "Expected observed process event types."

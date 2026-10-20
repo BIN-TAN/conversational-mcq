@@ -60,8 +60,9 @@ const restrictedDefaultColumns = new Set([
   "answer_selection_evidence_weight",
   "teacher_llm_media_description",
   "target_reasoning_note",
-  "strong_reasoning_note",
-  "distractor_diagnostic_notes"
+  "essential_elements",
+  "option_rationales_json",
+  "answer_review_explanation"
 ]);
 
 function assertIsoUtc(value: string, label: string) {
@@ -210,7 +211,7 @@ async function main() {
 
     const itemHeader = header(fileData(result.files, "item_responses.csv"));
     const contentHeader = header(fileData(result.files, "assessment_content.csv"));
-    for (const restricted of ["correct_option", "correctness", "distractor_diagnostic_notes", "teacher_llm_media_description"]) {
+    for (const restricted of ["correct_option", "correctness", "option_rationales_json", "teacher_llm_media_description", "answer_review_explanation"]) {
       assert(!itemHeader.includes(restricted), `Default item_responses.csv should omit ${restricted}.`);
       assert(!contentHeader.includes(restricted), `Default assessment_content.csv should omit ${restricted}.`);
     }
@@ -295,6 +296,34 @@ async function main() {
     );
     const restrictedHeader = new Set(header(fileData(formulaFixture.files, "item_responses.csv")));
     assert(restrictedHeader.has("correctness"), "Restricted mode should include correctness.");
+
+    // Time to first answer: the value and source interpretation v8's rapid-selection indicator reads.
+    for (const row of itemResponses) {
+      assert(["browser", "server_package", "none"].includes(row.time_to_first_option_selection_source),
+        "time_to_first_option_selection_source must be browser, server_package or none.");
+      assert((row.time_to_first_option_selection_source === "none") === (row.time_to_first_option_selection_ms === ""),
+        "A time to first answer needs a source, and none means blank.");
+      assert(/^\d+$/.test(row.blocked_paste_count) && /^\d+$/.test(row.longest_pause_ms),
+        "Blocked pastes and the longest pause are recorded per item (0 when none).");
+    }
+    const spoonItem = itemResponses.find((row) => row.reasoning_text?.startsWith("The spoon warms"));
+    assert(spoonItem, "Fixture explanation row missing.");
+    assert(Number(spoonItem.final_explanation_length_chars) === Array.from(spoonItem.reasoning_text.trim()).length,
+      "Final explanation length counts Unicode characters of reasoning_text.");
+    assert(Number(spoonItem.final_explanation_word_count) === 15, "Final explanation word count mismatch.");
+
+    // Restricted note columns: what the profiling model judged against, from the sealed package.
+    const restrictedItems = parseCsv<Record<string, string>>(fileData(formulaFixture.files, "item_responses.csv"));
+    assert(restrictedItems.every((row) => row.answer_review_explanation), "Restricted rows carry the answer review explanation.");
+    const restrictedContent = parseCsv<Record<string, string>>(fileData(formulaFixture.files, "assessment_content.csv"));
+    assert(restrictedContent.length > 0 && restrictedContent.every((row) => row.target_reasoning_note),
+      "target_reasoning_note must come from the sealed package's reference text.");
+    for (const row of restrictedContent) {
+      const options = JSON.parse(row.option_rationales_json) as Array<Record<string, unknown>>;
+      assert(options.map((entry) => entry.label).join(",") === "B,C", "One rationale entry per incorrect option.");
+      assert(options[0].reference_id === `${row.item_public_id}:option:B` &&
+        options[0].rationale === "This reverses or misreads the target relationship.", "Option rationale and reference id mismatch.");
+    }
     assert(
       formulaFixture.files
         .filter((file) => !["research_data_dictionary.csv", "process_event_codebook.csv"].includes(file.path))

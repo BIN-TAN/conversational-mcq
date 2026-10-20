@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
+import { summarizePageVisibility } from "@/lib/services/student-assessment/timing-contract";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -687,10 +688,8 @@ function analysisRows(input: {
           "tempting_option_submitted",
           "tempting_option_reason_submitted"
         ]);
-        const totalHiddenMs = sumDurations(
-          itemEvents.filter((event) => /page.*hidden|window_blur/i.test(event.event_type)),
-          "visibility_duration_ms"
-        );
+        // Shared with item_responses.page_hidden_count; visibility_duration_ms is visible time, not time away.
+        const visibility = summarizePageVisibility(itemEvents);
         const totalLongPauseMs = sumDurations(
           itemEvents.filter((event) => event.event_type === "long_pause"),
           "pause_duration_ms"
@@ -756,9 +755,9 @@ function analysisRows(input: {
           item_submitted_at: iso(response.item_submitted_at),
           last_action_to_submission_ms: feature?.last_action_to_submission_ms ?? null,
           item_response_time_ms: response.item_response_time_ms,
-          page_switch_count: countEvents(itemEvents, ["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible"]),
-          page_hidden_count: countEvents(itemEvents, ["page_hidden", "page_visibility_hidden", "window_blur"]),
-          total_page_hidden_ms: totalHiddenMs,
+          page_switch_count: visibility.hidden_count,
+          page_hidden_count: visibility.hidden_count,
+          total_page_hidden_ms: visibility.hidden_time_ms,
           long_pause_count: countEvents(itemEvents, ["long_pause"]),
           total_long_pause_ms: totalLongPauseMs,
           maximum_long_pause_ms: maxDuration(itemEvents.filter((event) => event.event_type === "long_pause"), "pause_duration_ms"),

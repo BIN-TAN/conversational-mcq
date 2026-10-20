@@ -469,7 +469,7 @@ function dataDictionary() {
       limitation: "Safe limitation label."
     },
     process_event_definitions: {
-      page_switch_count: "Count of page visibility hidden/visible events; contextual evidence only.",
+      page_switch_count: "Number of times the assessment page was hidden (page_visibility_hidden or legacy page_hidden events), the same count as item_responses.page_hidden_count; returns to the page and window_blur (focus moved to another window) are not counted. Contextual evidence only.",
       long_pause_count: "Count of long pause events; contextual evidence only.",
       inactivity_count: "Count of inactivity-detected events; contextual evidence only.",
       navigation_event_count: "Count of navigation events recorded by frontend instrumentation.",

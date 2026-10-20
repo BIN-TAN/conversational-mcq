@@ -490,7 +490,8 @@ function stringArrayValue(value: unknown): string[] {
     .filter((entry) => entry.length > 0 && !/^correct answer\.?$/i.test(entry));
 }
 
-function studentSafeAnswerExplanationFromResponse(response: ResponsePackageItem | undefined) {
+/** The answer explanation the student's answer review shows for one sealed package item. */
+export function studentSafeAnswerExplanationFromResponse(response: ResponsePackageItem | undefined) {
   if (!response) {
     return null;
   }

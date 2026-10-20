@@ -524,6 +524,10 @@ const SHARED: Record<string, V8ColumnDoc> = {
   }
 };
 
+/** How a reference id resolves to the text the model received, in assessment_content.csv. */
+const REFERENCE_RESOLUTION =
+  "Resolve it in assessment_content.csv by item_public_id: <item_public_id>:target is target_reasoning_note, <item_public_id>:elements is essential_elements, <item_public_id>:option:<label> is the option_rationales_json entry with that reference_id (these three are restricted columns), and topic:objective and topic:description are topic_learning_objective and topic_description. Those columns come from the first sealed response package of the session holding the item, the evidence the model judged against.";
+
 const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
   interpretation_item_ratings: {
     selected_option: recorded("Option the student selected for the item, as stored with the v8 profile (final answer in the sealed response package); blank when no option was selected (its own state, never counted as incorrect).", `${STORED}: items[].selected_option.`, { source_nature: "student_reported", category: "Item response data", research_category_id: "item_responses_metacognitive_reports" }),
@@ -547,7 +551,7 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     adds_beyond_option_text: model("true when the explanation adds any content beyond the wording of the options; false when it only repeats or paraphrases option text. Blank for no_usable_explanation and fallback profiles. A separate question from adequacy: it does not change the rating.", `${STORED}: items[].adds_beyond_option_text.`, { data_type: "boolean", allowed_values: "true; false" }),
     evidence_quote: model("The student's exact words supporting the rating (at least four words unless the response is shorter), checked by the application as an exact excerpt of the source named in evidence_source. Blank for no_usable_explanation.", `${STORED}: items[].evidence_quote.`, { privacy: "research_sensitive_text" }),
     evidence_source: model("Which of this item's student texts the quote comes from: explanation (final), explanation_first_version, or tempting_option_reason.", `${STORED}: items[].evidence_source.`, { allowed_values: list(QUOTE_SOURCES) }),
-    reference_id: model("Reference the explanation is judged against (item_public_id:target, item_public_id:elements, item_public_id:option:LABEL for a distractor rationale, topic:objective or topic:description); required for an incorrect rating and checked to exist.", `${STORED}: items[].reference_id.`),
+    reference_id: model("Reference the explanation is judged against (item_public_id:target, item_public_id:elements, item_public_id:option:LABEL for a distractor rationale, topic:objective or topic:description); required for an incorrect rating and checked to exist. " + REFERENCE_RESOLUTION, `${STORED}: items[].reference_id.`),
     missing_elements: model("For a limited rating: the essential element or elements not stated.", `${STORED}: items[].missing_elements.`),
     rationale: model("One or two sentences for the instructor: what the quote shows, judged against the reference. Contains no process indicators.", `${STORED}: items[].rationale.`),
     error_source: model("Source of an error in the answer or explanation: conceptual, execution_slip (only when the explanation states the correct rule and the error lies in carrying it out), possible_item_issue (a flag for the instructor that never changes the status) or unclear. An adequate explanation cannot have a conceptual error source.", `${STORED}: items[].error_source.`, { allowed_values: list(ERROR_SOURCES) }),
@@ -587,8 +591,8 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     student_quote: model("The student's exact words showing the idea, checked by the application as an exact excerpt of quote_source for quote_item_public_id.", `${STORED}: student_quote.`, { privacy: "research_sensitive_text" }),
     quote_source: model("Which student text the quote comes from: explanation, explanation_first_version or tempting_option_reason.", `${STORED}: quote_source.`, { allowed_values: list(QUOTE_SOURCES) }),
     endorsement: model("For a possible misconception: endorsed, or tentative when a hedge attaches to that specific idea. Blank for considered ideas.", `${STORED}: possible_misconceptions[].endorsement.`, { allowed_values: list(ENDORSEMENTS) }),
-    contradicts_reference_id: model("Reference the idea contradicts (item specification or topic objective and description), checked to exist.", `${STORED}: contradicts_reference_id.`),
-    matching_distractor_reference_id: model("For a possible misconception: the distractor rationale (item_public_id:option:LABEL) the quoted idea matches, if any. A match never replaces the two conditions.", `${STORED}: possible_misconceptions[].matching_distractor_reference_id.`),
+    contradicts_reference_id: model("Reference the idea contradicts (item specification or topic objective and description), checked to exist. " + REFERENCE_RESOLUTION, `${STORED}: contradicts_reference_id.`),
+    matching_distractor_reference_id: model("For a possible misconception: the distractor rationale (item_public_id:option:LABEL) the quoted idea matches, if any. A match never replaces the two conditions. " + REFERENCE_RESOLUTION, `${STORED}: possible_misconceptions[].matching_distractor_reference_id.`),
     alternative_explanation: model("For a possible misconception: a plausible alternative explanation of the student's words, if any.", `${STORED}: possible_misconceptions[].alternative_explanation.`)
   },
   interpretation_summaries: {

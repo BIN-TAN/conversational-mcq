@@ -283,7 +283,8 @@ async function main() {
     assert(responsePackage.package_type === "initial_concept_unit_response_package", "Wrong package type.");
     assert(packagePayload.item_responses?.length === 1, "Response package missing item response.");
     assert(packagePayload.conversation_turns?.length === 3, "Response package missing conversation turns.");
-    assert(packagePayload.process_counts?.page_switch_count === 2, "Incorrect page switch count.");
+    // One page exit (page_hidden); the return (page_visible) is not a second switch.
+    assert(packagePayload.process_counts?.page_switch_count === 1, "Incorrect page switch count.");
     assert(packagePayload.process_counts?.long_pause_count === 1, "Incorrect long pause count.");
     assert(
       packagePayload.process_counts?.invalid_help_request_count === 1,

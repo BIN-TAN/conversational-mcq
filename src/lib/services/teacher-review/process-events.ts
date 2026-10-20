@@ -4,6 +4,7 @@ import type { ProcessEventQuery } from "./filters";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate, stripInternalKeys } from "./serializers";
 import { countResponseRevisionEvents } from "./process-data-summary";
+import { summarizePageVisibility } from "../student-assessment/timing-contract";
 
 type EventCounts = Partial<Record<ProcessEventType | string, number>>;
 
@@ -119,7 +120,8 @@ export async function getTeacherReviewProcessEvents(
     session_public_id: session.session_public_id,
     aggregates: {
       event_count_by_type: eventCounts,
-      page_switch_count: countEvents(eventCounts, ["page_hidden", "page_visible", "page_visibility_hidden", "page_visibility_visible"]),
+      // Times the page was hidden, as item_responses.page_hidden_count (returns and window blur not counted).
+      page_switch_count: summarizePageVisibility(allSessionEvents).hidden_count,
       long_pause_count: countEvents(eventCounts, ["long_pause"]),
       inactivity_count: countEvents(eventCounts, ["inactivity_detected"]),
       navigation_event_count: countEvents(eventCounts, ["navigation_event"]),

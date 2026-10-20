@@ -178,10 +178,11 @@ Review questions:
 All rows below are source verified and domain review pending:
 
 - `assessment_content.correct_option`
-- `assessment_content.distractor_diagnostic_notes`
-- `assessment_content.strong_reasoning_note`
+- `assessment_content.essential_elements`
+- `assessment_content.option_rationales_json`
 - `assessment_content.target_reasoning_note`
 - `assessment_content.teacher_llm_media_description`
+- `item_responses.answer_review_explanation`
 - `item_responses.answer_selection_evidence_weight`
 - `item_responses.correct_option`
 - `item_responses.correctness`

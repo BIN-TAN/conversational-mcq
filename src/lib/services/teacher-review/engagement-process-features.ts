@@ -1,6 +1,7 @@
 import { asRecord } from "./serializers";
 import { insertedPasteCount } from "@/lib/services/student-assessment/blocked-paste";
 import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
+import { summarizePageVisibility } from "../student-assessment/timing-contract";
 
 export type EngagementProcessItemResponse = {
   session_public_id: string;
@@ -242,7 +243,9 @@ function buildItemRow(input: {
     nonnegativeDiff(promptTime, finalSubmissionTime) ??
     (typeof input.response.item_response_time_ms === "number" ? input.response.item_response_time_ms : null);
   const idleMs = sumNullable(events.map((event) => event.pause_duration_ms));
-  const hiddenMs = sumNullable(events.map((event) => event.visibility_duration_ms));
+  // Paired hidden-to-visible time (visibility_duration_ms is visible time); null without hidden events.
+  const visibility = summarizePageVisibility(events);
+  const hiddenMs = visibility.hidden_count ? visibility.hidden_time_ms : null;
   const focusAdjustedMs =
     totalMs !== null && (idleMs !== null || hiddenMs !== null)
       ? Math.max(0, totalMs - (idleMs ?? 0) - (hiddenMs ?? 0))

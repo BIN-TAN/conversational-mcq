@@ -136,7 +136,8 @@ async function main() {
       processEvents.events.map((event) => event.occurred_at),
       "Process events were not chronological."
     );
-    assert(processEvents.aggregates.page_switch_count === 2, "Page switch count mismatch.");
+    // One page exit (page_hidden); the return (page_visible) is not a second switch.
+    assert(processEvents.aggregates.page_switch_count === 1, "Page switch count mismatch.");
     assert(processEvents.aggregates.long_pause_count === 1, "Long pause count mismatch.");
     assert(processEvents.aggregates.inactivity_count === 1, "Inactivity count mismatch.");
     assert(processEvents.aggregates.navigation_event_count === 1, "Navigation count mismatch.");

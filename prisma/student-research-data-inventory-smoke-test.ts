@@ -52,7 +52,7 @@ function main() {
   );
 
   const restrictedEntries = entries.filter((entry) =>
-    ["correct_option", "correctness", "distractor_diagnostic_notes", "teacher_llm_media_description"].includes(entry.variable_name)
+    ["correct_option", "correctness", "option_rationales_json", "teacher_llm_media_description", "answer_review_explanation"].includes(entry.variable_name)
   );
   assert(restrictedEntries.length >= 4, "Expected restricted answer-key/diagnostic fields in research dictionary.");
   assert(

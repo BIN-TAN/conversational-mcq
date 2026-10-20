@@ -285,7 +285,7 @@ export function deriveItemTiming(input: {
     reasoning_active_typing_time_ms === null ? "instrumentation_insufficient" : "valid"
   ]);
 
-  return {
+  const serverTiming: DerivedItemTiming = {
     item_presented_at,
     first_student_action_at,
     first_option_selected_at,
@@ -314,8 +314,56 @@ export function deriveItemTiming(input: {
     timing_source_version: TIMING_SOURCE_VERSION,
     timing_quality_status,
     timing_limitations: limitations,
-    instrumentation_complete: timing_quality_status === "valid",
-    ...browserItemTiming(events, Boolean(item_submitted_at))
+    instrumentation_complete: timing_quality_status === "valid"
+  };
+  return withKnownValues(serverTiming, browserItemTiming(events, Boolean(item_submitted_at)));
+}
+
+/** Browser observations replace server-derived values only where the browser recorded a value. */
+function withKnownValues<T extends object>(base: T, override: Partial<T> | null): T {
+  if (!override) return base;
+  return { ...base, ...Object.fromEntries(Object.entries(override).filter(([, value]) => value !== null && value !== undefined)) };
+}
+
+/** Where item_responses.time_to_first_option_selection_ms came from. */
+export const FIRST_OPTION_SELECTION_SOURCES = ["browser", "server_package", "none"] as const;
+export type FirstOptionSelectionSource = (typeof FIRST_OPTION_SELECTION_SOURCES)[number];
+
+/**
+ * Item presentation to the first answer choice, read exactly as interpretation v8's
+ * rapid-selection indicator reads it (interpretation-v8/indicators.ts timeToFirstChoiceMs):
+ * the browser's answer-stage observation (ready to first submission), else the sealed
+ * response package's response_time_answer_ms (server time from item start to the first
+ * accepted answer), else none.
+ */
+export function firstOptionSelectionTiming(events: TimingEventLike[], packageResponseTimeAnswerMs: unknown): {
+  time_to_first_option_selection_ms: number | null;
+  time_to_first_option_selection_source: FirstOptionSelectionSource;
+} {
+  const browser = browserItemTiming(events, true)?.time_to_first_option_selection_ms ?? null;
+  if (browser !== null) return { time_to_first_option_selection_ms: browser, time_to_first_option_selection_source: "browser" };
+  return typeof packageResponseTimeAnswerMs === "number" && Number.isFinite(packageResponseTimeAnswerMs)
+    ? { time_to_first_option_selection_ms: packageResponseTimeAnswerMs, time_to_first_option_selection_source: "server_package" }
+    : { time_to_first_option_selection_ms: null, time_to_first_option_selection_source: "none" };
+}
+
+/**
+ * Page-visibility measures shared by every export and review view, so their counts agree
+ * with item_responses.page_hidden_count. hidden_count: page-hidden events
+ * (page_visibility_hidden, legacy page_hidden); blur_count: window_blur events, kept apart
+ * because one tab switch logs both; hidden_time_ms: union of paired hidden-to-visible
+ * intervals per browser document, 0 without hidden events and null when a hidden event has no
+ * recorded return. visibility_duration_ms is never used: on page_visibility_hidden it holds
+ * the time the page was visible before hiding.
+ */
+export function summarizePageVisibility(events: TimingEventLike[]) {
+  const intervals = deriveVisibilityIntervals(events);
+  const unpaired = intervals.some((interval) => interval.quality_status === "missing_end" || interval.quality_status === "invalid_order");
+  return {
+    hidden_count: events.filter((event) => (HIDDEN_TYPES as readonly string[]).includes(event.event_type)).length,
+    blur_count: events.filter((event) => event.event_type === "window_blur").length,
+    hidden_time_ms: unpaired ? null : intervalDuration(intervals.flatMap((interval): Interval[] =>
+      interval.quality_status === "valid" && interval.end_at ? [[interval.start_at.getTime(), interval.end_at.getTime()]] : []))
   };
 }
 
