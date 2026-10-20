@@ -173,7 +173,7 @@ The ability profile and flags, engagement profile and flags, integrated profile,
 Every submission gets its own profile, created once and never overwritten.
 
 - **First attempt:** the initial diagnosis, used to evaluate the interpretation (RQ1 and RQ2).
-- **Later attempts:** each is a new session under the existing attempt policy (up to three attempts). Its profile stores a link to the feedback from earlier attempts that the student had seen before starting it: the answer review, the opening message, and the conversation (student turns, the foci discussed and their statuses).
+- **Later attempts:** each is a new session under the existing attempt policy (up to three attempts). Its profile stores the feedback from earlier attempts in the same assessment family (the original mini-test and its corrected versions) that the student had seen before starting it: when the answer review and the feedback were recorded on screen, the opening message, and the conversation turns up to that point (attempt-context-v2). The foci discussed and their statuses are in the feedback turn records, joined by time.
 - **Reporting:** the dashboard's attempt views and the instructor report show first-attempt results (initial difficulties) and later attempts (change after feedback) separately, never merged into one profile.
 
 ## 5. When a possible misconception may be reported
@@ -563,7 +563,7 @@ The redesign is built and validated on its own branch, and the live system chang
 7. **Validation, with paid calls run locally**, as set out in 11.1. The system goes live only when every criterion there holds.
 8. **Approval and release.** A new approval bundle from that evidence, then deployment at a boundary between mini-tests. Each v8 prompt is pinned by its own hash: profiling, feedback, item preparation and the instructor report run live only when INTERPRETATION\_V8\_APPROVED\_PROMPT\_HASH, FORMATIVE\_FEEDBACK\_V8\_APPROVED\_PROMPT\_HASH, ITEM\_PREPARATION\_V8\_APPROVED\_PROMPT\_HASH and INSTRUCTOR\_REPORT\_V8\_APPROVED\_PROMPT\_HASH equal the current prompts' hashes, which npm run eval:v8 -- hashes prints. Until a hash is set, that step takes its fallback path and students are never blocked. Every output stores its prompt version, so records before and after the switch are analysed separately.
 
-A separate small fix: page-switch counts use different event names in different exports, so the same student can show different counts. These should be aligned.
+Page-switch counts (done 20 Oct 2026): the research, master and detailed exports, the teacher process log and the process summary count page exits with one helper (summarizePageVisibility: hidden count, window-blur count and paired time away). The count stored in sealed response packages and given to the operational agents keeps its earlier definition (every visibility and focus event), so stored packages and model inputs keep one meaning.
 
 ### 11.1 Validation before going live
 
