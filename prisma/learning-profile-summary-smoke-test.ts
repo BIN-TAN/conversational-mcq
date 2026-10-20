@@ -33,7 +33,7 @@ expect({ ability_profile: "misconception_based_understanding", integrated_diagno
 expect({ evidence_sufficiency: "insufficient", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Unavailable / insufficient evidence");
 const independentCaution = learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_independence_uncertain" });
 assert.equal(independentCaution.understanding_caution, "independent_understanding_uncertain");
-assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v3");
+assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v4");
 for (const integrated_diagnostic_profile of ["insufficient_evidence_for_formative_decision", "low_engagement_limits_interpretability", "conflicting_evidence_needs_clarification"]) expect({ integrated_diagnostic_profile }, "Unavailable / insufficient evidence");
 expect({ ability_profile: "insufficient_evidence" }, "Unavailable / insufficient evidence");
 expect({ evidence_sufficiency: "insufficient" }, "Unavailable / insufficient evidence");
@@ -48,6 +48,16 @@ assert.equal(learningProfileSummary({ ...profile, process_interpretation_caution
 assert.equal(learningProfileSummary(profile).understanding_profile_stage, "baseline");
 assert.equal(learningProfileSummary({ ...profile, profile_type: "updated" }).understanding_profile_stage, "updated");
 assert.equal(learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_fragile_understanding" }).understanding_caution, "reasoning_refinement_needed");
+
+// Interpretation v8 profiles take the rule label stored with their item ratings (understanding-summary-v4).
+const v8Evidence = (label: string, reason: string) => ({ profile_schema: "student-interpretation-profile-v8", topic_summary: { label, reason } });
+assert.equal(learningProfileSummary({ ...profile, ability_profile: "insufficient_evidence", item_level_evidence: v8Evidence("Still developing", "mixed") }).understanding_label, "Still developing");
+const pendingV8 = learningProfileSummary({ ...profile, item_level_evidence: v8Evidence("Pending item review", "flagged_items_change_label") });
+assert.equal(pendingV8.understanding_label, "Pending item review");
+assert.equal(pendingV8.understanding_reason, "interpretation_v8_flagged_items_change_label");
+assert.equal(learningProfileSummary({ ...profile, item_level_evidence: v8Evidence("Mostly understood", "supported_majority_none_unsupported"),
+  process_interpretation_cautions: ["Fallback-derived profile"] }).understanding_label, "Unavailable / insufficient evidence", "A fallback v8 profile has no label");
+checks += 4;
 
 // The mini-test profile stays the reporting category; conversation updates are a separate variable.
 const updatedProfile = { ...profile, id: "synthetic-updated-profile", profile_type: "updated",

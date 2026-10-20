@@ -5,11 +5,15 @@ import {
   canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition
 } from "./formative-conversation/profile-projection";
+import { readStoredInterpretationV8 } from "./interpretation-v8/profile";
 
 // v3: the label always comes from the profile produced from the submitted mini-test; conversation
 // updates are reported separately (conversationUpdateSummary). v3 has no transfer_evidence_status:
 // the mini-test has no transfer task (D13, initial-profile-transfer-labels.ts).
-export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v3" as const;
+// v4: interpretation v8 profiles take the label computed by the application's rules from the
+// item ratings (interpretation-v8/rules.ts), including "Pending item review"; earlier
+// profiles keep the v3 mapping from their stored categories.
+export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v4" as const;
 export const learningProfileInclude = { based_on_agent_call: { select: profileSourceCallSelect } } as const;
 
 // Reuse the transition validator without loading student messages or provider payloads.
@@ -113,7 +117,7 @@ export const CONVERSATION_UPDATE_SUMMARY_DEFINITIONS = {
 export const CONVERSATION_UPDATE_SUMMARY_COLUMNS = Object.keys(CONVERSATION_UPDATE_SUMMARY_DEFINITIONS) as Array<keyof typeof CONVERSATION_UPDATE_SUMMARY_DEFINITIONS>;
 
 export const UNDERSTANDING_LABELS = [
-  "Need more work", "Still developing", "Mostly understood", "Unavailable / insufficient evidence"
+  "Need more work", "Still developing", "Mostly understood", "Unavailable / insufficient evidence", "Pending item review"
 ] as const;
 export type UnderstandingLabel = typeof UNDERSTANDING_LABELS[number];
 type SummaryProfile = ProfileRecord & {
@@ -128,7 +132,13 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
   let label: UnderstandingLabel = "Unavailable / insufficient evidence";
   let reason = profile ? provenance?.profile_unavailable_reason ?? "unsupported_profile_category" : "no_current_profile";
   const eligible = provenance?.profile_valid_for_learning_analysis === true;
-  if (profile && eligible) {
+  const v8 = profile ? readStoredInterpretationV8(profile.item_level_evidence) : null;
+  if (profile && eligible && v8) {
+    // Rules over the item ratings (section 4.4 of the redesign). The stored summary has no
+    // instructor item decisions yet; it is never rewritten.
+    label = v8.topic_summary.label;
+    reason = `interpretation_v8_${v8.topic_summary.reason}`;
+  } else if (profile && eligible) {
     const diagnostic = profile.integrated_diagnostic_profile;
     if (!(abilityProfiles as readonly string[]).includes(profile.ability_profile) ||
       !(integratedDiagnosticProfiles as readonly string[]).includes(diagnostic) ||
@@ -164,8 +174,8 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
 
 export const UNDERSTANDING_SUMMARY_DEFINITIONS = {
   understanding_summary_version: "Read-only classification version. Does not rewrite stored profiles, answers or historical AI messages.",
-  understanding_label: "Shared dashboard/export label from the profile produced from the submitted mini-test, before any conversation. Updates recommended during the conversation never change it; they are reported in the conversation update variables. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade. The mini-test has no transfer task, so transfer is not assessed; from the 2026-10-19 rule (initial-profile-transfer-labels-blocked-v1) the mini-test profile is saved without transfer labels, so robust_transfer_ready_understanding appears only in mini-test profiles saved before that rule or in conversation updates backed by independent transfer evidence.",
-  understanding_reason: "Deterministic mapping reason, not a new AI judgment; see understanding_label and the linked original profile.",
+  understanding_label: "Shared dashboard/export label from the profile produced from the submitted mini-test, before any conversation. From understanding-summary-v4, profiles from interpretation v8 take the label the application computes from the item ratings (see the redesign's summary rules: at least two interpretable items, at least half of the counted items interpretable; Need more work when half or more of the interpretable items are not supported; Mostly understood when none is not supported, at most one is partly supported and supported items are more than half of the counted items; otherwise Still developing). Pending item review means a model-flagged possible item issue could change the label and awaits the instructor. The rest of this definition describes earlier profiles. Updates recommended during the conversation never change it; they are reported in the conversation update variables. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade. The mini-test has no transfer task, so transfer is not assessed; from the 2026-10-19 rule (initial-profile-transfer-labels-blocked-v1) the mini-test profile is saved without transfer labels, so robust_transfer_ready_understanding appears only in mini-test profiles saved before that rule or in conversation updates backed by independent transfer evidence.",
+  understanding_reason: "Deterministic mapping reason, not a new AI judgment; see understanding_label and the linked original profile. Reasons starting interpretation_v8_ name the summary rule applied to a v8 profile.",
   understanding_caution: "reasoning_refinement_needed for the stored correct-but-fragile integrated diagnosis; independent_understanding_uncertain for that stored integrated diagnosis; profile_unavailable without eligible provenance; none_added otherwise. This is a retained diagnostic qualifier, not proof that no other limitations exist. Native mostly-correct understanding may coexist with a need to refine some reasoning.",
   understanding_profile_record_id: "Profile used for this summary; join profile_record_id. This is the conversation's initial profile, otherwise the topic's profile pointer for attempts without a conversation. Multiple topics use the most recently created profile, not an average across topics.",
   understanding_profile_stage: "baseline for an eligible mini-test profile, unavailable otherwise. updated appears only for legacy attempts whose profile pointer was replaced before conversation updates were stored separately.",

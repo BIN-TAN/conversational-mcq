@@ -55,7 +55,6 @@ import {
   type LifecycleCommandResult
 } from "@/lib/services/student-assessment/lifecycle-operations";
 import {
-  ensureChatNativeFormativeActivity,
   DISPLAY_EVENT_CONTRACT_VERSION,
   PACKAGE_COMPLETION_CANONICAL_AWAIT_STATE,
   PACKAGE_COMPLETION_OPERATION_VERSION,
@@ -83,11 +82,8 @@ import {
   TIMING_CONTRACT_VERSION,
   TIMING_SOURCE_VERSION
 } from "@/lib/services/student-assessment/timing-contract";
-import {
-  persistProfileIntegrationSnapshotForSession,
-  projectStoredStudentProfileIntegration
-} from "@/lib/services/student-assessment/profile-integration";
-import { runParallelInitialInterpretation } from "./parallel-initial-interpretation";
+import { projectStoredStudentProfileIntegration } from "@/lib/services/student-assessment/profile-integration";
+import { prepareInitialInterpretationV8 } from "./interpretation-v8/prepare";
 import {
   ANSWER_EXPLANATION_VERSION,
   EvidenceIntegratedProfileV2Schema,
@@ -1008,8 +1004,10 @@ function evidenceIntegratedProfileFromStoredProfile(input: {
   item_level_evidence: Prisma.JsonValue;
 } | null) {
   const record = recordValue(input?.item_level_evidence);
+  // Interpretation v8 profiles keep the same deterministic answer review under its own key,
+  // so that provenance does not mistake them for intermediate integration records.
   const parsed = EvidenceIntegratedProfileV2Schema.safeParse(
-    record.evidence_integrated_profile_v2
+    record.evidence_integrated_profile_v2 ?? record.answer_review_v2
   );
 
   return parsed.success ? parsed.data : null;
@@ -6517,32 +6515,15 @@ export async function completeInitialConceptUnitAdministration(input: {
   };
 
   if (!replayedCompletedOperation || input.assert_preparation_active) {
-    await input.assert_preparation_active?.();
-    const integrate = (on_source_prepared?: () => void) => persistProfileIntegrationSnapshotForSession({
-      session_public_id: session.session_public_id,
-      assert_preparation_active: input.assert_preparation_active,
-      on_source_prepared,
-      execution_mode:
-        resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production").adapter ===
-        "configured_live_runtime"
-          ? "live_provider"
-          : "deterministic_mock"
-    });
-    const activity = (before_profile_persistence?: () => Promise<void>) => ensureChatNativeFormativeActivity({
+    // Interpretation v8 (docs/AI_MODULE_REDESIGN_2026-10-19.md): one profiling call, then
+    // the conversation and its opening. It replaces the profile-integration and planning
+    // calls and the second profiling call made at the opening.
+    await prepareInitialInterpretationV8({
       concept_unit_session_db_id: conceptUnitSession.id,
-      invocation_reason: operation.already_seen
-        ? "student_package_review_continue_replay"
-        : "student_package_review_continue",
+      response_package_id: responsePackage.id,
       execution_mode: input.execution_mode,
-      assert_preparation_active: input.assert_preparation_active,
-      before_profile_persistence
+      assert_preparation_active: input.assert_preparation_active
     });
-    if (input.assert_preparation_active) {
-      await runParallelInitialInterpretation({ integration: integrate, activity });
-    } else {
-      await integrate();
-      await activity();
-    }
   }
 
   await input.assert_preparation_active?.();
