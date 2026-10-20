@@ -32,6 +32,10 @@ export type EvaluationEngine =
       provider: LlmProvider;
       interpretation_model: AgentModelConfig;
       feedback_model: AgentModelConfig;
+      /** The env file named for the OpenAI key, if one was named (never the key itself). */
+      key_env_file?: string | null;
+      /** The approved runtime settings file the model settings came from, if one was named. */
+      model_settings_file?: string | null;
     };
 
 export type AttemptSummary = {

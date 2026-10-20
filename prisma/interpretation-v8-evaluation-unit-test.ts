@@ -33,6 +33,7 @@ import {
   wilsonInterval
 } from "../src/lib/evaluation/interpretation-v8/metrics";
 import { renderMarkdownReport } from "../src/lib/evaluation/interpretation-v8/report";
+import { keyVariablesFromEnvFile, modelSettingsFromRuntimeEnv } from "../src/lib/evaluation/interpretation-v8/live-setup";
 import { runFeedbackCase, runInterpretationCase, type InterpretationRunRecord } from "../src/lib/evaluation/interpretation-v8/run";
 import {
   coderAgreement,
@@ -346,6 +347,19 @@ async function main() {
     assert.equal(byLabel.get("limited")!.share_difference, 0.25);
     assert.equal(byLabel.get("rating_unavailable")!.model, 1, "Unrated items are shown, not hidden");
     assert.equal(byLabel.get("no_usable_explanation")!.planned, 0, "Every planned label is listed even when unused");
+  });
+
+  await check("live runs take only the key variables from the named env file and only model settings from the settings file", () => {
+    const envText = "# earlier live runs\r\nLLM_PROVIDER=mock\r\nDATABASE_URL=postgresql://x\r\nOPENAI_MODEL_PROFILING=other\r\nOPENAI_API_KEY_FILE=keys/placeholder.txt\r\n";
+    const variables = keyVariablesFromEnvFile(envText, path.resolve("/data/release/.env.local"));
+    assert.deepEqual(Object.keys(variables), ["OPENAI_API_KEY_FILE"], "Nothing but the key variables is taken");
+    assert.equal(variables.OPENAI_API_KEY_FILE, path.resolve("/data/release/keys/placeholder.txt"), "A relative key file is relative to the env file");
+    assert.deepEqual(keyVariablesFromEnvFile("OPENAI_API_KEY=\n", "/x/.env"), {});
+    const settings = modelSettingsFromRuntimeEnv({ OPENAI_MODEL_PROFILING: "model-a", OPENAI_REASONING_EFFORT_PROFILING: "medium",
+      OPENAI_MAX_OUTPUT_TOKENS_PROFILING: 4000, OPENAI_REQUEST_TIMEOUT_MS: 90000, OPERATIONAL_AGENT_MODE: "guarded_live",
+      OPENAI_API_KEY: "placeholder", DATABASE_URL: "postgresql://x", APP_ENV: "development" });
+    assert.deepEqual(settings, { OPENAI_MODEL_PROFILING: "model-a", OPENAI_REASONING_EFFORT_PROFILING: "medium",
+      OPENAI_MAX_OUTPUT_TOKENS_PROFILING: "4000", OPENAI_REQUEST_TIMEOUT_MS: "90000" });
   });
 
   console.log(`interpretation-v8-evaluation-unit-test: ${checks} checks passed`);

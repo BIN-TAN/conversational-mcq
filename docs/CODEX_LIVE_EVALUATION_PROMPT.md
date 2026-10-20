@@ -35,15 +35,15 @@ The researcher's guidance: the model should not be rejected too often, and the c
 
 ## Phase 0: get the code and check it (no model calls)
 
-A previous run stopped here because three tests could not read the design document when Windows checked it out with CRLF line endings. Bundle v3 fixes that; the same steps now also work when the evaluation branch already exists.
+Two earlier runs stopped early. The first stopped here, because three tests could not read the design document with Windows (CRLF) line endings. The second stopped before Phase 1, because this repository's `.env.local` holds no OpenAI key. Bundle v4 fixes the first, and Phase 1 now uses the configuration the earlier live runs used. These steps also work when the evaluation branch already exists.
 
 ```powershell
 cd "E:\New_Downloads\Conversational MCQ"
 git status
 git fetch origin
-git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v3.bundle"
+git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v4.bundle"
 git switch --detach
-git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v3.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
+git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v4.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
 git switch eval/live-2026-10
 git log -1 --oneline
 npm install
@@ -64,24 +64,37 @@ Run every evaluation command as `npx tsx prisma/interpretation-v8-evaluation-cli
 
 What to expect:
 
-- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v3". Report its hash.
-- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (16) suites.
+- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v4". Report its hash.
+- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (17) suites.
 - **`check`** must report 31 simulated students, 124 item responses, 18 feedback cases and no problems.
 - **The local run** uses deterministic stand-ins, which are not a model. It only shows that the pipeline runs. Its quality numbers are meaningless; do not report them.
 
 If any of these fail, stop and report the exact output.
 
-Before you start writing the new report, rename the previous `.data\interpretation-v8-evaluation\CODEX_REPORT.md` (the Phase 0 stop) to `CODEX_REPORT-previous-phase0-stop.md` in the same folder.
+Before you start writing the new report, keep the earlier ones: rename the existing `.data\interpretation-v8-evaluation\CODEX_REPORT.md` to `CODEX_REPORT-previous-<n>.md` in the same folder, using the next free number. Never overwrite an earlier report.
 
 ## Phase 1: one live development run
 
-**Environment.** The live run reads `.env.local`. It needs `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS_ENABLED=true` and the OpenAI key; these are already present if the researcher uses live calls locally.
+**Environment: the researcher's existing configuration, no new key.** The earlier live runs on this computer (the simulated-student evaluation and the live browser test, started by `E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\start-live-browser-test.ps1`) took two things from two files:
 
-- Do not add or edit secrets. If something is missing, stop and say which variable name is missing, without its value.
-- The model settings must be the same as production. If you can see which model names Render uses, record them. If you cannot, record what `.env.local` resolves to (in `settings.json` of the run folder) and flag that it may differ from production.
+- the OpenAI key from the env file of the release folder, `E:\New_Downloads\cmcq-release\.env.local`;
+- the approved model settings from `E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json`: `gpt-5.6-luna` at medium effort for profiling, and `gpt-6.1-sol` at medium effort for the formative conversation.
+
+The live command takes the same two files with `--env-file` and `--runtime-env`.
+
+- From the env file it takes only `OPENAI_API_KEY` or `OPENAI_API_KEY_FILE`.
+- From the settings file it takes only model settings (model, reasoning effort, output-token limit, timeout, retries).
+- `--allow-live` switches live calls on for this run only.
+- Nothing is printed, copied or saved, and no `.env.local` is edited.
+
+Rules:
+
+- Do not create, request or type a key. Do not open, print or copy the env file or the key; pass its path only.
+- If the command says that no OpenAI key is configured, stop and report that sentence. Do not look for keys anywhere else.
+- `settings.json` in the run folder records the model names. Report them, and say that they are the 13 October approved settings the earlier live runs used. If Render now uses different model settings, the researcher will say so.
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --out .data\interpretation-v8-evaluation\dev-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\dev-1
 ```
 
 This runs 49 cases: 31 profiling submissions and 18 feedback messages.
@@ -100,7 +113,7 @@ The command writes these files to the run folder:
 ## Phase 2: stability and fallback rate (three runs)
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --out .data\interpretation-v8-evaluation\stability-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\stability-1
 ```
 
 This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect about 190 calls, at most 666.
@@ -110,7 +123,7 @@ This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect a
 This simulates a class submitting at the same time, to see whether rate limits cause fallbacks.
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --part interpretation --concurrency 10 --allow-live --out .data\interpretation-v8-evaluation\burst-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --part interpretation --concurrency 10 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\burst-1
 ```
 
 ## Phase 4: analysis, then only the allowed fixes
@@ -147,7 +160,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
 6. **After any fix:**
    - run `npm run test:redesign-v8`;
    - run `npx tsc --noEmit -p tsconfig.json`, and report only new errors in the files you changed;
-   - repeat Phase 1 into `dev-2` and compare it with `dev-1`.
+   - repeat Phase 1 (with the same `--env-file` and `--runtime-env`) into `dev-2` and compare it with `dev-1`.
 
 ## Phase 5: materials for the human reference coding (no model calls)
 

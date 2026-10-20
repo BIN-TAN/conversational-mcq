@@ -12,11 +12,15 @@
  *
  * Common options: --bank, --cases and --feedback-cases replace the shipped fixtures (for
  * example with imported EDPY 507 items and their written cases). No database is used. Live
- * runs call the model configured in .env.local and need --allow-live.
+ * runs need --allow-live. --env-file <file> names the env file the earlier live runs used (only
+ * the OpenAI key variables are taken from it); --runtime-env <json> names the approved runtime
+ * settings file (only model settings are taken from it).
+ * In PowerShell, run it as npx tsx prisma/interpretation-v8-evaluation-cli.ts <command> ...
  */
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { loadEnvConfig } from "@next/env";
+import { keyVariablesFromEnvFile, modelSettingsFromRuntimeEnv } from "../src/lib/evaluation/interpretation-v8/live-setup";
 import {
   EvaluationCaseFileSchema,
   expectedOutcomes,
@@ -106,17 +110,29 @@ function fixtureSummary(bank: ItemBank, cases: EvaluationCaseFile) {
 async function liveEngine(): Promise<EvaluationEngine> {
   if (!flag("--allow-live")) throw new Error("Live runs call the model and cost money. Add --allow-live to confirm.");
   loadEnvConfig(process.cwd(), true);
+  // The researcher's existing configuration is used, from the files named on the command line
+  // (see src/lib/evaluation/interpretation-v8/live-setup.ts). Nothing is printed or written, and
+  // .env.local is not changed. --allow-live switches live calls on for this process only.
+  const envFile = option("--env-file");
+  const keyVariables = envFile ? keyVariablesFromEnvFile(readFileSync(path.resolve(envFile), "utf8"), path.resolve(envFile)) : {};
+  const runtimeEnvFile = option("--runtime-env");
+  const modelSettings = runtimeEnvFile ? modelSettingsFromRuntimeEnv(JSON.parse(readFileSync(path.resolve(runtimeEnvFile), "utf8"))) : {};
+  if (runtimeEnvFile && !Object.keys(modelSettings).length) throw new Error(`${runtimeEnvFile} holds no model settings.`);
+  Object.assign(process.env, modelSettings, keyVariables, { LLM_PROVIDER: "openai", LLM_LIVE_CALLS_ENABLED: "true" });
   const { getLlmRuntimeConfig, resolveAgentModelConfig, resolveOpenAIModelConfigForRole } = await import("../src/lib/llm/config");
   const { createLlmProvider } = await import("../src/lib/llm/providers/provider-factory");
   const runtime = getLlmRuntimeConfig();
   if (runtime.provider !== "openai" || !runtime.live_calls_enabled || !runtime.openai_key_configured) {
-    throw new Error("Live runs need LLM_PROVIDER=openai, LLM_LIVE_CALLS_ENABLED=true and an OpenAI key in .env.local.");
+    throw new Error("Live calls could not be switched on for this run.");
   }
+  console.log(`Live calls are on for this run. OpenAI key: configured${envFile ? ` (from ${path.resolve(envFile)})` : ""}. Model settings: ${runtimeEnvFile ? path.resolve(runtimeEnvFile) : ".env.local"}.`);
   return {
     kind: "live",
     provider: createLlmProvider(),
     interpretation_model: resolveAgentModelConfig(INTERPRETATION_V8_AGENT_NAME),
-    feedback_model: resolveOpenAIModelConfigForRole(FEEDBACK_V8_AGENT_NAME)
+    feedback_model: resolveOpenAIModelConfigForRole(FEEDBACK_V8_AGENT_NAME),
+    key_env_file: envFile ? path.resolve(envFile) : null,
+    model_settings_file: runtimeEnvFile ? path.resolve(runtimeEnvFile) : null
   };
 }
 
@@ -178,6 +194,8 @@ async function run() {
     only,
     interpretation_model: engine.kind === "live" ? engine.interpretation_model : null,
     feedback_model: engine.kind === "live" ? engine.feedback_model : null,
+    key_env_file: engine.kind === "live" ? engine.key_env_file ?? null : null,
+    model_settings_file: engine.kind === "live" ? engine.model_settings_file ?? null : null,
     interpretation_prompt_hash: INTERPRETATION_V8_PROMPT_HASH,
     feedback_prompt_hash: FEEDBACK_V8_PROMPT_HASH,
     fixtures: { bank: bank.bank_version, cases: cases.cases_version, feedback: feedback?.feedback_cases_version ?? null },
