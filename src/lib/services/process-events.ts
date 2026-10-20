@@ -7,7 +7,6 @@ import {
   type ProcessEventType
 } from "../domain/enums";
 import { toPrismaJson } from "./json";
-import { summarizePageVisibility } from "./student-assessment/timing-contract";
 
 const logProcessEventSchema = z.object({
   assessment_session_db_id: z.string().uuid(),
@@ -103,8 +102,17 @@ export async function aggregateProcessEventsByConceptUnitSession(
 
   return {
     event_count_by_type: eventCountByType,
-    // Times the page was hidden, as item_responses.page_hidden_count (returns and window blur not counted).
-    page_switch_count: summarizePageVisibility(events).hidden_count,
+    // Stored in sealed response packages and passed to the operational agents: kept unchanged so
+    // stored packages and model inputs keep one definition (every visibility and focus event).
+    // Research and teacher exports count page exits with summarizePageVisibility instead.
+    page_switch_count: countEvents(eventCountByType, [
+      "page_hidden",
+      "page_visible",
+      "page_visibility_hidden",
+      "page_visibility_visible",
+      "window_blur",
+      "window_focus"
+    ]),
     long_pause_count: countEvents(eventCountByType, ["long_pause"]),
     invalid_help_request_count: countEvents(eventCountByType, ["invalid_help_request"]),
     prompt_injection_attempt_count: countEvents(eventCountByType, ["prompt_injection_attempt"]),
