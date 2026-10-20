@@ -48,6 +48,18 @@ export const ResponseQualityOutputSchema = z.object({
 }).strict();
 
 export type ResponseQualityOutput = z.infer<typeof ResponseQualityOutputSchema>;
+/**
+ * Values recorded only by item administration v4 (item-admin-tutor-v4); the response-quality
+ * model above never returns them. "collected": the response was accepted as typed, with no
+ * judgment of its quality. "off_task_or_unreadable": the student was asked to respond to the item.
+ */
+export const ITEM_ADMINISTRATION_RECORDED_RESPONSE_QUALITIES = ["collected", "off_task_or_unreadable"] as const;
+export type RecordedResponseQuality =
+  | ResponseQualityOutput["response_quality"]
+  | (typeof ITEM_ADMINISTRATION_RECORDED_RESPONSE_QUALITIES)[number];
+export type RecordedResponseQualityOutput = Omit<ResponseQualityOutput, "response_quality"> & {
+  response_quality: RecordedResponseQuality;
+};
 export type ResponseQualityStage =
   | "initial_item_reasoning"
   | "initial_tempting_reason"
@@ -57,7 +69,7 @@ export type ResponseQualityStage =
   | "revision_response";
 
 export type ResponseQualityResult = {
-  output: ResponseQualityOutput;
+  output: RecordedResponseQualityOutput;
   source: "deterministic_mock" | "llm" | "llm_fallback_to_deterministic";
   validation_status: "validated" | "deterministic" | "fallback_after_provider_failure";
   provider: "mock" | "openai";
@@ -464,10 +476,11 @@ export async function evaluateResponseQuality(input: {
   };
 }
 
-export function responseQualityAllowsAdvance(output: ResponseQualityOutput) {
+export function responseQualityAllowsAdvance(output: RecordedResponseQualityOutput) {
   return (
     output.should_advance &&
-    (output.response_quality === "adequate" ||
+    (output.response_quality === "collected" ||
+      output.response_quality === "adequate" ||
       output.response_quality === "insufficient_knowledge" ||
       output.reasoning_signal === "weak_but_usable")
   );

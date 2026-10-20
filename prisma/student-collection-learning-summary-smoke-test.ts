@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { zodTextFormat } from "openai/helpers/zod";
 import {
-  canonicalizeTutorOutput, ItemAdministrationTutorOutputSchema,
+  itemAdministrationTutorResultFromModelOutput, ItemAdministrationTutorOutputSchema,
   type ItemAdministrationTutorOutput, type ItemAdministrationTutorStatePacket
 } from "../src/lib/services/student-assessment/item-administration-tutor";
 import { buildInitialAdminPrompt } from "../src/lib/student-assessment/initial-admin-prompts";
@@ -18,36 +18,35 @@ const packet: ItemAdministrationTutorStatePacket = {
   item_role: "initial", required_evidence_type: "reasoning", latest_student_message: "This seems simplest.",
   selected_option: "A", correctness_feedback_prohibited: true, prior_uncertainty: false
 };
-const proposed = (classification: ItemAdministrationTutorOutput["message_classification"]): ItemAdministrationTutorOutput => ({
-  message_classification: classification, response_quality: "not_usable", should_advance: false,
-  should_store_deferred_concern: false, deferred_concern_summary: null,
-  student_facing_message: "Focus on the timing and whether the comparison uses other students or a predefined standard.",
-  next_expected_action: "ask_repair"
+// Item administration v4: the model returns an action only; the student sees fixed neutral wording.
+const proposed = (action: ItemAdministrationTutorOutput["action"]): ItemAdministrationTutorOutput => ({
+  action, saved_question: action === "defer_question" ? "Asked how the comparison group is chosen." : null
 });
+const decide = (output: ItemAdministrationTutorOutput, state: ItemAdministrationTutorStatePacket) =>
+  itemAdministrationTutorResultFromModelOutput({ output, state_packet: state, text: state.latest_student_message });
 for (const stage of ["reasoning", "tempting_reason"] as const) {
   for (const role of ["initial", "transfer"] as const) {
     const state = { ...packet, required_evidence_type: stage, item_role: role };
     check(`${role}/${stage}: one neutral clarification, then retain the student's limited response`, () => {
-      const candidate = proposed("incomplete");
-      const first = canonicalizeTutorOutput({ output: candidate, state_packet: state });
+      const candidate = proposed("clarify_once");
+      const first = decide(candidate, state);
       assert.equal(first.should_advance, false);
       assert.doesNotMatch(first.student_facing_message, /timing|predefined|other students/);
-      const second = canonicalizeTutorOutput({ output: candidate, state_packet: { ...state, prior_neutral_clarification_count: 1 } });
+      const second = decide(candidate, { ...state, prior_neutral_clarification_count: 1 });
       assert.equal(second.should_advance, true);
-      assert.equal(second.response_quality, "weak_but_usable");
-      assert.equal(candidate.message_classification, "incomplete", "Do not mutate provider output");
-      assert.deepEqual(canonicalizeTutorOutput({ output: second, state_packet: state }), second);
+      assert.equal(second.collection_action, "accept");
+      assert.equal(second.response_quality, "not_judged", "Collection is not a quality judgment");
+      assert.equal(candidate.action, "clarify_once", "Do not mutate provider output");
+      assert.deepEqual(decide(candidate, { ...state, prior_neutral_clarification_count: 1 }), second);
     });
-    for (const classification of ["affective_expression", "weak_but_usable_reasoning", "insufficient_knowledge"] as const) {
-      check(`${role}/${stage}: accept ${classification} without requiring rewritten reasoning`, () => {
-        const output = canonicalizeTutorOutput({ output: proposed(classification), state_packet: state });
-        assert.equal(output.should_advance, true);
-        assert.doesNotMatch(output.student_facing_message, /timing|predefined|other students|correct/);
-      });
-    }
-    for (const classification of ["content_question", "answer_request", "procedural_question", "edit_request", "gibberish", "off_topic"] as const) {
-      check(`${role}/${stage}: repeated ${classification} is not a justification`, () => {
-        const output = canonicalizeTutorOutput({ output: proposed(classification), state_packet: { ...state, prior_neutral_clarification_count: 8 } });
+    check(`${role}/${stage}: accept a limited or uncertain reply without requiring rewritten reasoning`, () => {
+      const output = decide(proposed("accept"), state);
+      assert.equal(output.should_advance, true);
+      assert.doesNotMatch(output.student_facing_message, /timing|predefined|other students|correct/);
+    });
+    for (const action of ["defer_question", "procedural_help", "redirect"] as const) {
+      check(`${role}/${stage}: repeated ${action} without a clarification is not a justification`, () => {
+        const output = decide(proposed(action), { ...state, prior_neutral_prompt_count: 8, prior_neutral_clarification_count: 0 });
         assert.equal(output.should_advance, false);
         assert.doesNotMatch(output.student_facing_message, /timing|predefined|other students/);
       });

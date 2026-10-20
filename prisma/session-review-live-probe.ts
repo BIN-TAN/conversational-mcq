@@ -4,7 +4,7 @@ import { createLlmProvider } from "../src/lib/llm/providers/provider-factory";
 import { getLlmRuntimeConfig, resolveAgentModelConfig, resolveOpenAIModelConfigForRole } from "../src/lib/llm/config";
 import { ChatNativeLiveFormativeProfileOutputSchema, CHAT_NATIVE_PROFILE_INSTRUCTIONS, validateChatNativeProfileStudentOutput } from "../src/lib/services/student-assessment/formative-profile";
 import { normalizeChoiceOnlyAnnotations, validateSemanticItemReviews } from "../src/lib/services/student-assessment/semantic-item-review";
-import { ITEM_ADMINISTRATION_TUTOR_INSTRUCTIONS, ItemAdministrationTutorOutputSchema, buildItemAdministrationTutorStatePacket, canonicalizeTutorOutput, validateTutorOutput, type ItemAdministrationTutorStatePacket } from "../src/lib/services/student-assessment/item-administration-tutor";
+import { ITEM_ADMINISTRATION_TUTOR_INSTRUCTIONS, ItemAdministrationTutorOutputSchema, buildItemAdministrationTutorModelInput, itemAdministrationTutorResultFromModelOutput, type ItemAdministrationTutorStatePacket } from "../src/lib/services/student-assessment/item-administration-tutor";
 
 // Opt-in, bounded synthetic provider test. No database reads or student writes.
 async function main() {
@@ -24,15 +24,16 @@ async function main() {
     };
     const result = await provider.executeStructured({ agent_name: "response_collection_agent",
       model_config: resolveOpenAIModelConfigForRole("item_administration_tutor_agent"),
-      instructions: ITEM_ADMINISTRATION_TUTOR_INSTRUCTIONS, input: buildItemAdministrationTutorStatePacket(state),
+      instructions: ITEM_ADMINISTRATION_TUTOR_INSTRUCTIONS,
+      input: buildItemAdministrationTutorModelInput({ state_packet: state, item_stem: "Does high alpha alone establish validity?",
+        item_options: [{ label: "A", text: "No, internal consistency does not establish the intended interpretation." }, { label: "B", text: "Yes, alpha proves validity." }] }),
       output_schema: ItemAdministrationTutorOutputSchema, schema_name: "session_review_tutor_probe",
       client_request_id: randomUUID(), timeout_ms: runtime.request_timeout_ms });
     assert.equal(result.status, "completed");
     const parsed = ItemAdministrationTutorOutputSchema.parse(result.parsed_output);
-    const output = canonicalizeTutorOutput({ output: parsed, state_packet: state });
-    assert(validateTutorOutput({ output, state_packet: state }).ok);
+    const output = itemAdministrationTutorResultFromModelOutput({ output: parsed, state_packet: state, text: state.latest_student_message });
     assert.equal(output.should_advance, mixed);
-    assert(output.should_store_deferred_concern && output.deferred_concern_summary);
+    assert(output.store_deferred_concern && output.deferred_concern_summary);
     console.log(JSON.stringify({ scenario: mixed ? "reasoning_plus_question" : "question_only", passed: true,
       response_id: result.provider_response_id, latency_ms: result.latency_ms, output }));
     passed++;
