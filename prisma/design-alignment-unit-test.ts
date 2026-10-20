@@ -214,69 +214,80 @@ async function main() {
       pseudonymization.researchStudentId("synthetic_01", { APP_ENV: "test" } as never));
   });
 
-  const { validateInstructorReport } = await import("../src/lib/services/instructor-report/validate");
-  const { buildLocalTestSummary } = await import("../src/lib/services/instructor-report/service");
-  const { INSTRUCTOR_REPORT_SCHEMA_VERSION, InstructorReportOutputSchema } = await import("../src/lib/services/instructor-report/contract");
-  const reportInput = {
-    input_version: "instructor-report-input-v1" as const,
-    mini_test_title: "Synthetic mini test", topic_title: "Reliability", learning_objective: "Distinguish error types",
-    eligible_student_count: 3, students_with_submitted_responses: 2,
-    items: [{ item_ref: "Q1", stem: "Stem", options: [{ label: "A", text: "a" }, { label: "B", text: "b" }],
-      correct_option: "A", expected_reasoning: [], distractor_rationales: {} }],
-    students: [
-      { student_ref: "S1", attempt_number: 1, conversation: { status: "ended", ended_by_student: true, student_turn_count: 1,
-          turns: [{ speaker: "tutor" as const, text: "Reliability is about consistency." }, { speaker: "student" as const, text: "So a longer test is always more valid?" }] },
-        responses: [{ item_ref: "Q1", selected_option: "B", selected_i_dont_know: false, correctness: "incorrect",
-          reasoning: "Because more items always make the scores valid.", confidence: "high",
-          no_other_option_tempting: false, tempting_option: "A", tempting_option_reason: "A mentions consistency" }] },
-      { student_ref: "S2", attempt_number: 2, conversation: null,
-        responses: [{ item_ref: "Q1", selected_option: "E", selected_i_dont_know: true, correctness: "not_scored",
-          reasoning: "I don't know", confidence: "low", no_other_option_tempting: true, tempting_option: null, tempting_option_reason: null }] }
-    ],
-    truncation_notes: []
-  };
-  const finding = (evidence: Array<Record<string, unknown>>, studentCount = 1) => ({
-    title: "Validity conflated with length", category: "possible_misconception" as const, description: "d",
-    student_count: studentCount, evidence_strength: "limited" as const, interpretation_caution: "One student.",
-    evidence: evidence as never
+  // D8, updated for the v8 report (docs/AI_MODULE_REDESIGN_2026-10-19.md, 9.7); the full
+  // checks are in prisma/instructor-report-v8-unit-test.ts.
+  const { assembleInstructorReportV8 } = await import("../src/lib/services/instructor-report/assemble");
+  const { validateInstructorReportV8 } = await import("../src/lib/services/instructor-report/validate");
+  const { buildLocalTestNarrative, buildReportRecord, findingCounts } = await import("../src/lib/services/instructor-report/deterministic");
+  const { INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, InstructorReportV8OutputSchema } = await import("../src/lib/services/instructor-report/contract");
+  const reportItemOptions = [{ label: "A", text: "a" }, { label: "B", text: "b" }];
+  const reportPackage = (selected: string, correctness: string, reasoning: string) => ({
+    item_responses: [{ item_public_id: "item_q1_public", item_snapshot: { item_public_id: "item_q1_public", options: reportItemOptions, correct_option: "A" },
+      selected_answer_final: selected, correctness, reasoning_text_final: reasoning, confidence_final: "high",
+      tempting_option: "A", tempting_option_reason: "A mentions consistency" }]
   });
-  const report = (findings: unknown[]) => InstructorReportOutputSchema.parse({
-    schema_version: INSTRUCTOR_REPORT_SCHEMA_VERSION, overview: "o", participation_summary: "p", findings,
-    item_notes: [{ item_ref: "Q1", note: "n" }], conversation_summary: "c", suggested_instructional_actions: [], limitations: []
+  const assembledReport = assembleInstructorReportV8({
+    mini_test_title: "Synthetic mini test", topic: { title: "Reliability", learning_objective: "Distinguish error types", description: null },
+    items: [{ item_public_id: "item_q1_public", stem: "Stem", options: reportItemOptions, correct_option: "A", expected_reasoning: null, distractor_rationales: [] }],
+    eligible_student_count: 3,
+    attempts: [
+      { student_key: "user_a_key", session_public_id: "sess_a_public", attempt_number: 1, created_at: "2026-10-17T00:00:00.000Z", finished: true, restored: false,
+        package_payloads: [reportPackage("B", "incorrect", "Because more items always make the scores valid.")], profile_item_level_evidence: null,
+        conversation: { status: "ended", lifecycle_reason: "student_ended_conversation", feedback_v8_outputs: [], review_signals: [], turns: [
+          { turn_id: "t1", actor: "tutor" as const, text: "Reliability is about consistency.", agent_call_id: null },
+          { turn_id: "t2", actor: "student" as const, text: "So a longer test is always more valid?", agent_call_id: null }] } },
+      { student_key: "user_b_key", session_public_id: "sess_b_public", attempt_number: 1, created_at: "2026-10-17T00:00:00.000Z", finished: false, restored: false,
+        package_payloads: [reportPackage("E", "not_scored", "I don't know")], profile_item_level_evidence: null, conversation: null }
+    ]
   });
+  const reportInput = assembledReport.input;
+  const reportQuote = (student_label: string, item_label: string | null, source: "item_response" | "conversation", quote: string) => ({ student_label, item_label, source, quote });
+  const finding = (quotes: Array<ReturnType<typeof reportQuote>>, students = ["S1"]) => ({
+    title: "Validity conflated with length", type: "possible_misconception" as const, attempts: "first_attempts" as const, item_labels: ["Q1"],
+    description: "d", students_covered: students, quotes, caution: "One student."
+  });
+  const report = (findings: unknown[]) => InstructorReportV8OutputSchema.parse({
+    schema_version: INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, overview: "o", findings,
+    item_notes: [{ item_label: "Q1", note: "n" }], suggested_teaching_actions: [], limits_of_evidence: []
+  });
+  const reportCodes = (findings: unknown[]) => validateInstructorReportV8(reportInput, report(findings)).map((issue) => issue.code);
   await check("D8 verbatim quotes from the cited student and item are accepted", () => {
-    const issues = validateInstructorReport(reportInput, report([finding([
-      { student_ref: "S1", item_ref: "Q1", source: "initial_response", quote: "more items always make the scores valid" },
-      { student_ref: "S1", item_ref: null, source: "conversation", quote: "So a longer test is always more valid?" }
-    ])]));
-    assert.deepEqual(issues, []);
+    assert.deepEqual(reportCodes([finding([
+      reportQuote("S1", "Q1", "item_response", "more items always make the scores valid"),
+      reportQuote("S1", null, "conversation", "So a longer test is always more valid?")
+    ])]), []);
   });
   await check("D8 fabricated, tutor-attributed, wrong-student and unknown-item evidence is rejected", () => {
-    const issues = validateInstructorReport(reportInput, report([finding([
-      { student_ref: "S1", item_ref: "Q1", source: "initial_response", quote: "validity depends on length only" },
-      { student_ref: "S1", item_ref: null, source: "conversation", quote: "Reliability is about consistency" },
-      { student_ref: "S2", item_ref: "Q1", source: "initial_response", quote: "more items always make the scores valid" },
-      { student_ref: "S9", item_ref: "Q1", source: "initial_response", quote: "x" },
-      { student_ref: "S1", item_ref: "Q7", source: "initial_response", quote: "x" }
-    ], 2)]));
-    const codes = issues.map((issue) => issue.code);
-    assert.equal(codes.filter((code) => code === "quote_not_found_in_student_text").length, 3);
-    assert.ok(codes.includes("unknown_student_ref"));
-    assert.ok(codes.includes("unknown_item_ref"));
+    const codes = reportCodes([
+      finding([
+        reportQuote("S1", "Q1", "item_response", "validity depends on length only"),
+        reportQuote("S1", null, "conversation", "Reliability is about consistency"),
+        reportQuote("S2", "Q1", "item_response", "more items always make the scores valid")
+      ], ["S1", "S2"]),
+      finding([reportQuote("S9", "Q1", "item_response", "x y z")], ["S9"]),
+      finding([reportQuote("S1", "Q7", "item_response", "more items always make")])
+    ]);
+    assert.ok(codes.includes("quote_not_found"), "fabricated or another student's words");
+    assert.ok(codes.includes("quote_is_tutor_words"));
+    assert.ok(codes.includes("unknown_student_label"));
+    assert.ok(codes.includes("unknown_item_label"));
+    assert.equal(codes.filter((code) => code === "quote_not_found").length, 2);
   });
-  await check("D8 student_count must cover the cited students and not exceed the cohort", () => {
-    const tooMany = validateInstructorReport(reportInput, report([finding([
-      { student_ref: "S1", item_ref: "Q1", source: "initial_response", quote: "more items always make the scores valid" }
-    ], 5)]));
-    assert.ok(tooMany.some((issue) => issue.code === "student_count_out_of_range"));
+  await check("D8 the application counts the students each finding covers; quotes come from covered students", () => {
+    const output = report([finding([reportQuote("S1", "Q1", "item_response", "more items always make the scores valid")], ["S1", "S1"])]);
+    assert.equal(findingCounts(reportInput, output)[0].students_covered, 1);
+    assert.ok(reportCodes([finding([reportQuote("S1", "Q1", "item_response", "more items always make the scores valid")], ["S2"])]).includes("quote_student_not_covered"));
   });
-  await check("D8 local test summary is labelled as not AI-generated and makes no findings", () => {
-    const summary = buildLocalTestSummary(reportInput);
-    assert.equal(summary.findings.length, 0);
-    assert.match(summary.overview, /without an AI model/);
-    assert.match(summary.participation_summary, /2 of 3 eligible students/);
-    assert.match(summary.participation_summary, /1 are "I don't know yet"/);
-    InstructorReportOutputSchema.parse(summary);
+  await check("D8 local test report is labelled as not AI-generated; counts-only reports say why", () => {
+    const narrative = buildLocalTestNarrative(reportInput);
+    assert.match(narrative.overview, /without an AI model/);
+    assert.deepEqual(validateInstructorReportV8(reportInput, narrative), []);
+    assert.equal(assembledReport.counts.students_with_submitted_attempt, 2);
+    assert.equal(assembledReport.counts.eligible_students, 3);
+    assert.equal(assembledReport.counts.first_attempts.option_distribution[0].i_dont_know, 1);
+    const countsOnly = buildReportRecord(assembledReport, { generation_mode: "counts_only", reason_code: "prompt_not_approved" });
+    assert.equal(countsOnly.narrative, null);
+    assert.match(countsOnly.narrative_note!, /could not be generated/);
   });
 
   const projection = await import("../src/lib/services/student-assessment/formative-conversation/projection");
@@ -382,11 +393,8 @@ async function main() {
     assert.match(source("src/lib/services/student-assessment/service.ts"), /event_type: "session_started"[\s\S]{0,400}data_collection_rules_version: DATA_COLLECTION_RULES_VERSION/);
   });
 
-  await check("D8 one-word quotes are rejected unless they are the student's whole answer", () => {
-    const issues = validateInstructorReport(reportInput, report([finding([
-      { student_ref: "S1", item_ref: "Q1", source: "initial_response", quote: "valid" }
-    ])]));
-    assert.ok(issues.some((issue) => issue.code === "quote_too_short"));
+  await check("D8 one-word quotes are rejected", () => {
+    assert.ok(reportCodes([finding([reportQuote("S1", "Q1", "item_response", "valid")])]).includes("quote_too_short"));
   });
   await check("Review: blocked pastes are counted apart from pastes that inserted text", async () => {
     const paste = await import("../src/lib/services/student-assessment/blocked-paste");
