@@ -625,7 +625,7 @@ model Assessment {
   release_at                      DateTime?              @db.Timestamptz(6)
   close_at                        DateTime?              @db.Timestamptz(6)
   /// First time this mini-test was published (research: release timing). Null for mini-tests
-  /// published before 2026-10-20, when publication time was not recorded.
+  /// published before the research-data release (CMCQ-20261020-02), when publication time was not recorded.
   published_at                    DateTime?              @db.Timestamptz(6)
   revision_family_public_id       String?
   revision_number                 Int                    @default(1)

@@ -210,7 +210,7 @@ const TABLE_DOCS: Record<StudyParticipationTable, Record<string, StudyColumnDoc>
       "Publication status at the export snapshot: draft (never offered to students), published (offered to students within its release window) or archived (withdrawn or superseded by a corrected version; attempts and evidence are kept).",
       "Copied from Assessment.status.", { ...CONTEXT, allowed_values: "draft; published; archived" }),
     published_at: recorded(
-      "First time this mini-test version was published. Blank for drafts and for versions published before 2026-10-20, when publication time was not recorded.",
+      "First time this mini-test version was published. Blank for drafts and for versions published before the research-data release (CMCQ-20261020-02), when publication time was not recorded; record those release dates by hand.",
       "Copied from Assessment.published_at, set once by the publishing service at the first publication and never changed by later edits.",
       { research_category_id: CONTEXT.research_category_id, data_type: "datetime", unit: "ISO 8601 UTC timestamp", timing: pointTimestamp("first publication") }),
     release_at: recorded(
@@ -222,7 +222,7 @@ const TABLE_DOCS: Record<StudyParticipationTable, Record<string, StudyColumnDoc>
       "Copied from Assessment.close_at.",
       { research_category_id: CONTEXT.research_category_id, data_type: "datetime", unit: "ISO 8601 UTC timestamp", timing: pointTimestamp("scheduled close") }),
     effective_release_at: derived(
-      "Time this version became available to students: the later of published_at and release_at when both exist, otherwise whichever exists; blank when neither is recorded (a version published before 2026-10-20 without a scheduled release time).",
+      "Time this version became available to students: the later of published_at and release_at when both exist, otherwise whichever exists; blank when neither is recorded (a version published before the research-data release CMCQ-20261020-02 without a scheduled release time).",
       "Computed by miniTestCatalogRows from published_at and release_at of the same row.",
       { research_category_id: CONTEXT.research_category_id, data_type: "datetime", unit: "ISO 8601 UTC timestamp", timing: {
         construct: "effective_release_timestamp", start: "not applicable: point-in-time timestamp", end: "not applicable: point-in-time timestamp",
