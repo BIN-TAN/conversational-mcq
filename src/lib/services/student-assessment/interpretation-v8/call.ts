@@ -19,6 +19,7 @@ import {
   type InterpretationOutputV8
 } from "./contract";
 import { generateInterpretationV8 } from "./generate";
+import type { InterpretationRepair, InterpretationSalvage } from "./repair";
 import { buildLocalTestInterpretationV8 } from "./local-test";
 
 /**
@@ -32,8 +33,15 @@ import { buildLocalTestInterpretationV8 } from "./local-test";
  */
 
 export type InterpretationCallResult =
-  | { status: "validated"; generation_mode: "live_model" | "local_test"; output: InterpretationOutputV8; agent_call_id: string }
-  | { status: "failed" | "blocked"; reason: string; agent_call_id: string | null };
+  | {
+      status: "validated";
+      generation_mode: "live_model" | "local_test";
+      output: InterpretationOutputV8;
+      agent_call_id: string;
+      repairs?: InterpretationRepair[];
+      salvage?: (InterpretationSalvage & { from_attempt: number }) | null;
+    }
+  | { status: "failed" | "blocked"; reason: string; agent_call_id: string | null; transient?: boolean };
 
 type Plan =
   | { mode: "local_test" }
@@ -144,6 +152,7 @@ export async function callInterpretationV8(input: {
   const model = callPlan.model_config;
   let currentCallId: string | null = null;
   let lastCallId: string | null = null;
+  const callIdByAttempt = new Map<number, string>();
   const generation = await generateInterpretationV8({
     provider: callPlan.provider,
     model_config: model,
@@ -167,6 +176,7 @@ export async function callInterpretationV8(input: {
       });
       currentCallId = call.id;
       lastCallId = call.id;
+      callIdByAttempt.set(attempt, call.id);
     },
     async on_attempt_end(record) {
       if (!currentCallId) return;
@@ -192,7 +202,7 @@ export async function callInterpretationV8(input: {
           where: { id },
           data: {
             ...auditUpdate(result),
-            output_payload: toPrismaJson({ rejected_output: result.parsed_output, issues: record.issues }),
+            output_payload: toPrismaJson({ rejected_output: result.parsed_output, repaired_output: record.output, repairs: record.repairs, issues: record.issues }),
             output_validated: false,
             call_status: "invalid_output",
             error_category: "semantic_validation",
@@ -209,7 +219,25 @@ export async function callInterpretationV8(input: {
     }
   });
   if (generation.status === "validated") {
-    return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: lastCallId! };
+    if (generation.salvage) {
+      // The salvaged output (failing parts removed) passed every remaining check: the call
+      // that produced it is recorded as validated, with what was removed.
+      const salvagedCallId = callIdByAttempt.get(generation.salvage.from_attempt) ?? lastCallId!;
+      await prisma.agentCall.update({
+        where: { id: salvagedCallId },
+        data: {
+          output_payload: toPrismaJson(generation.output),
+          output_validated: true,
+          call_status: "succeeded",
+          error_category: null,
+          validation_error: `salvaged: ${JSON.stringify(generation.salvage)}`.slice(0, 4000)
+        }
+      });
+      return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: salvagedCallId,
+        repairs: generation.repairs, salvage: generation.salvage };
+    }
+    return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: lastCallId!,
+      repairs: generation.repairs, salvage: null };
   }
-  return { status: "failed", reason: generation.reason, agent_call_id: lastCallId };
+  return { status: "failed", reason: generation.reason, agent_call_id: lastCallId, transient: generation.transient };
 }

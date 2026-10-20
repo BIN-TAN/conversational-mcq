@@ -72,6 +72,9 @@ async function main() {
 
   await check("Student-facing text: internal labels, process data, authorship and scores are rejected", () => {
     assert.deepEqual(studentFacingTextProblems("You have a misconception about spread."), ["internal_term"]);
+    assert.deepEqual(studentFacingTextProblems("Your explanation shows a misconception."), ["internal_term"]);
+    assert.deepEqual(studentFacingTextProblems("A common misconception is that a larger mean means more spread."), [],
+      "Ordinary teaching language about an idea is allowed (checks are not stricter than needed)");
     assert.deepEqual(studentFacingTextProblems("Your answer was not supported by your explanation."), ["internal_term"]);
     assert.deepEqual(studentFacingTextProblems("I noticed you changed your answer on Question 2."), ["process_reference"]);
     assert.deepEqual(studentFacingTextProblems("You answered very quickly, so take another look."), ["process_reference"]);

@@ -24,6 +24,14 @@ import { buildStoredInterpretationV8, INTERPRETATION_V8_PROFILE_SCHEMA, studentP
  * canonical (empty) misconception catalog, the concept-unit profile pointer, the
  * conversation with both profile pointers, the phase walk, and the opening.
  */
+/** A transient provider failure left for the preparation job's next attempt (no profile saved). */
+export class InterpretationDeferredError extends Error {
+  constructor(public readonly reason: string) {
+    super(`interpretation_v8_deferred:${reason}`);
+    this.name = "InterpretationDeferredError";
+  }
+}
+
 const PHASE_WALK = ["profiling_pending", "profiling_completed", "planning_pending", "planning_completed"] as const;
 
 async function walkPhasesToPlanningCompleted(assessmentSessionDbId: string) {
@@ -55,6 +63,13 @@ export async function prepareInitialInterpretationV8(input: {
    */
   mode?: "full" | "fallback_only";
   fallback_reason?: string;
+  /**
+   * Set by the preparation job while it has attempts left: a transient provider failure
+   * (rate limit, timeout, network, server error) then defers to the job's next attempt
+   * instead of saving the fallback profile. The last attempt always saves a profile, so
+   * the student is never held.
+   */
+  defer_transient_failures?: boolean;
 }) {
   const fallbackOnly = input.mode === "fallback_only";
   await input.assert_preparation_active?.();
@@ -94,6 +109,9 @@ export async function prepareInitialInterpretationV8(input: {
           model_input: loaded.input,
           provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed
         });
+    if (result.status === "failed" && result.transient && input.defer_transient_failures) {
+      throw new InterpretationDeferredError(result.reason);
+    }
     // Whatever the outcome (validated, rejected twice, model unreachable or not approved), a
     // profile is saved and the student continues. A rejection never blocks the student: the
     // fallback profile carries the deterministic answer review but no ratings or claims, its
@@ -112,7 +130,8 @@ export async function prepareInitialInterpretationV8(input: {
       fallback_reason: result.status === "validated" ? null : result.reason,
       response_package_id: input.response_package_id,
       answer_review_v2: answerReview,
-      chosen_option_tags: chosenOptionTagsFromPackage(responsePackage.payload)
+      chosen_option_tags: chosenOptionTagsFromPackage(responsePackage.payload),
+      output_adjustments: result.status === "validated" ? { repairs: result.repairs ?? [], salvage: result.salvage ?? null } : null
     });
     await input.assert_preparation_active?.();
     try {

@@ -54,6 +54,17 @@ export type InterpretationRunRecord = {
   reason: string | null;
   attempts: AttemptSummary[];
   output: InterpretationOutputV8 | null;
+  /** Mechanical repairs applied to the accepted output. */
+  repairs?: Array<{ path: string; code: string }>;
+  /** Set when the accepted output was salvaged (failing parts removed). */
+  salvage?: {
+    unrated_item_ids: string[];
+    dropped_misconceptions: number;
+    dropped_considered_ideas: number;
+    cleared_fields: string[];
+    remaining_issue_codes: string[];
+    from_attempt: number;
+  } | null;
   started_at: string;
   completed_at: string;
 };
@@ -114,7 +125,8 @@ export async function runInterpretationCase(input: {
   const result = await generateInterpretationV8({
     provider,
     model_config: modelConfig,
-    model_input: buildCaseInput(input.bank, input.evaluation_case)
+    model_input: buildCaseInput(input.bank, input.evaluation_case),
+    sleep: input.engine.kind === "live" ? undefined : async () => undefined
   });
   return {
     kind: "interpretation",
@@ -134,6 +146,8 @@ export async function runInterpretationCase(input: {
       output_tokens: attempt.result?.usage?.output_tokens ?? null
     })),
     output: result.status === "validated" ? result.output : null,
+    repairs: result.status === "validated" ? result.repairs : [],
+    salvage: result.status === "validated" ? result.salvage : null,
     started_at: startedAt.toISOString(),
     completed_at: new Date().toISOString()
   };

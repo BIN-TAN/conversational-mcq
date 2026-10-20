@@ -2300,7 +2300,7 @@ type V8StoredItem = {
   reported_confidence: string | null; explanation_quality: string | null; no_usable_reason: string | null;
   adds_beyond_option_text: boolean | null; evidence_quote: string | null; missing_elements: string | null;
   rationale: string | null; error_source: string | null; side_remark: string | null; uncertainty_note: string | null;
-  status: string | null; item_review_flag: boolean;
+  status: string | null; item_review_flag: boolean; rating_unavailable?: boolean;
 };
 type V8Stored = {
   profile_schema: "student-interpretation-profile-v8";
@@ -2371,7 +2371,7 @@ function V8ProfileDetails({ profile, stored }: { profile: TeacherStudentProfile;
                   <td className="py-2 pr-2 font-medium text-ink">{index + 1}{item.item_review_flag ? <span className="ml-1 text-xs text-amber-800" title="Possible item issue: awaiting your item review">flagged</span> : null}</td>
                   <td className="py-2 pr-2">{item.selected_option ?? "none"} {item.answer_correct === true ? "(correct)" : item.answer_correct === false ? "(incorrect)" : ""}</td>
                   <td className="py-2 pr-2">{readable(item.reported_confidence)}</td>
-                  <td className="py-2 pr-2">{readable(item.explanation_quality)}{item.no_usable_reason ? ` (${readable(item.no_usable_reason)})` : ""}
+                  <td className="py-2 pr-2">{item.rating_unavailable ? "rating unavailable (failed the checks; counted as not interpretable)" : readable(item.explanation_quality)}{item.no_usable_reason ? ` (${readable(item.no_usable_reason)})` : ""}
                     {item.adds_beyond_option_text === false ? <span className="block text-xs text-muted">only option wording</span> : null}
                     {item.missing_elements ? <span className="block text-xs text-muted">missing: {item.missing_elements}</span> : null}</td>
                   <td className="py-2 pr-2">{item.evidence_quote ? <q>{item.evidence_quote}</q> : "none"}</td>

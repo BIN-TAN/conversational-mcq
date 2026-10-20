@@ -45,6 +45,7 @@ export const GO_LIVE_THRESHOLDS = {
   critical_claims_max: 0,
   summary_stability: 0.9,
   fallback_rate_max: 0.05,
+  unrated_item_rate_max: 0.05,
   feedback_focus_acceptable: 0.9,
   feedback_strategy_acceptable: 0.9,
   feedback_review_flag_acceptable: 0.9
@@ -214,7 +215,21 @@ export function compareInterpretation(input: {
     for (const response of evaluationCase.responses) {
       const rating = ratings.get(response.item_id);
       const expected = expectation.items.get(response.item_id);
-      if (!rating || !expected) continue;
+      if (!expected) continue;
+      if (!rating) {
+        // A salvaged output left this item unrated: it counts against agreement.
+        items.push({
+          case_id: record.case_id, run: record.run, item_id: response.item_id, situation: response.situation,
+          expected_quality: expected.quality, model_quality: "rating_unavailable", quality_acceptable: false,
+          expected_beyond: expected.beyond_option_text, model_beyond: null,
+          expected_error_source: expected.error_source, model_error_source: null,
+          error_source_acceptable: expected.error_source ? false : null,
+          expected_status: expectedStatuses.get(response.item_id)!, model_status: "not_interpretable",
+          side_remark_expected: expected.side_remark, side_remark_recorded: false,
+          explanation: response.explanation, model_rationale: "(no rating: the item's rating failed the checks and was left out)"
+        });
+        continue;
+      }
       const storedItem = stored.items.find((entry) => entry.item_id === response.item_id)!;
       items.push({
         case_id: record.case_id,
@@ -301,6 +316,26 @@ function summaryFromStatuses(evaluationCase: EvaluationCase, expectation: CaseEx
 
 export type InterpretationReport = ReturnType<typeof scoreInterpretation>;
 
+/** How often each label was planned (the standard) and how often the model used it. */
+export function labelDistribution<T>(rows: readonly T[], planned: (row: T) => string, model: (row: T) => string, labels: readonly string[]) {
+  const total = rows.length;
+  const all = [...new Set([...labels, ...rows.map(planned), ...rows.map(model)])];
+  return all.map((label) => {
+    const plannedCount = rows.filter((row) => planned(row) === label).length;
+    const modelCount = rows.filter((row) => model(row) === label).length;
+    return {
+      label,
+      planned: plannedCount,
+      planned_share: total ? round(plannedCount / total) : null,
+      model: modelCount,
+      model_share: total ? round(modelCount / total) : null,
+      share_difference: total ? round((modelCount - plannedCount) / total) : null,
+      /** Of the rows planned with this label, how many the model gave exactly this label. */
+      kept: rows.filter((row) => planned(row) === label && model(row) === label).length
+    };
+  }).filter((row) => row.planned || row.model || labels.includes(row.label));
+}
+
 export function scoreInterpretation(input: {
   bank: ItemBank;
   cases: EvaluationCaseFile;
@@ -312,6 +347,10 @@ export function scoreInterpretation(input: {
   const { items, claims, summaries } = compareInterpretation(input);
   const submissions = input.records.length;
   const fallback = input.records.filter((record) => record.status === "failed").length;
+  const salvaged = input.records.filter((record) => record.salvage);
+  const repairCounts = new Map<string, number>();
+  for (const record of input.records) for (const repair of record.repairs ?? []) repairCounts.set(repair.code, (repairCounts.get(repair.code) ?? 0) + 1);
+  const unratedItems = items.filter((item) => item.model_quality === "rating_unavailable").length;
   const firstAttempt = input.records.filter((record) => record.status === "validated" && record.attempts.length === 1).length;
   const issueCounts = new Map<string, number>();
   for (const record of input.records) {
@@ -395,7 +434,9 @@ export function scoreInterpretation(input: {
     criterion("Same summary label in every run (share of students)", ">=", GO_LIVE_THRESHOLDS.summary_stability, summaryStability.share,
       runsPerCase < 2 ? "Needs at least two runs per case." : null),
     criterion("Outputs rejected twice, fallback profile saved (share of submissions)", "<=", GO_LIVE_THRESHOLDS.fallback_rate_max,
-      submissions ? fallback / submissions : null)
+      submissions ? fallback / submissions : null),
+    criterion("Items left without a rating in salvaged outputs (share of item responses)", "<=", GO_LIVE_THRESHOLDS.unrated_item_rate_max,
+      items.length ? unratedItems / items.length : null)
   ];
 
   return {
@@ -409,6 +450,10 @@ export function scoreInterpretation(input: {
       fallback,
       fallback_rate: submissions ? round(fallback / submissions) : null,
       fallback_rate_interval: wilsonInterval(fallback, submissions),
+      salvaged_outputs: salvaged.length,
+      unrated_items: unratedItems,
+      dropped_claims: salvaged.reduce((sum, record) => sum + (record.salvage?.dropped_misconceptions ?? 0) + (record.salvage?.dropped_considered_ideas ?? 0), 0),
+      repairs: [...repairCounts.entries()].sort((a, b) => b[1] - a[1]).map(([code, count]) => ({ code, count })),
       rejection_reasons: [...issueCounts.entries()].sort((a, b) => b[1] - a[1]).map(([code, count]) => ({ code, count }))
     },
     explanation_quality: {
@@ -474,6 +519,16 @@ export function scoreInterpretation(input: {
     considered_ideas: { ...considered, precision: round(considered.precision), recall: round(considered.recall) },
     quality_stability: stability(qualityRuns),
     situations,
+    label_distributions: {
+      explanation_quality: labelDistribution(items, (item) => item.quality_acceptable ? item.model_quality : item.expected_quality[0],
+        (item) => item.model_quality, [...EXPLANATION_QUALITIES, "rating_unavailable"]),
+      error_source: labelDistribution(items.filter((item) => item.expected_error_source || item.model_error_source),
+        (item) => item.error_source_acceptable ? item.model_error_source ?? "none" : item.expected_error_source?.[0] ?? "none",
+        (item) => item.model_error_source ?? "none", [...ERROR_SOURCES, "none"]),
+      item_status: labelDistribution(items, (item) => item.expected_status, (item) => item.model_status, [...ITEM_STATUSES]),
+      summary_label: labelDistribution(summaries, (entry) => entry.expected, (entry) => entry.model,
+        ["Mostly understood", "Still developing", "Need more work", "Pending item review", "Unavailable / insufficient evidence"])
+    },
     criteria,
     mismatches: items.filter((item) => !item.quality_acceptable || item.error_source_acceptable === false || item.expected_status !== item.model_status)
   };

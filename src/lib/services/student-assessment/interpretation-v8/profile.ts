@@ -56,6 +56,24 @@ export type StoredItemInterpretationV8 = {
   status: ItemStatus | null;
   /** The model's possible item issue: a flag for the instructor, never a status change. */
   item_review_flag: boolean;
+  /**
+   * True when the output was salvaged and this item's rating failed the checks: the item
+   * has no rating and counts as not interpretable. Absent on profiles saved before salvage.
+   */
+  rating_unavailable?: boolean;
+};
+
+/** Repairs and salvage applied to the model output before it was stored (audit). */
+export type InterpretationOutputAdjustments = {
+  repairs: Array<{ path: string; code: string }>;
+  salvage: {
+    unrated_item_ids: string[];
+    dropped_misconceptions: number;
+    dropped_considered_ideas: number;
+    cleared_fields: string[];
+    remaining_issue_codes: string[];
+    from_attempt?: number;
+  } | null;
 };
 
 export type StoredInterpretationV8 = {
@@ -75,6 +93,8 @@ export type StoredInterpretationV8 = {
   topic_summary: TopicSummary;
   /** Deterministic answer review shown to the student (same builder as before v8). */
   answer_review_v2: unknown;
+  /** Repairs and salvage applied to the model output; null or absent when none. */
+  output_adjustments?: InterpretationOutputAdjustments | null;
 };
 
 export function readStoredInterpretationV8(itemLevelEvidence: unknown): StoredInterpretationV8 | null {
@@ -92,6 +112,7 @@ export function buildStoredInterpretationV8(input: {
   answer_review_v2: unknown;
   attempt?: AttemptContext | null;
   chosen_option_tags?: Map<string, string | null>;
+  output_adjustments?: InterpretationOutputAdjustments | null;
 }): StoredInterpretationV8 {
   const ratings = new Map((input.output?.items ?? []).map((entry) => [entry.item_id, entry]));
   const items: StoredItemInterpretationV8[] = input.model_input.items.map((item) => {
@@ -114,6 +135,7 @@ export function buildStoredInterpretationV8(input: {
       error_source: rating?.error_source ?? null,
       side_remark: rating?.side_remark ?? null,
       uncertainty_note: rating?.uncertainty_note ?? null,
+      // With an output, an item without a rating (salvaged output) is not interpretable.
       status: rating
         ? itemStatus({
             answer_correct: item.response.answer_correct,
@@ -121,11 +143,12 @@ export function buildStoredInterpretationV8(input: {
             explanation_quality: rating.explanation_quality,
             rapid_selection: typeof rapid === "boolean" ? rapid : null
           })
-        : null,
-      item_review_flag: rating?.error_source === "possible_item_issue"
+        : input.output ? "not_interpretable" : null,
+      item_review_flag: rating?.error_source === "possible_item_issue",
+      ...(input.output && !rating ? { rating_unavailable: true } : {})
     };
   });
-  // A validated output rates every item, so every status is set when there is an output.
+  // With an output every item has a status (an unrated item of a salvaged output is not interpretable).
   const summaryItems = input.output
     ? items.flatMap((item) => (item.status ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }] : []))
     : null;
@@ -148,7 +171,9 @@ export function buildStoredInterpretationV8(input: {
       chosen_option_tag: input.chosen_option_tags?.get(item.item_id) ?? null
     }))),
     topic_summary: topicSummary(summaryItems),
-    answer_review_v2: input.answer_review_v2
+    answer_review_v2: input.answer_review_v2,
+    output_adjustments: input.output_adjustments && (input.output_adjustments.repairs.length || input.output_adjustments.salvage)
+      ? input.output_adjustments : null
   };
 }
 

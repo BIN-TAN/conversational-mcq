@@ -86,6 +86,7 @@ export const INTERPRETATION_ITEM_RATINGS_COLUMNS = [
   "uncertainty_note",
   "item_status",
   "item_review_flag",
+  "rating_unavailable",
   "instructor_item_decision",
   "instructor_item_decision_at",
   "item_counted_with_decisions",
@@ -146,6 +147,10 @@ export const INTERPRETATION_SUMMARIES_COLUMNS = [
   "possible_misconception_count",
   "considered_idea_count",
   "answer_patterns",
+  "output_repair_codes",
+  "output_salvaged",
+  "salvage_unrated_item_ids",
+  "salvage_dropped_claim_count",
   "attempt_context_version",
   "earlier_attempt_count",
   "feedback_seen_attempt_numbers",
@@ -541,6 +546,11 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
       `${STORED}: items[].status, computed at submission by rules.itemStatus from answer_correct, explanation_quality and the rapid-selection indicator.`,
       { allowed_values: list(ITEM_STATUSES) }
     ),
+    rating_unavailable: rule(
+      "true when the model's output was salvaged and this item's rating failed the application's checks: the item has no rating and counts as not interpretable. Blank for earlier profiles and for fallback profiles.",
+      `${STORED}: items[].rating_unavailable (set by interpretation-v8/repair.ts salvage).`,
+      { data_type: "boolean", allowed_values: "true; false" }
+    ),
     item_review_flag: rule("true when the model gave error_source possible_item_issue: the item awaits the instructor's review. The flag never changes the item's status; only an instructor decision to exclude removes the item from the count.", `${STORED}: items[].item_review_flag (error_source = possible_item_issue).`, { data_type: "boolean", allowed_values: "true; false" }),
     instructor_item_decision: {
       definition: "The instructor's current decision on this item at export time (kept or excluded), applying to every student who took it; blank when no decision exists. Superseded decisions are in item_review_decisions.csv.",
@@ -594,6 +604,10 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     possible_misconception_count: model("Number of possible misconceptions in the profile (rows of claim_type possible_misconception in interpretation_claims.csv).", "Length of the stored possible_misconceptions list.", { data_type: "integer", unit: "count" }),
     considered_idea_count: model("Number of ideas considered but not endorsed in the profile.", "Length of the stored considered_ideas list.", { data_type: "integer", unit: "count" }),
     answer_patterns: rule("JSON array of answer patterns: two or more chosen incorrect options whose rationales share a misconception tag ({misconception_tag, item_ids}). Answer choices only, never a confirmed misconception.", `${STORED}: answer_patterns, computed by rules.answerPatterns at submission.`, { data_type: "json string" }),
+    output_repair_codes: rule("Pipe-separated codes of the mechanical repairs applied to the accepted model output before it was checked (for example evidence_quote_trimmed_to_exact_words, error_source_unclear). Repairs never change what the output claims about the student. Blank when none.", `${STORED}: output_adjustments.repairs[].code (interpretation-v8/repair.ts).`),
+    output_salvaged: rule("true when no attempt passed every check and the failing parts of the last checked output were removed (claims dropped, notes cleared, failing items left unrated) instead of saving a fallback profile.", `${STORED}: output_adjustments.salvage is set.`, { data_type: "boolean", allowed_values: "true; false" }),
+    salvage_unrated_item_ids: rule("Pipe-separated item IDs left without a rating by salvage (they count as not interpretable). Blank when the output was not salvaged.", `${STORED}: output_adjustments.salvage.unrated_item_ids.`),
+    salvage_dropped_claim_count: rule("Number of possible misconceptions and considered ideas dropped by salvage because they failed the checks.", `${STORED}: output_adjustments.salvage.dropped_misconceptions + dropped_considered_ideas.`, { data_type: "integer", unit: "count" }),
     attempt_context_version: version(`Version of the stored attempt context (${ATTEMPT_CONTEXT_VERSION}); blank when none was stored.`, `${STORED}: attempt.attempt_context_version.`),
     earlier_attempt_count: rule("Number of the student's earlier attempts in the same revision family that existed when this attempt started.", `${STORED}: length of attempt.feedback_seen_before.`, { data_type: "integer", unit: "count" }),
     feedback_seen_attempt_numbers: rule("Pipe-separated attempt numbers of earlier attempts whose answer review had been shown (submitted) before this attempt started.", `${STORED}: attempt.feedback_seen_before[].attempt_number where answer_review_shown.`),

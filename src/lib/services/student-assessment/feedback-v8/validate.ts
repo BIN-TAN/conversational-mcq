@@ -26,7 +26,12 @@ const LABEL_TOKENS =
 const LABEL_PHRASES =
   /\b((your|this) (answer|explanation|reasoning|response|work|understanding) (is|was|were|has been|counts as|is rated|was rated|is marked|was marked)( as)? (not supported|partly supported|not interpretable|insufficient evidence))\b|\b(mostly understood|still developing|needs? more work|insufficient evidence)\b(?=[^.?!]*\b(label|summary|category|status|rating)\b)|\b(rated|labell?ed|marked|classified) (as )?(adequate|limited|incorrect|mostly understood|still developing|needs? more work|not supported)\b/i;
 const INTERNAL_NOUNS =
-  /\b(misconceptions?|essential elements?|explanation quality|error source|execution slip|item status|topic summary|learning profile|your profile|student profile|no usable explanation|beyond the option text)\b/i;
+  /\b(essential elements?|explanation quality|error source|execution slip|item status|topic summary|learning profile|your profile|student profile|no usable explanation|beyond the option text)\b/i;
+// "A common misconception is that..." is ordinary teaching language; a misconception
+// attributed to the student is a label about the student (rule 2: describe ideas, not the
+// student).
+const STUDENT_MISCONCEPTION =
+  /\b(?:you|your|you've|you're)\b[^.?!]{0,40}\bmisconceptions?\b|\bmisconceptions? (?:you|in your|about your|that you)\b/i;
 
 // Process data and anything inferred from them (section 3.1). Second-person phrasing keeps
 // course content ("response time studies", "copy and paste a formula") out of the check.
@@ -44,7 +49,7 @@ const SCORE_TERMS =
 export function studentFacingTextProblems(text: string) {
   const own = withoutQuotations(text);
   const problems: string[] = [];
-  if (LABEL_TOKENS.test(own) || LABEL_PHRASES.test(own) || INTERNAL_NOUNS.test(own)) problems.push("internal_term");
+  if (LABEL_TOKENS.test(own) || LABEL_PHRASES.test(own) || INTERNAL_NOUNS.test(own) || STUDENT_MISCONCEPTION.test(own)) problems.push("internal_term");
   if (PROCESS_TERMS.test(own)) problems.push("process_reference");
   if (AUTHORSHIP_TERMS.test(own)) problems.push("authorship_or_character");
   if (SCORE_TERMS.test(own)) problems.push("score_repeated");

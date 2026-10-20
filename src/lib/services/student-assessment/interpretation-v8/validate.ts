@@ -48,8 +48,11 @@ export function quoteProblem(item: InterpretationItemInputV8 | undefined, source
 
 // Instructor-facing and internal text never uses misconduct, tool-use, independence or
 // character words, and is never addressed to the student.
+// Narrow on purpose (the owner asked that checks not be stricter than needed): course content
+// such as "independent of the group", "independent samples" or "test-taking motivation" is
+// allowed; only claims about the student's conduct, effort, independence or tool use are not.
 const FORBIDDEN_INTERPRETATION_WORDS =
-  /\b(cheat\w*|dishonest\w*|plagiar\w*|copied|copying|misconduct|lazy|careless\w*|unmotivated|motivation|independen\w*|gen ?ai|chatgpt|artificial intelligence|ai tool\w*|ai assistance)\b/i;
+  /\b(cheat\w*|dishonest\w*|plagiar\w*|copied|copying|misconduct|lazy|careless\w*|unmotivated|(?:lack(?:s|ed)? of|low|little|no|poor) motivation|not motivated|work(?:ed|ing)? independently|independent work|not independent|independently (?:produced|written|completed)|gen ?ai|chatgpt|artificial intelligence|ai tool\w*|ai assistance)\b/i;
 const SECOND_PERSON = /\b(you|your|yours|yourself)\b/i;
 
 /** Quoted student words are exempt: a student may write "you" or name a tool. */
@@ -69,11 +72,24 @@ export function interpretationTextProblem(text: string | null | undefined) {
 // facing fields describe what the student selected and wrote. The phrases are specific so
 // that ordinary subject wording ("a rapid reaction", "seconds") is not caught.
 const PROCESS_REFERENCE =
-  /\b(rapid(ly)? (selection|selected|choice|chose|answer\w*|response)|(answered|selected|chose|responded) (too |very )?(quickly|fast|rapidly)|response time|time (spent|taken|on (the )?(item|task|page))|focus(ed)? (loss|time)|lost focus|left the page|(switched|switching) (tabs?|away|pages?)|(tab|page) switch\w*|paste attempt\w*|pasted|pasting|long pause\w*|paused|hesitat\w*|changed (the|their|his|her|its) (answer|option|choice|confidence)|answer changes?|confidence changes?|revised (the|their|his|her) (answer|explanation)|engagement|process (data|indicators?|evidence))\b/i;
+  /\b(rapid(ly)? (selection|selected|choice|chose|answer\w*|response)|(answered|selected|chose|responded) (too |very )?(quickly|fast|rapidly)|response time|time (spent|taken|on (the )?(item|task|page))|focus(ed)? (loss|time)|lost focus|left the page|(switched|switching) (tabs?|away|pages?)|(tab|page) switch\w*|paste attempt\w*|pasted|pasting|long pause\w*|paused|hesitat\w*|changed (the|their|his|her|its) (answer|option|choice|confidence)|answer changes?|confidence changes?|revised (the|their|his|her) (answer|explanation)|(?:low|limited|little|poor|no|minimal) engagement|engagement (?:with the (?:item|task|question)|evidence|level)|disengage\w*|process (data|indicators?|evidence))\b/i;
 
 export function processReferenceProblem(text: string | null | undefined) {
   if (!text) return null;
   return PROCESS_REFERENCE.test(withoutQuotations(text)) ? "process_reference_outside_process_interpretation" : null;
+}
+
+/**
+ * The words that made a text fail, for the regeneration message: a model told which word to
+ * avoid fixes it far more often than one told only to "use neutral wording".
+ */
+export function offendingWords(text: string | null | undefined) {
+  if (!text) return "";
+  const own = withoutQuotations(text);
+  const found = [FORBIDDEN_INTERPRETATION_WORDS, SECOND_PERSON, PROCESS_REFERENCE]
+    .map((pattern) => pattern.exec(own)?.[0])
+    .filter((word): word is string => Boolean(word));
+  return found.length ? ` Remove or rephrase: ${[...new Set(found)].map((word) => `"${word}"`).join(", ")}.` : "";
 }
 
 const stripEndPunctuation = (value: string) => value.replace(/^[\s"'.,;:!?-]+|[\s"'.,;:!?-]+$/g, "");
@@ -138,9 +154,9 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     }
     for (const [field, text] of [["rationale", entry.rationale], ["uncertainty_note", entry.uncertainty_note], ["side_remark", entry.side_remark], ["missing_elements", entry.missing_elements]] as const) {
       const problem = interpretationTextProblem(text);
-      if (problem) push(`${path}.${field}`, problem, "Use neutral, third-person assessment wording.");
+      if (problem) push(`${path}.${field}`, problem, `Use neutral, third-person assessment wording.${offendingWords(text)}`);
       const processProblem = processReferenceProblem(text);
-      if (processProblem) push(`${path}.${field}`, processProblem, "Write inferences from process indicators only in process_interpretation.");
+      if (processProblem) push(`${path}.${field}`, processProblem, `Write inferences from process indicators only in process_interpretation.${offendingWords(text)}`);
     }
 
     const processEntry = entry.process_interpretation;
@@ -164,7 +180,7 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
       }
       for (const text of [processEntry.note, ...processEntry.alternatives]) {
         const problem = interpretationTextProblem(text);
-        if (problem) { push(`${path}.process_interpretation`, problem, "Use neutral wording with no claims about tools, independence or character."); break; }
+        if (problem) { push(`${path}.process_interpretation`, problem, `Use neutral wording with no claims about tools, independence or character.${offendingWords(text)}`); break; }
       }
     }
   });
@@ -184,7 +200,7 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     }
     for (const text of [entry.idea, entry.alternative_explanation]) {
       const issue = interpretationTextProblem(text) ?? processReferenceProblem(text);
-      if (issue) { push(path, issue, "Use neutral, third-person assessment wording, with no process indicators."); break; }
+      if (issue) { push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(text)}`); break; }
     }
   });
 
@@ -194,7 +210,7 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
     if (problem) push(path, `quote_${problem}`, "A considered idea quotes the student's own words exactly.");
     if (!referenceIds.has(entry.contradicts_reference_id)) push(path, "unknown_reference", "Name the reference the idea contradicts.");
     const issue = interpretationTextProblem(entry.idea) ?? processReferenceProblem(entry.idea);
-    if (issue) push(path, issue, "Use neutral, third-person assessment wording, with no process indicators.");
+    if (issue) push(path, issue, `Use neutral, third-person assessment wording, with no process indicators.${offendingWords(entry.idea)}`);
   });
 
   return issues;

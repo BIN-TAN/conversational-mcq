@@ -54,12 +54,26 @@ export function renderMarkdownReport(input: {
       "",
       "### Generation",
       "",
-      `${report.generation.submissions} submissions: ${report.generation.validated_first_attempt} validated on the first attempt, ${report.generation.validated_after_regeneration} after one regeneration, ${report.generation.fallback} fallback (${pct(report.generation.fallback_rate)}).`,
+      `${report.generation.submissions} submissions: ${report.generation.validated_first_attempt} validated on the first attempt, ${report.generation.validated_after_regeneration} after regeneration or salvage, ${report.generation.fallback} fallback (${pct(report.generation.fallback_rate)}). Salvaged outputs: ${report.generation.salvaged_outputs} (${report.generation.unrated_items} items left unrated, ${report.generation.dropped_claims} claims dropped).`,
+      "",
+      report.generation.repairs.length
+        ? `Mechanical repairs applied to accepted outputs: ${report.generation.repairs.map((entry) => `${entry.code} (${entry.count})`).join(", ")}.`
+        : "No repairs were needed.",
       "",
       report.generation.rejection_reasons.length
         ? `Rejection reasons across attempts: ${report.generation.rejection_reasons.map((entry) => `${entry.code} (${entry.count})`).join(", ")}.`
         : "No attempt was rejected.",
       "",
+      "### How often each label was used: plan against model",
+      "",
+      "For each field, the planned count is the standard (an accepted alternative counts as planned when the model chose it); the model count is what the model gave. A large share difference shows a systematic shift, for example ratings that are harsher than planned.",
+      "",
+      ...(["explanation_quality", "error_source", "item_status", "summary_label"] as const).flatMap((field) => [
+        `| ${field.replaceAll("_", " ")} | planned | planned share | model | model share | difference | kept |`,
+        "|---|---:|---:|---:|---:|---:|---:|",
+        ...report.label_distributions[field].map((row) => `| ${cell(row.label)} | ${row.planned} | ${pct(row.planned_share)} | ${row.model} | ${pct(row.model_share)} | ${row.share_difference === null ? "n/a" : `${row.share_difference > 0 ? "+" : ""}${Math.round(row.share_difference * 1000) / 10} pts`} | ${row.kept} |`),
+        ""
+      ]),
       "### Explanation quality",
       "",
       `${report.explanation_quality.items} item ratings; ${report.explanation_quality.acceptable} in the acceptable categories (${pct(report.explanation_quality.acceptable_agreement)}); exact agreement with the first-listed category ${pct(report.explanation_quality.exact_reference_agreement)}. Gwet's AC1 ${num(report.explanation_quality.gwet_ac1)}, Cohen's kappa ${num(report.explanation_quality.cohens_kappa)}. Adequate-versus-incorrect disagreements: ${report.explanation_quality.adequate_incorrect_disagreements}.`,

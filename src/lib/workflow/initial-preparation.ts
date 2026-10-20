@@ -133,7 +133,10 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
       const result = await completeInitialConceptUnitAdministration({
         student_user_db_id: session.user_db_id, session_public_id: payload.session_public_id,
         concept_unit_public_id: payload.concept_unit_public_id, execution_mode: payload.execution_mode,
-        assert_preparation_active: assertActive
+        assert_preparation_active: assertActive,
+        // A transient model failure waits for the next job attempt (with backoff) rather than
+        // saving a fallback profile; the last attempt always saves a profile.
+        defer_transient_interpretation_failures: job.attempt_count < job.max_attempts
       });
       const conversation = result.state.formative_conversation;
       // A failed opening is retried automatically. When retrying cannot help (the opening is

@@ -6339,6 +6339,8 @@ export async function completeInitialConceptUnitAdministration(input: {
   concept_unit_public_id: string;
   execution_mode?: FormativeExecutionMode;
   assert_preparation_active?: () => Promise<void>;
+  /** See prepareInitialInterpretationV8: set by the preparation job while it has attempts left. */
+  defer_transient_interpretation_failures?: boolean;
 }) {
   await input.assert_preparation_active?.();
   const owned = await getOwnedSession(input);
@@ -6511,7 +6513,8 @@ export async function completeInitialConceptUnitAdministration(input: {
       concept_unit_session_db_id: conceptUnitSession.id,
       response_package_id: responsePackage.id,
       execution_mode: input.execution_mode,
-      assert_preparation_active: input.assert_preparation_active
+      assert_preparation_active: input.assert_preparation_active,
+      defer_transient_failures: input.defer_transient_interpretation_failures
     });
   }
 
