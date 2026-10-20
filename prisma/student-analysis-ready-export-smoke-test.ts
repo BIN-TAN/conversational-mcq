@@ -26,7 +26,15 @@ import {
   ensureTeacherReviewDemoFixture,
   teacherReviewAssessmentPublicId
 } from "./demo-teacher-review-fixture";
-import { researchStudentId } from "../src/lib/services/teacher-research-data/pseudonymization";
+import { researchStudentId, studyCodeFromResearchStudentId } from "../src/lib/services/teacher-research-data/pseudonymization";
+import {
+  MINI_TEST_CATALOG_COLUMNS,
+  STUDENT_PARTICIPATION_SUMMARY_COLUMNS,
+  STUDENT_ROSTER_COLUMNS,
+  STUDY_PARTICIPATION_RESTRICTED_COLUMNS,
+  SUMMATIVE_OUTCOMES_COLUMNS
+} from "../src/lib/services/teacher-research-data/study-participation-dictionary";
+import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 import { openExportStream, deleteExportFile } from "../src/lib/services/master-export/storage";
 
 const prisma = new PrismaClient();
@@ -75,6 +83,116 @@ function assertNoJsonRequired(rows: Array<Record<string, string>>, label: string
     rows.some((row) => /^[\[{]/.test(row[column] ?? ""))
   );
   assert(jsonLikeColumns.length === 0, `${label} should not require JSON parsing in primary columns.`);
+}
+
+/**
+ * Study-design files (catalog, roster, participation summary, restricted summative outcomes),
+ * the study-code participant filter and the incomplete-sessions rule, on the demo fixture plus a
+ * zero-activity roster student and one summative outcome created (and removed) here.
+ */
+async function checkStudyDesignFiles(teacherDbId: string) {
+  const scope = { teacher_user_db_id: teacherDbId, scope: "selected_assessment" as const, assessment_public_id: teacherReviewAssessmentPublicId };
+  const demo = await prisma.user.findUniqueOrThrow({ where: { user_id: "student_demo" } });
+  const demoResearchId = researchStudentId("student_demo");
+  const demoCode = studyCodeFromResearchStudentId(demoResearchId);
+  const rosterOnlyUserId = `study_roster_smoke_${Date.now()}`;
+  const rosterOnly = await prisma.user.create({ data: { user_id: rosterOnlyUserId, user_id_normalized: normalizeUserId(rosterOnlyUserId),
+    role: "student", created_by_teacher_user_id: teacherDbId } });
+  const outcome = await prisma.summativeOutcome.create({ data: { user_db_id: demo.id, user_id_snapshot: "student_demo",
+    outcome_name: "Synthetic final exam", outcome_score: 42.5, max_score: 50, assessment_date: new Date("2026-12-10T00:00:00.000Z"),
+    notes: "SYNTHETIC_PRIVATE_NOTE about student_demo", uploaded_by_user_db_id: teacherDbId } });
+  try {
+    const standard = await buildAnalysisReadyResearchDataBundle(scope);
+    const rows = (path: string) => parseCsv<Record<string, string>>(fileData(standard.files, path));
+    assert(JSON.stringify(header(fileData(standard.files, "mini_test_catalog.csv"))) === JSON.stringify(MINI_TEST_CATALOG_COLUMNS), "Catalog header.");
+    assert(JSON.stringify(header(fileData(standard.files, "student_roster.csv"))) === JSON.stringify(STUDENT_ROSTER_COLUMNS), "Roster header.");
+    assert(JSON.stringify(header(fileData(standard.files, "student_participation_summary.csv"))) === JSON.stringify(
+      STUDENT_PARTICIPATION_SUMMARY_COLUMNS.filter((column) => !(STUDY_PARTICIPATION_RESTRICTED_COLUMNS as readonly string[]).includes(column))),
+      "Default participation summary must omit first-attempt scores.");
+    assert(!standard.files.some((file) => file.path === "summative_outcomes.csv"), "summative_outcomes.csv is restricted-only.");
+
+    const catalog = rows("mini_test_catalog.csv");
+    assert(catalog.length === 1 && catalog[0].assessment_public_id === teacherReviewAssessmentPublicId, "Selected-assessment catalog has that mini-test.");
+    assert(catalog[0].assessment_family_id === teacherReviewAssessmentPublicId && catalog[0].status === "published", "Catalog family and status.");
+    assert(catalog[0].released_by_snapshot === "true" && catalog[0].topic_count === "1" && catalog[0].published_item_count === "3", "Catalog release and counts.");
+    assert(catalog[0].research_instructor_id.startsWith("ri_"), "Catalog creator is pseudonymous.");
+
+    const roster = rows("student_roster.csv");
+    const sessions = rows("sessions.csv");
+    const attempts = rows("attempt_records.csv");
+    const turns = rows("formative_conversation_turns.csv");
+    for (const id of new Set(sessions.map((row) => row.research_student_id))) assert(roster.some((row) => row.research_student_id === id), "Every session student is on the roster.");
+    const zero = roster.find((row) => row.research_student_id === researchStudentId(rosterOnlyUserId));
+    assert(zero && zero.has_any_attempt === "false" && zero.has_submitted_attempt === "false" && zero.created_by_exporting_teacher === "true",
+      "A roster student with no attempts is exported.");
+    assert(zero.study_code === studyCodeFromResearchStudentId(zero.research_student_id) && /^[0-9A-F]{4}-[0-9A-F]{4}$/.test(zero.study_code), "Roster study code.");
+    assert(/^\d{4}-\d{2}-\d{2}$/.test(zero.account_created_date), "Account creation date only.");
+    assert(!fileData(standard.files, "student_roster.csv").includes(rosterOnlyUserId) && !fileData(standard.files, "student_roster.csv").includes("student_demo"),
+      "Roster never exports login IDs.");
+
+    const summary = rows("student_participation_summary.csv");
+    assert(summary.length === roster.length, "One summary row per roster student.");
+    const zeroSummary = summary.find((row) => row.research_student_id === zero.research_student_id)!;
+    assert(zeroSummary.attempts_total === "0" && zeroSummary.families_started === "0" && zeroSummary.first_submission_at === "" &&
+      zeroSummary.mini_tests_released === "1" && zeroSummary.released_completion_proportion === "0", "Zero-activity summary row.");
+    const demoSummary = summary.find((row) => row.research_student_id === demoResearchId)!;
+    const demoAttempts = attempts.filter((row) => row.research_student_id === demoResearchId);
+    assert(Number(demoSummary.attempts_total) === demoAttempts.length, "attempts_total agrees with attempt_records.csv.");
+    assert(Number(demoSummary.attempts_submitted) === demoAttempts.filter((row) => row.initial_submitted_at).length, "attempts_submitted agrees with attempt_records.csv.");
+    assert(demoSummary.first_submission_at === (demoAttempts.map((row) => row.initial_submitted_at).filter(Boolean).sort()[0] ?? ""), "first_submission_at agrees.");
+    assert(Number(demoSummary.student_conversation_turns) === turns.filter((row) => row.research_student_id === demoResearchId && row.actor_type === "student").length,
+      "student_conversation_turns agrees with formative_conversation_turns.csv.");
+    assert(Number(demoSummary.tutor_conversation_turns) === turns.filter((row) => row.research_student_id === demoResearchId && row.actor_type === "agent").length,
+      "tutor_conversation_turns agrees with formative_conversation_turns.csv.");
+    const cohort = rows("research_cohort_template.csv");
+    assert(cohort.some((row) => row.research_student_id === zero.research_student_id && row.study_code === zero.study_code), "Cohort worksheet prefilled from the roster.");
+    const manifest = JSON.parse(fileData(standard.files, "research_manifest.json"));
+    assert(manifest.participant_filter?.mode === "none" && manifest.participant_filter.list_sha256 === null, "Manifest records no participant filter.");
+    for (const path of ["mini_test_catalog.csv", "student_roster.csv", "student_participation_summary.csv"]) {
+      assert(manifest.entries.some((entry: { path: string }) => entry.path === path), `Manifest lists ${path}.`);
+      assert(fileData(standard.files, "README.txt").includes(path), `README describes ${path}.`);
+    }
+
+    const restricted = await buildAnalysisReadyResearchDataBundle({ ...scope, include_restricted_fields: true });
+    assert(header(fileData(restricted.files, "student_participation_summary.csv")).includes("first_attempt_proportion_correct"), "Restricted summary has scores.");
+    assert(JSON.stringify(header(fileData(restricted.files, "summative_outcomes.csv"))) === JSON.stringify(SUMMATIVE_OUTCOMES_COLUMNS), "Outcomes header.");
+    const outcomeRow = parseCsv<Record<string, string>>(fileData(restricted.files, "summative_outcomes.csv")).find((row) => row.outcome_public_id === outcome.outcome_public_id);
+    assert(outcomeRow && outcomeRow.research_student_id === demoResearchId && outcomeRow.study_code === demoCode && outcomeRow.outcome_proportion === "0.85" &&
+      outcomeRow.assessment_date === "2026-12-10" && outcomeRow.has_notes === "true" && outcomeRow.record_status === "active", "Pseudonymized summative outcome row.");
+    assert(!/student_demo|SYNTHETIC_PRIVATE_NOTE/.test(fileData(restricted.files, "summative_outcomes.csv")), "Outcomes never export login IDs or note text.");
+
+    // Participant filter: only the listed student in every file; code accepted lower-case without the hyphen.
+    const filtered = await buildAnalysisReadyResearchDataBundle({ ...scope, include_restricted_fields: true,
+      include_study_codes: [demoCode.toLowerCase().replace("-", ""), "FFFF-FFFF"] });
+    assert(filtered.filename.includes("_participants_research_dataset.zip"), "Filtered export filename.");
+    const filteredManifest = JSON.parse(fileData(filtered.files, "research_manifest.json"));
+    assert(filteredManifest.participant_filter.mode === "include_list" && filteredManifest.participant_filter.requested_count === 2 &&
+      filteredManifest.participant_filter.matched_count === 1 && filteredManifest.participant_filter.unmatched_count === 1 &&
+      /^[0-9a-f]{64}$/.test(filteredManifest.participant_filter.list_sha256), "Manifest participant_filter counts and hash.");
+    assert(!fileData(filtered.files, "research_manifest.json").includes(demoCode), "The manifest never stores study codes.");
+    for (const file of filtered.files.filter((entry) => entry.path.endsWith(".csv") && !/dictionary|codebook|coverage/.test(entry.path))) {
+      const parsed = parseCsv<Record<string, string>>(file.data);
+      if (!header(file.data).includes("research_student_id")) continue;
+      assert(parsed.every((row) => row.research_student_id === demoResearchId), `${file.path} contains only the listed student.`);
+    }
+    assert(parseCsv(fileData(filtered.files, "mini_test_catalog.csv")).length === catalog.length, "The catalog stays complete.");
+    const rejection = async (input: Parameters<typeof buildAnalysisReadyResearchDataBundle>[0]) => {
+      try { await buildAnalysisReadyResearchDataBundle(input); return null; } catch (error) { return error as { code?: string; status?: number }; }
+    };
+    const malformed = await rejection({ ...scope, include_study_codes: [demoCode, "not-a-code"] });
+    assert(malformed?.code === "validation_failed" && malformed.status === 400, "Malformed study codes are rejected.");
+    const unmatched = await rejection({ ...scope, include_study_codes: ["FFFF-FFFF"] });
+    assert(unmatched?.code === "no_matching_study_codes" && unmatched.status === 409, "A list matching no student is rejected.");
+
+    // include_incomplete_sessions false keeps a submitted attempt without Finish (the fixture attempt is active with a sealed package).
+    const submittedOnly = await buildAnalysisReadyResearchDataBundle({ ...scope, include_incomplete_sessions: false });
+    assert(parseCsv<Record<string, string>>(fileData(submittedOnly.files, "sessions.csv")).some((row) => row.session_public_id === "session_demo_teacher_review" &&
+      row.finish_chosen === "false" && row.initial_package_sealed === "true"), "A submitted attempt is exported without Finish.");
+  } finally {
+    await prisma.summativeOutcome.delete({ where: { id: outcome.id } });
+    await prisma.user.delete({ where: { id: rosterOnly.id } });
+  }
+  console.log("PASS study design files, participant filter and incomplete-sessions rule");
 }
 
 async function main() {
@@ -136,6 +254,9 @@ async function main() {
       "external_outcomes_template.csv",
       "study_template_dictionary.csv",
       "research_study_notes.txt",
+      "mini_test_catalog.csv",
+      "student_roster.csv",
+      "student_participation_summary.csv",
       "sessions.csv",
       "item_responses.csv",
       "process_events.csv",
@@ -330,6 +451,8 @@ async function main() {
         .every((file) => !/password_hash|access_code_hash|SESSION_SECRET|OPENAI_API_KEY/i.test(file.data)),
       "Research dataset files should not expose secrets."
     );
+
+    await checkStudyDesignFiles(teacher.id);
 
     const codebookEventTypes = new Set(eventCodebookRows.map((row) => row.event_type));
     const unknownEventTypes = [...new Set(processEvents.map((row) => row.event_type))].filter((eventType) => !codebookEventTypes.has(eventType));

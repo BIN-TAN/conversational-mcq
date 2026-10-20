@@ -1,16 +1,20 @@
 import { createHash } from "node:crypto";
 import type { AttemptObservation } from "../teacher-dashboard/attempt-comparison";
 import { researchCsv } from "./csv-contract";
+import { studyCodeFromResearchStudentId } from "./pseudonymization";
 
-export const STUDY_TEMPLATE_VERSION = "research-study-templates-v1";
+export const STUDY_TEMPLATE_VERSION = "research-study-templates-v2";
 
 // Empty researcher-entered fields are deliberate: exports never manufacture
 // consent decisions, reference diagnoses, experimental assignments or outcomes.
 export function researchStudyTemplateFiles(input: {
   attempts: AttemptObservation[]; snapshot_at: string; pseudonym: (student: string) => string;
+  /** student_roster.csv students (including students with no attempts), listed first in the cohort worksheet. */
+  roster?: ReadonlyArray<{ research_student_id: string; study_code: string }>;
 }) {
   const definitions: Record<string, string> = {
     research_student_id: "Existing pseudonymous account key. Account count is not research participant count; use the approved cohort and never insert login names or email addresses.",
+    study_code: "Study code of the student (XXXX-XXXX, as in student_roster.csv), prefilled so consent-form and questionnaire records can be matched without names. Check student_roster.study_code_shared before matching.",
     snapshot_at: "Database snapshot time of this export; not observation or consent time.",
     template_version: "Version of this unfilled study worksheet, not a runtime collection version.",
     study_participant_id: "Optional external pseudonymous participant key assigned under the study protocol.",
@@ -48,12 +52,18 @@ export function researchStudyTemplateFiles(input: {
     source_reference: "Controlled external source record reference; no credentials, direct identifiers or public links to identifiable responses."
   };
   const metadata = ["snapshot_at", "template_version"];
-  const cohortColumns = ["research_student_id", "study_participant_id", "consent_status", "cohort_role", "include_in_analysis", "exclusion_reason", "eligibility_reviewed_at", ...metadata];
+  const cohortColumns = ["research_student_id", "study_code", "study_participant_id", "consent_status", "cohort_role", "include_in_analysis", "exclusion_reason", "eligibility_reviewed_at", ...metadata];
   const reviewColumns = ["annotation_case_id", "research_student_id", "assessment_public_id", "session_public_id", "item_public_id", "item_snapshot_key", "initial_submitted_at", "review_status", "rater_id", "rubric_version", "reviewed_at", "blinded_to_ai", "reasoning_rating", "misconception_codes", "evidence_references", "rating_notes", ...metadata];
   const outcomeColumns = ["outcome_record_id", "research_student_id", "assessment_public_id", "session_public_id", "measure_name", "measure_version", "rubric_version", "timepoint", "administered_at", "outcome_value", "outcome_unit", "assistance_condition", "study_condition", "allocation_method", "protocol_version", "source_reference", ...metadata];
   const stamp = { snapshot_at: input.snapshot_at, template_version: STUDY_TEMPLATE_VERSION };
+  // Roster students first (prefilled study codes), then any attempt-only student not on the roster.
+  const cohort = new Map((input.roster ?? []).map(student => [student.research_student_id, student.study_code]));
+  for (const attempt of input.attempts) {
+    const id = input.pseudonym(attempt.student_key);
+    if (!cohort.has(id)) cohort.set(id, studyCodeFromResearchStudentId(id));
+  }
   const tables = [
-    { path: "research_cohort_template.csv", columns: cohortColumns, rows: [...new Set(input.attempts.map(a => input.pseudonym(a.student_key)))].map(id => ({ research_student_id: id, ...stamp })) },
+    { path: "research_cohort_template.csv", columns: cohortColumns, rows: [...cohort].map(([id, code]) => ({ research_student_id: id, study_code: code, ...stamp })) },
     { path: "human_review_template.csv", columns: reviewColumns, rows: input.attempts.flatMap(a => a.items.map(item => ({
       annotation_case_id: `case_${createHash("sha256").update(JSON.stringify([a.session_public_id, item.item_key])).digest("hex")}`,
       research_student_id: input.pseudonym(a.student_key), assessment_public_id: a.assessment_public_id,
@@ -66,14 +76,14 @@ export function researchStudyTemplateFiles(input: {
     ...tables.map(t => ({ path: t.path, data: researchCsv(t.rows, t.columns) })),
     { path: "study_template_dictionary.csv", data: researchCsv(tables.flatMap(t => t.columns.map(variable_name => ({
       dataset: t.path, variable_name, definition: definitions[variable_name],
-      source: metadata.includes(variable_name) || ["annotation_case_id", "research_student_id", "assessment_public_id", "session_public_id", "item_public_id", "item_snapshot_key", "initial_submitted_at", "review_status"].includes(variable_name)
+      source: metadata.includes(variable_name) || ["annotation_case_id", "research_student_id", "study_code", "assessment_public_id", "session_public_id", "item_public_id", "item_snapshot_key", "initial_submitted_at", "review_status"].includes(variable_name)
         ? "Export identity or worksheet status; not a new measurement" : "To be supplied by the authorized research team; never inferred by the application",
       missing_values: "Empty means unfilled/unavailable, not false, zero, consent, or absence of a misconception."
     })))) },
     { path: "research_study_notes.txt", data: [
       "Study worksheets, not collected data",
       "The three *_template.csv files are optional offline research worksheets. No import, random assignment, student record update, consent decision, rating or outcome collection is performed. They are excluded from data_coverage.csv.",
-      "1. Complete the cohort worksheet from approved consent and eligibility records; exclude instructor/demo accounts as appropriate. Do not infer consent from system use. Keep the identity crosswalk separately under access control.",
+      "1. Complete the cohort worksheet from approved consent and eligibility records; exclude instructor/demo accounts as appropriate. Do not infer consent from system use. Keep the identity crosswalk separately under access control. It lists every student_roster.csv student (students with no attempts included) with the prefilled study_code, which the consent form and course-end questionnaire record; check student_roster.study_code_shared before matching. An export with a participant filter (study codes) already lists only the included students.",
       "2. For human review, join human_review_template.csv to attempt_submission_items.csv by session_public_id and item_snapshot_key. Join original administered content by session_public_id/item_public_id through item_responses.csv to assessment_content.csv using both snapshot IDs. Never join by title or option label alone.",
       "Use the first sealed initial package (responses finalized for submission), including the sealed tempting alternative, for pre-feedback coding. Current item_responses and later conversations are different observation stages. Review original turns to distinguish the first utterance from first accepted reasoning. A prior attempt may already have exposed answers.",
       "Give blinded reviewers only the evidence allowed by the protocol, excluding AI labels, profile categories and later feedback. These templates contain no AI labels or copied student text. Blinding must be implemented in the review material, not merely asserted here.",

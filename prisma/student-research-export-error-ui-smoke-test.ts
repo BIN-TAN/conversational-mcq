@@ -29,7 +29,13 @@ function main() {
   assertIncludes(client, "setError(", "Research export client");
   assertNotIncludes(client, "datasetHref", "Research export client");
   assertNotIncludes(client, "href={datasetHref}", "Research export client");
-  assertIncludes(client, "disabled={!hasData || readinessBlocked || generatingDataset}", "Generate button");
+  assertIncludes(client, "disabled={!hasData || readinessBlocked || generatingDataset || studyCodesInvalid}", "Generate button");
+  // Consent filter: typed in a textarea, validated in the page, sent in the POST body (never in the URL).
+  assertIncludes(client, "Include only these study codes (consenting participants), one per line", "Research export client");
+  assertIncludes(client, "include_study_codes: studyCodeList.codes", "Research export client");
+  assertNotIncludes(client, "params.set(\"include_study_codes\"", "Research export client");
+  assertIncludes(apiRoute, "parseStudyCodeList", "Research export API route");
+  assertIncludes(apiRoute, "Not study codes", "Research export API route");
   assertIncludes(client, "session_public_id", "Research export client");
 
   assertIncludes(apiRoute, "jsonApiError(code", "Research export API route");

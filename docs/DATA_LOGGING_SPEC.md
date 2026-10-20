@@ -2346,6 +2346,9 @@ human rating, experimental allocation or production record migration.
   fields are never populated from AI claims. Worksheets are excluded from
   coverage and contain no added student response text. Human-review case IDs use
   SHA-256 of JSON `[session_public_id, item_snapshot_key]` for stable linkage.
+- `research-study-templates-v2` adds `study_code` to the cohort worksheet,
+  prefilled from `student_roster.csv` (every student in scope, including students
+  with no attempts), so consent-form and questionnaire records match by code.
 
 See `PROCESS_PRODUCT_ANALYTICS_GUIDE.md` for interpretation and joining rules.
 The manifest declares serialization, measurement-availability, template and

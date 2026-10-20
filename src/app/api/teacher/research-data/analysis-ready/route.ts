@@ -10,6 +10,8 @@ import { ContentServiceError } from "@/lib/services/content/errors";
 import { storageKeyForExport, openExportStream, deleteExportFile } from "@/lib/services/master-export/storage";
 import { writeAnalysisReadyResearchDataBundle } from "@/lib/services/teacher-research-data/analysis-ready-export";
 import { getResearchExportReadiness } from "@/lib/services/teacher-research-data/readiness";
+import { MAX_INCLUDED_STUDY_CODES, parseStudyCodeList, splitStudyCodeText } from "@/lib/services/teacher-research-data/study-code";
+import { studyCodeListSha256 } from "@/lib/services/teacher-research-data/study-participation-export";
 
 function studentScopeFingerprint(studentUserId?: string) {
   if (!studentUserId) return null;
@@ -19,8 +21,43 @@ function studentScopeFingerprint(studentUserId?: string) {
     .slice(0, 12);
 }
 
-function params(request: Request) {
+/**
+ * Consent filter: include_study_codes as a JSON body field (array of codes, or text with one
+ * code per line) or as a query parameter (codes separated by commas or new lines). Absent means
+ * no filter; a present but empty or malformed list is rejected so an export never silently
+ * includes every student.
+ */
+async function requestedStudyCodes(request: Request, url: URL) {
+  let raw: unknown = url.searchParams.has("include_study_codes") ? url.searchParams.get("include_study_codes") : undefined;
+  if (raw === undefined && (request.headers.get("content-type") ?? "").includes("application/json")) {
+    const body = await request.json().catch(() => {
+      throw new ContentServiceError("validation_failed", "The request body is not valid JSON.", 400);
+    }) as unknown;
+    if (body && typeof body === "object" && "include_study_codes" in body) raw = (body as { include_study_codes: unknown }).include_study_codes;
+  }
+  if (raw === undefined || raw === null) return undefined;
+  const entries = typeof raw === "string" ? splitStudyCodeText(raw)
+    : Array.isArray(raw) && raw.every((value) => typeof value === "string") ? raw.flatMap((value: string) => splitStudyCodeText(value))
+      : null;
+  if (!entries) {
+    throw new ContentServiceError("validation_failed", "include_study_codes must be a list of study codes (XXXX-XXXX).", 400);
+  }
+  const { codes, invalid } = parseStudyCodeList(entries);
+  if (invalid.length) {
+    throw new ContentServiceError("validation_failed",
+      `Not study codes (expected XXXX-XXXX with digits 0-9 and letters A-F, hyphen optional): ${invalid.slice(0, 10).join(", ")}${invalid.length > 10 ? ` and ${invalid.length - 10} more` : ""}.`,
+      400, { invalid_study_code_count: invalid.length, invalid_study_codes: invalid.slice(0, 10) });
+  }
+  if (!codes.length) throw new ContentServiceError("validation_failed", "The study-code list is empty: remove the filter or list at least one code.", 400);
+  if (codes.length > MAX_INCLUDED_STUDY_CODES) {
+    throw new ContentServiceError("validation_failed", `At most ${MAX_INCLUDED_STUDY_CODES} study codes can be listed.`, 400);
+  }
+  return codes;
+}
+
+async function params(request: Request) {
   const url = new URL(request.url);
+  const includeStudyCodes = await requestedStudyCodes(request, url);
   const assessmentPublicId = url.searchParams.get("assessment_public_id")?.trim() || undefined;
   const studentUserId = url.searchParams.get("student_id")?.trim() || undefined;
   const sessionPublicId = url.searchParams.get("session_public_id")?.trim() || undefined;
@@ -50,11 +87,12 @@ function params(request: Request) {
     student_user_id: studentUserId,
     session_public_id: sessionPublicId,
     include_incomplete_sessions: includeIncomplete,
-    include_restricted_fields: includeRestricted
+    include_restricted_fields: includeRestricted,
+    include_study_codes: includeStudyCodes
   } as const;
 }
 
-function safeJobOptions(input: ReturnType<typeof params>, extra: Record<string, unknown> = {}) {
+function safeJobOptions(input: Awaited<ReturnType<typeof params>>, extra: Record<string, unknown> = {}) {
   return {
     export_type: "research_dataset",
     export_scope: input.scope,
@@ -65,6 +103,10 @@ function safeJobOptions(input: ReturnType<typeof params>, extra: Record<string, 
     selected_student_id_fingerprint: studentScopeFingerprint(input.student_user_id),
     selected_session_public_id: input.session_public_id || null,
     include_incomplete_sessions: input.include_incomplete_sessions !== false,
+    // The consent list is identified by count and hash only; the codes are never stored.
+    participant_filter_mode: input.include_study_codes ? "include_list" : "none",
+    participant_filter_requested_count: input.include_study_codes?.length ?? 0,
+    participant_filter_list_sha256: input.include_study_codes ? studyCodeListSha256(input.include_study_codes) : null,
     ...extra
   } satisfies Prisma.InputJsonObject;
 }
@@ -75,7 +117,7 @@ function rowCount(rowCounts: Record<string, number>) {
 
 async function createResearchExport(request: Request, teacherUserDbId: string) {
   const requestId = randomUUID();
-  const parsed = params(request);
+  const parsed = await params(request);
   const exportPublicId = generatePublicId("export");
   const storageKey = storageKeyForExport(exportPublicId, "zip");
   const now = new Date();

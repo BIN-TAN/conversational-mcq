@@ -16,8 +16,21 @@ import {
   ITEM_ADMINISTRATION_V4_COLUMNS,
   interpretationV8ColumnDoc,
   interpretationV8LegacyNote,
-  type InterpretationV8Table
+  type InterpretationV8Table,
+  type V8ColumnDoc
 } from "./interpretation-v8-dictionary";
+import {
+  STUDY_PARTICIPATION_ATTEMPT_POLICY,
+  STUDY_PARTICIPATION_MEASUREMENT_LEVELS,
+  STUDY_PARTICIPATION_NOT_APPLICABLE,
+  STUDY_PARTICIPATION_RESTRICTED_COLUMNS,
+  STUDY_PARTICIPATION_RESTRICTED_TABLES,
+  STUDY_PARTICIPATION_ROW_FUNCTIONS,
+  STUDY_PARTICIPATION_TABLE_COLUMNS,
+  STUDY_PARTICIPATION_TABLES,
+  studyParticipationColumnDoc,
+  type StudyParticipationTable
+} from "./study-participation-dictionary";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
@@ -32,7 +45,8 @@ export const RESEARCH_DATASET_TABLES = [
   "agent_activity_records",
   "assessment_content",
   "assessment_summary",
-  ...INTERPRETATION_V8_TABLES
+  ...INTERPRETATION_V8_TABLES,
+  ...STUDY_PARTICIPATION_TABLES
 ] as const;
 
 export const ANALYSIS_READY_TABLES = RESEARCH_DATASET_TABLES;
@@ -641,7 +655,8 @@ const TABLE_COLUMNS: Record<AnalysisReadyTableName, readonly string[]> = {
   agent_activity_records: AGENT_ACTIVITY_RECORDS_COLUMNS,
   assessment_content: ASSESSMENT_CONTENT_COLUMNS,
   assessment_summary: ASSESSMENT_SUMMARY_COLUMNS,
-  ...INTERPRETATION_V8_TABLE_COLUMNS
+  ...INTERPRETATION_V8_TABLE_COLUMNS,
+  ...STUDY_PARTICIPATION_TABLE_COLUMNS
 };
 
 export const DATA_DICTIONARY_PAGE_SIZES = [25, 50, 100, 250, 500] as const;
@@ -690,7 +705,7 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     exclusion_criteria: "Login usernames, emails, internal database IDs, credential fields, and unrestricted linkage data.",
     typical_measurement_levels: "student, assessment, session, item, export",
     included_datasets: "sessions; item_responses; process_events; conversation_turns; agent_activity_records; assessment_content; assessment_summary; interpretation v8 files",
-    examples_of_data_collected: "research_student_id, assessment_public_id, session_public_id, item_public_id, snapshot identifiers, pseudonymization version, profile_record_id, research_instructor_id",
+    examples_of_data_collected: "research_student_id, study_code, assessment_public_id, session_public_id, item_public_id, snapshot identifiers, pseudonymization version, profile_record_id, research_instructor_id",
     interpretation_boundaries: "Identifiers support linkage and reproducibility only; they are not substantive outcomes.",
     display_order: 1
   },
@@ -701,7 +716,7 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     inclusion_criteria: "Assessment title/public ID, item order, item type, option labels/text, authored diagnostic notes when export policy permits, and administered snapshots.",
     exclusion_criteria: "Student responses, raw account data, and unrestricted answer-key fields in ordinary exports.",
     typical_measurement_levels: "assessment, item, option, snapshot",
-    included_datasets: "assessment_content; sessions; item_responses",
+    included_datasets: "assessment_content; sessions; item_responses; mini_test_catalog",
     examples_of_data_collected: "assessment_title, item_order, option text, media_public_ids, teacher diagnostic notes in restricted mode",
     interpretation_boundaries: "Context fields describe materials and design; they do not measure student understanding by themselves.",
     display_order: 2
@@ -713,8 +728,8 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     inclusion_criteria: "Attempt number, session status, started/completed timestamps, completed item counts, interruption/completion state, and progress state.",
     exclusion_criteria: "Fine-grained browser events and internal worker status.",
     typical_measurement_levels: "session, attempt",
-    included_datasets: "sessions; assessment_summary",
-    examples_of_data_collected: "attempt_number, session_status, current_phase, completed_initial_item_count, session_completion_status",
+    included_datasets: "sessions; assessment_summary; student_roster; student_participation_summary",
+    examples_of_data_collected: "attempt_number, session_status, current_phase, completed_initial_item_count, session_completion_status, families_submitted, released_completion_proportion",
     interpretation_boundaries: "Participation variables describe workflow status, not ability or motivation.",
     display_order: 3
   },
@@ -783,9 +798,9 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     display_name: "Transfer and outcomes",
     definition: "Revision, transfer-item, post-activity, and completion/outcome variables.",
     inclusion_criteria: "Revision outcome, transfer responses, transfer correctness where permitted, post-activity evidence, and completion outcome variables.",
-    exclusion_criteria: "Summative course outcomes and external grade data unless explicitly imported and documented elsewhere.",
-    typical_measurement_levels: "session, item response, activity evidence",
-    included_datasets: "item_responses; sessions; assessment_summary; agent_activity_records",
+    exclusion_criteria: "Summative course outcomes and external grade data outside summative_outcomes (restricted exports only).",
+    typical_measurement_levels: "session, item response, activity evidence, summative outcome record",
+    included_datasets: "item_responses; sessions; assessment_summary; agent_activity_records; summative_outcomes (restricted)",
     examples_of_data_collected: "transfer_item_completed, transfer response fields, unsupported_correct_response_count, post_activity_evidence_count",
     interpretation_boundaries: "Transfer/outcome variables are local to this assessment workflow and do not establish general course mastery.",
     display_order: 9
@@ -1056,7 +1071,8 @@ const RESTRICTED_COLUMNS = new Set([
   "essential_elements",
   "option_rationales_json",
   "answer_review_explanation",
-  ...INTERPRETATION_V8_RESTRICTED_COLUMNS
+  ...INTERPRETATION_V8_RESTRICTED_COLUMNS,
+  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS
 ]);
 
 const SENSITIVE_TEXT_COLUMNS = new Set([
@@ -1694,11 +1710,11 @@ function definition(table: string, variable: string) {
     assessment_family_public_id: "Revision family of the assessment: the original version's assessment_public_id, shared by its corrected versions. The three-attempt limit applies per family, not per version.",
     family_attempt_number: "Order of this attempt among all of the student's attempts in the assessment family (every version), by attempt creation time, starting at 1. attempt_number restarts at 1 on a corrected version even though the attempt limit counts the whole family, so use family_attempt_number for the student's attempt order. Waived (restored) chances are still counted.",
     data_collection_rules_version: "Version of the data-collection rules the attempt ran under: data-collection-rules-2026-10-17 (timing from item presentation, no skipping, typed explanations, one active tab); data-collection-rules-2026-10-18 (the same, plus final-review activity attributed to the revised question and window focus recorded at each stage start, used by student_focused_response_time_ms); pre_2026_10_17_unversioned for earlier attempts.",
-    initial_package_sealed: "True when the attempt has a sealed initial response package for its topic (the student submitted the answers, reasoning, confidence and alternative reasoning).",
+    initial_package_sealed: "True when the attempt has a sealed initial response package for its topic (the student submitted the answers, reasoning, confidence and alternative reasoning). Such a submitted attempt is always exported: include_incomplete_sessions false drops only attempts without a sealed package, whether or not the student chose Finish.",
     feedback_shown: "True when package results, answer review or formative feedback were displayed to the student (a formative_feedback_shown, package_results_shown or item_correctness_status_shown event exists).",
     conversation_started: "True when a learning conversation record exists for the attempt.",
     conversation_student_message_count: "Number of student messages in the attempt's learning conversation(s).",
-    finish_chosen: "True when the attempt reached completed status (the student chose Finish). Early pilot attempts may be complete in substance without this.",
+    finish_chosen: "True when the attempt reached completed status (the student chose Finish). Early pilot attempts may be complete in substance without this. Not an export filter: submitted attempts (initial_package_sealed true) are exported with or without Finish, also when include_incomplete_sessions is false.",
     evidence_stage: "Furthest evidence stage reached, independent of session_status: responses_incomplete, package_sealed, feedback_shown, conversation_participated or finished. Recommended for selecting attempts in analyses.",
     data_collection_rules_changed_during_attempt: "True when an attempt was continued after an application update changed the data-collection rules: started before the 2026-10-17 rules (pre_2026_10_17_unversioned) and continued with the newer application (detected from tab claims), or started under data-collection-rules-2026-10-17 and continued after the 2026-10-18 update (detected from window-focus observations). Its later items used the newer rules; exclude or analyse such attempts separately when comparing timing or activity across rule versions.",
     attempt_tab_claim_count: "Number of times the attempt was opened in a browser tab or window under the one-active-tab rule (each reload, new tab or device counts, so values above 1 indicate reloads or multi-tab use and do not distinguish the two); blank for attempts with no recorded tab claim before those rules.",
@@ -2371,6 +2387,7 @@ function measurementLevel(table: string, variable: string) {
   }
   if (table === "assessment_content") return variable.startsWith("assessment_") ? "assessment" : "item";
   if (isInterpretationV8Table(table)) return INTERPRETATION_V8_MEASUREMENT_LEVELS[table];
+  if (isStudyParticipationTable(table)) return STUDY_PARTICIPATION_MEASUREMENT_LEVELS[table];
   return "not_applicable";
 }
 
@@ -2452,6 +2469,11 @@ function sourceServiceOrFunction(table: string, variable: string) {
   if (isInterpretationV8Table(table) && !/^research_student_id$|pseudonym|research_instructor_id/.test(variable)) {
     return INTERPRETATION_V8_ROW_FUNCTIONS[table];
   }
+  if (variable === "study_code") return "studyCodeFromResearchStudentId";
+  if (variable === "research_instructor_id") return "researchInstructorId";
+  if (isStudyParticipationTable(table) && !/^research_student_id$|pseudonym/.test(variable)) {
+    return STUDY_PARTICIPATION_ROW_FUNCTIONS[table];
+  }
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "profileRecordProvenance; profileEvidenceCounts";
   }
@@ -2478,8 +2500,14 @@ function sourceCodeReference(table: string, variable: string) {
   if (isInterpretationV8Table(table) && !/^research_student_id$|pseudonym|research_instructor_id/.test(variable)) {
     return `src/lib/services/teacher-research-data/interpretation-v8-export.ts:${INTERPRETATION_V8_ROW_FUNCTIONS[table]}`;
   }
-  if (table === "item_review_decisions" && variable === "research_instructor_id") {
+  if (variable === "research_instructor_id") {
     return "src/lib/services/teacher-research-data/pseudonymization.ts:researchInstructorId";
+  }
+  if (variable === "study_code") {
+    return "src/lib/services/teacher-research-data/pseudonymization.ts:studyCodeFromResearchStudentId";
+  }
+  if (isStudyParticipationTable(table) && !/^research_student_id$|pseudonym/.test(variable)) {
+    return `src/lib/services/teacher-research-data/study-participation-export.ts:${STUDY_PARTICIPATION_ROW_FUNCTIONS[table]}`;
   }
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "src/lib/services/student-assessment/profile-record.ts";
@@ -2562,45 +2590,7 @@ function withInterpretationV8Documentation(entry: DataDictionaryEntry, table: st
   const note = interpretationV8LegacyNote(table, variable);
   const v8Table = isInterpretationV8Table(table);
   if (!doc && !note && !v8Table) return entry;
-  const next: DataDictionaryEntry = { ...entry };
-  if (doc) {
-    const researchCategoryId = (doc.research_category_id ?? entry.research_category_id) as ResearchCategoryId;
-    const llm = doc.source_nature === "persisted_llm_interpretation";
-    Object.assign(next, {
-      definition: doc.definition,
-      collection_or_generation_method: doc.method,
-      source_nature: doc.source_nature,
-      data_type: doc.data_type ?? entry.data_type,
-      unit: doc.unit ?? entry.unit,
-      allowed_values: doc.allowed_values ?? entry.allowed_values,
-      substantive_category: doc.category ?? (researchCategoryId === "diagnostic_interpretations"
-        ? "Diagnostic and interpretation outputs" : entry.substantive_category),
-      research_category_id: researchCategoryId,
-      research_category_display_name: categoryDisplayName(researchCategoryId),
-      documentation_tier: doc.tier ?? entry.documentation_tier,
-      privacy_level: doc.privacy ?? entry.privacy_level,
-      audience: doc.audience ?? entry.audience,
-      export_policy: doc.export_policy ?? entry.export_policy,
-      interpretation_caution: doc.caution ?? entry.interpretation_caution,
-      interpretation_guidance: doc.guidance ?? (llm || doc.source_nature === "deterministic_derived"
-        ? "Use as assessment-context evidence requiring human interpretation; do not treat it as a stable trait or ground truth."
-        : entry.interpretation_guidance),
-      generating_agent: llm ? doc.generating_agent ?? entry.generating_agent : "",
-      generating_schema_version: llm ? doc.generating_schema_version ?? entry.generating_schema_version : "",
-      applicable_record_types: doc.applicable ?? entry.applicable_record_types,
-      calculation_formula: doc.timing?.formula ?? doc.formula ?? entry.calculation_formula,
-      false_value_meaning: doc.data_type === "boolean"
-        ? "False means the condition was explicitly evaluated and did not hold for this row; blank means it was not evaluated."
-        : doc.data_type && doc.data_type !== "boolean" ? "Not a Boolean field." : entry.false_value_meaning,
-      ...(doc.timing ? {
-        timing_construct: doc.timing.construct,
-        timing_start_event: doc.timing.start,
-        timing_end_event: doc.timing.end,
-        idle_time_handling: doc.timing.idle,
-        page_hidden_handling: doc.timing.hidden
-      } : {})
-    });
-  }
+  const next: DataDictionaryEntry = doc ? withColumnDoc(entry, doc) : { ...entry };
   if (v8Table) {
     next.missing_value_meaning = "Blank means the value does not apply to this row or was not recorded (for example a fallback profile has no ratings, a considered idea has no endorsement, an opening message has no focus status). Never read blank as zero or false.";
     next.not_applicable_condition = table === "item_review_decisions"
@@ -2623,6 +2613,78 @@ function withInterpretationV8Documentation(entry: DataDictionaryEntry, table: st
   return next;
 }
 
+function isStudyParticipationTable(table: string): table is StudyParticipationTable {
+  return (STUDY_PARTICIPATION_TABLES as readonly string[]).includes(table);
+}
+
+/**
+ * Study-design files (study-participation-dictionary.ts): every column carries its own
+ * definition, method, type and unit; blank, zero and not-applicable meanings follow the file.
+ */
+function withStudyParticipationDocumentation(entry: DataDictionaryEntry, table: string, variable: string): DataDictionaryEntry {
+  const doc = studyParticipationColumnDoc(table, variable);
+  if (!doc || !isStudyParticipationTable(table)) return entry;
+  const next = withColumnDoc(entry, doc);
+  const numeric = next.data_type === "integer" || next.data_type === "decimal";
+  const restrictedTable = STUDY_PARTICIPATION_RESTRICTED_TABLES.includes(table);
+  return {
+    ...next,
+    measurement_level: STUDY_PARTICIPATION_MEASUREMENT_LEVELS[table],
+    missing_value_meaning: doc.missing ?? (restrictedTable || RESTRICTED_COLUMNS.has(variable)
+      ? "Blank means the value does not apply or was not recorded; the column (or file) is absent from default exports and present only in restricted exports."
+      : "Blank means the value does not apply to this row or was not recorded (see the definition); never read blank as zero or false."),
+    zero_value_meaning: doc.zero ?? (numeric ? "Zero is an observed value, not a missing one." : "Not a numeric count or duration field."),
+    not_applicable_condition: STUDY_PARTICIPATION_NOT_APPLICABLE[table],
+    aggregation_rule: doc.aggregation ?? (numeric && next.source_nature === "aggregate_derived" ? "Counted within the documented row grain (see the definition)." : next.aggregation_rule),
+    attempt_policy: STUDY_PARTICIPATION_ATTEMPT_POLICY[table],
+    applicable_record_types: `all ${table} rows`,
+    notes: restrictedTable || RESTRICTED_COLUMNS.has(variable)
+      ? "Restricted exports only (include_restricted_fields true); the safety scan refuses it in a default export."
+      : next.notes
+  };
+}
+
+/** Applies one column's own documentation (definition, method, type, unit, category, timing) to its entry. */
+function withColumnDoc(entry: DataDictionaryEntry, doc: V8ColumnDoc): DataDictionaryEntry {
+  const researchCategoryId = (doc.research_category_id ?? entry.research_category_id) as ResearchCategoryId;
+  const llm = doc.source_nature === "persisted_llm_interpretation";
+  return {
+    ...entry,
+    definition: doc.definition,
+    collection_or_generation_method: doc.method,
+    source_nature: doc.source_nature,
+    data_type: doc.data_type ?? entry.data_type,
+    unit: doc.unit ?? entry.unit,
+    allowed_values: doc.allowed_values ?? entry.allowed_values,
+    substantive_category: doc.category ?? (researchCategoryId === "diagnostic_interpretations"
+      ? "Diagnostic and interpretation outputs" : entry.substantive_category),
+    research_category_id: researchCategoryId,
+    research_category_display_name: categoryDisplayName(researchCategoryId),
+    documentation_tier: doc.tier ?? entry.documentation_tier,
+    privacy_level: doc.privacy ?? entry.privacy_level,
+    audience: doc.audience ?? entry.audience,
+    export_policy: doc.export_policy ?? entry.export_policy,
+    interpretation_caution: doc.caution ?? entry.interpretation_caution,
+    interpretation_guidance: doc.guidance ?? (llm || doc.source_nature === "deterministic_derived"
+      ? "Use as assessment-context evidence requiring human interpretation; do not treat it as a stable trait or ground truth."
+      : entry.interpretation_guidance),
+    generating_agent: llm ? doc.generating_agent ?? entry.generating_agent : "",
+    generating_schema_version: llm ? doc.generating_schema_version ?? entry.generating_schema_version : "",
+    applicable_record_types: doc.applicable ?? entry.applicable_record_types,
+    calculation_formula: doc.timing?.formula ?? doc.formula ?? entry.calculation_formula,
+    false_value_meaning: doc.data_type === "boolean"
+      ? "False means the condition was explicitly evaluated and did not hold for this row; blank means it was not evaluated."
+      : doc.data_type && doc.data_type !== "boolean" ? "Not a Boolean field." : entry.false_value_meaning,
+    ...(doc.timing ? {
+      timing_construct: doc.timing.construct,
+      timing_start_event: doc.timing.start,
+      timing_end_event: doc.timing.end,
+      idle_time_handling: doc.timing.idle,
+      page_hidden_handling: doc.timing.hidden
+    } : {})
+  };
+}
+
 export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
   const entries: DataDictionaryEntry[] = [];
   for (const [tableName, columns] of Object.entries(TABLE_COLUMNS)) {
@@ -2631,7 +2693,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
       const replacement = replacementVariable(tableName, variable);
       const deprecated = Boolean(replacement);
       const researchCategoryId = researchCategoryIdFor(tableName, variable);
-      entries.push(withInterpretationV8Documentation({
+      entries.push(withStudyParticipationDocumentation(withInterpretationV8Documentation({
         entity_type: "research_variable",
         qualified_name: `${tableName}.${variable}`,
         dataset_name: tableName,
@@ -2702,7 +2764,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
           : deprecated
             ? "Legacy or compatibility column retained for backward compatibility; use replacement_variable for the current analysis construct."
           : ""
-      }, tableName, variable));
+      }, tableName, variable), tableName, variable));
     }
   }
 

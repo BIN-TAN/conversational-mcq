@@ -91,9 +91,39 @@ import {
   interpretationV8ColumnDoc,
   interpretationV8LegacyNote
 } from "./interpretation-v8-dictionary";
+import {
+  MINI_TEST_CATALOG_COLUMNS,
+  STUDENT_PARTICIPATION_SUMMARY_COLUMNS,
+  STUDENT_ROSTER_COLUMNS,
+  STUDY_PARTICIPATION_EXPORT_VERSION,
+  STUDY_PARTICIPATION_README_LINES,
+  STUDY_PARTICIPATION_RESTRICTED_COLUMNS,
+  SUMMATIVE_OUTCOMES_COLUMNS
+} from "./study-participation-dictionary";
+import {
+  loadStudyScope,
+  loadSummativeOutcomeRecords,
+  miniTestCatalog,
+  sharedStudyCodes,
+  studentParticipationSummaryRows,
+  studentRosterRows,
+  summativeOutcomeRows,
+  type ParticipationAttempt
+} from "./study-participation-export";
+import { MAX_INCLUDED_STUDY_CODES, parseStudyCodeList } from "./study-code";
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
+
+/** Files produced only in restricted exports; the safety scan refuses them in a default export. */
+const RESTRICTED_ONLY_FILES = new Set([
+  AI_CALL_AUDIT_FILE,
+  AI_CALL_AUDIT_DICTIONARY_FILE,
+  "interpretation_process_audit.csv",
+  "summative_outcomes.csv"
+]);
+
+const INITIAL_PACKAGE_TYPE = "initial_concept_unit_response_package";
 
 const restrictedDefaultColumns = new Set([
   "correct_option",
@@ -109,7 +139,9 @@ const restrictedDefaultColumns = new Set([
   // The answer review text names or paraphrases the keyed option.
   "answer_review_explanation",
   // Interpretation v8 item ratings: correctness, withheld from default exports like item_responses.correctness.
-  "answer_correct"
+  "answer_correct",
+  // First-attempt scores in student_participation_summary.csv.
+  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS
 ]);
 
 const SECRET_PATTERNS = [
@@ -830,32 +862,41 @@ function authorizedSessionOr(teacherUserDbId: string): Prisma.AssessmentSessionW
   ];
 }
 
-function sessionWhere(input: {
+type SessionScope = {
   teacher_user_db_id: string;
   assessment_public_id?: string;
   student_user_id?: string;
   session_public_id?: string;
   include_incomplete_sessions?: boolean;
-}): Prisma.AssessmentSessionWhereInput {
+  /** Participant filter: only these students (login user_ids, resolved from study codes). */
+  student_user_ids?: string[];
+};
+
+/**
+ * include_incomplete_sessions false drops only attempts that were never submitted: a submitted
+ * attempt (sealed initial response package, sessions.initial_package_sealed) is always kept,
+ * whether or not the student chose Finish.
+ */
+function sessionWhere(input: SessionScope): Prisma.AssessmentSessionWhereInput {
+  const conditions: Prisma.AssessmentSessionWhereInput[] = [];
+  if (input.include_incomplete_sessions === false) conditions.push({ OR: [
+    { status: "completed" },
+    { concept_unit_sessions: { some: { response_packages: { some: { package_type: INITIAL_PACKAGE_TYPE } } } } }
+  ] });
+  if (input.student_user_ids) conditions.push({ user: { user_id: { in: input.student_user_ids } } });
   return {
     session_public_id: input.session_public_id,
-    status: input.include_incomplete_sessions === false ? "completed" : undefined,
     assessment: { assessment_public_id: input.assessment_public_id },
     user: {
       role: "student",
       user_id: input.student_user_id
     },
-    OR: authorizedSessionOr(input.teacher_user_db_id)
+    OR: authorizedSessionOr(input.teacher_user_db_id),
+    ...(conditions.length ? { AND: conditions } : {})
   };
 }
 
-async function loadSessions(input: {
-  teacher_user_db_id: string;
-  assessment_public_id?: string;
-  student_user_id?: string;
-  session_public_id?: string;
-  include_incomplete_sessions?: boolean;
-}, db: Prisma.TransactionClient = prisma) {
+async function loadSessions(input: SessionScope, db: Prisma.TransactionClient = prisma) {
   return db.assessmentSession.findMany({
     where: sessionWhere(input),
     orderBy: [
@@ -2797,7 +2838,8 @@ export function formativeConversationDataDictionaryRows() {
   ];
 }
 
-function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>, includeRestricted: boolean) {
+/** Every emitted file passes this scan; exported for database-free tests. */
+export function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>, includeRestricted: boolean) {
   for (const file of files) {
     const patterns =
       file.path === "research_data_dictionary.csv" || file.path === "process_event_codebook.csv"
@@ -2811,6 +2853,9 @@ function assertAnalysisReadySafety(files: Array<{ path: string; data: string }>,
   }
   if (!includeRestricted) {
     for (const file of files) {
+      if (RESTRICTED_ONLY_FILES.has(file.path)) {
+        throw new Error(`Default analysis-ready export included restricted-only file ${file.path}.`);
+      }
       if (file.path === "research_data_dictionary.csv" || file.path === "process_event_codebook.csv") continue;
       const header = file.data.split(/\r?\n/, 1)[0] ?? "";
       for (const column of restrictedDefaultColumns) {
@@ -2867,6 +2912,9 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "external_outcomes_template.csv",
         "study_template_dictionary.csv",
         "research_study_notes.txt",
+        "mini_test_catalog.csv",
+        "student_roster.csv",
+        "student_participation_summary.csv",
         "formative_conversation_llm_calls.csv",
         "formative_conversation_profile_transitions.csv",
         "formative_conversation_interventions.csv",
@@ -2993,7 +3041,28 @@ export type AnalysisReadyExportInput = {
   session_public_id?: string;
   include_incomplete_sessions?: boolean;
   include_restricted_fields?: boolean;
+  /**
+   * Consent filter: when given, every file keeps only students whose study code (XXXX-XXXX,
+   * hyphen optional, any case) is listed; mini_test_catalog.csv stays complete.
+   */
+  include_study_codes?: string[];
 };
+
+/** Normalized consent list, or null when no filter was requested; malformed codes are rejected. */
+function requestedStudyCodes(values: string[] | undefined) {
+  if (values === undefined) return null;
+  const { codes, invalid } = parseStudyCodeList(values);
+  if (invalid.length) {
+    throw new ContentServiceError("validation_failed",
+      `These entries are not study codes (expected XXXX-XXXX with digits 0-9 and letters A-F): ${invalid.slice(0, 10).join(", ")}${invalid.length > 10 ? ` and ${invalid.length - 10} more` : ""}.`,
+      400, { invalid_study_code_count: invalid.length });
+  }
+  if (!codes.length) throw new ContentServiceError("validation_failed", "The study-code list is empty.", 400);
+  if (codes.length > MAX_INCLUDED_STUDY_CODES) {
+    throw new ContentServiceError("validation_failed", `At most ${MAX_INCLUDED_STUDY_CODES} study codes can be listed.`, 400);
+  }
+  return codes;
+}
 
 type InterpretationV8CallRecords = Awaited<ReturnType<typeof loadInterpretationV8CallRecords>>;
 type InterpretationV8Context = {
@@ -3201,6 +3270,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     }
     throw error;
   }
+  const includeStudyCodes = requestedStudyCodes(input.include_study_codes);
   const source = sourceFor(input);
   const includeRestricted = input.include_restricted_fields === true;
   const emit = async (file: { path: string; data: string }) => {
@@ -3208,6 +3278,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     await spool.append(file);
   };
   const attemptObservations: ReturnType<typeof observeAttempts> = [];
+  // The same attempts with their conversation turn counts, for student_participation_summary.csv.
+  const participationAttempts: ParticipationAttempt[] = [];
   const familyAttemptNumbers = new Map<string, number>();
   // Instructor item decisions (interpretation v8), loaded once per mini-test in scope.
   const decisionRecordsByAssessment = new Map<string, ItemReviewDecisionRecord[]>();
@@ -3217,10 +3289,25 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
   };
   // A single snapshot, but only one session's full event/profile graph in memory.
   // Files stay private until the transaction and every integrity check succeed.
-  const snapshotAt = await prisma.$transaction(async (tx) => {
+  const { snapshotAt, study } = await prisma.$transaction(async (tx) => {
     const [snapshot] = await tx.$queryRaw<Array<{ snapshot_at: Date }>>`SELECT transaction_timestamp() AS snapshot_at`;
+    // Students and mini-tests in scope; the participant filter (study codes) is resolved here.
+    const studyScope = await loadStudyScope(tx, {
+      teacher_user_db_id: input.teacher_user_db_id,
+      scope: input.scope,
+      assessment_public_id: input.assessment_public_id,
+      student_user_id: input.student_user_id,
+      scope_session_where: sessionWhere(input),
+      authorized_session_where: { user: { role: "student" }, OR: authorizedSessionOr(input.teacher_user_db_id) },
+      include_study_codes: includeStudyCodes
+    });
+    if (includeStudyCodes && !studyScope.students.length) throw new ContentServiceError("no_matching_study_codes",
+      `None of the ${includeStudyCodes.length} study codes matches a student in this export scope.`, 409,
+      { requested_count: includeStudyCodes.length });
+    // Every session-based file is built from sessions loaded with this filter, so none can include another student.
+    const scoped: SessionScope = includeStudyCodes ? { ...input, student_user_ids: studyScope.students.map((student) => student.user_id) } : input;
     const references = await tx.assessmentSession.findMany({
-      where: sessionWhere(input),
+      where: sessionWhere(scoped),
       orderBy: [{ assessment: { title: "asc" } }, { user: { user_id: "asc" } },
         { attempt_number: "asc" }, { created_at: "asc" }, { id: "asc" }],
       select: { session_public_id: true }
@@ -3228,7 +3315,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     if (!references.length) throw new ContentServiceError("no_session_data",
       "No student sessions are available for this export scope.", 409);
     for (const reference of references) {
-      const sessions = await loadSessions({ ...input, session_public_id: reference.session_public_id }, tx);
+      const sessions = await loadSessions({ ...scoped, session_public_id: reference.session_public_id }, tx);
       for (const session of sessions) {
         familyAttemptNumbers.set(session.session_public_id, (await resolveFamilyAttemptIdentity(tx, session)).family_attempt_number);
       }
@@ -3237,7 +3324,15 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
         where: { session_public_id: reference.session_public_id },
         select: { session_public_id: true, policy_version: true, waived_at: true }
       });
-      attemptObservations.push(...observeAttempts(sessions, chances));
+      const observations = observeAttempts(sessions, chances);
+      attemptObservations.push(...observations);
+      participationAttempts.push(...sessions.map((session, index) => ({
+        attempt: observations[index],
+        conversations: session.formative_conversation_sessions.map((conversation) => ({
+          student_turns: conversation.conversation_turns.filter((turn) => turn.actor_type === "student").length,
+          tutor_turns: conversation.conversation_turns.filter((turn) => turn.actor_type === "agent").length
+        }))
+      })));
       const v8Calls = new Map<string, InterpretationV8CallRecords>();
       for (const session of sessions) {
         v8Calls.set(session.session_public_id, await loadInterpretationV8CallRecords(tx, session.id));
@@ -3269,13 +3364,28 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     // One item_review_decisions.csv for every mini-test in scope (current and superseded decisions).
     for (const records of decisionRecordsByAssessment.values()) await emit(itemReviewDecisionFile(records));
     // Instructor reports summarise a whole class, so they are exported only for
-    // whole-cohort scopes that include incomplete attempts (the report's own rule).
-    if (includeRestricted && auditAssessmentIds.length &&
+    // whole-cohort scopes that include incomplete attempts (the report's own rule),
+    // and never with a participant filter: their inputs cover students outside the list.
+    if (includeRestricted && auditAssessmentIds.length && !includeStudyCodes &&
         (input.scope === "all_authorized" || input.scope === "selected_assessment") &&
         input.include_incomplete_sessions !== false) {
       await emit({ path: AI_CALL_AUDIT_FILE, data: csv(AI_CALL_AUDIT_COLUMNS, await instructorReportAuditRows(tx, auditAssessmentIds)) });
     }
-    return snapshot.snapshot_at.toISOString();
+    // Study-design files: catalog (complete for the scope), roster and summary (filtered students).
+    const catalog = miniTestCatalog({ assessments: studyScope.assessments, in_scope: studyScope.in_scope,
+      snapshot_at: snapshot.snapshot_at, instructor: instructorPseudonym.instructor });
+    await emit({ path: "mini_test_catalog.csv", data: csv(MINI_TEST_CATALOG_COLUMNS, catalog.rows) });
+    await emit({ path: "student_roster.csv", data: csv(STUDENT_ROSTER_COLUMNS, studentRosterRows({
+      students: studyScope.students, shared_codes: sharedStudyCodes(studyScope.candidates), teacher_user_db_id: input.teacher_user_db_id,
+      attempts: participationAttempts, instructor: instructorPseudonym.instructor, pseudonym_version: instructorPseudonym.version
+    })) });
+    await emit({ path: "student_participation_summary.csv", data: csv(columnsFor(STUDENT_PARTICIPATION_SUMMARY_COLUMNS, includeRestricted),
+      studentParticipationSummaryRows({ students: studyScope.students, attempts: participationAttempts, catalog, include_restricted: includeRestricted })) });
+    if (includeRestricted) {
+      await emit({ path: "summative_outcomes.csv", data: csv(SUMMATIVE_OUTCOMES_COLUMNS,
+        summativeOutcomeRows(await loadSummativeOutcomeRecords(tx, studyScope.students), studyScope.students)) });
+    }
+    return { snapshotAt: snapshot.snapshot_at.toISOString(), study: studyScope };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: includeRestricted ? 300_000 : 120_000 });
   if (includeRestricted) {
     await emit({ path: AI_CALL_AUDIT_DICTIONARY_FILE, data: csv(["variable", "definition"],
@@ -3286,7 +3396,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     pseudonym: researchStudentId, include_restricted: includeRestricted, scope: input.scope,
     family_attempt_numbers: familyAttemptNumbers })) await emit(file);
   for (const file of researchStudyTemplateFiles({ attempts: attemptObservations, snapshot_at: snapshotAt,
-    pseudonym: researchStudentId })) await emit(file);
+    pseudonym: researchStudentId, roster: study.students })) await emit(file);
   await spool.finishCoverage();
   await emit({ path: "README.txt", data: [
     "Research dataset v2",
@@ -3304,6 +3414,11 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
     "Browser events are best effort: delivery gaps, absent visibility, multiple documents, and unrecovered browser closure limit inference. Absence is not nonoccurrence.",
     "No consent or withdrawal decision is inferred. Apply the approved study cohort before analysis. Free text may contain identifying information and requires review.",
+    includeStudyCodes
+      ? "Participant filter (participant_filter in the manifest): this export keeps only students whose study code was on the include list (consenting participants); every student-level and attempt-level file, including restricted audit files, was built from those students only, and mini_test_catalog.csv stays complete. A listed code shared by two students (student_roster.study_code_shared) includes both. Instructor-report audit rows are omitted because their inputs cover the whole class. The list itself is not stored; list_sha256 identifies it."
+      : "Participant filter: none (participant_filter.mode none in the manifest). Every student in scope is included; apply the consent list (study codes) before analysis, or export again with an include list.",
+    "Incomplete attempts: include_incomplete_sessions false drops only attempts that were never submitted. A submitted attempt (sealed initial response package, sessions.initial_package_sealed true) is always included, whether or not the student chose Finish.",
+    ...STUDY_PARTICIPATION_README_LINES,
     `Interpretation v8 (${INTERPRETATION_V8_EXPORT_VERSION}): interpretation_item_ratings.csv (one row per student, attempt and item), interpretation_claims.csv (possible misconceptions and ideas considered), interpretation_summaries.csv (stored label and the label with the instructor's current item decisions, counts, attempt role and feedback seen before the attempt), feedback_turn_records.csv (focus, strategy, student evidence and instructor-review flag of each opening and reply) and item_review_decisions.csv. Rules, rating definitions and boundaries are in ${INTERPRETATION_V8_NOTES_FILE}; every column is in research_data_dictionary.csv. Restricted exports add interpretation_process_audit.csv (process indicators sent to the profiling model and its process interpretations; audit only, never shown to instructors or students) and the answer_correct column.`,
     "Legacy profile columns (ability, engagement, integrated profile, evidence sufficiency, confidence alignment, misconception catalog counts, item-evidence format) are blank for interpretation v8 profiles in sessions.csv, assessment_summary.csv, agent_activity_records.csv and formative_conversation_sessions.csv, and so are the conversation-update and profile-transition columns (a v8 conversation never updates the profile); read interpretation_summary_label and the v8 files instead. profile_item_evidence.csv has no rows for v8 profiles. Earlier profiles and conversations are unchanged.",
     "Item administration v4 records collection decisions, not quality: see the item_admin_v4_* columns in item_responses.csv; insufficient-knowledge judgments are never recorded for v4 replies.",
@@ -3322,6 +3437,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     profile_projection_version: PROFILE_PROJECTION_VERSION,
     interpretation_v8_export_version: INTERPRETATION_V8_EXPORT_VERSION,
+    study_participation_export_version: STUDY_PARTICIPATION_EXPORT_VERSION,
     export_run_public_id: source.export_run_public_id,
     export_generated_at: source.export_generated_at,
     app_commit_sha: source.app_commit_sha,
@@ -3330,6 +3446,9 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     snapshot_policy: "Rows visible in one database transaction; late-arriving events appear in a later export.",
     scope: input.scope,
     include_incomplete_sessions: input.include_incomplete_sessions !== false,
+    incomplete_sessions_rule: "Submitted attempts (sealed initial response package) are always included; include_incomplete_sessions decides only never-submitted attempts.",
+    // Counts and a hash of the consent list; the study codes themselves are never stored.
+    participant_filter: study.participant_filter,
     restricted_fields_included: includeRestricted,
     pseudonymization: {
       version: researchPseudonymizationMetadata().research_pseudonym_version,
@@ -3358,7 +3477,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
           : "all_authorized";
 
   return {
-    filename: `${suffix}_research_dataset.zip`,
+    filename: `${suffix}${includeStudyCodes ? "_participants" : ""}_research_dataset.zip`,
     content_type: "application/zip",
     source, row_counts: spool.rowCounts(),
     restricted_fields_included: includeRestricted, no_live_provider_call_made: true

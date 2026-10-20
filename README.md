@@ -2250,7 +2250,17 @@ The unified export center has two normal teacher-facing sections:
   `process_events.csv`, `conversation_turns.csv`,
   `agent_activity_records.csv`, `assessment_content.csv`,
   `assessment_summary.csv`, `research_data_dictionary.csv`, and
-  `process_event_codebook.csv`.
+  `process_event_codebook.csv`. Study-design files: `mini_test_catalog.csv`
+  (every mini-test version in scope with status, `published_at`, `release_at`,
+  `close_at` and `effective_release_at`), `student_roster.csv` (every student in
+  scope, including students with no attempts, with `study_code`) and
+  `student_participation_summary.csv` (one row per roster student). Restricted
+  exports add `summative_outcomes.csv` and first-attempt scores.
+  "Include only these study codes" keeps only the listed students (consenting
+  participants) in every file; the manifest's `participant_filter` records
+  counts and a hash of the list, never the codes. "Include incomplete sessions"
+  off drops only never-submitted attempts: a submitted attempt (sealed initial
+  response package) is always exported, whether or not the student chose Finish.
 - Data dictionary: a paginated, collapsed-by-default documentation browser that
   defaults to **Research dataset variables**. It clearly separates Research
   dataset variables, Learning-process event definitions, Internal database
