@@ -602,6 +602,15 @@ export function coderAgreement(first: ReferenceCodingRow[], second: ReferenceCod
 
 const PROCESS_WORDS = /\b(seconds?|minutes?|quickly|paste\w*|clipboard|tab|window|left the page|first answer|changed|switched|hesitat\w*|paus\w*)\b/i;
 
+/**
+ * Questions the message asks the student: question marks outside double quotation marks. A
+ * question quoted as an example ("What evidence supports this use?") is not asked of the student.
+ */
+export function questionsAsked(message: string) {
+  const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
+  return (unquoted.match(/\?/g) ?? []).length;
+}
+
 export function scoreFeedback(input: { cases: FeedbackCaseFile; records: FeedbackRunRecord[] }) {
   const byId = new Map(input.cases.cases.map((entry) => [entry.feedback_case_id, entry]));
   const rows = input.records.map((record) => {
@@ -611,7 +620,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       return { feedback_case_id: record.feedback_case_id, run: record.run, validated: false, checks: null, message: null, output: null };
     }
     const expected = feedbackCase.expected;
-    const questions = (output.student_visible_message.match(/\?/g) ?? []).length;
+    const questions = questionsAsked(output.student_visible_message);
     const checks = {
       focus_type: expected.focus_types.includes(output.focus.focus_type),
       strategy: expected.strategies.includes(output.strategy),

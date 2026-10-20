@@ -23,7 +23,7 @@ import {
  * coding rather than from a model profile, so the feedback model is judged on its own: the
  * focus it chooses, the strategy, the turn record and the audience rules.
  */
-export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-1" as const;
+export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-2" as const;
 export const EVALUATION_MAX_STUDENT_TURNS = 6;
 
 const QuoteSource = z.enum(["explanation", "explanation_first_version", "tempting_option_reason"]);

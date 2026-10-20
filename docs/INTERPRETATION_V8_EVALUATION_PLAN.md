@@ -48,6 +48,14 @@ The shipped set has 12 items in 3 topics and 31 simulated students, giving 124 i
 
 Each item has the key and the target reasoning, one to three essential elements, and a rationale and an idea label for every incorrect option. Item S4 is deliberately flawed: option D is a defensible reading. It tests the possible-item-issue path.
 
+Essential elements list only the points an explanation must state to justify the key against the other options. The model applies them literally: an explanation that misses any listed point is rated limited. The first live development run showed this. Version 2 of the items (`interpretation-v8-eval-items-2`) removes three points that the items did not need, and the expected ratings are unchanged:
+
+- V4 no longer requires "validity is a matter of degree", which no option tests.
+- R3 no longer requires the testing conditions, since only the group changes in the scenario.
+- R4 no longer requires an explicit contrast with what the test measures.
+
+Version 2 of the feedback cases also accepts an instructor flag for item S4 in F09. The item editors give the same guidance to instructors.
+
 **Simulated students.** Each simulated student answers all four items of one topic with a profile, for example "states that reliability establishes validity". Each response is written to show one situation (next section). Each response records the expected rating (with acceptable alternatives where two readings are defensible), the beyond-option-text flag, the error source, the no-usable reason and any side remark. Each student also lists the misconceptions and considered ideas expected, the items where a claim would be a critical error, and the items where a claim is defensible either way.
 
 The expected item statuses and summary labels are computed from the expected ratings by the application's own rules, so they cannot disagree with the rules.

@@ -1,5 +1,5 @@
 {
- "bank_version": "interpretation-v8-eval-items-1",
+ "bank_version": "interpretation-v8-eval-items-2",
  "source": "Synthetic items written in the style of the EDPY 507 measurement course. Replace them with exported course items using the converter (see the evaluation plan).",
  "topics": [
   {
@@ -111,7 +111,7 @@
      ],
      "key": "D",
      "target_reasoning": "A reliability estimate depends on the group and conditions in which it was obtained. An advanced, more similar group has less score variation, which can change (often lower) the estimate, so reliability should be re-estimated for the new group.",
-     "essential_elements": "1) Reliability depends on the group and testing conditions; it is not a fixed property of the test. 2) It should be re-estimated for the new group.",
+     "essential_elements": "1) A reliability estimate depends on the group it was obtained from, so it is not a fixed property of the test. 2) It should be re-estimated for the new group.",
      "rationales": {
       "A": {
        "rationale": "Treats reliability as a permanent property of the test.",
@@ -151,7 +151,7 @@
      ],
      "key": "B",
      "target_reasoning": "A test-retest correlation describes the stability of scores over time: students who score relatively high or low the first time tend to do so again the second time.",
-     "essential_elements": "1) It describes consistency or stability across the two occasions (over time). 2) It concerns students' relative standing (ranking), not what the test measures.",
+     "essential_elements": "1) It describes consistency or stability across the two occasions (over time). 2) It concerns students' relative standing (ranking).",
      "rationales": {
       "A": {
        "rationale": "Confuses a reliability coefficient with the proportion of items answered correctly.",
@@ -319,7 +319,7 @@
      ],
      "key": "B",
      "target_reasoning": "Validity is about the interpretations and uses of test scores and is supported by accumulated evidence; it is not a property of the test alone.",
-     "essential_elements": "1) Validity refers to the interpretation and use of scores, not the test itself. 2) It is supported by evidence and is a matter of degree.",
+     "essential_elements": "1) Validity refers to the interpretation and use of scores, not the test itself. 2) It is supported by evidence.",
      "rationales": {
       "A": {
        "rationale": "Treats validity as a property of the test rather than of score interpretations.",

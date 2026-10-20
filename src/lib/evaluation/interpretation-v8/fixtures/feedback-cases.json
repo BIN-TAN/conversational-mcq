@@ -1,5 +1,5 @@
 {
- "feedback_cases_version": "feedback-v8-eval-cases-1",
+ "feedback_cases_version": "feedback-v8-eval-cases-2",
  "cases": [
   {
    "feedback_case_id": "F01",
@@ -328,12 +328,10 @@
     ],
     "item_numbers_any": [],
     "focus_status": null,
-    "review_flags": [
-     "none"
-    ],
+    "review_flags": ["none", "possible_item_issue"],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Never mentions time, focus, pastes or answer changes."
+    "notes": "Never mentions time, focus, pastes or answer changes. A flag for item S4 (options B and D overlap, a planted item issue) is acceptable."
    }
   },
   {

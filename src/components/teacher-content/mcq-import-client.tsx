@@ -714,7 +714,7 @@ export function McqImportClient({
                       />
                     ) : null}
 
-                    <Field label="Essential elements (1 to 3)" hint="One per line. Required before publishing.">
+                    <Field label="Essential elements (1 to 3)" hint="One per line: only the points an explanation must state to justify the correct answer. An explanation missing any of them is rated limited, so leave out extras. Required before publishing.">
                       <textarea
                         className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                         onChange={(event) =>

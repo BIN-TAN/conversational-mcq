@@ -34,12 +34,14 @@ import {
 } from "../src/lib/evaluation/interpretation-v8/metrics";
 import { renderMarkdownReport } from "../src/lib/evaluation/interpretation-v8/report";
 import { keyVariablesFromEnvFile, modelSettingsFromRuntimeEnv } from "../src/lib/evaluation/interpretation-v8/live-setup";
-import { runFeedbackCase, runInterpretationCase, type InterpretationRunRecord } from "../src/lib/evaluation/interpretation-v8/run";
+import { localStandInProvider, runFeedbackCase, runInterpretationCase, type InterpretationRunRecord } from "../src/lib/evaluation/interpretation-v8/run";
+import type { LlmProvider } from "../src/lib/llm/providers/types";
 import {
   coderAgreement,
   expectationsFromFixtures,
   expectationsFromReference,
   labelDistribution,
+  questionsAsked,
   scoreInterpretation,
   type ReferenceCodingRow
 } from "../src/lib/evaluation/interpretation-v8/score";
@@ -360,6 +362,32 @@ async function main() {
       OPENAI_API_KEY: "placeholder", DATABASE_URL: "postgresql://x", APP_ENV: "development" });
     assert.deepEqual(settings, { OPENAI_MODEL_PROFILING: "model-a", OPENAI_REASONING_EFFORT_PROFILING: "medium",
       OPENAI_MAX_OUTPUT_TOKENS_PROFILING: "4000", OPENAI_REQUEST_TIMEOUT_MS: "90000" });
+  });
+
+  await check("questions quoted as examples are not counted as questions asked; rejected drafts are kept", () => {
+    assert.equal(questionsAsked("Which part would you like to look at first?"), 1);
+    assert.equal(questionsAsked("Reliability answers \u201CHow consistently are scores produced?\u201D and validity answers \"What evidence supports this use?\" Which would you like to explore?"), 1);
+    assert.equal(questionsAsked("Is it the group? Or the conditions?"), 2);
+  });
+
+  await check("a rejected attempt keeps the output the checks rejected, for the strictness review", async () => {
+    let calls = 0;
+    const firstInvented: LlmProvider = {
+      async executeStructured(request) {
+        const result = await localStandInProvider.executeStructured(request);
+        calls += 1;
+        if (calls > 1 || result.status !== "completed") return result;
+        const output = structuredClone(result.parsed_output) as { items: Array<{ evidence_quote: string | null }> };
+        for (const item of output.items) if (item.evidence_quote) item.evidence_quote = "words the student never wrote anywhere";
+        return { ...result, parsed_output: output as typeof result.parsed_output };
+      }
+    };
+    const record = await runInterpretationCase({ bank, evaluation_case: caseById.get("R-01")!, run: 1,
+      engine: { kind: "live", provider: firstInvented, interpretation_model: { model_name: "test" }, feedback_model: { model_name: "test" } } });
+    assert.equal(record.status, "validated");
+    assert.equal(record.attempts[0].outcome, "invalid_output");
+    assert.ok(JSON.stringify(record.attempts[0].rejected_output).includes("never wrote"));
+    assert.equal(record.attempts.at(-1)!.rejected_output, null);
   });
 
   console.log(`interpretation-v8-evaluation-unit-test: ${checks} checks passed`);

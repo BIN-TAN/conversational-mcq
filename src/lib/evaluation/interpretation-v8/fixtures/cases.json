@@ -1,5 +1,5 @@
 {
- "cases_version": "interpretation-v8-eval-cases-1",
+ "cases_version": "interpretation-v8-eval-cases-2",
  "situations": {
   "S01": "Complete reasoning in the student's own words",
   "S02": "Brief but complete reasoning",

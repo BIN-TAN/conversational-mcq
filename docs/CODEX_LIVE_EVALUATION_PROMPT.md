@@ -24,7 +24,7 @@ The researcher's guidance: the model should not be rejected too often, and the c
 - **No pushing.** Never push, never deploy, and never change anything on Render or on the live site https://conversational-mcq.onrender.com. Do not run anything against the live site or its database. The evaluation needs no database.
 - **Keys and logs.** Never print, log, copy or commit the OpenAI key or any other secret. Never commit `.env.local` or anything under `.data\`.
 - **No approval hashes.** Do not set the approval hashes (`*_APPROVED_PROMPT_HASH`). Only the researcher decides that, after the evaluation.
-- **Fixtures stay fixed.** Do not change the expected categories in `src\lib\evaluation\interpretation-v8\fixtures\` to match the model. If a fixture is demonstrably wrong (for example a typo, or an expectation that contradicts the rules in section 4.2), stop and list it in your report with the evidence; do not edit it.
+- **Fixtures stay fixed.** Do not change the expected categories or items in `src\lib\evaluation\interpretation-v8\fixtures\` to match the model. If a fixture looks wrong (for example a typo, an expectation that contradicts the rules in section 4.2, or essential elements that ask for more than the item needs), do not edit it and do not stop: list it in your report with the evidence and carry on. The researcher fixes fixtures afterwards.
 - **Thresholds stay fixed.** Do not change the go-live thresholds.
 - **Prompts stay fixed.** Do not change any model prompt; the prompts are copied verbatim from the design document. Propose prompt changes in your report instead.
 - **Only the code changes in Phase 4,** on a separate branch, each with a unit test.
@@ -35,15 +35,15 @@ The researcher's guidance: the model should not be rejected too often, and the c
 
 ## Phase 0: get the code and check it (no model calls)
 
-Two earlier runs stopped early. The first stopped here, because three tests could not read the design document with Windows (CRLF) line endings. The second stopped before Phase 1, because this repository's `.env.local` holds no OpenAI key. Bundle v4 fixes the first, and Phase 1 now uses the configuration the earlier live runs used. These steps also work when the evaluation branch already exists.
+Earlier runs stopped at Phase 0 (Windows line endings, fixed), before Phase 1 (no key in this repository's `.env.local`; Phase 1 now uses the earlier live configuration), and in Phase 2 (a fixture conflict). Bundle v5 corrects the fixtures that run found: the essential elements of V4, R3 and R4 asked for more than those items need, and F09 now also accepts a flag for the planted item issue. These steps also work when the evaluation branch already exists.
 
 ```powershell
 cd "E:\New_Downloads\Conversational MCQ"
 git status
 git fetch origin
-git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v4.bundle"
+git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v5.bundle"
 git switch --detach
-git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v4.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
+git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v5.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
 git switch eval/live-2026-10
 git log -1 --oneline
 npm install
@@ -64,8 +64,8 @@ Run every evaluation command as `npx tsx prisma/interpretation-v8-evaluation-cli
 
 What to expect:
 
-- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v4". Report its hash.
-- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (17) suites.
+- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v5". Report its hash.
+- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (19) suites.
 - **`check`** must report 31 simulated students, 124 item responses, 18 feedback cases and no problems.
 - **The local run** uses deterministic stand-ins, which are not a model. It only shows that the pipeline runs. Its quality numbers are meaningless; do not report them.
 
@@ -94,7 +94,7 @@ Rules:
 - `settings.json` in the run folder records the model names. Report them, and say that they are the 13 October approved settings the earlier live runs used. If Render now uses different model settings, the researcher will say so.
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\dev-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\dev-2
 ```
 
 This runs 49 cases: 31 profiling submissions and 18 feedback messages.
@@ -108,12 +108,14 @@ The command writes these files to the run folder:
 - `report-design.md` and `report-design.json`, scored against the planned (design) categories
 - `mismatches-design.csv`
 - `feedback-reading-sheet.csv`
-- `runs.jsonl`, the raw outputs
+- `runs.jsonl`, the raw outputs, including the output each check rejected (`attempts[].rejected_output`)
+
+Write to the new folders `dev-2` and `stability-2`. Keep `dev-1` and `stability-1` as they are: they used the earlier fixture version, so do not resume into them. Compare `dev-2` with `dev-1` for V-01, V-02, V-04 and V-05 (item V4), R-02 and R-04 (items R3 and R4), and F09, the cases the fixture correction concerns.
 
 ## Phase 2: stability and fallback rate (three runs)
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\stability-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\stability-2
 ```
 
 This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect about 190 calls, at most 666.
@@ -141,7 +143,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
    - Name every label whose share differs from the plan by more than 10 percentage points, and say which way the shift goes. For example, "limited 25% vs 11% planned: the model rates complete explanations as limited".
    - Say whether each shift stays within the accepted alternatives (a defensible difference of judgement) or goes outside them (an error).
    - Use the situation table to show which ways of expressing reasoning cause each shift.
-3. **Strictness review.** For every rejected attempt in `runs.jsonl` (`attempts[].issues`), classify each issue code:
+3. **Strictness review.** For every rejected attempt in `runs.jsonl`, classify each issue code (`attempts[].issues`). The rejected output itself is in `attempts[].rejected_output`; quote the offending text from it.
    - **Correct rejection:** the output really broke a rule.
    - **False rejection:** the output was acceptable and the check fired anyway, for example a wording pattern matched course content, or a quote differed only in punctuation or spacing.
    - **Mechanical slip:** something a fixed rule could repair without changing what the output claims.
@@ -160,7 +162,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
 6. **After any fix:**
    - run `npm run test:redesign-v8`;
    - run `npx tsc --noEmit -p tsconfig.json`, and report only new errors in the files you changed;
-   - repeat Phase 1 (with the same `--env-file` and `--runtime-env`) into `dev-2` and compare it with `dev-1`.
+   - repeat Phase 1 (with the same `--env-file` and `--runtime-env`) into `dev-3` and compare it with `dev-2`.
 
 ## Phase 5: materials for the human reference coding (no model calls)
 

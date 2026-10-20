@@ -1358,7 +1358,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
               </Field>
               <Field
                 label="Essential elements (1 to 3)"
-                hint="One per line: the points a strong explanation should mention. Explanations are judged against them. Required before publishing."
+                hint="One per line: only the points an explanation must state to justify the correct answer. An explanation missing any of them is rated limited, so leave out extras. Required before publishing."
               >
                 <textarea
                   aria-describedby="essential-elements-count"

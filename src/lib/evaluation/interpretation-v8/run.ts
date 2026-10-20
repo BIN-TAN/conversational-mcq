@@ -45,6 +45,12 @@ export type AttemptSummary = {
   latency_ms: number | null;
   input_tokens: number | null;
   output_tokens: number | null;
+  /**
+   * The output the checks rejected (after mechanical repairs), kept so each rejection can be
+   * reviewed against the student's text. Null for accepted attempts and provider failures.
+   * The evaluation uses simulated students only.
+   */
+  rejected_output?: unknown;
 };
 
 export type InterpretationRunRecord = {
@@ -165,7 +171,8 @@ export async function runInterpretationCase(input: {
       issues: attempt.issues.map(({ path, code, message }) => ({ path, code, message })),
       latency_ms: attempt.result?.latency_ms ?? null,
       input_tokens: attempt.result?.usage?.input_tokens ?? null,
-      output_tokens: attempt.result?.usage?.output_tokens ?? null
+      output_tokens: attempt.result?.usage?.output_tokens ?? null,
+      rejected_output: attempt.outcome === "invalid_output" ? attempt.output ?? attempt.result?.parsed_output ?? null : null
     })),
     output: result.status === "validated" ? result.output : null,
     repairs: result.status === "validated" ? result.repairs : [],
@@ -201,13 +208,13 @@ export async function runFeedbackCase(input: {
       invocation_key: `evaluation:${input.feedback_case.feedback_case_id}:${input.run}`,
       context: buildFeedbackCaseInput(input.bank, input.base_case, input.feedback_case)
     });
-    const rejected = (execution.raw_output as { rejected_attempts?: Array<{ attempt: number; status: string; issues: AttemptSummary["issues"]; latency_ms: number }> })?.rejected_attempts ?? [];
+    const rejected = (execution.raw_output as { rejected_attempts?: Array<{ attempt: number; status: string; issues: AttemptSummary["issues"]; latency_ms: number; rejected_output?: unknown }> })?.rejected_attempts ?? [];
     return {
       ...base,
       status: "validated",
       reason: null,
       attempts: [
-        ...rejected.map((attempt) => ({ attempt: attempt.attempt, outcome: attempt.status, issues: attempt.issues, latency_ms: attempt.latency_ms, input_tokens: null, output_tokens: null })),
+        ...rejected.map((attempt) => ({ attempt: attempt.attempt, outcome: attempt.status, issues: attempt.issues, latency_ms: attempt.latency_ms, input_tokens: null, output_tokens: null, rejected_output: attempt.rejected_output ?? null })),
         { attempt: execution.retry_count + 1, outcome: "validated", issues: [], latency_ms: execution.latency_ms, input_tokens: execution.input_tokens ?? null, output_tokens: execution.output_tokens ?? null }
       ],
       output: execution.output,
@@ -220,7 +227,8 @@ export async function runFeedbackCase(input: {
       status: "failed",
       reason: error.failure_class,
       attempts: error.attempts.map((attempt) => ({
-        attempt: attempt.attempt, outcome: attempt.status, issues: attempt.issues, latency_ms: attempt.latency_ms, input_tokens: null, output_tokens: null
+        attempt: attempt.attempt, outcome: attempt.status, issues: attempt.issues, latency_ms: attempt.latency_ms, input_tokens: null, output_tokens: null,
+        rejected_output: attempt.rejected_output ?? null
       })),
       output: null,
       completed_at: new Date().toISOString()

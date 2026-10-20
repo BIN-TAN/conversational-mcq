@@ -21,7 +21,7 @@ import {
  * and summary labels are derived from the expected ratings with the application's own
  * rules, so they can never disagree with the rules.
  */
-export const EVALUATION_CASES_VERSION = "interpretation-v8-eval-cases-1" as const;
+export const EVALUATION_CASES_VERSION = "interpretation-v8-eval-cases-2" as const;
 
 const Quality = z.enum(["adequate", "limited", "incorrect", "no_usable_explanation"]);
 const ErrorSource = z.enum(["conceptual", "execution_slip", "possible_item_issue", "unclear"]);
