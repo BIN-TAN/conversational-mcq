@@ -71,6 +71,7 @@ import {
   type ResponseQualityStage
 } from "@/lib/services/student-assessment/response-quality";
 import {
+  itemAdministrationCollectionAuditFields,
   runItemAdministrationTutor,
   type ItemAdministrationTutorResult
 } from "@/lib/services/student-assessment/item-administration-tutor";
@@ -138,7 +139,7 @@ function repeatedInvalidOverride(input: {
   return input.tutor_result.item_admin_tutor_source !== "configuration_blocked" &&
     input.tutor_result.item_admin_tutor_source !== "safe_block_after_live_failure" &&
     input.attempt_count >= 2 &&
-    ["incomplete", "off_topic", "gibberish"].includes(input.tutor_result.message_classification)
+    ["incomplete", "off_topic", "gibberish", "off_task_or_unreadable"].includes(input.tutor_result.message_classification)
     ? REPEATED_INVALID_RESPONSE_PROMPT
     : undefined;
 }
@@ -3958,7 +3959,8 @@ async function logResponseQualityResult(input: {
           model_name: input.tutor_result.model_name,
           validation_status: input.tutor_result.validation_status,
           fallback_reason: input.tutor_result.fallback_reason,
-          detected_response_language: input.tutor_result.detected_response_language
+          detected_response_language: input.tutor_result.detected_response_language,
+          ...itemAdministrationCollectionAuditFields(input.tutor_result)
         }
       : undefined,
     ...responseQualityAuditPayload(input.result)
@@ -4073,7 +4075,8 @@ async function logResponseQualityResult(input: {
             model_name: input.tutor_result.model_name,
             validation_status: input.tutor_result.validation_status,
             fallback_reason: input.tutor_result.fallback_reason,
-            detected_response_language: input.tutor_result.detected_response_language
+            detected_response_language: input.tutor_result.detected_response_language,
+            ...itemAdministrationCollectionAuditFields(input.tutor_result)
           }
         : undefined
     },
@@ -4153,6 +4156,7 @@ async function logRejectedStudentText(input: {
   item_admin_validation_status?: string;
   item_admin_fallback_reason?: string | null;
   detected_response_language?: string;
+  item_admin_collection?: Record<string, unknown>;
 }) {
   await logConversationTurn({
     assessment_session_db_id: input.session_db_id,
@@ -4178,7 +4182,8 @@ async function logRejectedStudentText(input: {
       item_admin_model_name: input.item_admin_model_name ?? null,
       item_admin_validation_status: input.item_admin_validation_status ?? null,
       item_admin_fallback_reason: input.item_admin_fallback_reason ?? null,
-      detected_response_language: input.detected_response_language ?? null
+      detected_response_language: input.detected_response_language ?? null,
+      ...input.item_admin_collection
     }
   });
 }
@@ -4397,6 +4402,7 @@ export async function recordReasoning(input: {
           correctness_feedback_prohibited: true,
           prior_uncertainty: response.skipped_reasoning || response.selected_option === IDK_OPTION_LABEL,
           prior_neutral_clarification_count: priorClarifications,
+          prior_neutral_prompt_count: priorRejectedAttempts,
           assessment_interpretation_context: itemAdministrationContext({
             session: context.session,
             item: context.item,
@@ -4407,6 +4413,7 @@ export async function recordReasoning(input: {
         stage: qualityStage,
         text: reasoningText,
         item_stem: context.item.item_stem,
+        item_options: context.item.options,
         audit_context: {
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -4446,7 +4453,8 @@ export async function recordReasoning(input: {
           item_admin_model_name: tutorResult.model_name,
           item_admin_validation_status: tutorResult.validation_status,
           item_admin_fallback_reason: tutorResult.fallback_reason,
-          detected_response_language: tutorResult.detected_response_language
+          detected_response_language: tutorResult.detected_response_language,
+          item_admin_collection: itemAdministrationCollectionAuditFields(tutorResult)
         });
         await logResponseQualityResult({
           session_db_id: context.session.id,
@@ -4543,7 +4551,8 @@ export async function recordReasoning(input: {
           item_admin_model_name: tutorResult.model_name,
           item_admin_validation_status: tutorResult.validation_status,
           item_admin_fallback_reason: tutorResult.fallback_reason,
-          detected_response_language: tutorResult.detected_response_language
+          detected_response_language: tutorResult.detected_response_language,
+          ...itemAdministrationCollectionAuditFields(tutorResult)
         }
       });
       await logProcessEvent({
@@ -4570,7 +4579,8 @@ export async function recordReasoning(input: {
           item_admin_model_name: tutorResult.model_name,
           item_admin_validation_status: tutorResult.validation_status,
           item_admin_fallback_reason: tutorResult.fallback_reason,
-          detected_response_language: tutorResult.detected_response_language
+          detected_response_language: tutorResult.detected_response_language,
+          ...itemAdministrationCollectionAuditFields(tutorResult)
         }
       });
       const confidencePrompt = buildInitialAdminPrompt({
@@ -5130,6 +5140,7 @@ export async function recordTemptingOption(input: {
             correctness_feedback_prohibited: true,
             prior_uncertainty: false,
             prior_neutral_clarification_count: priorClarifications,
+            prior_neutral_prompt_count: priorRejectedAttempts,
             assessment_interpretation_context: itemAdministrationContext({
               session: context.session,
               item: context.item,
@@ -5140,6 +5151,7 @@ export async function recordTemptingOption(input: {
           stage: qualityStage,
           text: temptingOptionReason,
           item_stem: context.item.item_stem,
+          item_options: context.item.options,
           audit_context: {
             assessment_session_db_id: context.session.id,
             concept_unit_session_db_id: context.conceptUnitSession.id,
@@ -5180,7 +5192,8 @@ export async function recordTemptingOption(input: {
             item_admin_model_name: tutorResult.model_name,
             item_admin_validation_status: tutorResult.validation_status,
             item_admin_fallback_reason: tutorResult.fallback_reason,
-            detected_response_language: tutorResult.detected_response_language
+            detected_response_language: tutorResult.detected_response_language,
+            item_admin_collection: itemAdministrationCollectionAuditFields(tutorResult)
           });
           await logResponseQualityResult({
             session_db_id: context.session.id,
@@ -5256,6 +5269,7 @@ export async function recordTemptingOption(input: {
         item_admin_validation_status: temptingReasonTutorResult?.validation_status ?? null,
         item_admin_fallback_reason: temptingReasonTutorResult?.fallback_reason ?? null,
         detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null,
+        ...(temptingReasonTutorResult ? itemAdministrationCollectionAuditFields(temptingReasonTutorResult) : {}),
         ...(context.isTransferItem && data.client_action_id
           ? { client_operation_id: data.client_action_id }
           : {})
@@ -5305,7 +5319,8 @@ export async function recordTemptingOption(input: {
             item_admin_model_name: temptingReasonTutorResult?.model_name ?? null,
             item_admin_validation_status: temptingReasonTutorResult?.validation_status ?? null,
             item_admin_fallback_reason: temptingReasonTutorResult?.fallback_reason ?? null,
-            detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null
+            detected_response_language: temptingReasonTutorResult?.detected_response_language ?? null,
+            ...(temptingReasonTutorResult ? itemAdministrationCollectionAuditFields(temptingReasonTutorResult) : {})
           }
         });
       }

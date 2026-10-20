@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { containsChineseText } from "../src/lib/student-visible-safety";
 import { serializeStudentAssessment, serializeStudentConceptUnit, serializeStudentSafeItem } from "../src/lib/services/student-assessment/serializers";
 import { validateFormativeConversationStudentOutputFormat } from "../src/lib/services/student-assessment/formative-conversation/output-format";
-import { canonicalizeTutorOutput, validateTutorOutput, type ItemAdministrationTutorOutput, type ItemAdministrationTutorStatePacket } from "../src/lib/services/student-assessment/item-administration-tutor";
+import { itemAdministrationTutorResultFromModelOutput, parseItemAdministrationTutorOutput, type ItemAdministrationTutorOutput, type ItemAdministrationTutorStatePacket } from "../src/lib/services/student-assessment/item-administration-tutor";
 import { FORMATIVE_CONVERSATION_V18R2_INSTRUCTIONS, FORMATIVE_CONVERSATION_V18R2_PROMPT_VERSION } from "../src/lib/services/student-assessment/formative-conversation/live-runner-v18r2";
 import { profileRecordProvenance } from "../src/lib/services/student-assessment/profile-record";
 import { normalizeChoiceOnlyAnnotations, validateSemanticItemReviews } from "../src/lib/services/student-assessment/semantic-item-review";
@@ -42,34 +42,32 @@ const packet: ItemAdministrationTutorStatePacket = {
   latest_student_message: "Alpha summarizes item consistency, not validity. Could you explain unidimensionality later?",
   correctness_feedback_prohibited: true, prior_uncertainty: false
 };
+// Item administration v4: a reason with a question is accepted and the question saved (rule 4).
 const proposal: ItemAdministrationTutorOutput = {
-  message_classification: "usable_reasoning", response_quality: "adequate", should_advance: true,
-  should_store_deferred_concern: true, deferred_concern_summary: "Asked how to assess unidimensionality in later feedback.",
-  student_facing_message: "An untrusted model explanation that must not be shown here.", next_expected_action: "advance"
+  action: "accept", saved_question: "Asked how to assess unidimensionality in later feedback."
 };
 for (const role of ["initial", "transfer"] as const) {
   for (const stage of ["reasoning", "tempting_reason"] as const) {
     check(`${role}/${stage}: accept interpreted mixed reasoning and preserve the deferred question`, () => {
       const state = { ...packet, item_role: role, required_evidence_type: stage };
-      for (const classification of ["usable_reasoning", "weak_but_usable_reasoning"] as const) {
-        const output = canonicalizeTutorOutput({ output: { ...proposal, message_classification: classification }, state_packet: state });
-        assert.equal(output.should_advance, true);
-        assert.equal(output.deferred_concern_summary, proposal.deferred_concern_summary);
-        assert.equal(output.should_store_deferred_concern, true);
-        assert.equal(output.student_facing_message, "Thank you for sharing your current thinking.");
-        assert(validateTutorOutput({ output, state_packet: state }).ok);
-        assert(!validateTutorOutput({ output: { ...output, deferred_concern_summary: null }, state_packet: state }).ok);
-      }
+      const output = itemAdministrationTutorResultFromModelOutput({ output: proposal, state_packet: state, text: state.latest_student_message });
+      assert.equal(output.should_advance, true);
+      assert.equal(output.deferred_concern_summary, proposal.saved_question);
+      assert.equal(output.store_deferred_concern, true);
+      assert.equal(output.student_facing_message, "Thank you. Your response is saved.");
+      assert(parseItemAdministrationTutorOutput(proposal).ok);
+      assert(!parseItemAdministrationTutorOutput({ ...proposal, student_facing_message: "An untrusted model explanation that must not be shown here." }).ok,
+        "The model writes no student-facing text");
       assert.equal(state.latest_student_message, packet.latest_student_message);
     });
   }
 }
-for (const classification of ["content_question", "answer_request", "gibberish", "off_topic"] as const) {
-  check(`${classification} alone never advances, even after repeated submissions`, () => {
-    const state = { ...packet, latest_student_message: "Could you explain this concept?", prior_neutral_clarification_count: 9 };
-    const output = canonicalizeTutorOutput({ output: { ...proposal, message_classification: classification }, state_packet: state });
+for (const action of ["defer_question", "redirect"] as const) {
+  check(`${action} alone never advances, even after repeated submissions`, () => {
+    const state = { ...packet, latest_student_message: "Could you explain this concept?", prior_neutral_prompt_count: 9, prior_neutral_clarification_count: 0 };
+    const output = itemAdministrationTutorResultFromModelOutput({ output: { action, saved_question: null }, state_packet: state, text: state.latest_student_message });
     assert.equal(output.should_advance, false);
-    assert(validateTutorOutput({ output, state_packet: state }).ok);
+    assert.equal(output.collection_action, action);
   });
 }
 check("Teaching instructions distinguish selection from explanation and preserve provenance", () => {
