@@ -139,6 +139,21 @@ export function researchInstructorId(userId: string, env: NodeJS.ProcessEnv = pr
   return `ri_${digest}`;
 }
 
+/**
+ * Short study code shown to the student on the account page and exported beside
+ * research_student_id, so the consent form and the course-end questionnaire can be linked to
+ * system records without names (Appendix G): the first eight hexadecimal characters of the
+ * research student ID, upper-cased, as XXXX-XXXX.
+ */
+export function studyCodeFromResearchStudentId(researchStudentIdValue: string) {
+  const hex = researchStudentIdValue.replace(/^rs_/, "").slice(0, 8).toUpperCase();
+  return `${hex.slice(0, 4)}-${hex.slice(4, 8)}`;
+}
+
+export function researchStudyCode(userId: string, env: NodeJS.ProcessEnv = process.env) {
+  return studyCodeFromResearchStudentId(researchStudentId(userId, env));
+}
+
 export function researchStudentId(userId: string, env: NodeJS.ProcessEnv = process.env) {
   const version = effectiveVersion(env);
   if (version === RESEARCH_PSEUDONYMIZATION_LEGACY_VERSION) return legacyResearchStudentId(userId);

@@ -440,6 +440,11 @@ export async function publishAssessment(input: {
       tx,
       assessmentWithConceptUnits
     );
+    // The first publication time is kept for research (release timing); later re-publications keep it.
+    await tx.assessment.updateMany({
+      where: { id: assessmentWithConceptUnits.id, published_at: null },
+      data: { published_at: new Date() }
+    });
     const revisedAssessment = await tx.assessment.update({
       where: { id: assessmentWithConceptUnits.id },
       data: { status: "published" },
