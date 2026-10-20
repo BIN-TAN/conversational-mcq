@@ -5,7 +5,8 @@ import {
   canonicalPersistedFormativeConversationProfileTransitions,
   latestPersistedFormativeConversationProfileTransition
 } from "./formative-conversation/profile-projection";
-import { readStoredInterpretationV8 } from "./interpretation-v8/profile";
+import { decisionAdjustedTopicSummary, readStoredInterpretationV8 } from "./interpretation-v8/profile";
+import type { InstructorItemDecision } from "./interpretation-v8/rules";
 
 // v3: the label always comes from the profile produced from the submitted mini-test; conversation
 // updates are reported separately (conversationUpdateSummary). v3 has no transfer_evidence_status:
@@ -127,7 +128,15 @@ type SummaryProfile = ProfileRecord & {
   created_at: Date;
 };
 
-export function learningProfileSummary(profile: SummaryProfile | null) {
+/**
+ * itemReviewDecisions: the instructor's current item decisions (item public id to kept or
+ * excluded). When given, v8 labels are recomputed with them (section 4.4); the stored
+ * profile is not changed. Without them the label stored at submission is used.
+ */
+export function learningProfileSummary(
+  profile: SummaryProfile | null,
+  itemReviewDecisions?: ReadonlyMap<string, InstructorItemDecision>
+) {
   const provenance = profile && profileRecordProvenance(profile);
   let label: UnderstandingLabel = "Unavailable / insufficient evidence";
   let reason = profile ? provenance?.profile_unavailable_reason ?? "unsupported_profile_category" : "no_current_profile";
@@ -136,8 +145,9 @@ export function learningProfileSummary(profile: SummaryProfile | null) {
   if (profile && eligible && v8) {
     // Rules over the item ratings (section 4.4 of the redesign). The stored summary has no
     // instructor item decisions yet; it is never rewritten.
-    label = v8.topic_summary.label;
-    reason = `interpretation_v8_${v8.topic_summary.reason}`;
+    const summary = itemReviewDecisions ? decisionAdjustedTopicSummary(v8, itemReviewDecisions) : v8.topic_summary;
+    label = summary.label;
+    reason = `interpretation_v8_${summary.reason}`;
   } else if (profile && eligible) {
     const diagnostic = profile.integrated_diagnostic_profile;
     if (!(abilityProfiles as readonly string[]).includes(profile.ability_profile) ||

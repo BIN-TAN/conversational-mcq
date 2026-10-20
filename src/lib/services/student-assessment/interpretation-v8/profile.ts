@@ -15,6 +15,7 @@ import {
   itemStatus,
   PENDING_ITEM_REVIEW_LABEL,
   topicSummary,
+  type InstructorItemDecision,
   type ItemStatus,
   type TopicSummary
 } from "./rules";
@@ -149,6 +150,21 @@ export function buildStoredInterpretationV8(input: {
     topic_summary: topicSummary(summaryItems),
     answer_review_v2: input.answer_review_v2
   };
+}
+
+/**
+ * The summary shown to instructors: recomputed from the stored item statuses and the
+ * instructor's current item decisions (section 4.4). The stored profile is not changed.
+ */
+export function decisionAdjustedTopicSummary(
+  stored: StoredInterpretationV8,
+  decisions: ReadonlyMap<string, InstructorItemDecision>
+): TopicSummary {
+  if (stored.generation_mode === "fallback") return stored.topic_summary;
+  const items = stored.items.flatMap((item) =>
+    item.status ? [{ item_id: item.item_id, status: item.status, flagged_for_review: item.item_review_flag }] : []
+  );
+  return topicSummary(items, decisions);
 }
 
 function legacyAbilityProfile(stored: StoredInterpretationV8) {

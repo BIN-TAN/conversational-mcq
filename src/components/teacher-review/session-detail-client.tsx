@@ -2295,7 +2295,139 @@ function confidenceScopeLabel(scope?: string) {
   return "Confidence alignment (scope unrecorded)";
 }
 
+type V8StoredItem = {
+  item_id: string; position: number; selected_option: string | null; answer_correct: boolean | null;
+  reported_confidence: string | null; explanation_quality: string | null; no_usable_reason: string | null;
+  adds_beyond_option_text: boolean | null; evidence_quote: string | null; missing_elements: string | null;
+  rationale: string | null; error_source: string | null; side_remark: string | null; uncertainty_note: string | null;
+  status: string | null; item_review_flag: boolean;
+};
+type V8Stored = {
+  profile_schema: "student-interpretation-profile-v8";
+  generation_mode: string; fallback_reason: string | null; rules_version: string; prompt_version: string;
+  items: V8StoredItem[];
+  possible_misconceptions: Array<{ item_ids: string[]; idea: string; student_quote: string; endorsement: string; contradicts_reference_id: string; alternative_explanation: string | null }>;
+  considered_ideas: Array<{ item_id: string; idea: string; student_quote: string; contradicts_reference_id: string }>;
+  answer_patterns: Array<{ misconception_tag: string; item_ids: string[] }>;
+  topic_summary: { label: string; reason: string; based_on?: { interpretable_items: number; administered_items: number }; pending_review_item_ids?: string[] };
+  attempt: { attempt_number: number; role: string; feedback_seen_before: Array<{ attempt_number: number; submitted_at: string | null; answer_review_shown: boolean; student_turns: number; tutor_turns: number }> } | null;
+};
+
+function readV8(value: unknown): V8Stored | null {
+  return value && typeof value === "object" && !Array.isArray(value) &&
+    (value as { profile_schema?: unknown }).profile_schema === "student-interpretation-profile-v8" ? (value as V8Stored) : null;
+}
+
+const readable = (value: string | null | undefined) => (value ? value.replaceAll("_", " ") : "not given");
+
+// Interpretation v8 (docs/AI_MODULE_REDESIGN_2026-10-19.md): item ratings from the student's own
+// words, the rule-based label, possible misconceptions kept separate, and the attempt context.
+// No process interpretations are shown; recorded process data stay in the process panel.
+function V8ProfileDetails({ profile, stored }: { profile: TeacherStudentProfile; stored: V8Stored }) {
+  const items = [...stored.items].sort((a, b) => a.position - b.position);
+  const number = new Map(items.map((item, index) => [item.item_id, index + 1]));
+  const fallback = stored.generation_mode === "fallback";
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="grid gap-3 md:grid-cols-3">
+        <Fact labelText="Summary (rules over item ratings)" value={<StatusPill value={stored.topic_summary.label} />} />
+        <Fact labelText="Based on" value={stored.topic_summary.based_on
+          ? `${stored.topic_summary.based_on.interpretable_items} of ${stored.topic_summary.based_on.administered_items} items` : "not recorded"} />
+        <Fact labelText="Attempt" value={stored.attempt
+          ? `${stored.attempt.attempt_number} (${stored.attempt.role === "after_feedback" ? "after feedback" : "initial diagnosis"})` : "not recorded"} />
+        <Fact labelText="Interpretation" value={fallback ? "Not produced (no claims)" : stored.generation_mode === "local_test" ? "Local test stand-in" : "Model, checked by the application"} />
+        <Fact labelText="Created" value={formatDate(profile.created_at)} />
+      </div>
+      <p className="text-xs leading-5 text-muted">
+        The label stored with this submission is shown here. Dashboard labels also apply your item-review decisions;
+        this profile is never changed.
+      </p>
+      {fallback ? (
+        <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{profile.rationale}</section>
+      ) : null}
+      {stored.attempt && stored.attempt.feedback_seen_before.length ? (
+        <section className="rounded-lg border border-line bg-slate-50 p-4 text-sm">
+          <h4 className="font-semibold text-ink">Feedback seen before this attempt</h4>
+          <ul className="mt-2 space-y-1 text-muted">
+            {stored.attempt.feedback_seen_before.map((entry) => (
+              <li key={entry.attempt_number}>Attempt {entry.attempt_number}: answer review {entry.answer_review_shown ? "shown" : "not shown"}; conversation with {entry.student_turns} student and {entry.tutor_turns} tutor messages.</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+      {!fallback ? (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[900px] text-left text-sm">
+            <thead className="text-xs text-muted">
+              <tr>
+                <th className="py-1 pr-2">Q</th><th className="py-1 pr-2">Answer</th><th className="py-1 pr-2">Confidence</th>
+                <th className="py-1 pr-2">Explanation</th><th className="py-1 pr-2">Student&apos;s words</th>
+                <th className="py-1 pr-2">Error source</th><th className="py-1 pr-2">Status</th><th className="py-1">Rationale</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, index) => (
+                <tr key={item.item_id} className="border-t border-line align-top">
+                  <td className="py-2 pr-2 font-medium text-ink">{index + 1}{item.item_review_flag ? <span className="ml-1 text-xs text-amber-800" title="Possible item issue: awaiting your item review">flagged</span> : null}</td>
+                  <td className="py-2 pr-2">{item.selected_option ?? "none"} {item.answer_correct === true ? "(correct)" : item.answer_correct === false ? "(incorrect)" : ""}</td>
+                  <td className="py-2 pr-2">{readable(item.reported_confidence)}</td>
+                  <td className="py-2 pr-2">{readable(item.explanation_quality)}{item.no_usable_reason ? ` (${readable(item.no_usable_reason)})` : ""}
+                    {item.adds_beyond_option_text === false ? <span className="block text-xs text-muted">only option wording</span> : null}
+                    {item.missing_elements ? <span className="block text-xs text-muted">missing: {item.missing_elements}</span> : null}</td>
+                  <td className="py-2 pr-2">{item.evidence_quote ? <q>{item.evidence_quote}</q> : "none"}</td>
+                  <td className="py-2 pr-2">{readable(item.error_source)}</td>
+                  <td className="py-2 pr-2">{readable(item.status)}</td>
+                  <td className="py-2 text-xs leading-5 text-muted">{item.rationale}{item.uncertainty_note ? ` Uncertain: ${item.uncertainty_note}` : ""}{item.side_remark ? ` Side remark: ${item.side_remark}` : ""}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {!fallback ? (
+        <section className="rounded-lg border border-line bg-slate-50 p-4 text-sm">
+          <h4 className="font-semibold text-ink">Possible misconceptions</h4>
+          {stored.possible_misconceptions.length ? (
+            <ul className="mt-2 space-y-2">
+              {stored.possible_misconceptions.map((claim, index) => (
+                <li key={index}>
+                  <p className="text-ink">{claim.idea} <span className="text-xs text-muted">({claim.endorsement}; questions {claim.item_ids.map((id) => number.get(id) ?? "?").join(", ")})</span></p>
+                  <p className="text-muted"><q>{claim.student_quote}</q></p>
+                  {claim.alternative_explanation ? <p className="text-xs text-muted">Alternative explanation: {claim.alternative_explanation}</p> : null}
+                </li>
+              ))}
+            </ul>
+          ) : <p className="mt-2 text-muted">None stated and endorsed in the student&apos;s own words.</p>}
+          {stored.considered_ideas.length ? (
+            <>
+              <h4 className="mt-4 font-semibold text-ink">Ideas considered but not endorsed</h4>
+              <ul className="mt-2 space-y-1 text-muted">
+                {stored.considered_ideas.map((idea, index) => (
+                  <li key={index}>Question {number.get(idea.item_id) ?? "?"}: {idea.idea} (<q>{idea.student_quote}</q>)</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {stored.answer_patterns.length ? (
+            <>
+              <h4 className="mt-4 font-semibold text-ink">Answer patterns (choices only, unconfirmed)</h4>
+              <ul className="mt-2 space-y-1 text-muted">
+                {stored.answer_patterns.map((pattern) => (
+                  <li key={pattern.misconception_tag}>Choices consistent with &quot;{pattern.misconception_tag}&quot; on questions {pattern.item_ids.map((id) => number.get(id) ?? "?").join(", ")}</li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+        </section>
+      ) : null}
+      <p className="text-xs text-muted">Rules {stored.rules_version}; prompt {stored.prompt_version}.</p>
+    </div>
+  );
+}
+
 function ProfileDetails({ profile }: { profile: TeacherStudentProfile }) {
+  const v8 = readV8(profile.item_level_evidence);
+  if (v8) return <V8ProfileDetails profile={profile} stored={v8} />;
   return (
     <div className="mt-4 space-y-4">
       <div className="grid gap-3 md:grid-cols-3">

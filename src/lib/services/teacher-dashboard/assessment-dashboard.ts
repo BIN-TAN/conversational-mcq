@@ -6,6 +6,18 @@ import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnost
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
 import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
+import { loadItemReviewDecisionsForAssessment } from "@/lib/services/item-review/service";
+import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import type { InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
+import {
+  INTERPRETATION_V8_DASHBOARD_VERSION,
+  loadFeedbackV8ConversationStats,
+  splitFirstAndLaterAttempts,
+  summarizeV8Group,
+  type FeedbackV8ConversationStats,
+  type V8AttemptGroupSummary,
+  type V8StudentEntry
+} from "./interpretation-v8-summary";
 
 export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v3" as const;
 
@@ -173,6 +185,14 @@ export type TeacherAssessmentDashboard = {
   time_indicator: TimeIndicator;
   item_diagnostics: ItemDiagnosticSummary[];
   candidate_misconception_patterns: CandidateMisconceptionPattern[];
+  /** Interpretation v8 profiles in this mini test; null when there are none. */
+  interpretation_v8: {
+    version: string;
+    first_attempts: V8AttemptGroupSummary;
+    later_attempts: V8AttemptGroupSummary;
+    items_awaiting_review: number;
+    conversations: FeedbackV8ConversationStats;
+  } | null;
   export_links: {
     dashboard_csv: string | null;
     assessment_summary_csv: string | null;
@@ -388,8 +408,11 @@ function allResponses(session: DashboardSession) {
   return session.concept_unit_sessions.flatMap((conceptUnitSession) => conceptUnitSession.item_responses);
 }
 
-function understandingCategoryFromProfile(profile: DashboardProfile | null) {
-  return learningProfileSummary(profile).understanding_label;
+function understandingCategoryFromProfile(
+  profile: DashboardProfile | null,
+  decisions?: ReadonlyMap<string, InstructorItemDecision>
+) {
+  return learningProfileSummary(profile, decisions).understanding_label;
 }
 
 function sessionReviewReasonLooksEngagementRelated(reason: string | null) {
@@ -1071,6 +1094,7 @@ export async function getTeacherAssessmentDashboard(input: {
       },
       item_diagnostics: [],
       candidate_misconception_patterns: [],
+      interpretation_v8: null,
       export_links: { dashboard_csv: null, assessment_summary_csv: null, detailed_process_bundle: null },
       notes: [
         "Create or publish a mini test to populate assessment-level diagnostic dashboard summaries."
@@ -1148,9 +1172,29 @@ export async function getTeacherAssessmentDashboard(input: {
   const unavailable = statusValues.filter((status) => status === "Unavailable").length;
   const timeIndicator = buildTimeIndicator(completedSessions);
 
+  const itemDecisions = await loadItemReviewDecisionsForAssessment(assessment.id);
   const understandingValues = resultAttempts.map((attempt) =>
-    attempt.session ? understandingCategoryFromProfile(miniTestProfile(attempt.session)) : "Unavailable / insufficient evidence"
+    attempt.session ? understandingCategoryFromProfile(miniTestProfile(attempt.session), itemDecisions) : "Unavailable / insufficient evidence"
   );
+  // Interpretation v8: first attempts and later attempts, summarised separately.
+  const eligibleKeys = new Set(eligible.keys);
+  const v8Entries: V8StudentEntry[] = sessions.flatMap((session) => {
+    if (!eligibleKeys.has(session.user.user_id)) return [];
+    const profile = initialLearningProfile(session);
+    const stored = profile ? readStoredInterpretationV8(profile.item_level_evidence) : null;
+    return stored ? [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: profile!.created_at, stored }] : [];
+  });
+  const v8Split = splitFirstAndLaterAttempts(v8Entries);
+  const interpretationV8 = v8Entries.length
+    ? {
+        version: INTERPRETATION_V8_DASHBOARD_VERSION,
+        first_attempts: summarizeV8Group(v8Split.first, itemDecisions),
+        later_attempts: summarizeV8Group(v8Split.later, itemDecisions),
+        items_awaiting_review: new Set(v8Entries.flatMap((entry) => entry.stored.items
+          .filter((item) => item.item_review_flag && !itemDecisions.has(item.item_id)).map((item) => item.item_id))).size,
+        conversations: await loadFeedbackV8ConversationStats(sessions.filter((session) => eligibleKeys.has(session.user.user_id)).map((session) => session.id))
+      }
+    : null;
   const understandingStages = resultAttempts.map(attempt => learningProfileSummary(
     attempt.session ? miniTestProfile(attempt.session) : null
   ).understanding_profile_stage);
@@ -1266,6 +1310,7 @@ export async function getTeacherAssessmentDashboard(input: {
     time_indicator: timeIndicator,
     item_diagnostics: buildItemDiagnostics(items, responses),
     candidate_misconception_patterns: buildCandidatePatterns(responses),
+    interpretation_v8: interpretationV8,
     export_links: {
       dashboard_csv: `/api/teacher/dashboard/export?assessment_public_id=${encodeURIComponent(assessment.assessment_public_id)}`,
       assessment_summary_csv: `/api/teacher/data-explorer/assessments/${encodeURIComponent(assessment.assessment_public_id)}/csv`,

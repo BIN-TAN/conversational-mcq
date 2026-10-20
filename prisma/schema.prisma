@@ -50,6 +50,11 @@ enum ItemStatus {
   archived
 }
 
+enum ItemReviewDecisionType {
+  kept
+  excluded
+}
+
 enum ItemMediaPlacement {
   item_stem
   option
@@ -517,6 +522,7 @@ model User {
   performed_account_security_events         AccountSecurityEvent[]        @relation("AccountSecurityEventPerformer")
   login_invitations_received                StudentLoginInvitation[]      @relation("LoginInvitationStudent")
   login_invitations_sent                    StudentLoginInvitation[]      @relation("LoginInvitationTeacher")
+  item_review_decisions                     ItemReviewDecision[]          @relation("ItemReviewDecisionAuthor")
 
   @@index([email])
   @@index([email_normalized])
@@ -698,6 +704,7 @@ model Item {
   concept_unit       ConceptUnit        @relation(fields: [concept_unit_db_id], references: [id], onDelete: Restrict)
   media_assets       ItemMediaAsset[]
   item_responses     ItemResponse[]
+  review_decisions   ItemReviewDecision[]
   conversation_turns ConversationTurn[]
   process_events     ProcessEvent[]
 
@@ -2628,4 +2635,25 @@ model ExportJob {
   @@index([status])
   @@index([expires_at])
   @@map("export_jobs")
+}
+
+// Instructor decisions on items flagged as a possible item issue (interpretation v8,
+// docs/AI_MODULE_REDESIGN_2026-10-19.md section 4.4). Append-only: a new decision
+// supersedes the previous one. Stored profiles are never changed; summaries shown to
+// instructors are recomputed from the stored item statuses and these decisions.
+model ItemReviewDecision {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  decision_public_id    String                 @unique @default(cuid())
+  item_db_id            String                 @db.Uuid
+  decision              ItemReviewDecisionType
+  note                  String?                @db.Text
+  decided_by_user_db_id String                 @db.Uuid
+  decided_at            DateTime               @default(now()) @db.Timestamptz(6)
+  superseded_at         DateTime?              @db.Timestamptz(6)
+
+  item       Item @relation(fields: [item_db_id], references: [id], onDelete: Cascade)
+  decided_by User @relation("ItemReviewDecisionAuthor", fields: [decided_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([item_db_id, superseded_at])
+  @@map("item_review_decisions")
 }

@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { AttemptComparisonPanel } from "./attempt-comparison-panel";
 import { InstructorReportPanel } from "./instructor-report-panel";
+import { InterpretationV8Panel } from "./interpretation-v8-panel";
+import { ItemReviewPanel } from "./item-review-panel";
 import type {
   CandidateMisconceptionPattern,
   ChartDatum,
@@ -292,10 +294,11 @@ async function fetchDashboard(assessmentPublicId: string) {
   return (payload as DashboardResponse).dashboard;
 }
 
-type DashboardView = "overview" | "attempts" | "report";
+type DashboardView = "overview" | "attempts" | "items" | "report";
 const dashboardTabs: ReadonlyArray<readonly [DashboardView, string]> = [
   ["overview", "Overview"],
   ["attempts", "Compare attempts"],
+  ["items", "Item review"],
   ["report", "Instructor report"]
 ];
 
@@ -387,6 +390,9 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
       {hasAssessment && view === "report" && <div role="tabpanel" id="dashboard-panel-report" aria-labelledby="dashboard-tab-report">
         <InstructorReportPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
+      {hasAssessment && view === "items" && <div role="tabpanel" id="dashboard-panel-items" aria-labelledby="dashboard-tab-items">
+        <ItemReviewPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
+      </div>}
       {hasAssessment && view === "attempts" && <div role="tabpanel" id="dashboard-panel-attempts" aria-labelledby="dashboard-tab-attempts">
         <AttemptComparisonPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
@@ -405,12 +411,13 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
             <>
               <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ParticipationStatusCard dashboard={dashboard} />
-                <ChartCard
+                {/* Engagement labels are not produced by the current interpretation. */}
+                {dashboard.interpretation_v8 ? null : <ChartCard
                   title="Engagement overview"
                   data={dashboard.engagement_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="slate"
-                />
+                />}
                 <ChartCard
                   title="Understanding overview"
                   data={dashboard.understanding_distribution}
@@ -418,13 +425,17 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                   tone="green"
                   understandingBasis={dashboard.understanding_basis}
                 />
-                <ChartCard
+                {dashboard.interpretation_v8 ? null : <ChartCard
                   title="After the conversation"
                   data={dashboard.conversation_update_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="gold"
-                />
+                />}
               </section>
+
+              {dashboard.interpretation_v8 ? (
+                <InterpretationV8Panel data={dashboard.interpretation_v8} onOpenItemReview={() => setView("items")} />
+              ) : null}
 
           {dashboard.engagement_review_reasons.length > 0 ? (
             <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
