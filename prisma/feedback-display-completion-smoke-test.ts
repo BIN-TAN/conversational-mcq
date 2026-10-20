@@ -6,6 +6,7 @@ import { demoAssessmentPublicId, ensureDemoStudentAssessment } from "./demo-stud
 import { cleanupSmokeStudentSessions, completeInitialItem, createSmokeStudent } from "./student-mvp-smoke-helpers";
 import { completeInitialConceptUnitAdministration, ingestFrontendProcessEvents, startConceptUnitInitialAdministration, startOrResumeStudentAssessmentSession, getStudentSessionState } from "../src/lib/services/student-assessment/service";
 import { updateStudentFormativeConversationLifecycle } from "../src/lib/services/student-assessment/formative-conversation/projection";
+import { canFinishConversationAssessment } from "../src/lib/services/student-assessment/formative-conversation/finish-assessment";
 import { feedbackContentId, FEEDBACK_DISPLAY_VERSION } from "../src/lib/student-assessment-ui/feedback-display";
 import { responseStageExportFiles } from "../src/lib/services/teacher-research-data/response-stage-export";
 import { teacherPhaseLabel } from "../src/lib/teacher-session-labels";
@@ -89,15 +90,16 @@ async function main() {
     await db.formativeConversationMessageReceipt.update({ where: { id: openingReceipt.id }, data: { assistant_response_status: "completed" } });
     assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: session.id } })).status, "active");
     const receipt = await db.formativeConversationMessageReceipt.findFirstOrThrow({ where: { formative_conversation_session: { assessment_session_db_id: session.id } } });
-    // D2: after a student stop, an unanswered (failed) receipt no longer blocks Finish;
-    // a non-student closure still requires completed receipts.
+    // Never-stuck: a student stop or platform failure permits Finish after submission,
+    // while other closures still require completed receipts.
     await db.formativeConversationMessageReceipt.update({ where: { id: receipt.id }, data: { assistant_response_status: "failed" } });
     const conversationRow = await db.formativeConversationSession.findFirstOrThrow({ where: { assessment_session_db_id: session.id } });
     assert.equal(conversationRow.lifecycle_reason, "student_ended_conversation");
-    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "platform_failure:synthetic" } });
+    assert.equal(await canFinishConversationAssessment(session.id, session.assessment_db_id), true);
+    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "synthetic_other_closure" } });
     await assert.rejects(lifecycle("finish"), /Finish is available/);
-    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "student_ended_conversation" } });
-    await db.formativeConversationMessageReceipt.update({ where: { id: receipt.id }, data: { assistant_response_status: "completed" } });
+    await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "platform_failure:synthetic" } });
+    assert.equal(await canFinishConversationAssessment(session.id, session.assessment_db_id), true);
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: null } });
     await assert.rejects(lifecycle("finish"), /Finish is available/);
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: concept.initial_completed_at } });
@@ -107,6 +109,7 @@ async function main() {
     assert.equal(completed.status, "completed"); assert.equal(completed.current_phase, "session_completed"); assert(completed.completed_at);
     assert.equal(await db.processEvent.count({ where: { assessment_session_db_id: session.id, event_type: "session_completed" } }), 1);
     assert.equal(await db.studentProfile.count({ where: { concept_unit_session_db_id: concept.id } }), profilesBefore);
+    assert.equal((await db.formativeConversationMessageReceipt.findUniqueOrThrow({ where: { id: receipt.id } })).assistant_response_status, "failed", "Finishing must preserve the failed feedback record.");
     const final = await getStudentSessionState(input);
     assert.equal(final.assessment_state, "SESSION_COMPLETE"); assert.equal(final.attempt_lifecycle?.terminal, true);
     assert.equal(teacherPhaseLabel("planning_completed"), "Learning conversation");
