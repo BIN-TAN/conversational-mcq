@@ -63,9 +63,29 @@ import {
 import {
   ResearchPseudonymizationConfigError,
   assertResearchPseudonymizationReadyForExport,
+  researchInstructorId,
   researchPseudonymizationMetadata,
   researchStudentId
 } from "./pseudonymization";
+import {
+  currentItemDecisions,
+  interpretationV8SessionFiles,
+  itemAdministrationV4Fields,
+  itemReviewDecisionFile,
+  loadInterpretationV8CallRecords,
+  loadItemReviewDecisionRecords,
+  withInterpretationV8ProfileColumns,
+  type CurrentItemDecisions,
+  type ItemReviewDecisionRecord,
+  type V8ExportSession
+} from "./interpretation-v8-export";
+import {
+  INTERPRETATION_V8_EXPORT_VERSION,
+  INTERPRETATION_V8_NOTES_FILE,
+  INTERPRETATION_V8_PROFILE_COLUMNS,
+  interpretationV8ColumnDoc,
+  interpretationV8LegacyNote
+} from "./interpretation-v8-dictionary";
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
@@ -80,7 +100,9 @@ const restrictedDefaultColumns = new Set([
   "teacher_llm_media_description",
   "target_reasoning_note",
   "strong_reasoning_note",
-  "distractor_diagnostic_notes"
+  "distractor_diagnostic_notes",
+  // Interpretation v8 item ratings: correctness, withheld from default exports like item_responses.correctness.
+  "answer_correct"
 ]);
 
 const SECRET_PATTERNS = [
@@ -519,7 +541,8 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "initial_learning_profile",
   "initial_profile_evidence_sufficiency",
   "current_learning_profile",
-  "current_profile_evidence_sufficiency"
+  "current_profile_evidence_sufficiency",
+  ...INTERPRETATION_V8_PROFILE_COLUMNS
 ] as const;
 
 const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
@@ -1072,7 +1095,8 @@ function sessionBase(source: ExportSourceIdentity, session: AnalysisSession) {
   };
 }
 
-function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords,
+  decisions: CurrentItemDecisions = new Map()) {
   const formativeConversationSessionIds = new Set(
     sessions
       .filter((session) => session.formative_conversation_sessions.length > 0)
@@ -1212,7 +1236,8 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
           }
         : null
     };
-    return {
+    // Interpretation v8 profiles: legacy label columns blank, v8 summary columns added.
+    return withInterpretationV8ProfileColumns("sessions", {
       ...sessionBase(source, session),
       session_status: session.status,
       current_phase: session.current_phase,
@@ -1358,7 +1383,7 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         : "no_valid_profile_output_recorded",
       unsupported_correct_response_count: unsupportedCorrectCount,
       estimated_guessing_risk_max: null
-    } satisfies CsvRow;
+    } satisfies CsvRow, profile?.item_level_evidence, decisions);
   });
 }
 
@@ -1383,6 +1408,9 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           item_submitted_at: response.item_submitted_at,
           persisted_item_response_time_ms: response.item_response_time_ms
         });
+        // Item administration v4 records collection decisions, not quality levels.
+        const itemAdministration = itemAdministrationV4Fields(itemEvents);
+        const aiFlaggedInsufficientKnowledge = countEvents(itemEvents, ["insufficient_knowledge_marked"]) > 0;
         const row: CsvRow = {
           session_public_id: session.session_public_id,
           attempt_number: session.attempt_number,
@@ -1407,7 +1435,8 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           // administered item had its own option E.
           final_idk_selected: response.selected_option === "E" && !snapshotHasOptionE(response),
           ever_idk_selected: countEvents(itemEvents, ["idk_selected"]) > 0,
-          ai_flagged_insufficient_knowledge: countEvents(itemEvents, ["insufficient_knowledge_marked"]) > 0,
+          // Blank (not false) when every check is a v4 record: v4 never judges insufficient knowledge.
+          ai_flagged_insufficient_knowledge: itemAdministration.v4_only && !aiFlaggedInsufficientKnowledge ? null : aiFlaggedInsufficientKnowledge,
           skipped_item: response.skipped_item,
           skipped_reasoning: response.skipped_reasoning,
           skipped_confidence: response.skipped_confidence,
@@ -1469,6 +1498,7 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
           procedural_clarification_count: countEvents(itemEvents, ["procedural_clarification_request", "clarification_answered"]),
           content_question_count: countEvents(itemEvents, ["content_question_deferred"]),
           invalid_help_request_count: countEvents(itemEvents, ["invalid_help_request"]),
+          ...itemAdministration.columns,
           reasoning_quality_signal: typeof evidence.response_quality_summary === "string" ? evidence.response_quality_summary : null,
           observed_evidence_summary: typeof evidence.observed_evidence_summary === "string" ? evidence.observed_evidence_summary : null,
           misconception_hypothesis: typeof evidence.misconception_hypothesis === "string" ? evidence.misconception_hypothesis : null,
@@ -1496,9 +1526,10 @@ function itemResponseRows(source: ExportSourceIdentity, sessions: AnalysisSessio
   return rows;
 }
 
-function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisSession[], supplemental: SupplementalRecords,
+  decisions: CurrentItemDecisions = new Map()) {
   const sessionRowsById = new Map(
-    sessionRows(source, sessions, supplemental).map((row) => [String(row.session_public_id), row])
+    sessionRows(source, sessions, supplemental, decisions).map((row) => [String(row.session_public_id), row])
   );
   return sessions.map((session) => {
     const row = sessionRowsById.get(session.session_public_id);
@@ -1530,6 +1561,7 @@ function assessmentSummaryRows(source: ExportSourceIdentity, sessions: AnalysisS
       latest_student_safe_status: row.latest_student_safe_status ?? null,
       ...Object.fromEntries(UNDERSTANDING_SUMMARY_COLUMNS.map(column => [column, row[column] ?? null])),
       ...Object.fromEntries(CONVERSATION_UPDATE_SUMMARY_COLUMNS.map(column => [column, row[column] ?? null])),
+      ...Object.fromEntries(INTERPRETATION_V8_PROFILE_COLUMNS.map(column => [column, row[column] ?? null])),
       assessment_specific_understanding_category: row.assessment_specific_understanding_category ?? null,
       reasoning_quality_category: row.reasoning_quality_category ?? null,
       confidence_calibration_category: row.confidence_calibration_category ?? null,
@@ -1667,7 +1699,8 @@ function conversationRows(sessions: AnalysisSession[]) {
   });
 }
 
-function agentAndActivityRows(sessions: AnalysisSession[], supplemental: SupplementalRecords) {
+function agentAndActivityRows(sessions: AnalysisSession[], supplemental: SupplementalRecords,
+  decisions: CurrentItemDecisions = new Map()) {
   const rows: CsvRow[] = [];
   const formativeConversationSessionIds = new Set(
     sessions
@@ -1726,7 +1759,8 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
 
     for (const conceptUnitSession of session.concept_unit_sessions) {
       for (const profile of conceptUnitSession.student_profiles) {
-        rows.push({
+        // Interpretation v8 profiles: legacy label columns blank, v8 summary columns added.
+        rows.push(withInterpretationV8ProfileColumns("agent_activity_records", {
           record_type: "profile_result",
           authority_status: profileRecordProvenance(profile).profile_valid_for_learning_analysis
             ? "validated_profile_record" : "non_diagnostic_profile_artifact",
@@ -1750,7 +1784,7 @@ function agentAndActivityRows(sessions: AnalysisSession[], supplemental: Supplem
           started_at: iso(profile.created_at),
           completed_at: iso(profile.created_at),
           limitations: profileRecordProvenance(profile).profile_unavailable_reason ?? "interpretive_assessment_specific_profile"
-        });
+        }, profile.item_level_evidence, decisions));
       }
       for (const decision of conceptUnitSession.formative_decisions) {
         rows.push({
@@ -1952,7 +1986,7 @@ function assessmentContentRows(sessions: AnalysisSession[], includeRestricted: b
   );
 }
 
-function formativeConversationSessionRows(sessions: AnalysisSession[]) {
+function formativeConversationSessionRows(sessions: AnalysisSession[], decisions: CurrentItemDecisions = new Map()) {
   return sessions.flatMap((session) =>
     session.formative_conversation_sessions.map((conversation) => {
       const canonicalTransitions =
@@ -1976,7 +2010,8 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
         ...conversation,
         status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
       });
-      return {
+      // Interpretation v8 profiles: legacy label columns blank, v8 summary columns added.
+      return withInterpretationV8ProfileColumns("formative_conversation_sessions", {
         session_public_id: session.session_public_id,
         research_student_id: researchStudentId(session.user.user_id),
         assessment_public_id: session.assessment.assessment_public_id,
@@ -2059,7 +2094,7 @@ function formativeConversationSessionRows(sessions: AnalysisSession[]) {
           canonicalCurrentProfile?.integrated_diagnostic_profile ?? null,
         current_profile_evidence_sufficiency:
           canonicalCurrentProfile?.evidence_sufficiency ?? null
-      };
+      }, conversation.initial_student_profile?.item_level_evidence, decisions);
     })
   );
 }
@@ -2388,6 +2423,8 @@ function formativeConversationDataDictionaryRows() {
     }
   ];
   const definition = (dataset: string, variable: string) => {
+    const v8Doc = interpretationV8ColumnDoc(dataset, variable);
+    if (v8Doc) return v8Doc.definition;
     const participationDefinitions: Record<string, string> = {
       participation_observation_version: "Deterministic participation-observation projection version; no satisfaction or learning judgment.",
       tutor_reply_count: "Number of persisted tutor messages in this conversation; saving does not establish display.",
@@ -2565,15 +2602,17 @@ function formativeConversationDataDictionaryRows() {
     table.columns.map((variable) => ({
       dataset: table.dataset,
       variable,
-      definition: definition(table.dataset, variable),
+      // Columns blank for interpretation v8 profiles say so (interpretation-v8-dictionary.ts).
+      definition: [definition(table.dataset, variable), interpretationV8LegacyNote(table.dataset, variable)].filter(Boolean).join(" "),
       source_nature:
-        variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") ? "profile_provenance_projection" :
+        interpretationV8ColumnDoc(table.dataset, variable)?.source_nature ??
+        (variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") ? "profile_provenance_projection" :
         table.phase === "profile_transition" ||
         /learning_profile|evidence_sufficiency/.test(variable)
           ? "validated_derived_interpretation"
           : /wall_clock_duration|_count$/.test(variable)
             ? "derived_from_persisted_observations"
-            : "directly_recorded_observable_or_operational",
+            : "directly_recorded_observable_or_operational"),
       analysis_phase: table.phase,
       calculation: ({
         response_time_ms: "Legacy alias. New student browser: rounded performance.now at first Send minus at first nonempty input, frozen per client_message_id. Tutor: provider latency. Read typing_duration_method for historical student formulas.",
@@ -2702,6 +2741,12 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "formative_conversation_profile_transitions.csv",
         "formative_conversation_interventions.csv",
         "formative_conversation_data_dictionary.csv",
+        "interpretation_item_ratings.csv",
+        "interpretation_claims.csv",
+        "interpretation_summaries.csv",
+        "feedback_turn_records.csv",
+        "item_review_decisions.csv",
+        INTERPRETATION_V8_NOTES_FILE,
         "assessment_content.csv",
         "assessment_summary.csv",
         "research_data_dictionary.csv",
@@ -2820,8 +2865,71 @@ export type AnalysisReadyExportInput = {
   include_restricted_fields?: boolean;
 };
 
+type InterpretationV8CallRecords = Awaited<ReturnType<typeof loadInterpretationV8CallRecords>>;
+type InterpretationV8Context = {
+  /** The instructor's current item decisions for the items of these sessions, by item_public_id. */
+  decisions: CurrentItemDecisions;
+  /** Profiling and feedback v8 calls and review signals, by session_public_id. */
+  calls: Map<string, InterpretationV8CallRecords>;
+};
+
+/** The pure v8 builders' view of one loaded session (interpretation-v8-export.ts). */
+function interpretationV8ExportSession(session: AnalysisSession, calls: InterpretationV8CallRecords | undefined): V8ExportSession {
+  return {
+    session_public_id: session.session_public_id,
+    research_student_id: researchStudentId(session.user.user_id),
+    assessment_public_id: session.assessment.assessment_public_id,
+    attempt_number: session.attempt_number,
+    family_attempt_number: familyAttemptIdentity.get(session)?.family_attempt_number ?? null,
+    items: session.concept_unit_sessions.flatMap((unit) => unit.item_responses.map((response) => ({
+      item_public_id: response.item.item_public_id,
+      item_snapshot_public_id: itemSnapshotId(response),
+      item_version: response.item_version_snapshot,
+      item_order: response.item.item_order
+    }))),
+    profiles: session.concept_unit_sessions.flatMap((unit) => unit.student_profiles.map((profile) => ({
+      profile_record_id: profileRecordIdentity(profile.id),
+      concept_unit_public_id: unit.concept_unit.concept_unit_public_id,
+      created_at: profile.created_at,
+      item_level_evidence: profile.item_level_evidence,
+      source_agent_call_public_id: profile.based_on_agent_call?.agent_call_public_id ?? null
+    }))),
+    profiling_calls: calls?.profiling_calls ?? [],
+    conversations: session.formative_conversation_sessions.map((conversation) => ({
+      conversation_public_id: conversation.conversation_public_id,
+      initial_item_level_evidence: conversation.initial_student_profile?.item_level_evidence ?? null
+    })),
+    tutor_turns: session.formative_conversation_sessions.flatMap((conversation) => conversation.conversation_turns.flatMap((turn) => {
+      const telemetry = turn.formative_conversation_turn_telemetry;
+      return turn.actor_type === "agent" && telemetry?.agent_call
+        ? [{
+            conversation_public_id: conversation.conversation_public_id,
+            agent_call_public_id: telemetry.agent_call.agent_call_public_id,
+            turn_sequence_index: turn.sequence_index,
+            conversation_local_turn_sequence_index: telemetry.conversation_local_turn_sequence_index ?? null,
+            created_at: turn.created_at
+          }]
+        : [];
+    })),
+    feedback_calls: calls?.feedback_calls ?? [],
+    review_signals: calls?.review_signals ?? []
+  };
+}
+
 function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSession[],
-  supplemental: SupplementalRecords, includeRestricted: boolean) {
+  supplemental: SupplementalRecords, includeRestricted: boolean,
+  v8: InterpretationV8Context = { decisions: new Map(), calls: new Map() }) {
+  // Interpretation v8 files, merged across the chunk's sessions (each file keeps one header).
+  const v8Files = new Map<string, { path: string; data: string }>();
+  for (const session of sessions) {
+    for (const file of interpretationV8SessionFiles(
+      interpretationV8ExportSession(session, v8.calls.get(session.session_public_id)), v8.decisions, includeRestricted)) {
+      const existing = v8Files.get(file.path);
+      v8Files.set(file.path, existing && file.path.endsWith(".csv")
+        ? { path: file.path, data: existing.data + file.data.slice(file.data.indexOf("\n") + 1) }
+        : existing ?? file);
+    }
+  }
   return [
     ...responseStageExportFiles(sessions.map(session => ({
       session_public_id: session.session_public_id, assessment_public_id: session.assessment.assessment_public_id,
@@ -2834,7 +2942,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
     }))),
     {
       path: "sessions.csv",
-      data: csv(SESSIONS_COLUMNS, sessionRows(source, sessions, supplemental))
+      data: csv(SESSIONS_COLUMNS, sessionRows(source, sessions, supplemental, v8.decisions))
     },
     {
       path: "item_responses.csv",
@@ -2850,7 +2958,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
     },
     {
       path: "agent_activity_records.csv",
-      data: csv(AGENT_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental))
+      data: csv(AGENT_ACTIVITY_RECORDS_COLUMNS, agentAndActivityRows(sessions, supplemental, v8.decisions))
     },
     {
       path: "profile_item_evidence.csv",
@@ -2870,6 +2978,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
       data: csv(["variable", "definition"], Object.entries(PROFILE_FIELD_DEFINITIONS)
         .map(([variable, definition]) => ({ variable, definition })))
     },
+    ...v8Files.values(),
     {
       path: "pause_episodes.csv",
       data: csv(["session_public_id", "research_student_id", ...Object.keys(PAUSE_EPISODE_DEFINITIONS)], sessions.flatMap(session =>
@@ -2887,7 +2996,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
       path: "formative_conversation_sessions.csv",
       data: csv(
         FORMATIVE_CONVERSATION_SESSION_COLUMNS,
-        formativeConversationSessionRows(sessions)
+        formativeConversationSessionRows(sessions, v8.decisions)
       )
     },
     {
@@ -2938,7 +3047,7 @@ function sessionExportFiles(source: ExportSourceIdentity, sessions: AnalysisSess
     },
     {
       path: "assessment_summary.csv",
-      data: csv(ASSESSMENT_SUMMARY_COLUMNS, assessmentSummaryRows(source, sessions, supplemental))
+      data: csv(ASSESSMENT_SUMMARY_COLUMNS, assessmentSummaryRows(source, sessions, supplemental, v8.decisions))
     },
     {
       path: "research_data_dictionary.csv",
@@ -2970,6 +3079,12 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
   };
   const attemptObservations: ReturnType<typeof observeAttempts> = [];
   const familyAttemptNumbers = new Map<string, number>();
+  // Instructor item decisions (interpretation v8), loaded once per mini-test in scope.
+  const decisionRecordsByAssessment = new Map<string, ItemReviewDecisionRecord[]>();
+  const instructorPseudonym = {
+    instructor: (userId: string) => researchInstructorId(userId),
+    version: researchPseudonymizationMetadata().research_pseudonym_version
+  };
   // A single snapshot, but only one session's full event/profile graph in memory.
   // Files stay private until the transaction and every integrity check succeed.
   const snapshotAt = await prisma.$transaction(async (tx) => {
@@ -2993,7 +3108,17 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
         select: { session_public_id: true, policy_version: true, waived_at: true }
       });
       attemptObservations.push(...observeAttempts(sessions, chances));
-      for (const file of sessionExportFiles(source, sessions, supplemental, includeRestricted)) await emit(file);
+      const v8Calls = new Map<string, InterpretationV8CallRecords>();
+      for (const session of sessions) {
+        v8Calls.set(session.session_public_id, await loadInterpretationV8CallRecords(tx, session.id));
+        const assessmentPublicId = session.assessment.assessment_public_id;
+        if (!decisionRecordsByAssessment.has(assessmentPublicId)) {
+          decisionRecordsByAssessment.set(assessmentPublicId, await loadItemReviewDecisionRecords(tx, assessmentPublicId, instructorPseudonym));
+        }
+      }
+      const decisions = currentItemDecisions(sessions.flatMap((session) =>
+        decisionRecordsByAssessment.get(session.assessment.assessment_public_id) ?? []));
+      for (const file of sessionExportFiles(source, sessions, supplemental, includeRestricted, { decisions, calls: v8Calls })) await emit(file);
       if (includeRestricted) {
         // R3: researcher-only AI audit rows (never in the default export).
         for (const session of sessions) {
@@ -3011,6 +3136,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
         path: "session_diagnostic_manifest.json", data: sessionDiagnosticManifest(source, sessions, supplemental)
       });
     }
+    // One item_review_decisions.csv for every mini-test in scope (current and superseded decisions).
+    for (const records of decisionRecordsByAssessment.values()) await emit(itemReviewDecisionFile(records));
     // Instructor reports summarise a whole class, so they are exported only for
     // whole-cohort scopes that include incomplete attempts (the report's own rule).
     if (includeRestricted && auditAssessmentIds.length &&
@@ -3047,6 +3174,9 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     "Raw duration_ms on typing summaries is elapsed input time, not active typing. Unmeasured active interaction remains empty.",
     "Browser events are best effort: delivery gaps, absent visibility, multiple documents, and unrecovered browser closure limit inference. Absence is not nonoccurrence.",
     "No consent or withdrawal decision is inferred. Apply the approved study cohort before analysis. Free text may contain identifying information and requires review.",
+    `Interpretation v8 (${INTERPRETATION_V8_EXPORT_VERSION}): interpretation_item_ratings.csv (one row per student, attempt and item), interpretation_claims.csv (possible misconceptions and ideas considered), interpretation_summaries.csv (stored label and the label with the instructor's current item decisions, counts, attempt role and feedback seen before the attempt), feedback_turn_records.csv (focus, strategy, student evidence and instructor-review flag of each opening and reply) and item_review_decisions.csv. Rules, rating definitions and boundaries are in ${INTERPRETATION_V8_NOTES_FILE}; every column is in research_data_dictionary.csv. Restricted exports add interpretation_process_audit.csv (process indicators sent to the profiling model and its process interpretations; audit only, never shown to instructors or students) and the answer_correct column.`,
+    "Legacy profile columns (ability, engagement, integrated profile, evidence sufficiency, confidence alignment, misconception catalog counts, item-evidence format) are blank for interpretation v8 profiles in sessions.csv, assessment_summary.csv, agent_activity_records.csv and formative_conversation_sessions.csv, and so are the conversation-update and profile-transition columns (a v8 conversation never updates the profile); read interpretation_summary_label and the v8 files instead. profile_item_evidence.csv has no rows for v8 profiles. Earlier profiles and conversations are unchanged.",
+    "Item administration v4 records collection decisions, not quality: see the item_admin_v4_* columns in item_responses.csv; insufficient-knowledge judgments are never recorded for v4 replies.",
     "Restricted exports only: ai_call_audit.csv lists every model call recorded for the exported attempts, plus instructor reports for whole-class scopes (inputs, raw output including rejected drafts, validated output, model, effort, prompt version and hash) for AI-output review; see ai_call_audit_data_dictionary.csv. Students never see this file.",
     "Correct answers and teacher-only fields are included only when restricted_fields_included is true in the manifest.",
     "The manifest lists every other ZIP entry. SHA-256 values cover UTF-8 entry bytes; the manifest excludes its own hash to avoid recursion."
@@ -3061,6 +3191,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     study_template_version: STUDY_TEMPLATE_VERSION,
     response_evidence_version: RESPONSE_EVIDENCE_VERSION,
     profile_projection_version: PROFILE_PROJECTION_VERSION,
+    interpretation_v8_export_version: INTERPRETATION_V8_EXPORT_VERSION,
     export_run_public_id: source.export_run_public_id,
     export_generated_at: source.export_generated_at,
     app_commit_sha: source.app_commit_sha,
