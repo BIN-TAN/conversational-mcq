@@ -561,11 +561,13 @@ The redesign is built and validated on its own branch, and the live system chang
 5. **Attempts.** A later attempt's profile stores which feedback the student had seen before starting it: the answer review, the opening message and the conversation turns up to that point.
 6. **Dashboard, exports, data dictionary and documentation**, as in section 10.
 7. **Validation, with paid calls run locally**, as set out in 11.1. The system goes live only when every criterion there holds.
-8. **Approval and release.** A new approval bundle from that evidence, then deployment at a boundary between mini-tests. The profiling prompt is pinned by hash, so any change blocks every guarded live call until the new bundle is active. The current approval tooling accepts only model and effort changes, so a new approval type has to be added in code. The conversation and report prompts are not checked at run time, but they go through the same validation before going live. Every output stores its prompt version, so records before and after the switch are analysed separately.
+8. **Approval and release.** A new approval bundle from that evidence, then deployment at a boundary between mini-tests. Each v8 prompt is pinned by its own hash: profiling, feedback, item preparation and the instructor report run live only when INTERPRETATION\_V8\_APPROVED\_PROMPT\_HASH, FORMATIVE\_FEEDBACK\_V8\_APPROVED\_PROMPT\_HASH, ITEM\_PREPARATION\_V8\_APPROVED\_PROMPT\_HASH and INSTRUCTOR\_REPORT\_V8\_APPROVED\_PROMPT\_HASH equal the current prompts' hashes, which npm run eval:v8 -- hashes prints. Until a hash is set, that step takes its fallback path and students are never blocked. Every output stores its prompt version, so records before and after the switch are analysed separately.
 
 A separate small fix: page-switch counts use different event names in different exports, so the same student can show different counts. These should be aligned.
 
 ### 11.1 Validation before going live
+
+The full procedure, with the 31 situations, the 124 simulated responses, the coding protocol and the commands, is in [Evaluation plan: interpretation and feedback v8](https://claude.ai/code/artifact/e6c858d5-4cbd-436d-9e04-2f228fa7e4e3).
 
 The system goes live only when every criterion below holds. The thresholds are proposals for you to confirm or change, and they are fixed before any model output is scored.
 
