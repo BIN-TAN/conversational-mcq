@@ -126,6 +126,17 @@ async function main() {
     const exportedSessions = parse(bundle.files.find(file => file.path === "sessions.csv")!.data, { columns: true }) as Record<string, string>[];
     assert.equal(exportedSessions.length, 1);
     assert.equal(exportedSessions[0].canonical_runtime_state, "SESSION_COMPLETE");
+    // RQ3: a delivered, displayed opening followed by End without a student message is a
+    // student stop, not a system failure or missing data.
+    const conversations = parse(bundle.files.find(file => file.path === "formative_conversation_sessions.csv")!.data, { columns: true }) as Record<string, string>[];
+    assert.equal(conversations.length, 1);
+    assert.equal(conversations[0].end_reason, "student_ended");
+    assert.equal(conversations[0].opening_status, "delivered");
+    assert.equal(conversations[0].student_participated, "false");
+    assert(conversations[0].first_tutor_display_received_at && conversations[0].last_turn_at);
+    assert.equal(conversations[0].engaged_duration_ms, "0");
+    const exportedTurns = parse(bundle.files.find(file => file.path === "formative_conversation_turns.csv")!.data, { columns: true }) as Record<string, string>[];
+    assert.equal(exportedTurns.find(row => row.turn_sequence_index === String(tutor.sequence_index))?.message_type, "opening");
     console.log("PASS completion: explicit finish, pause/failed-feedback/incomplete/ownership guards, concurrent retry, persisted lifecycle, no invented profile");
     console.log("PASS teacher dashboard/list and research export agree with the completed student attempt");
   } finally {

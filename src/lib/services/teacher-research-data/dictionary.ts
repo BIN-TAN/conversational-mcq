@@ -1523,7 +1523,71 @@ function measuredValueDefinition(table: string, variable: string) {
   );
 }
 
+// sessions.csv columns that otherwise fall back to a generic row template.
+const LEGACY_ACTIVITY_NOTE = "(legacy activity runtime); blank for attempts with a learning conversation and when the record is absent.";
+const EVIDENCE_PROFILE_NOTE = "blank when the profile has no such record, including interpretation v8 profiles.";
+const SESSION_DEFINITIONS: Record<string, string> = {
+  ...UNDERSTANDING_SUMMARY_DEFINITIONS,
+  ...CONVERSATION_UPDATE_SUMMARY_DEFINITIONS,
+  export_run_public_id: "Identifier of the export run that produced this file set (rex_<UTC time>_<random>); the same on every row and file of one export.",
+  export_schema_version: "Version of the research dataset layout of this export (research-dataset-v2).",
+  app_commit_sha: "Git commit of the application that generated this export (deployment variable or git HEAD; unknown when unavailable). The commit that served the attempt is collecting_application_git_commit.",
+  database_instance_fingerprint: "SHA-256 of the exporting server's database connection setting (database_url_missing when unset): equal values mean the same database configuration; no connection details are exported.",
+  assessment_public_id: "Public identifier of the mini-test version (assessment) of the attempt; a corrected version has a new identifier in the same assessment_family_public_id.",
+  context_schema_version: "Version of the structure hashed into assessment_context_hash (assessment-session-context-v1).",
+  assessment_context_hash: "SHA-256 of the assessment_public_id, session_public_id and the item snapshots stored with the attempt's item responses; differs when the administered item content differs.",
+  assessment_title: "Mini-test title at export time (not a snapshot from the attempt).",
+  assessment_status: "Mini-test status at export time: draft, published or archived.",
+  folder_week_module: "Instructor-entered folder, week or module label of the mini-test at export time; blank when none was entered.",
+  session_status: "Stored attempt status at export time: not_started, active, paused, completed, student_exited (ended by the student or an instructor) or needs_review. attempt_lifecycle_status separates the actors.",
+  current_phase: "Stored state-machine phase of the attempt at export time (for example session_completed or student_exited); a workflow position, not a learning measure.",
+  session_completion_status: "Compatibility copy of session_status.",
+  current_item_index: "Highest authoring item_order among the attempt's item responses; blank without responses. Not the student-facing item position (item_position in item_responses.csv).",
+  session_limitations: "Pipe-separated codes: no_item_responses_recorded (the attempt has no item response) and initial_feedback_unavailable (an initial_feedback_skipped or initial_feedback_terminated event exists); blank when neither applies.",
+  item_response_count: "Number of item-response rows of the attempt across its topics (rows in item_responses.csv for this session_public_id).",
+  agent_call_count: "Number of model calls (AgentCall rows) linked to the attempt for every AI role and outcome, including failed, blocked, rejected and retried calls; each interpretation v8 attempt is its own call. Restricted exports list them in ai_call_audit.csv.",
+  post_activity_evidence_count: "Number of post-activity misconception-evidence records of the legacy activity runtime for the attempt; 0 for attempts without that runtime.",
+  conversation_profile_update_count: CONVERSATION_UPDATE_SUMMARY_DEFINITIONS.conversation_profile_update_count,
+  understanding_profile_created_at: UNDERSTANDING_SUMMARY_DEFINITIONS.understanding_profile_created_at,
+  canonical_runtime_state: "SESSION_COMPLETE when attempt_lifecycle_status is completed, ended_by_student or ended_by_teacher; FORMATIVE_CONVERSATION when the attempt has a learning conversation; AWAIT_FORMATIVE_ACTIVITY_RESPONSE when current_phase is planning_completed and the latest legacy activity awaits a response; otherwise current_phase.",
+  display_acknowledgement: "acknowledged when the browser acknowledged displaying any feedback content of the attempt (a package_results_shown, formative_feedback_shown, profile_feedback_shown, next_interaction_shown or formative_activity_shown event), otherwise not_acknowledged. Display, not reading.",
+  display_event_contract_version: "Display contract of the latest of those acknowledgements: display-ack-v1 (legacy mount acknowledgement) or display-ack-v2 (part of the content visible for 500 ms); blank without one.",
+  answer_review_display_acknowledgement: "acknowledged when a package_results_shown event records that the browser displayed the answer review of the submitted mini-test (results summary), otherwise not_acknowledged. Item-level item_correctness_status_shown and tutor-message displays do not count. Display, not reading.",
+  answer_review_display_event_contract_version: "Display contract of the latest package_results_shown acknowledgement: display-ack-v1 (legacy mount acknowledgement) or display-ack-v2 (part of the review visible for 500 ms); blank without one.",
+  package_completion_operation_id: "Public identifier of the operation that sealed the submitted answers and prepared feedback (latest package_completion_operation_completed event); blank without that event.",
+  package_completion_workflow_stage: "Stage that operation reached (for example presenter_ready), from the latest package_completion_operation_completed event; blank without it.",
+  package_completion_recovery_status: "Recovery status of that operation (completed, replayed or recovered after a partial failure), from the latest package_completion_operation_completed event; blank without it.",
+  conflict_recovery_metadata: "JSON with the latest package_completion_operation_completed event (operation_public_id, workflow_stage, recovery_status, already_completed) and the latest package_completion_reconciled event (recovered_stages, reason); each null when absent. No student responses.",
+  reasoning_quality_category: `Reasoning-quality category stored in the mini-test profile's evidence_integrated_profile_v2.reasoning_quality.value; ${EVIDENCE_PROFILE_NOTE}`,
+  confidence_calibration_category: `Confidence-calibration category stored in evidence_integrated_profile_v2.confidence_calibration.value of the mini-test profile; ${EVIDENCE_PROFILE_NOTE}`,
+  evidence_limitation_codes: `Pipe-separated limitation codes from evidence_integrated_profile_v2.evidence_limitations of the mini-test profile; ${EVIDENCE_PROFILE_NOTE}`,
+  growth_target: `Single next focus stored in evidence_integrated_profile_v2.growth_target.target of the mini-test profile; ${EVIDENCE_PROFILE_NOTE}`,
+  answer_reveal_policy: `Answer-reveal policy stored in evidence_integrated_profile_v2.outcome_summary.restricted_answer_reveal_state of the mini-test profile; ${EVIDENCE_PROFILE_NOTE}`,
+  correctness_status_reveal_policy: `Correctness-status reveal policy stored in evidence_integrated_profile_v2.outcome_summary.restricted_answer_reveal_state of the mini-test profile; ${EVIDENCE_PROFILE_NOTE}`,
+  evidence_profile_schema_version: `Schema version of the mini-test profile's evidence_integrated_profile_v2 record; ${EVIDENCE_PROFILE_NOTE}`,
+  effective_evidence_package_hash: "Hash of the evidence package stored with the mini-test profile (item_level_evidence.effective_evidence_package_hash); blank when not stored.",
+  next_interaction_type: `Next interaction selected after package feedback, from the mini-test profile's next_interaction_v2.interaction_type ${LEGACY_ACTIVITY_NOTE}`,
+  routing_policy_version: `Activity routing policy version from the mini-test profile's next_interaction_v2 record ${LEGACY_ACTIVITY_NOTE}`,
+  activity_type: `Activity form (distractor, scaffold, foundational or clarification activity) from the mini-test profile's next_interaction_v2 record ${LEGACY_ACTIVITY_NOTE}`,
+  activity_taxonomy_version: `Activity taxonomy version from the mini-test profile's next_interaction_v2 record ${LEGACY_ACTIVITY_NOTE}`,
+  active_activity_id: `Public identifier of the attempt's latest formative activity attempt, whatever its status ${LEGACY_ACTIVITY_NOTE}`,
+  active_next_interaction_id: `Identifier (session_public_id:turn:<saved time>) of the latest next-interaction message in the attempt's transcript ${LEGACY_ACTIVITY_NOTE}`,
+  estimated_guessing_risk_max: "Always blank: retained for column compatibility and not computed. Item-level estimated_guessing_risk is a restricted item_responses.csv column.",
+  session_observation_end_at: "Session timing v4 upper bound used for the attempt's timing: completion or terminal event for closed attempts; latest server-recorded process or conversation activity (or last_activity_at) for open attempts. Browser time does not set it.",
+  session_observation_end_source: "Which endpoint set session_observation_end_at: completion, terminal_event, latest_recorded_activity, updated_at_fallback or unavailable.",
+  timing_contract_version: "Version of the session timing formulas (session-timing-v4).",
+  timing_source_version: "Version of the timing source extraction and event pairing (student-assessment-timing-source-v3).",
+  timing_quality_status: "valid when the start, end and visibility evidence are complete and ordered; invalid_order when an end precedes its start; partial otherwise (missing start or end, or insufficient visibility instrumentation).",
+  timing_limitations: "Pipe-separated limitation codes of the session timing (for example session_end_uses_administrative_updated_at_fallback, visibility_instrumentation_insufficient, active_interaction_interval_instrumentation_unavailable); blank when none.",
+  timing_metric_available: "True when session_wall_clock_elapsed_ms could be computed.",
+  timing_metric_type: "legacy_elapsed_session_time when elapsed_session_time_ms is available; blank otherwise.",
+  instrumentation_complete: "True only when timing_quality_status is valid and validated active interaction time is available. Session timing v4 does not compute active interaction time (session_active_interaction_time_ms is blank), so the value is false.",
+  derived_at: "Export generation time at which the derived timing values on this row were computed.",
+  page_hidden_interval_count: "Number of valid paired page-hidden intervals (hidden to the next visible event) recorded for the attempt."
+};
+
 function definition(table: string, variable: string) {
+  if (table === "sessions" && SESSION_DEFINITIONS[variable]) return SESSION_DEFINITIONS[variable];
   if (variable === "student_visibility") return "conversation-visibility-v1 projection: internal_only when explicitly hidden/draft or suppressed by the active formative-conversation route; student_visible when explicitly eligible for the student transcript; legacy_unspecified when no visibility marker exists. Eligibility is not viewport exposure or reading. All original rows remain in this table.";
   if (variable === "conversation_visibility_version") return "Version of the read-only visibility projection applied at export time; not a historical collection version. No source turns or profiles are rewritten.";
   if (variable.startsWith("profile_") || variable.endsWith("confidence_alignment_scope") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {

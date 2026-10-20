@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { parse } from "csv-parse/sync";
 import { executeAgent } from "../src/lib/agents/execute-agent";
 import { compileProductionStructuredAgentRequest } from "../src/lib/agents/provider-request";
 import { prisma } from "../src/lib/db";
@@ -711,6 +712,13 @@ async function main() {
     assert.match(sessionsCsv, /llm_terminal_recommendation/u);
     assert.match(sessionsCsv, /student_formative_turn_count/u);
     assert.match(sessionsCsv, /semantic_teacher_assistance_recommended/u);
+    // Both turn-limit closes (saved final reply, and the platform handoff when it could not
+    // be produced) are the turn limit for analysis, not a model or student decision.
+    const turnLimitRows = (parse(sessionsCsv, { columns: true }) as Array<Record<string, string>>)
+      .filter((row) => ["platform_lifecycle", "llm_terminal_recommendation"].includes(row.lifecycle_termination_source));
+    assert(turnLimitRows.length >= 2);
+    assert.deepEqual([...new Set(turnLimitRows.map((row) => row.end_reason))], ["turn_limit_reached"]);
+    assert(turnLimitRows.every((row) => row.student_participated === "true"));
     assert.equal(
       initialExportValidation.status,
       "passed",

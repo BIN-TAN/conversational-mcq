@@ -18,6 +18,8 @@ import { ResearchExportSpool, withResearchExportSlot } from "./export-spool";
 import { exportStorageDirectory, pathForStorageKey } from "../master-export/storage";
 import { parse } from "csv-parse/sync";
 import { separateConversationTiming } from "./conversation-timing";
+import { conversationEndReason, conversationEngagement, conversationMessageType, openingOutcome } from "./conversation-outcome";
+import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
@@ -334,12 +336,22 @@ const analysisSessionSelect = {
         }
       },
       message_receipts: {
+        // Student-message receipts, plus the opening receipt (opening_status, opening_failure_code).
         where: {
-          student_turn_db_id: { not: null }
+          OR: [
+            { student_turn_db_id: { not: null } },
+            { client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID }
+          ]
         },
         orderBy: { created_at: "asc" },
         select: {
           receipt_public_id: true,
+          client_message_id: true,
+          status: true,
+          failure_code: true,
+          assistant_turn_db_id: true,
+          response_payload: true,
+          updated_at: true,
           student_turn_db_id: true,
           assistant_response_status: true,
           assistant_response_retry_count: true,
@@ -506,6 +518,9 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "displayed_tutor_reply_count",
   "first_tutor_display_received_at",
   "first_student_message_at",
+  "student_participated",
+  "last_turn_at",
+  "engaged_duration_ms",
   ...PROFILE_PROVENANCE_COLUMNS,
   "profile_reassessment_status",
   "initial_profile_record_id",
@@ -516,6 +531,8 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "concept_unit_public_id",
   "conversation_public_id",
   "conversation_status",
+  "opening_status",
+  "opening_failure_code",
   "started_at",
   "last_activity_at",
   "paused_at",
@@ -530,6 +547,7 @@ const FORMATIVE_CONVERSATION_SESSION_COLUMNS = [
   "another_student_turn_available",
   "lifecycle_termination_source",
   "lifecycle_termination_reason",
+  "end_reason",
   "semantic_teacher_assistance_recommended",
   "platform_lifecycle_handoff",
   "lifecycle_event_count",
@@ -555,6 +573,7 @@ const FORMATIVE_CONVERSATION_TURN_COLUMNS = [
   "conversation_local_turn_sequence_index",
   "actor_type",
   "actor_name",
+  "message_type",
   "message_text",
   "generation_source",
   "validator_status",
@@ -2006,10 +2025,12 @@ function formativeConversationSessionRows(sessions: AnalysisSession[], decisions
       const studentFormativeTurnCount = conversation.conversation_turns.filter(
         (turn) => turn.actor_type === "student"
       ).length;
+      const attemptLifecycle = resolveCanonicalAttemptLifecycle(session);
       const maxStudentTurns = formativeConversationTurnLimit({
         ...conversation,
-        status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+        status: attemptLifecycle.terminal ? "ended" : conversation.status
       });
+      const participation = conversationParticipation(conversation, session.process_events);
       // Interpretation v8 profiles: legacy label columns blank, v8 summary columns added.
       return withInterpretationV8ProfileColumns("formative_conversation_sessions", {
         session_public_id: session.session_public_id,
@@ -2020,7 +2041,9 @@ function formativeConversationSessionRows(sessions: AnalysisSession[], decisions
             .concept_unit_public_id,
         conversation_public_id: conversation.conversation_public_id,
         conversation_status: conversation.status,
-        ...conversationParticipation(conversation, session.process_events),
+        ...openingOutcome(conversation.message_receipts, conversation.conversation_turns),
+        ...participation,
+        ...conversationEngagement(conversation.conversation_turns, participation.first_tutor_display_received_at),
         started_at: iso(conversation.started_at),
         last_activity_at: iso(conversation.last_activity_at),
         paused_at: iso(conversation.paused_at),
@@ -2042,7 +2065,7 @@ function formativeConversationSessionRows(sessions: AnalysisSession[], decisions
           studentFormativeTurnCount ===
           maxStudentTurns,
         another_student_turn_available:
-          !resolveCanonicalAttemptLifecycle(session).terminal &&
+          !attemptLifecycle.terminal &&
           conversation.status === "active" &&
           studentFormativeTurnCount <
             maxStudentTurns,
@@ -2058,6 +2081,10 @@ function formativeConversationSessionRows(sessions: AnalysisSession[], decisions
         lifecycle_termination_reason:
           platformLifecycleHandoff?.reason_code ??
           conversation.lifecycle_reason,
+        end_reason: conversationEndReason(conversation, {
+          completed: attemptLifecycle.canonical_status === "completed",
+          terminal: attemptLifecycle.terminal
+        }),
         semantic_teacher_assistance_recommended:
           persistedFormativeConversationOutcome(canonicalTransitions) ===
           "teacher_assistance_recommended",
@@ -2071,7 +2098,7 @@ function formativeConversationSessionRows(sessions: AnalysisSession[], decisions
         profile_reassessment_status: profileReassessmentStatus({
           validated_transition_count: canonicalTransitions.length,
           student_turn_count: studentFormativeTurnCount,
-          conversation_status: resolveCanonicalAttemptLifecycle(session).terminal ? "ended" : conversation.status
+          conversation_status: attemptLifecycle.terminal ? "ended" : conversation.status
         }),
         ...(canonicalCurrentProfile ? profileRecordProvenance(canonicalCurrentProfile) : {}),
         initial_profile_record_id: conversation.initial_student_profile
@@ -2135,6 +2162,7 @@ function formativeConversationTurnRows(sessions: AnalysisSession[]) {
             turn.actor_type === "agent"
               ? turn.agent_name ?? "formative_conversation_agent"
               : "student",
+          message_type: conversationMessageType(turn.actor_type, payload),
           message_text: turn.message_text,
           generation_source:
             typeof payload.generation_source === "string"
@@ -2385,7 +2413,86 @@ function formativeConversationInterventionRows(sessions: AnalysisSession[]) {
   );
 }
 
-function formativeConversationDataDictionaryRows() {
+// Keys are "dataset.variable" or a variable shared by the formative_conversation_* files.
+const FORMATIVE_CONVERSATION_DEFINITIONS: Record<string, string> = {
+  session_public_id: "Public identifier of the assessment attempt the conversation belongs to; joins sessions.csv.",
+  research_student_id: "Pseudonymous student join key, identical to sessions.csv research_student_id under the same pseudonymization configuration; not a login identifier.",
+  assessment_public_id: "Public identifier of the mini-test version (assessment) of the attempt.",
+  concept_unit_public_id: "Public identifier of the topic (concept unit) the conversation is about; an attempt has at most one conversation per topic.",
+  conversation_public_id: "Public identifier of the learning conversation (one per topic in an attempt); joins the formative_conversation_*.csv files and feedback_turn_records.csv.",
+  conversation_status: "Stored status of the conversation record: active, paused, ended, or completed and teacher_assistance_recommended (runtimes before feedback v8 only). It stays active or paused when the attempt is finished while the conversation is open; use end_reason.",
+  opening_status: "Outcome of the system's opening message. delivered: the opening was saved to the transcript (display: first_tutor_display_received_at). failed: a retryable failure was recorded (provider error, rejected output, saving error or usage limit). blocked: a failure recorded as not retryable, mostly the platform refusing to call the model (for example feedback_v8_not_approved when the approved prompt hash is not configured, feedback_v8_live_calls_disabled or feedback_v8_configuration_*). pending: generation reserved within the 6-minute generation window at export. interrupted: reserved for more than 6 minutes without a saved opening or recorded failure. not_requested: no opening was requested (preparation failed for good and saved the fallback profile, preparation had not reached the opening at export, or a runtime without an opening step). Every value except delivered is a system outcome, not student non-engagement.",
+  opening_failure_code: "Safe failure code of the opening: the current failure code of the opening receipt or, after a successful retry, the last recorded failure (a delivered opening can carry the code of an earlier failure). Examples: feedback_v8_not_approved, formative_conversation_opening_validation_failed, formative_conversation_opening_generation_failed. Blank when no failure was recorded.",
+  student_participated: "True when the student sent at least one message in the conversation. False with opening_status delivered: the student received the opening but did not write (display in displayed_tutor_reply_count, ending in end_reason).",
+  last_turn_at: "Server save time of the conversation's latest student or tutor message; blank when no message was saved.",
+  engaged_duration_ms: "Span of the student-facing conversation: from the first display of a tutor message (first_tutor_display_received_at, or first_student_message_at when that is earlier) to last_turn_at; without a display receipt it starts at the first saved message, normally the opening. Includes pauses and tutor generation time. Reading after the last message is not observed, so a student who read the opening and stopped has 0. Blank without saved messages.",
+  end_reason: "How the conversation ended, from the stored status and lifecycle reason and the attempt state. student_ended: the student chose End. student_ended_attempt: the student ended the whole attempt while the conversation was open. turn_limit_reached: the student used the last allowed message (lifecycle_termination_source llm_terminal_recommendation, also for feedback v8, or platform_lifecycle when the final reply could not be produced). closed_by_system: another platform close. attempt_finished_while_active: the attempt was finished while the conversation was open; the record keeps status active or paused and no reason. attempt_ended_while_active: the attempt was ended by another path (for example by an instructor) while the conversation was open. still_active: open (active or paused) at export. other: any other stored reason, including closes recorded by runtimes before feedback v8.",
+  "formative_conversation_sessions.started_at": "When the system created the conversation record, during preparation after the student submitted the topic's answers. It precedes the opening message and its display, so it does not mark when the student saw the conversation.",
+  "formative_conversation_sessions.last_activity_at": "Server time of the latest activity stored on the conversation record (saved messages, pause, resume or close).",
+  paused_at: "Time of the student's latest pause; cleared on resume and when the attempt is ended, so it is set when the conversation is paused at export or was ended while paused. Pause history: formative_conversation_events.csv and pause_episodes.csv.",
+  "formative_conversation_sessions.completed_at": "When the conversation reached completed status (runtimes before feedback v8 only); feedback v8 conversations close with ended_at.",
+  ended_at: "When the conversation was closed (student End, student ended the attempt, turn limit or platform close). Blank for open conversations, including those left open when the attempt was finished (end_reason attempt_finished_while_active).",
+  turn_count: "Number of saved student and tutor messages in the conversation, including the opening and any platform handoff message (its rows in formative_conversation_turns.csv).",
+  lifecycle_event_count: "Number of lifecycle events recorded for the conversation (its rows in formative_conversation_events.csv).",
+  "formative_conversation_sessions.agent_call_count": "Number of model calls (AgentCall rows) linked to the conversation: openings and replies, including failed, rejected and retried calls (its rows in formative_conversation_llm_calls.csv).",
+  intervention_count: "Number of intervention records for the conversation (its rows in formative_conversation_interventions.csv); only runtimes before feedback v8 create them.",
+  profile_transition_count: "Number of validated profile transitions recorded during the conversation (its rows in formative_conversation_profile_transitions.csv).",
+  initial_learning_profile: "integrated_diagnostic_profile category of the profile the conversation started from (the profile saved from the submitted mini-test).",
+  current_learning_profile: "integrated_diagnostic_profile category of the profile created by the latest validated transition, otherwise of the initial profile.",
+  prior_learning_profile: "integrated_diagnostic_profile category of the profile before this transition.",
+  updated_learning_profile: "integrated_diagnostic_profile category of the profile created by this transition.",
+  turn_sequence_index: "ConversationTurn.sequence_index: database-wide transcript order (unique and increasing, not consecutive within a conversation). Orders turns; joins feedback_turn_records.csv turn_sequence_index and feedback_exposure_events.csv source_turn_sequence_index within session_public_id.",
+  actor_type: "student for student messages; agent for tutor messages (opening, replies and the platform handoff message).",
+  actor_name: "student for student messages; for tutor messages the stored agent name: formative_conversation_agent (opening and replies, including feedback v8) or platform_lifecycle (handoff message).",
+  message_type: "opening (the system's opening message), reply (tutor reply to a student message), student (student message) or lifecycle_handoff (platform message closing the conversation at the turn limit when the final reply could not be produced). Any other stored structured_payload.message_type is copied; blank for tutor messages without a stored type.",
+  generation_source: "How the tutor message was produced (structured_payload.generation_source), for example live_llm (live model output), deterministic_test (local test output, never live model evidence) or platform_lifecycle (fixed handoff message); blank for student messages.",
+  validator_status: "Validation recorded with the tutor message: opening_validated (opening), passed (reply) or lifecycle_fail_safe (handoff message); blank for student messages. Rejected drafts are not saved as turns (see formative_conversation_llm_calls.csv).",
+  fallback_used: "True when a scripted fallback replaced model output for this tutor message; the current runtime saves only validated model output and records false. Blank for student messages.",
+  "formative_conversation_turns.created_at": "Server time the message was saved to the transcript.",
+  turn_started_at: "Tutor messages: start of the linked model call. Student messages: browser time of the first nonempty input for the message; blank without browser telemetry.",
+  turn_submitted_at: "Tutor messages: completion of the linked model call. Student messages: browser time of the first Send, otherwise the server save time.",
+  message_length_chars: "Length of the saved message in UTF-16 code units.",
+  input_token_count: "Provider-reported input tokens of the model call that produced this tutor message; blank for student messages and when not reported.",
+  output_token_count: "Provider-reported output tokens of the model call that produced this tutor message; blank for student messages and when not reported.",
+  typing_started_at: "Student messages: browser time of the first nonempty input for the message; blank for tutor messages and without input telemetry.",
+  typing_ended_at: "Student messages: browser time of the first Send of the message; blank for tutor messages and without input telemetry.",
+  typing_duration_method: "Method of the student input timing: elapsed_monotonic_first_input_to_submit for current browsers; historical methods are kept. Blank for tutor messages.",
+  final_message_length_chars: "Browser-reported length of the accepted, trimmed student message in UTF-16 code units; blank for tutor messages and without input telemetry.",
+  event_public_id: "Public identifier of the lifecycle event; stable across exports. Use it to deduplicate.",
+  event_sequence_index: "Stored lifecycle-event sequence (database-wide and increasing, not consecutive within a conversation); orders events.",
+  "formative_conversation_events.agent_name": "Agent recorded with the event: formative_conversation_agent for model-call and reply-failure events; blank for browser, student and most system events.",
+  "formative_conversation_events.retry_count": "Retry count recorded with the event: for agent_call_started and agent_call_completed the AgentCall retry_count; for agent_call_failed and assistant_response_failed the reply's assistant_response_retry_count (student or system retries after the first generation); 0 for system closes; blank for browser and student events.",
+  "formative_conversation_events.occurred_at": "Occurrence time recorded with the event: the browser clock for frontend events, the server clock for backend, agent and system events.",
+  "formative_conversation_events.created_at": "Server time the event row was saved.",
+  agent_call_index: "One-based order of the call among the conversation's model calls by creation time.",
+  "formative_conversation_llm_calls.agent_name": "AI role recorded on the call: formative_conversation_agent for openings and replies in every runtime, including feedback v8.",
+  agent_version: "Runtime version label of the call (formative-feedback-runtime-v8 for feedback v8).",
+  provider: "Provider of the call: openai for live calls, mock for local test output (never live model evidence).",
+  model_name: "Model identifier recorded for the call.",
+  prompt_version: "Version of the instructions sent with the call (feedback v8: formative-opening-v8.1+formative-conversation-v8.1).",
+  schema_version: "Output contract version (feedback v8: formative-feedback-v8).",
+  context_version: "Version of the conversation context sent to the model.",
+  call_status: "Outcome of the call: succeeded, invalid_output (output rejected by validation, after the allowed regeneration), failed (provider or transport failure), needs_review, or started (no outcome recorded).",
+  output_validated: "True when the application accepted the call's output after schema and content validation.",
+  "formative_conversation_llm_calls.retry_count": "Feedback v8 (schema_version formative-feedback-v8): one row per generation request; it holds up to two provider attempts (the first output and one regeneration after a rejected output or provider failure), and retry_count is the number of attempts after the first in this row; rejected drafts are in ai_call_audit.csv raw_output_json (restricted exports). A reply or opening retried after a terminal failure is a new row. Earlier runtimes: provider transport retries within the call.",
+  "formative_conversation_llm_calls.started_at": "When the call started (its creation time when no start was recorded).",
+  "formative_conversation_llm_calls.completed_at": "When the call finished; blank when no outcome was recorded.",
+  transition_public_id: "Public identifier of the validated profile transition.",
+  transition_version: "Version of the profile-transition record layout.",
+  prior_profile_created_at: "Creation time of the profile before the transition.",
+  updated_profile_created_at: "Creation time of the profile created by the transition.",
+  source_turn_sequence_index: "turn_sequence_index of the tutor message whose model output recommended the transition.",
+  source_agent_name: "AI role of the model call that recommended the transition.",
+  transitioned_at: "When the transition was recorded.",
+  intervention_public_id: "Public identifier of the intervention record.",
+  strategy_type: "Strategy the conversation agent started for the intervention.",
+  targeted_evidence_gap: "Evidence gap the intervention targeted, as written by the conversation agent.",
+  status: "Intervention status: active, completed or abandoned.",
+  "formative_conversation_interventions.started_at": "When the intervention started.",
+  "formative_conversation_interventions.completed_at": "When the intervention ended; blank while active or when no end time was recorded."
+};
+
+export function formativeConversationDataDictionaryRows() {
   const tables: Array<{
     dataset: string;
     columns: readonly string[];
@@ -2429,10 +2536,12 @@ function formativeConversationDataDictionaryRows() {
       participation_observation_version: "Deterministic participation-observation projection version; no satisfaction or learning judgment.",
       tutor_reply_count: "Number of persisted tutor messages in this conversation; saving does not establish display.",
       displayed_tutor_reply_count: "Distinct persisted tutor turn sequence indexes with a matching conversation_public_id and display-ack-v2 acknowledgement. Zero means no such observations, not no reading.",
-      first_tutor_display_received_at: "Earliest server receipt for a linked display-ack-v2 tutor acknowledgement; partial viewport display, not reading time.",
-      first_student_message_at: "Earliest persisted student turn created_at in this conversation; blank if no student message was recorded."
+      first_tutor_display_received_at: "Earliest server receipt for a linked display-ack-v2 acknowledgement (formative_feedback_shown) of a tutor message in this conversation, normally the opening: the first display of a tutor message to the student. Partial viewport display, not reading time; blank when none was recorded. Start of engaged_duration_ms.",
+      first_student_message_at: "Earliest persisted student turn created_at in this conversation (the student's first message); blank if no student message was recorded."
     };
     if (participationDefinitions[variable]) return participationDefinitions[variable];
+    const documented = FORMATIVE_CONVERSATION_DEFINITIONS[`${dataset}.${variable}`] ?? FORMATIVE_CONVERSATION_DEFINITIONS[variable];
+    if (documented) return documented;
     if ((variable.startsWith("profile_") || variable.endsWith("_profile_record_id") || variable.endsWith("confidence_alignment_scope")) && PROFILE_FIELD_DEFINITIONS[variable]) {
       return PROFILE_FIELD_DEFINITIONS[variable];
     }
@@ -2485,9 +2594,6 @@ function formativeConversationDataDictionaryRows() {
     if (variable === "failure_category") {
       return "Safe operational category recorded for a terminal formative response failure; it excludes raw provider errors and payloads.";
     }
-    if (variable === "retry_count") {
-      return "Persisted retry count applicable to the formative response lifecycle or agent call represented by the row.";
-    }
     if (variable === "conversation_local_turn_sequence_index") {
       return "One-based persisted turn-telemetry order within this formative conversation.";
     }
@@ -2510,19 +2616,16 @@ function formativeConversationDataDictionaryRows() {
       return "Whether the platform lifecycle can accept another unique formative student message.";
     }
     if (variable === "lifecycle_termination_source") {
-      return "Source of conversation closure, distinguishing an LLM terminal recommendation from a platform lifecycle handoff or student/session lifecycle action.";
+      return "Raw source label derived from the stored lifecycle reason: platform_lifecycle (platform handoff message), llm_terminal_recommendation (reason starting llm_terminal_recommendation:), student_or_session_lifecycle (any other stored reason), blank when none. The runtime also stores the turn-limit close as llm_terminal_recommendation:final_allowed_turn_terminal_recommendation_recorded, including for feedback v8, whose model never recommends ending: that value means the student reached the turn limit, not that the model ended the conversation. Open conversations carry their last pause or resume reason (student_or_session_lifecycle). Use end_reason for analysis.";
     }
     if (variable === "lifecycle_termination_reason") {
-      return "Typed lifecycle reason; it is operational provenance and not a learning-state judgment.";
+      return "Raw stored reason: the platform handoff reason code, otherwise the conversation's lifecycle_reason (for example student_ended_conversation, student_ended_attempt, llm_terminal_recommendation:final_allowed_turn_terminal_recommendation_recorded, platform_student_turn_limit_terminal_recommendation_unavailable, or student_paused / student_resumed on open conversations). Blank when no reason was stored (an open conversation never paused, including one left open when the attempt was finished). Operational provenance, not a learning-state judgment; use end_reason for analysis.";
     }
     if (variable === "semantic_teacher_assistance_recommended") {
       return "Whether a validated persisted LLM profile transition recommended teacher assistance.";
     }
     if (variable === "platform_lifecycle_handoff") {
       return "Public review-signal identifier for a platform turn-limit handoff; null when no such handoff occurred. This is not teacher_assistance_recommended.";
-    }
-    if (variable.includes("learning_profile")) {
-      return "Validated assessment-specific learning-profile category at the named point in the conversation.";
     }
     if (
       variable === "formative_outcome" ||
@@ -2576,13 +2679,7 @@ function formativeConversationDataDictionaryRows() {
       return "Validated evidence-sufficiency category associated with the named profile.";
     }
     if (variable === "wall_clock_duration_ms") {
-      return "Elapsed milliseconds from conversation start to completion, end, or latest recorded activity.";
-    }
-    if (variable.endsWith("_count")) {
-      return `Count of ${variable.replace(/_count$/, "").replaceAll("_", " ")} records linked to the conversation.`;
-    }
-    if (variable.endsWith("_at")) {
-      return `Timestamp for ${variable.replace(/_at$/, "").replaceAll("_", " ")} in the ${dataset.replaceAll("_", " ")} record.`;
+      return "Elapsed milliseconds from started_at, when the system created the conversation record (before the opening was generated or shown), to completion, end, or latest recorded activity. Includes opening generation, pauses and waits; for the student-facing span use engaged_duration_ms.";
     }
     if (variable.includes("token")) {
       return "Provider-reported token usage for the formative conversation agent call.";
@@ -2596,7 +2693,7 @@ function formativeConversationDataDictionaryRows() {
     if (variable === "event_source") {
       return "Component that directly recorded the observable event.";
     }
-    return `${variable.replaceAll("_", " ")} for one ${dataset.replaceAll("_", " ")} record.`;
+    throw new Error(`Undocumented formative conversation variable: ${dataset}.${variable}`);
   };
   const rows = tables.flatMap((table) =>
     table.columns.map((variable) => ({
@@ -2610,7 +2707,7 @@ function formativeConversationDataDictionaryRows() {
         table.phase === "profile_transition" ||
         /learning_profile|evidence_sufficiency/.test(variable)
           ? "validated_derived_interpretation"
-          : /wall_clock_duration|_count$/.test(variable)
+          : /wall_clock_duration|engaged_duration|_count$|^(end_reason|opening_status|student_participated|last_turn_at)$/.test(variable)
             ? "derived_from_persisted_observations"
             : "directly_recorded_observable_or_operational"),
       analysis_phase: table.phase,
@@ -2628,13 +2725,20 @@ function formativeConversationDataDictionaryRows() {
         paste_character_count: "Sum JavaScript clipboard plain-text .length over observed paste events; UTF-16 code units, not necessarily grapheme count.",
         final_message_length_chars: "JavaScript length of the accepted, trimmed student message; UTF-16 code units.",
         message_length_chars: "Stored telemetry length; fallback to persisted message_text.length, then 0 when text absent. UTF-16 code units.",
-        wall_clock_duration_ms: "Conversation endpoint (completed_at, else ended_at, else last_activity_at) minus started_at; includes pauses and system waits.",
+        wall_clock_duration_ms: "Conversation endpoint (completed_at, else ended_at, else last_activity_at) minus started_at (creation of the conversation record by the system); includes opening generation, pauses and system waits.",
+        engaged_duration_ms: "MAX(0, last_turn_at - start). start = MIN(first_tutor_display_received_at, first_student_message_at) when a display receipt exists, else the created_at of the first exported turn. Blank without turns.",
+        last_turn_at: "MAX(created_at) over the conversation's exported student and tutor turns.",
+        student_participated: "student_formative_turn_count > 0.",
+        end_reason: "Status active or paused: attempt completed (status completed, phase session_completed or completed_at) -> attempt_finished_while_active; attempt otherwise terminal (student_exited) -> attempt_ended_while_active; else still_active. Closed: lifecycle_reason student_ended_conversation -> student_ended; student_ended_attempt -> student_ended_attempt; starting llm_terminal_recommendation:final_allowed_turn or equal to platform_student_turn_limit_terminal_recommendation_unavailable -> turn_limit_reached; other platform_ reasons -> closed_by_system; otherwise other.",
+        opening_status: "Opening receipt (client_message_id assistant-opening:formative-conversation-opening-v3) or a turn with message_type formative_conversation_opening: saved opening turn -> delivered; no receipt -> not_requested; receipt status failed -> blocked when response_payload.retryable is false, else failed; reserved and unchanged for more than 6 minutes at export -> interrupted; otherwise pending.",
+        opening_failure_code: "Opening receipt failure_code, else its assistant_response_last_failure_category; blank without a receipt or failure.",
+        message_type: "structured_payload.message_type mapped: formative_conversation_opening -> opening, formative_conversation_tutor_message -> reply, formative_conversation_student_message -> student, formative_conversation_lifecycle_handoff -> lifecycle_handoff; other stored values copied; student turns without a stored type -> student.",
         observed_interval_duration_ms: "Copy explicitly provided interval; no inferred interval in the current browser emitter.",
         latency_ms: "Copy recorded provider-call latency; not end-to-end student-visible waiting.",
         turn_sequence_index: "Persisted global transcript sequence; join and order within session, not a duration.",
         conversation_local_turn_sequence_index: "Persisted one-based telemetry sequence within conversation; may differ from global transcript sequence.",
         conversation_local_event_sequence_index: "Persisted one-based lifecycle sequence within conversation; distinct from global export order.",
-        event_sequence_index: "Export ordering index; not a stable event identity across export scopes. Use event_public_id for deduplication.",
+        event_sequence_index: "Copy the stored database-wide event sequence; use it for ordering and event_public_id for deduplication.",
         assistant_response_retry_count: "Copy persisted retry count for the student's response receipt; a retry is not another student message."
       } as Record<string, string>)[variable] ?? "Copy the named persisted record/metadata or projection described in definition; no additional arithmetic in this export.",
       unit: variable.endsWith("_ms") ? "milliseconds" : variable.endsWith("_at") ? "UTC timestamp" : /_count$|_chars$/.test(variable) ? "count (see definition)" : "",

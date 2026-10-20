@@ -39,7 +39,7 @@ export const AI_CALL_AUDIT_DEFINITIONS: Record<string, string> = {
   validation_error: "Why validation rejected the output, when it did.",
   error_category: "Provider or runtime error category, when the call failed.",
   blocked_reason: "Why the application blocked the call before or after the provider, when it did.",
-  retry_count: "Provider retries within this call.",
+  retry_count: "Earlier attempts counted on this row; the meaning depends on the role. Interpretation v8 (schema_version student-interpretation-output-v8): each provider attempt, including each regeneration after rejected output, is its own row, and retry_count = attempt number - 1 (0 on the first attempt). Feedback v8 (schema_version formative-feedback-v8): one row per generation request holding up to two provider attempts (the first output and one regeneration after rejected output or a provider failure); retry_count = attempts after the first on this row, and rejected drafts are in raw_output_json. A feedback v8 reply or opening retried after a terminal failure is a new row. Other roles: provider retries within this call.",
   input_tokens: "Provider-reported input tokens.",
   output_tokens: "Provider-reported output tokens, including reasoning tokens.",
   latency_ms: "Provider round-trip time in milliseconds, when recorded.",

@@ -98,13 +98,51 @@ export function attemptComparisonExportFiles(input: { attempts: AttemptObservati
     chance_waived_at: "Logged technical restoration timestamp. Source attempt and evidence remain retained.",
     snapshot_at: "Repeatable-read database snapshot time. Latest refers to this snapshot, not a permanent final result.",
     option_counts_json: "Choice label counts across submitted responses; use item rows for diagnostic interpretation because labels differ across items.",
-    calculation_version: "Versioned deterministic attempt comparison rules shared with the dashboard."
+    calculation_version: "Versioned deterministic attempt comparison rules shared with the dashboard.",
+    assessment_public_id: "Public identifier of the mini-test version; comparisons never cross versions.",
+    session_public_id: "Public identifier of the attempt; joins sessions.csv.",
+    session_status: "Stored attempt status at the snapshot: not_started, active, paused, completed, student_exited or needs_review. Comparison eligibility depends on initial_submitted_at, not on this status.",
+    started_at: "When the attempt started (its creation time when no start was recorded).",
+    chance_policy_version: "Attempt-chance policy recorded for the attempt; blank when the attempt has no chance record.",
+    "attempt_records.csv:response_count": "Number of item rows of this attempt in attempt_submission_items.csv: items of the first sealed initial package of each topic (transfer items excluded); also counted for incomplete attempts.",
+    "attempt_class_summaries.csv:response_count": "Number of submitted item responses across the attempts selected for this view; denominator of option_counts_json and confidence_counts_json.",
+    item_public_id: "Public identifier of the item; the same across item versions (see item_version and item_snapshot_key).",
+    item_version: "Item version recorded in the sealed package; blank when not recorded (such items are never paired).",
+    learning_objective: "Objective of the item as sealed: the item's knowledge component, else the topic's learning objective, else the topic title, else Unspecified objective.",
+    first_reasoning: "First explanation the student submitted for the item, as recorded in the sealed package (reasoning_text_initial), before later edits; blank if not recorded.",
+    reasoning: "Explanation at initial submission from the sealed package (final review edits included), before feedback; later tutoring revisions are not included.",
+    evidence_source: "Always sealed_initial_package: values come from the first sealed initial response package of each topic, never from current editable responses.",
+    from_session_public_id: "Attempt at the start of the pair (attempt 1 for 1-2, 1-3 and first-latest; attempt 2 for 2-3).",
+    to_session_public_id: "Attempt at the end of the pair (attempt 2, 3, or the latest eligible attempt for first-latest).",
+    from_attempt_number: "attempt_number of from_session_public_id.",
+    to_attempt_number: "attempt_number of to_session_public_id.",
+    from_selected_option: "Option selected at initial submission in the earlier attempt for this item_snapshot_key.",
+    to_selected_option: "Option selected at initial submission in the later attempt for this item_snapshot_key.",
+    from_confidence: "Confidence at initial submission in the earlier attempt.",
+    to_confidence: "Confidence at initial submission in the later attempt.",
+    from_reasoning: "Explanation at initial submission in the earlier attempt.",
+    to_reasoning: "Explanation at initial submission in the later attempt.",
+    elapsed_between_submissions_ms: "Milliseconds from the earlier attempt's initial_submitted_at to the later attempt's (attempt-level submission times). Includes all time between attempts; not time on task.",
+    view: "Attempt selection: 1, 2 or 3 is each student's eligible attempt with that attempt_number; latest is each student's latest eligible attempt (full initial submission, not waived), so one attempt can appear in several views.",
+    student_count: "Students with an eligible attempt in this view (one attempt per student).",
+    incomplete_attempt_count: "Attempts on this mini-test version in the export scope without a full sealed initial submission; the same on every view row.",
+    confidence_counts_json: "Counts of confidence at initial submission (low, medium, high, or Not recorded) across the responses in this view.",
+    correctness: "correct or incorrect as sealed in the package (selected option compared with the attempt's correct-option snapshot); blank when not scored. Restricted field.",
+    correctness_change: "Earlier-to-later correctness for the pair (for example incorrect_to_correct); unscored when either side has no correctness. Restricted field.",
+    correct_count: "Responses scored correct in this view. Restricted field.",
+    scored_response_count: "Responses scored correct or incorrect in this view; denominator of correct_percentage. Restricted field.",
+    confidence_scored_count: "Scored responses with low, medium or high confidence; denominator for high_confidence_incorrect_count. Restricted field."
+  };
+  const describe = (path: string, column: string) => {
+    const definition = descriptions[`${path}:${column}`] ?? descriptions[column];
+    if (!definition) throw new Error(`Undocumented attempt comparison variable: ${path}.${column}`);
+    return definition;
   };
   return [...tables.map(table => ({ path: table.path, data: researchCsv(table.rows.map(row => ({ ...row,
     calculation_version: ATTEMPT_COMPARISON_VERSION, snapshot_at: input.snapshot_at, cohort_scope: input.scope })),
     [...table.columns, ...metadata]) })),
     { path: "attempt_data_dictionary.csv", data: researchCsv(tables.flatMap(table => [...table.columns, ...metadata].map(column => ({
-      dataset: table.path, column, definition: descriptions[column] ?? column.replaceAll("_", " "),
+      dataset: table.path, column, definition: describe(table.path, column),
       missing_values: "Blank means unavailable or not applicable; never automatically zero.",
       restriction: [...restrictedMetrics, "correctness", "correctness_change"].includes(column) ? "restricted_research_only" : "standard_research"
     })))) },
