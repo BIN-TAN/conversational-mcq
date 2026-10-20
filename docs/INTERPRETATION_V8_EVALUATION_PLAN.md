@@ -173,6 +173,37 @@ Live steps read `.env.local`, which needs `LLM_PROVIDER=openai`, `LLM_LIVE_CALLS
 7. **Read feedback messages.** One person fills in `feedback-reading-sheet.csv` (20 messages) in the same folder.
 8. **Decide.** If every criterion passes and no message misstates the student, run `npm run eval:v8 -- hashes` and set the printed approval hashes in the production environment. If anything fails, revise as described under Reading the results and repeat from step 5 in a new folder (`decision-2`). Earlier reports are kept as the record.
 
+## Fallback: causes, safeguards and measurement
+
+A fallback profile has no ratings and no claims, so every fallback weakens the assessment for that student. The system now saves one only when the model gives no usable rating at all.
+
+| Cause | What the system does now |
+| --- | --- |
+| The prompt's approval hash is not set | Every submission is a fallback until `INTERPRETATION_V8_APPROVED_PROMPT_HASH` is set. This is the largest cause, and it ends when the evaluation passes. |
+| A transient provider failure (rate limit, timeout, network, server error) | The call waits and retries once. If it fails again, the preparation job tries again later with backoff, and only its last attempt saves a fallback. |
+| A mechanical slip in the output | Fixed rules repair it without changing what the output claims: a quote with "…" is cut to the student's exact words, a short quote grows to its sentence, a missing error source becomes "unclear", and the option-text flag is computed. Every repair is recorded. |
+| An output that still fails after one regeneration | Only the failing parts are removed. A failing claim is dropped, a failing note is cleared, and a failing item is left unrated (it counts as not interpretable). A fallback is saved only when no item keeps a rating. |
+| A check that fires on ordinary course wording | The wording checks now catch only statements about the student's conduct, effort, independence or tool use. Phrases such as "independent of the group", "test-taking motivation" and "a common misconception is…" pass. |
+
+These checks are never loosened:
+
+- an invented quote, meaning one that is not the student's words and does not paraphrase them;
+- a misconception claimed from a choice, a rejected idea, a question or process data;
+- process data, or wording about misconduct, tool use, independence or character, in text that instructors or students read;
+- internal labels shown to students.
+
+The evaluation reports, for every run:
+
+- **Fallback:** the rate with its 95% interval, and the reasons. Transient failures are retried as the job would retry them before they count.
+- **Salvage:** salvaged outputs, unrated items and dropped claims.
+- **Repairs:** each repair, by code.
+- **Rejections:** the rejection codes.
+- **Label use:** a table of how often each label was planned and how often the model used it, for explanation quality, error source, item status and the summary label.
+
+A shift of more than 10 percentage points against the plan, such as complete explanations rated limited, is examined situation by situation.
+
+The live runs are done by Codex on the researcher's computer, following `docs/CODEX_LIVE_EVALUATION_PROMPT.md`. Its strictness review sorts every rejection into three kinds: correct, a false rejection, or a repairable slip. It may narrow a pattern only when that pattern caught course wording, and it may add a repair only for a slip that cannot change what an output claims.
+
 ## Measures and go-live criteria
 
 Go-live needs every criterion below to pass on the decision run, scored against the resolved reference.
@@ -194,6 +225,7 @@ Go-live needs every criterion below to pass on the decision run, scored against 
 | Feedback: expected instructor flag raised | ≥ 90% of runs | Flag in the expected set |
 | Feedback: question limit, false "corrected" | 0 | Question marks over the case's limit; an echo or bare answer recorded as corrected reasoning |
 | Feedback reading | No message misstates what the student answered or wrote | One reader, 20 messages |
+| Items left without a rating by salvage | ≤ 5% of item responses | Items whose rating failed the checks in an output that was otherwise kept |
 
 **How claims are matched.** A model's misconception matches an expected one when it names the same item and contradicts that item's target reasoning, its essential elements or the topic. A claim that names several items counts once for each item.
 
