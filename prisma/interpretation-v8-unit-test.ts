@@ -352,6 +352,11 @@ async function main() {
     assert.equal(placeholders.output.items[0].missing_elements, "One or more essential elements are not stated.", "A limited rating still names what is missing");
     assert.ok(placeholders.repairs.filter((repair) => repair.code === "placeholder_text_cleared").length >= 3);
     assert.deepEqual(validateInterpretationOutputV8(built, placeholders.output), []);
+    for (const decorated of [":null,", ">null", "(none)", "'null'", " N/A. "]) {
+      assert.equal(repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], side_remark: decorated }] }).output.items[0].side_remark, null, decorated);
+    }
+    const nullHypothesis = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], side_remark: "States that the null hypothesis is proven." }] });
+    assert.equal(nullHypothesis.output.items[0].side_remark, "States that the null hypothesis is proven.");
     const real = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], side_remark: "None of the options mention spread." }] });
     assert.equal(real.output.items[0].side_remark, "None of the options mention spread.");
   });

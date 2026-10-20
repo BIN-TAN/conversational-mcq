@@ -168,11 +168,13 @@ function neutralCopyWording(text: string | null) {
 }
 
 /**
- * Text that stands for "nothing" in an optional field ("null", "none", "n/a", "." or ":").
+ * Text that stands for "nothing" in an optional field ("null", "none", "n/a", "." or ":"),
+ * also wrapped in punctuation (":null,", ">null", "(none)").
  * Clearing it to null changes nothing the output claims.
  */
 export function isPlaceholderText(value: string | null) {
-  return value !== null && /^\s*(?:null|none|nil|undefined|n\/?a|not applicable|[-–—.:;,]*)\s*\.?\s*$/i.test(value);
+  // Decorated forms seen in live runs (":null,", ">null", "(none)") count as well.
+  return value !== null && /^[\s:;,.>\-–—"'()[\]]*(?:null|none|nil|undefined|n\/?a|not applicable)?[\s:;,.>\-–—"'()[\]]*$/i.test(value);
 }
 
 export function repairInterpretationOutputV8(input: InterpretationInputV8, original: InterpretationOutputV8): {
