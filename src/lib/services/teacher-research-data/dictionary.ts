@@ -3,6 +3,19 @@ import { processEventTypes } from "@/lib/domain/enums";
 import { PROFILE_PROVENANCE_COLUMNS, PROFILE_EVIDENCE_COLUMNS, PROFILE_FIELD_DEFINITIONS } from "@/lib/services/student-assessment/profile-record";
 import { measurementAvailability } from "./measurement-availability";
 import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
+import {
+  INTERPRETATION_V8_MEASUREMENT_LEVELS,
+  INTERPRETATION_V8_PROFILE_COLUMNS,
+  INTERPRETATION_V8_RESTRICTED_COLUMNS,
+  INTERPRETATION_V8_RESTRICTED_TABLES,
+  INTERPRETATION_V8_ROW_FUNCTIONS,
+  INTERPRETATION_V8_TABLE_COLUMNS,
+  INTERPRETATION_V8_TABLES,
+  ITEM_ADMINISTRATION_V4_COLUMNS,
+  interpretationV8ColumnDoc,
+  interpretationV8LegacyNote,
+  type InterpretationV8Table
+} from "./interpretation-v8-dictionary";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
@@ -16,7 +29,8 @@ export const RESEARCH_DATASET_TABLES = [
   "conversation_turns",
   "agent_activity_records",
   "assessment_content",
-  "assessment_summary"
+  "assessment_summary",
+  ...INTERPRETATION_V8_TABLES
 ] as const;
 
 export const ANALYSIS_READY_TABLES = RESEARCH_DATASET_TABLES;
@@ -149,6 +163,7 @@ export const SESSIONS_COLUMNS = [
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
   ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
+  ...INTERPRETATION_V8_PROFILE_COLUMNS,
   "evidence_sufficiency",
   "interpretation_limitations",
   "unsupported_correct_response_count",
@@ -245,6 +260,7 @@ export const ITEM_RESPONSES_COLUMNS = [
   "procedural_clarification_count",
   "content_question_count",
   "invalid_help_request_count",
+  ...ITEM_ADMINISTRATION_V4_COLUMNS,
   "reasoning_quality_signal",
   "observed_evidence_summary",
   "misconception_hypothesis",
@@ -380,6 +396,7 @@ export const AGENT_ACTIVITY_RECORDS_COLUMNS = [
   "engagement_category",
   "response_profile",
   "initial_profile_transfer_rule",
+  ...INTERPRETATION_V8_PROFILE_COLUMNS,
   "diagnostic_purpose",
   "formative_value",
   "selected_strategy",
@@ -463,6 +480,7 @@ export const ASSESSMENT_SUMMARY_COLUMNS = [
   "latest_student_safe_status",
   ...UNDERSTANDING_SUMMARY_COLUMNS,
   ...CONVERSATION_UPDATE_SUMMARY_COLUMNS,
+  ...INTERPRETATION_V8_PROFILE_COLUMNS,
   "assessment_specific_understanding_category",
   "reasoning_quality_category",
   "confidence_calibration_category",
@@ -611,7 +629,8 @@ const TABLE_COLUMNS: Record<AnalysisReadyTableName, readonly string[]> = {
   conversation_turns: CONVERSATION_TURNS_COLUMNS,
   agent_activity_records: AGENT_ACTIVITY_RECORDS_COLUMNS,
   assessment_content: ASSESSMENT_CONTENT_COLUMNS,
-  assessment_summary: ASSESSMENT_SUMMARY_COLUMNS
+  assessment_summary: ASSESSMENT_SUMMARY_COLUMNS,
+  ...INTERPRETATION_V8_TABLE_COLUMNS
 };
 
 export const DATA_DICTIONARY_PAGE_SIZES = [25, 50, 100, 250, 500] as const;
@@ -659,8 +678,8 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     inclusion_criteria: "Pseudonymous student, assessment, session, item, snapshot, package, export, and dictionary identifiers required for analysis joins.",
     exclusion_criteria: "Login usernames, emails, internal database IDs, credential fields, and unrestricted linkage data.",
     typical_measurement_levels: "student, assessment, session, item, export",
-    included_datasets: "sessions; item_responses; process_events; conversation_turns; agent_activity_records; assessment_content; assessment_summary",
-    examples_of_data_collected: "research_student_id, assessment_public_id, session_public_id, item_public_id, snapshot identifiers, pseudonymization version",
+    included_datasets: "sessions; item_responses; process_events; conversation_turns; agent_activity_records; assessment_content; assessment_summary; interpretation v8 files",
+    examples_of_data_collected: "research_student_id, assessment_public_id, session_public_id, item_public_id, snapshot identifiers, pseudonymization version, profile_record_id, research_instructor_id",
     interpretation_boundaries: "Identifiers support linkage and reproducibility only; they are not substantive outcomes.",
     display_order: 1
   },
@@ -731,8 +750,8 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     inclusion_criteria: "Understanding category, reasoning quality signal, misconception hypothesis, confidence calibration, evidence sufficiency, guessing-risk interpretation, and limitations.",
     exclusion_criteria: "Raw provider output, hidden prompts, token accounting, and trait-like aggregate learner profiles.",
     typical_measurement_levels: "session, item response, diagnostic snapshot",
-    included_datasets: "sessions; item_responses; agent_activity_records; assessment_summary",
-    examples_of_data_collected: "assessment_specific_understanding_category, misconception_hypothesis, evidence_sufficiency, estimated_guessing_risk, interpretation_limitations",
+    included_datasets: "sessions; item_responses; agent_activity_records; assessment_summary; interpretation_item_ratings; interpretation_claims; interpretation_summaries; interpretation_process_audit; feedback_turn_records; item_review_decisions",
+    examples_of_data_collected: "assessment_specific_understanding_category, misconception_hypothesis, evidence_sufficiency, estimated_guessing_risk, interpretation_limitations; for interpretation v8: explanation_quality, item_status, stored_label, label_with_decisions, possible misconceptions and turn records",
     interpretation_boundaries: "These are provisional diagnostic interpretations, not confirmed traits, misconduct findings, or complete learning claims.",
     display_order: 7
   },
@@ -1024,7 +1043,8 @@ const RESTRICTED_COLUMNS = new Set([
   "teacher_llm_media_description",
   "target_reasoning_note",
   "strong_reasoning_note",
-  "distractor_diagnostic_notes"
+  "distractor_diagnostic_notes",
+  ...INTERPRETATION_V8_RESTRICTED_COLUMNS
 ]);
 
 const SENSITIVE_TEXT_COLUMNS = new Set([
@@ -1096,6 +1116,7 @@ const AGENT_ACTIVITY_APPLICABILITY: Record<string, string> = {
   engagement_category: "profile_result",
   response_profile: "profile_result",
   initial_profile_transfer_rule: "profile_result",
+  ...Object.fromEntries(INTERPRETATION_V8_PROFILE_COLUMNS.map((column) => [column, "profile_result"])),
   diagnostic_purpose: "formative_activity; post_activity_evidence; diagnostic_snapshot",
   formative_value: "formative_decision",
   selected_strategy: "formative_decision",
@@ -1854,6 +1875,9 @@ function interpretationCaution(variable: string) {
   if (/reasoning_quality_signal|correctness_support_level|estimated_guessing_risk|answer_selection_evidence_weight/.test(variable)) {
     return "Interpretive evidence-quality signal; not a directly observed fact, not confirmed guessing, not a stable trait, not a student-facing label, and not ground truth.";
   }
+  if (variable === "profile_native_confidence_alignment") {
+    return "LLM-derived confidence-alignment category from a validated profile; not a directly observed fact, not a stable trait, and not ground truth.";
+  }
   if (/misconception|guessing/i.test(variable)) return "Inferred hypothesis; not confirmed misconception or confirmed guessing, not a stable trait, and not ground truth.";
   if (LLM_INTERPRETIVE_COLUMNS.has(variable)) return "LLM-derived interpretive signal; not a directly observed fact, not a stable trait, and not ground truth.";
   if (/engagement/i.test(variable)) return "Evidence-quality signal; not a motivation, effort, cheating, or misconduct label.";
@@ -2220,6 +2244,7 @@ function measurementLevel(table: string, variable: string) {
     return "agent_call";
   }
   if (table === "assessment_content") return variable.startsWith("assessment_") ? "assessment" : "item";
+  if (isInterpretationV8Table(table)) return INTERPRETATION_V8_MEASUREMENT_LEVELS[table];
   return "not_applicable";
 }
 
@@ -2295,6 +2320,9 @@ function allowedValues(variable: string) {
 }
 
 function sourceServiceOrFunction(table: string, variable: string) {
+  if (isInterpretationV8Table(table) && !/^research_student_id$|pseudonym|research_instructor_id/.test(variable)) {
+    return INTERPRETATION_V8_ROW_FUNCTIONS[table];
+  }
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "profileRecordProvenance; profileEvidenceCounts";
   }
@@ -2311,12 +2339,19 @@ function sourceServiceOrFunction(table: string, variable: string) {
     conversation_turns: "conversationRows",
     agent_activity_records: "agentAndActivityRows",
     assessment_content: "assessmentContentRows",
-    assessment_summary: "assessmentSummaryRows"
+    assessment_summary: "assessmentSummaryRows",
+    ...INTERPRETATION_V8_ROW_FUNCTIONS
   };
   return functions[table] ?? "analysis-ready export service";
 }
 
 function sourceCodeReference(table: string, variable: string) {
+  if (isInterpretationV8Table(table) && !/^research_student_id$|pseudonym|research_instructor_id/.test(variable)) {
+    return `src/lib/services/teacher-research-data/interpretation-v8-export.ts:${INTERPRETATION_V8_ROW_FUNCTIONS[table]}`;
+  }
+  if (table === "item_review_decisions" && variable === "research_instructor_id") {
+    return "src/lib/services/teacher-research-data/pseudonymization.ts:researchInstructorId";
+  }
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "src/lib/services/student-assessment/profile-record.ts";
   }
@@ -2333,7 +2368,9 @@ function sourceCodeReference(table: string, variable: string) {
     conversation_turns: "src/lib/services/teacher-research-data/analysis-ready-export.ts:conversationRows",
     agent_activity_records: "src/lib/services/teacher-research-data/analysis-ready-export.ts:agentAndActivityRows",
     assessment_content: "src/lib/services/teacher-research-data/analysis-ready-export.ts:assessmentContentRows",
-    assessment_summary: "src/lib/services/teacher-research-data/analysis-ready-export.ts:assessmentSummaryRows"
+    assessment_summary: "src/lib/services/teacher-research-data/analysis-ready-export.ts:assessmentSummaryRows",
+    ...Object.fromEntries(Object.entries(INTERPRETATION_V8_ROW_FUNCTIONS).map(([name, fn]) =>
+      [name, `src/lib/services/teacher-research-data/interpretation-v8-export.ts:${fn}`]))
   };
   return references[table] ?? "src/lib/services/teacher-research-data/analysis-ready-export.ts";
 }
@@ -2382,6 +2419,81 @@ function replacementVariable(table: string, variable: string) {
   return replacements[`${table}.${variable}`] ?? "";
 }
 
+function isInterpretationV8Table(table: string): table is InterpretationV8Table {
+  return (INTERPRETATION_V8_TABLES as readonly string[]).includes(table);
+}
+
+/**
+ * Interpretation v8 files, the v8 columns on existing rows and the item administration v4
+ * columns carry their own documentation (interpretation-v8-dictionary.ts); legacy columns
+ * that are blank for v8 profiles or read differently for v4 records get an appended note.
+ */
+function withInterpretationV8Documentation(entry: DataDictionaryEntry, table: string, variable: string): DataDictionaryEntry {
+  const doc = interpretationV8ColumnDoc(table, variable);
+  const note = interpretationV8LegacyNote(table, variable);
+  const v8Table = isInterpretationV8Table(table);
+  if (!doc && !note && !v8Table) return entry;
+  const next: DataDictionaryEntry = { ...entry };
+  if (doc) {
+    const researchCategoryId = (doc.research_category_id ?? entry.research_category_id) as ResearchCategoryId;
+    const llm = doc.source_nature === "persisted_llm_interpretation";
+    Object.assign(next, {
+      definition: doc.definition,
+      collection_or_generation_method: doc.method,
+      source_nature: doc.source_nature,
+      data_type: doc.data_type ?? entry.data_type,
+      unit: doc.unit ?? entry.unit,
+      allowed_values: doc.allowed_values ?? entry.allowed_values,
+      substantive_category: doc.category ?? (researchCategoryId === "diagnostic_interpretations"
+        ? "Diagnostic and interpretation outputs" : entry.substantive_category),
+      research_category_id: researchCategoryId,
+      research_category_display_name: categoryDisplayName(researchCategoryId),
+      documentation_tier: doc.tier ?? entry.documentation_tier,
+      privacy_level: doc.privacy ?? entry.privacy_level,
+      audience: doc.audience ?? entry.audience,
+      export_policy: doc.export_policy ?? entry.export_policy,
+      interpretation_caution: doc.caution ?? entry.interpretation_caution,
+      interpretation_guidance: doc.guidance ?? (llm || doc.source_nature === "deterministic_derived"
+        ? "Use as assessment-context evidence requiring human interpretation; do not treat it as a stable trait or ground truth."
+        : entry.interpretation_guidance),
+      generating_agent: llm ? doc.generating_agent ?? entry.generating_agent : "",
+      generating_schema_version: llm ? doc.generating_schema_version ?? entry.generating_schema_version : "",
+      applicable_record_types: doc.applicable ?? entry.applicable_record_types,
+      calculation_formula: doc.timing?.formula ?? doc.formula ?? entry.calculation_formula,
+      false_value_meaning: doc.data_type === "boolean"
+        ? "False means the condition was explicitly evaluated and did not hold for this row; blank means it was not evaluated."
+        : doc.data_type && doc.data_type !== "boolean" ? "Not a Boolean field." : entry.false_value_meaning,
+      ...(doc.timing ? {
+        timing_construct: doc.timing.construct,
+        timing_start_event: doc.timing.start,
+        timing_end_event: doc.timing.end,
+        idle_time_handling: doc.timing.idle,
+        page_hidden_handling: doc.timing.hidden
+      } : {})
+    });
+  }
+  if (v8Table) {
+    next.missing_value_meaning = "Blank means the value does not apply to this row or was not recorded (for example a fallback profile has no ratings, a considered idea has no endorsement, an opening message has no focus status). Never read blank as zero or false.";
+    next.not_applicable_condition = table === "item_review_decisions"
+      ? "Not applicable to items no instructor has reviewed; they have no rows."
+      : table === "feedback_turn_records"
+        ? "Not applicable to conversations before feedback v8 (no turn records were produced); their outputs remain in formative_conversation_llm_calls.csv."
+        : "Not applicable to profiles saved before interpretation v8, which have no rows in this file; use their legacy profile columns.";
+    next.attempt_policy = "Attempts remain separate by session_public_id, attempt_number and attempt_role; first attempts (initial diagnosis) and later attempts (after feedback) are never merged.";
+    if ((INTERPRETATION_V8_RESTRICTED_TABLES as readonly string[]).includes(table)) {
+      next.export_policy = "restricted_research_dataset_only";
+      next.audience = "restricted_researcher; audit only, never shown to instructors or students";
+      next.documentation_tier = "supplementary_research";
+      next.notes = "Restricted exports only. Model input and output kept for audit (section 6 of the redesign): never shown to instructors or students.";
+    }
+  }
+  if (note) {
+    next.definition = `${next.definition} ${note}`;
+    next.notes = next.notes ? `${next.notes} ${note}` : note;
+  }
+  return next;
+}
+
 export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
   const entries: DataDictionaryEntry[] = [];
   for (const [tableName, columns] of Object.entries(TABLE_COLUMNS)) {
@@ -2390,7 +2502,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
       const replacement = replacementVariable(tableName, variable);
       const deprecated = Boolean(replacement);
       const researchCategoryId = researchCategoryIdFor(tableName, variable);
-      entries.push({
+      entries.push(withInterpretationV8Documentation({
         entity_type: "research_variable",
         qualified_name: `${tableName}.${variable}`,
         dataset_name: tableName,
@@ -2459,7 +2571,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
           : deprecated
             ? "Legacy or compatibility column retained for backward compatibility; use replacement_variable for the current analysis construct."
           : ""
-      });
+      }, tableName, variable));
     }
   }
 

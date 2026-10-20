@@ -121,6 +121,24 @@ export function assertResearchPseudonymizationReadyForExport(env: NodeJS.Process
   researchPseudonymizationMetadata(env);
 }
 
+/**
+ * Pseudonymous instructor identifier for instructor-authored research records (item review
+ * decisions). Same key and version as researchStudentId, separate namespace and prefix, so
+ * an instructor and a student never share a pseudonym.
+ */
+export function researchInstructorId(userId: string, env: NodeJS.ProcessEnv = process.env) {
+  const version = effectiveVersion(env);
+  if (version === RESEARCH_PSEUDONYMIZATION_LEGACY_VERSION) {
+    return `ri_${createHash("sha256").update(`research_instructor_id:v1:${userId}`).digest("hex").slice(0, 20)}`;
+  }
+  const { key } = resolvedKey(env);
+  const digest = createHmac("sha256", key)
+    .update(`research_instructor_id:hmac_sha256_v1:${canonicalOperationalUserIdentifier(userId)}`)
+    .digest("hex")
+    .slice(0, 20);
+  return `ri_${digest}`;
+}
+
 export function researchStudentId(userId: string, env: NodeJS.ProcessEnv = process.env) {
   const version = effectiveVersion(env);
   if (version === RESEARCH_PSEUDONYMIZATION_LEGACY_VERSION) return legacyResearchStudentId(userId);
