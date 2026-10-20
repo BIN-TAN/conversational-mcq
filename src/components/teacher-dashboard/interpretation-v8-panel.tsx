@@ -128,8 +128,7 @@ export function InterpretationV8Panel({ data, onOpenItemReview }: { data: V8Dash
           <h2 className="text-xl font-semibold text-ualberta-green-dark">Interpretation of submitted responses</h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
             Item ratings come from each student&apos;s own words; labels are computed from them by fixed rules. Possible
-            misconceptions are listed separately and never folded into a label. Engagement labels are not produced;
-            recorded process data stay on each session page.
+            misconceptions are listed separately and never folded into a label.
           </p>
         </div>
         {data.items_awaiting_review > 0 ? (
@@ -144,7 +143,7 @@ export function InterpretationV8Panel({ data, onOpenItemReview }: { data: V8Dash
         <GroupSummary title="Change after feedback (later attempts)" description="Each student's latest attempt submitted after seeing feedback on an earlier one." group={data.later_attempts} />
       </div>
       <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
-        <h3 className="text-lg font-semibold text-ualberta-green-dark">After the conversation</h3>
+        <h3 className="text-lg font-semibold text-ualberta-green-dark">Formative conversations</h3>
         <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <div><dt className="text-muted">Conversations held</dt><dd className="text-lg font-semibold text-ink">{conversations.conversations_held}</dd></div>
           <div><dt className="text-muted">Student replies</dt><dd className="text-lg font-semibold text-ink">{conversations.student_turns}</dd></div>

@@ -57,7 +57,8 @@ function assertDashboardSurface() {
     "Average elapsed time",
     "Median elapsed time",
     "Response-time data available for",
-    "Understanding overview",
+    "Initial understanding overview",
+    "Latest understanding overview",
     "Item-level diagnostic view",
     "Candidate misconception patterns",
     "response patterns",
@@ -190,11 +191,14 @@ function assertDashboardSurface() {
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
   }
   assertIncludes(client, "Evidence behind these labels", "Understanding evidence disclosure");
-  // D12: the understanding label always comes from the mini-test profile; conversation
-  // updates are counted separately and shown in their own "After the conversation" card.
-  assertIncludes(client, "Updated during the conversation", "Understanding profile stage counts");
-  assertIncludes(client, "After the conversation", "Conversation update card");
-  assertIncludes(service, "conversation_update_distribution", "Conversation update distribution");
+  // D12: the understanding label always comes from the mini-test profile. The dashboard shows
+  // each student's first submitted attempt and most recent submitted attempt (20 Oct 2026);
+  // conversation-recommended updates stay in the research export, not on the dashboard.
+  assertExcludes(client, "After the conversation", "Teacher assessment dashboard client");
+  assertExcludes(client, "Updated during the conversation", "Teacher assessment dashboard client");
+  assertIncludes(service, "initial_understanding_distribution", "Initial understanding distribution");
+  assertIncludes(service, "firstSubmittedByStudent", "Initial understanding uses the first submitted attempt");
+  assertIncludes(service, "conversation_update_distribution", "Conversation update distribution kept for the dashboard CSV");
   assertIncludes(service, "miniTestProfile(", "Understanding label source");
 }
 

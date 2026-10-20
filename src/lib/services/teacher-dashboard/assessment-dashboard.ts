@@ -172,7 +172,12 @@ export type TeacherAssessmentDashboard = {
   status_distribution: ChartDatum[];
   detailed_status_distribution: ChartDatum[];
   progress_chart: ChartDatum[];
+  /** Latest understanding: the label of each student's most recent submitted attempt. */
   understanding_distribution: ChartDatum[];
+  /** Initial understanding: the label of each student's first submitted attempt (before any feedback). */
+  initial_understanding_distribution: ChartDatum[];
+  /** Students whose latest submitted attempt is a later attempt (so initial and latest can differ). */
+  students_with_later_attempt: number;
   understanding_basis: {
     version: typeof UNDERSTANDING_SUMMARY_VERSION;
     baseline_count: number;
@@ -836,6 +841,9 @@ function dashboardCsvRows(dashboard: TeacherAssessmentDashboard) {
   for (const row of dashboard.detailed_status_distribution) {
     rows.push({ row_type: "detailed_status_distribution", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
+  for (const row of dashboard.initial_understanding_distribution) {
+    rows.push({ row_type: "initial_understanding", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
+  }
   for (const row of dashboard.understanding_distribution) {
     rows.push({ row_type: "assessment_specific_understanding", assessment_public_id: assessmentId, assessment_title: assessmentTitle, ...row });
   }
@@ -1078,6 +1086,8 @@ export async function getTeacherAssessmentDashboard(input: {
       detailed_status_distribution: [],
       progress_chart: [],
       understanding_distribution: [],
+      initial_understanding_distribution: [],
+      students_with_later_attempt: 0,
       understanding_basis: { version: UNDERSTANDING_SUMMARY_VERSION, baseline_count: 0, updated_count: 0, unavailable_count: 0 },
       conversation_update_distribution: [],
       engagement_distribution: [],
@@ -1142,6 +1152,15 @@ export async function getTeacherAssessmentDashboard(input: {
   } })), chanceRecords);
   const selected = selectSubmittedAttempts(observations, "latest");
   const submittedByStudent = new Map(selected.map(row => [row.student_key, row]));
+  // First submitted (non-waived) attempt per student: the initial diagnosis, before any feedback.
+  const firstSubmittedByStudent = new Map<string, (typeof observations)[number]>();
+  for (const observation of observations) {
+    if (!observation.submitted_at || observation.chance_waived_at) continue;
+    const current = firstSubmittedByStudent.get(observation.student_key);
+    if (!current || new Date(observation.submitted_at).getTime() < new Date(current.submitted_at!).getTime()) {
+      firstSubmittedByStudent.set(observation.student_key, observation);
+    }
+  }
   const resultAttempts = attempts.map(attempt => {
     const observation = submittedByStudent.get(attempt.student_key);
     const source = observation && sessions.find(session => session.session_public_id === observation.session_public_id);
@@ -1176,6 +1195,16 @@ export async function getTeacherAssessmentDashboard(input: {
   const understandingValues = resultAttempts.map((attempt) =>
     attempt.session ? understandingCategoryFromProfile(miniTestProfile(attempt.session), itemDecisions) : "Unavailable / insufficient evidence"
   );
+  const initialUnderstandingValues = attempts.map((attempt) => {
+    const first = firstSubmittedByStudent.get(attempt.student_key);
+    const source = first && sessions.find(session => session.session_public_id === first.session_public_id);
+    return source ? understandingCategoryFromProfile(miniTestProfile(source), itemDecisions) : "Unavailable / insufficient evidence";
+  });
+  const studentsWithLaterAttempt = attempts.filter((attempt) => {
+    const first = firstSubmittedByStudent.get(attempt.student_key);
+    const latest = submittedByStudent.get(attempt.student_key);
+    return Boolean(first && latest && first.session_public_id !== latest.session_public_id);
+  }).length;
   // Interpretation v8: first attempts and later attempts, summarised separately.
   const eligibleKeys = new Set(eligible.keys);
   const v8Entries: V8StudentEntry[] = sessions.flatMap((session) => {
@@ -1282,6 +1311,8 @@ export async function getTeacherAssessmentDashboard(input: {
       ),
       totalStudents
     ),
+    initial_understanding_distribution: chart(countBy(initialUnderstandingValues, UNDERSTANDING_LABELS), totalStudents),
+    students_with_later_attempt: studentsWithLaterAttempt,
     understanding_basis: {
       version: UNDERSTANDING_SUMMARY_VERSION,
       baseline_count: understandingStages.filter(stage => stage === "baseline").length,

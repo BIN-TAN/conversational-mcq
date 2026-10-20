@@ -80,13 +80,14 @@ function ChartCard({
   data,
   sampleSize,
   tone,
-  understandingBasis
+  understanding
 }: {
   title: string;
   data: ChartDatum[];
   sampleSize: number;
   tone?: "green" | "gold" | "slate";
-  understandingBasis?: TeacherAssessmentDashboard["understanding_basis"];
+  /** Which submitted attempt the understanding labels come from. */
+  understanding?: { basis: "initial" | "latest"; studentsWithLaterAttempt: number };
 }) {
   return (
     <section className="h-full rounded-lg border border-border-light bg-white p-5 shadow-soft">
@@ -95,14 +96,22 @@ function ChartCard({
       <div className="mt-4">
         <BarChart data={data} tone={tone} ariaLabel={`${title}: counts and percentages`} />
       </div>
-      {understandingBasis && <div className="mt-4 border-t border-line pt-3 text-sm text-muted">
-        <p>Profiles from the mini-test: {understandingBasis.baseline_count}. Updated during the conversation: {understandingBasis.updated_count} (shown separately).</p>
+      {understanding && <div className="mt-4 border-t border-line pt-3 text-sm text-muted">
+        <p>
+          {understanding.basis === "initial"
+            ? "Each student's first submitted attempt, before any feedback."
+            : `Each student's most recent submitted attempt. ${formatCount(understanding.studentsWithLaterAttempt)} ${understanding.studentsWithLaterAttempt === 1 ? "student has" : "students have"} a later attempt; for the others this matches the initial label.`}
+        </p>
         <details className="mt-2">
           <summary className="cursor-pointer font-semibold text-ink">Evidence behind these labels</summary>
           <div className="mt-2 space-y-2 leading-6">
-            <p>Percentages include all {sampleSize} students, including those who have not started. Missing or uncertain evidence is not a finding of poor understanding.</p>
-            <p>Mostly understood means supported understanding of most assessed content, not complete mastery. The mini-test does not assess transfer to new situations. Some reasoning may still need refinement. A profile of partial or fragile understanding remains Still developing.</p>
-            <p>Results use the latest fully submitted attempt and the profile produced from its responses, before any conversation. Updates recommended during the conversation never change these labels; they appear under After the conversation. For a test with multiple topics, this is the most recent topic profile, not an average.</p>
+            <p>Percentages include all {sampleSize} students, including those who have not submitted. Missing or uncertain evidence is not a finding of poor understanding.</p>
+            <p>Mostly understood means supported understanding of most assessed content, not complete mastery. The mini-test does not assess transfer to new situations. A profile of partial or fragile understanding remains Still developing.</p>
+            <p>
+              {understanding.basis === "initial"
+                ? "Each label comes from the profile produced when that attempt was submitted. Later attempts and conversations never change it."
+                : "A later attempt follows the answer review and any conversation, so a change from the initial label reflects feedback, memory and further study together."}
+            </p>
           </div>
         </details>
       </div>}
@@ -409,18 +418,19 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               <section className="grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <ParticipationStatusCard dashboard={dashboard} />
                 <ChartCard
-                  title="Understanding overview"
-                  data={dashboard.understanding_distribution}
+                  title="Initial understanding overview"
+                  data={dashboard.initial_understanding_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="green"
-                  understandingBasis={dashboard.understanding_basis}
+                  understanding={{ basis: "initial", studentsWithLaterAttempt: dashboard.students_with_later_attempt }}
                 />
-                {dashboard.interpretation_v8 ? null : <ChartCard
-                  title="After the conversation"
-                  data={dashboard.conversation_update_distribution}
+                <ChartCard
+                  title="Latest understanding overview"
+                  data={dashboard.understanding_distribution}
                   sampleSize={dashboard.eligible_student_count}
                   tone="gold"
-                />}
+                  understanding={{ basis: "latest", studentsWithLaterAttempt: dashboard.students_with_later_attempt }}
+                />
               </section>
 
               {dashboard.interpretation_v8 ? (
