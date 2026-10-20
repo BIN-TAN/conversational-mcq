@@ -156,6 +156,10 @@ const serverEnvSchema = z.object({
   OPENAI_MODEL_INSTRUCTOR_REPORT: z.string().optional(),
   OPENAI_REASONING_EFFORT_INSTRUCTOR_REPORT: optionalOpenAiReasoningEffort,
   OPENAI_MAX_OUTPUT_TOKENS_INSTRUCTOR_REPORT: optionalPositiveInt,
+  // Instructor report v8 (AI_MODULE_REDESIGN_2026-10-19.md, 9.7): the narrative is requested
+  // only when this equals the current prompt hash; otherwise reports carry counts only.
+  // Read from process.env by instructorReportV8ApprovalStatus, like the interpretation v8 hash.
+  INSTRUCTOR_REPORT_V8_APPROVED_PROMPT_HASH: z.string().optional(),
   STUDENT_COMMUNICATION_LIVE_CALLS_ENABLED: booleanWithDefault(false),
   TOPIC_DIALOGUE_LIVE_CALLS_ENABLED: booleanWithDefault(false),
   FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: booleanWithDefault(false),

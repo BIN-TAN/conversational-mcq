@@ -5,10 +5,13 @@ import {
   getInstructorReportStatus
 } from "@/lib/services/instructor-report/service";
 
-// Instructor reporting module (D8, docs/DESIGN_ALIGNMENT_2026-10-17.md).
-// GET returns the latest validated report and generation availability; POST
-// generates a new report from all included students' sealed responses and
-// conversation transcripts. Both are scoped to the teacher who owns the mini test.
+// Instructor reporting module (D8, docs/DESIGN_ALIGNMENT_2026-10-17.md; section 9.7 of
+// docs/AI_MODULE_REDESIGN_2026-10-19.md). GET returns the latest stored report and whether a
+// new one would carry a narrative; POST generates a new report from every student's
+// submitted attempts (first and later attempts counted separately), their profiles and
+// conversations. A report always carries the application's counts; when no checked
+// narrative is available it is a counts-only report with a note. Both are scoped to the
+// teacher who owns the mini test.
 
 export async function GET(
   _request: Request,
