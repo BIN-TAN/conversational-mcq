@@ -257,6 +257,8 @@ Make one change at a time and log it with the date, the change, the new prompt h
 
 ## Files and commands
 
+On Windows PowerShell, write `npx tsx prisma/interpretation-v8-evaluation-cli.ts <command> ...` wherever this plan shows `npm run eval:v8 -- <command> ...`. Depending on the npm version, PowerShell can drop the `--`, and npm then swallows options such as `--allow-live`.
+
 | File | What it holds |
 | --- | --- |
 | src/lib/evaluation/interpretation-v8/fixtures/item-bank.json | 12 items in 3 topics, with keys, target reasoning, essential elements, option rationales and idea labels |

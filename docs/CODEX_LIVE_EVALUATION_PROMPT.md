@@ -35,27 +35,43 @@ The researcher's guidance: the model should not be rejected too often, and the c
 
 ## Phase 0: get the code and check it (no model calls)
 
+A previous run stopped here because three tests could not read the design document when Windows checked it out with CRLF line endings. Bundle v3 fixes that; the same steps now also work when the evaluation branch already exists.
+
 ```powershell
 cd "E:\New_Downloads\Conversational MCQ"
-git status    # if there are uncommitted changes, stop and report them; do not discard anything
+git status
 git fetch origin
-git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v2.bundle"
-git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v2.bundle" redesign/interpretation-2026-10:eval/live-2026-10
+git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v3.bundle"
+git switch --detach
+git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v3.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
 git switch eval/live-2026-10
+git log -1 --oneline
 npm install
 npx prisma generate
 npm run test:redesign-v8
-npm run eval:v8 -- check
-npm run eval:v8 -- run --engine local --runs 1 --out .data\interpretation-v8-evaluation\local-check
+npx tsx prisma/interpretation-v8-evaluation-cli.ts check
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine local --runs 1 --out .data\interpretation-v8-evaluation\local-check
 ```
+
+About `git status`:
+
+- If the only modified file is `package-lock.json`, `npm install` changed it in the previous run. Restore it with `git restore package-lock.json` and continue.
+- If anything else is modified or untracked outside `.data\` and `node_modules\`, stop and report it. Do not discard it.
+- `git switch --detach` only leaves the current branch so that `eval/live-2026-10` can be updated; it changes no files.
+- After `npm install`, `package-lock.json` may show as modified again (line endings or npm's own formatting). Leave it, do not commit it, and do not stop for it.
+
+Run every evaluation command as `npx tsx prisma/interpretation-v8-evaluation-cli.ts ...`, as written here. Do not use `npm run eval:v8 -- ...` in PowerShell: depending on the npm shim, PowerShell can drop the `--`, and npm would then swallow options such as `--engine live` or `--allow-live`.
 
 What to expect:
 
-- **`test:redesign-v8`** must pass.
+- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v3". Report its hash.
+- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (16) suites.
 - **`check`** must report 31 simulated students, 124 item responses, 18 feedback cases and no problems.
 - **The local run** uses deterministic stand-ins, which are not a model. It only shows that the pipeline runs. Its quality numbers are meaningless; do not report them.
 
 If any of these fail, stop and report the exact output.
+
+Before you start writing the new report, rename the previous `.data\interpretation-v8-evaluation\CODEX_REPORT.md` (the Phase 0 stop) to `CODEX_REPORT-previous-phase0-stop.md` in the same folder.
 
 ## Phase 1: one live development run
 
@@ -65,7 +81,7 @@ If any of these fail, stop and report the exact output.
 - The model settings must be the same as production. If you can see which model names Render uses, record them. If you cannot, record what `.env.local` resolves to (in `settings.json` of the run folder) and flag that it may differ from production.
 
 ```powershell
-npm run eval:v8 -- run --engine live --runs 1 --allow-live --out .data\interpretation-v8-evaluation\dev-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --out .data\interpretation-v8-evaluation\dev-1
 ```
 
 This runs 49 cases: 31 profiling submissions and 18 feedback messages.
@@ -84,7 +100,7 @@ The command writes these files to the run folder:
 ## Phase 2: stability and fallback rate (three runs)
 
 ```powershell
-npm run eval:v8 -- run --engine live --runs 3 --allow-live --out .data\interpretation-v8-evaluation\stability-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --out .data\interpretation-v8-evaluation\stability-1
 ```
 
 This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect about 190 calls, at most 666.
@@ -94,7 +110,7 @@ This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect a
 This simulates a class submitting at the same time, to see whether rate limits cause fallbacks.
 
 ```powershell
-npm run eval:v8 -- run --engine live --runs 1 --part interpretation --concurrency 10 --allow-live --out .data\interpretation-v8-evaluation\burst-1
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --part interpretation --concurrency 10 --allow-live --out .data\interpretation-v8-evaluation\burst-1
 ```
 
 ## Phase 4: analysis, then only the allowed fixes
@@ -136,7 +152,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
 ## Phase 5: materials for the human reference coding (no model calls)
 
 ```powershell
-npm run eval:v8 -- coding-sheet --out .data\interpretation-v8-evaluation\coding
+npx tsx prisma/interpretation-v8-evaluation-cli.ts coding-sheet --out .data\interpretation-v8-evaluation\coding
 ```
 
 Do not fill in the sheet. Two human coders do that, without seeing any model output. The formal go-live decision uses their resolved reference (`score --reference`), which comes later.
