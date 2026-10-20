@@ -181,67 +181,83 @@ export function createFeedbackV8Runner(executionMode: FormativeExecutionMode = "
   return {
     identity: identity(plan),
     async execute({ invocation_key, context }) {
-      assertNoProhibitedProviderInput(context);
-      const startedAt = new Date();
-      const attempts: FeedbackV8AttemptAudit[] = [];
-      let previousIssues: FeedbackIssue[] = [];
-      let lastUsage = { input_tokens: null as number | null, output_tokens: null as number | null, total_tokens: null as number | null };
-      let transportFailures = 0;
-      for (let attempt = 1; attempt <= FEEDBACK_V8_MAX_ATTEMPTS; attempt += 1) {
-        const clientRequestId = `feedback_v8_${randomUUID()}`;
-        const providerInput = previousIssues.length ? { ...context, previous_attempt_rejected_for: previousIssues.slice(0, 20) } : context;
-        let result: StructuredAgentResult<FeedbackV8Output>;
-        try {
-          result = await plan.provider.executeStructured({
-            agent_name: FEEDBACK_V8_AGENT_NAME,
-            model_config: plan.model_config,
-            instructions: context.mode === "opening" ? FEEDBACK_V8_OPENING_INSTRUCTIONS : FEEDBACK_V8_CONVERSATION_INSTRUCTIONS,
-            input: providerInput,
-            output_schema: FeedbackV8OutputSchema,
-            schema_name: FEEDBACK_V8_CONTRACT_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
-            client_request_id: clientRequestId,
-            timeout_ms: PROVIDER_TIMEOUT_MS,
-            metadata: { purpose: `feedback_v8_${context.mode}`, invocation_key, attempt: String(attempt) }
-          });
-        } catch {
-          transportFailures += 1;
-          attempts.push({ attempt, status: "provider_exception", issues: [], rejected_output: null, latency_ms: 0 });
-          continue;
-        }
-        lastUsage = usageOf(result);
-        if (result.status !== "completed" || !result.parsed_output) {
-          transportFailures += 1;
-          attempts.push({ attempt, status: result.error?.category ?? result.status, issues: [], rejected_output: null, latency_ms: result.latency_ms });
-          if (result.error?.retryable === false) break;
-          continue;
-        }
-        const parsed = FeedbackV8OutputSchema.safeParse(result.parsed_output);
-        const issues = parsed.success
-          ? validateFeedbackV8Output(context, parsed.data)
-          : [{ path: "$", code: "schema_mismatch", message: "The output did not match the required format." }];
-        if (!parsed.success || issues.length) {
-          previousIssues = issues;
-          attempts.push({ attempt, status: "invalid", issues, rejected_output: result.parsed_output, latency_ms: result.latency_ms });
-          continue;
-        }
-        const completedAt = new Date();
-        return {
-          output: parsed.data,
-          raw_output: { accepted_output: result.raw_output ?? result.parsed_output, rejected_attempts: attempts },
-          generation_source: "live_llm",
-          provider_request_id: result.provider_request_id ?? null,
-          provider_response_id: result.provider_response_id ?? null,
-          client_request_id: clientRequestId,
-          retry_count: attempt - 1,
-          latency_ms: Math.max(0, completedAt.getTime() - startedAt.getTime()),
-          ...lastUsage,
-          started_at: startedAt,
-          completed_at: completedAt
-        };
-      }
-      const failureClass = attempts.some((entry) => entry.status === "invalid") && transportFailures < attempts.length
-        ? "validation_failed" : "transport_failure";
-      throw new FeedbackV8ExecutionError(failureClass, attempts, startedAt, new Date(), lastUsage);
+      return generateFeedbackV8({ provider: plan.provider, model_config: plan.model_config, invocation_key, context });
     }
   };
+}
+
+/**
+ * The generation loop of feedback v8 without database access: one provider call, checks,
+ * one regeneration with the list of problems. Throws FeedbackV8ExecutionError when no
+ * output passes. Used by the live runner and by the evaluation harness.
+ */
+export async function generateFeedbackV8(input: {
+  provider: LlmProvider;
+  model_config: AgentModelConfig;
+  invocation_key: string;
+  context: FeedbackV8Input;
+}): Promise<FeedbackV8Execution> {
+  const { context, invocation_key } = input;
+  const plan = { provider: input.provider, model_config: input.model_config };
+  assertNoProhibitedProviderInput(context);
+  const startedAt = new Date();
+  const attempts: FeedbackV8AttemptAudit[] = [];
+  let previousIssues: FeedbackIssue[] = [];
+  let lastUsage = { input_tokens: null as number | null, output_tokens: null as number | null, total_tokens: null as number | null };
+  let transportFailures = 0;
+  for (let attempt = 1; attempt <= FEEDBACK_V8_MAX_ATTEMPTS; attempt += 1) {
+    const clientRequestId = `feedback_v8_${randomUUID()}`;
+    const providerInput = previousIssues.length ? { ...context, previous_attempt_rejected_for: previousIssues.slice(0, 20) } : context;
+    let result: StructuredAgentResult<FeedbackV8Output>;
+    try {
+      result = await plan.provider.executeStructured({
+        agent_name: FEEDBACK_V8_AGENT_NAME,
+        model_config: plan.model_config,
+        instructions: context.mode === "opening" ? FEEDBACK_V8_OPENING_INSTRUCTIONS : FEEDBACK_V8_CONVERSATION_INSTRUCTIONS,
+        input: providerInput,
+        output_schema: FeedbackV8OutputSchema,
+        schema_name: FEEDBACK_V8_CONTRACT_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
+        client_request_id: clientRequestId,
+        timeout_ms: PROVIDER_TIMEOUT_MS,
+        metadata: { purpose: `feedback_v8_${context.mode}`, invocation_key, attempt: String(attempt) }
+      });
+    } catch {
+      transportFailures += 1;
+      attempts.push({ attempt, status: "provider_exception", issues: [], rejected_output: null, latency_ms: 0 });
+      continue;
+    }
+    lastUsage = usageOf(result);
+    if (result.status !== "completed" || !result.parsed_output) {
+      transportFailures += 1;
+      attempts.push({ attempt, status: result.error?.category ?? result.status, issues: [], rejected_output: null, latency_ms: result.latency_ms });
+      if (result.error?.retryable === false) break;
+      continue;
+    }
+    const parsed = FeedbackV8OutputSchema.safeParse(result.parsed_output);
+    const issues = parsed.success
+      ? validateFeedbackV8Output(context, parsed.data)
+      : [{ path: "$", code: "schema_mismatch", message: "The output did not match the required format." }];
+    if (!parsed.success || issues.length) {
+      previousIssues = issues;
+      attempts.push({ attempt, status: "invalid", issues, rejected_output: result.parsed_output, latency_ms: result.latency_ms });
+      continue;
+    }
+    const completedAt = new Date();
+    return {
+      output: parsed.data,
+      raw_output: { accepted_output: result.raw_output ?? result.parsed_output, rejected_attempts: attempts },
+      generation_source: "live_llm",
+      provider_request_id: result.provider_request_id ?? null,
+      provider_response_id: result.provider_response_id ?? null,
+      client_request_id: clientRequestId,
+      retry_count: attempt - 1,
+      latency_ms: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+      ...lastUsage,
+      started_at: startedAt,
+      completed_at: completedAt
+    };
+  }
+  const failureClass = attempts.some((entry) => entry.status === "invalid") && transportFailures < attempts.length
+    ? "validation_failed" : "transport_failure";
+  throw new FeedbackV8ExecutionError(failureClass, attempts, startedAt, new Date(), lastUsage);
 }

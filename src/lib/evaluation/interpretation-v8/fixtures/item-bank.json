@@ -1,0 +1,510 @@
+{
+ "bank_version": "interpretation-v8-eval-items-1",
+ "source": "Synthetic items written in the style of the EDPY 507 measurement course. Replace them with exported course items using the converter (see the evaluation plan).",
+ "topics": [
+  {
+   "topic_id": "R",
+   "title": "Reliability and measurement error",
+   "learning_objective": "Interpret reliability coefficients and the standard error of measurement as statements about score consistency and uncertainty, distinct from validity.",
+   "description": "Reliability describes the consistency of scores across occasions, forms or raters for a given population and conditions. The standard error of measurement (SEM) expresses the typical size of measurement error and the uncertainty of an individual score. Reliability is necessary but not sufficient for validity.",
+   "items": [
+    {
+     "item_id": "R1",
+     "stem": "A hiring test produces highly consistent scores, but its scores have little relationship with job performance. Which conclusion is best supported?",
+     "options": [
+      {
+       "label": "A",
+       "text": "Consistency alone does not establish validity for the intended hiring decision."
+      },
+      {
+       "label": "B",
+       "text": "High reliability proves that the hiring decision is valid."
+      },
+      {
+       "label": "C",
+       "text": "A weak relationship with job performance proves the scores are unreliable."
+      },
+      {
+       "label": "D",
+       "text": "Reliability and validity always provide the same evidence."
+      }
+     ],
+     "key": "A",
+     "target_reasoning": "Consistent scores show reliability, but a hiring decision needs evidence that the scores relate to job performance. Highly consistent scores with little relationship to performance are reliable but not valid for this use.",
+     "essential_elements": "1) The scores are consistent, that is, reliable. 2) Consistency does not show that the scores support the hiring decision; that needs evidence about job performance (validity).",
+     "rationales": {
+      "B": {
+       "rationale": "Treats high reliability as proof that the scores are valid for the decision.",
+       "idea_label": "reliability proves validity"
+      },
+      "C": {
+       "rationale": "Treats a weak relationship with performance as evidence that the scores are inconsistent, confusing validity evidence with reliability.",
+       "idea_label": "validity problem means unreliable"
+      },
+      "D": {
+       "rationale": "Treats reliability and validity as the same kind of evidence.",
+       "idea_label": "reliability proves validity"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "R2",
+     "stem": "A student has an observed score of 76 on a test whose standard error of measurement (SEM) is 3. What does the SEM support?",
+     "options": [
+      {
+       "label": "A",
+       "text": "The exact true score is 73 because the error can be subtracted."
+      },
+      {
+       "label": "B",
+       "text": "The exact true score is 79 because the error can be added."
+      },
+      {
+       "label": "C",
+       "text": "An estimate of the uncertainty in the score, not the exact true score."
+      },
+      {
+       "label": "D",
+       "text": "Proof that the student answered exactly three questions incorrectly."
+      }
+     ],
+     "key": "C",
+     "target_reasoning": "The SEM describes the typical size of measurement error, so it expresses how uncertain the observed score is. It does not tell us the exact true score, because the size and direction of one person's error are unknown.",
+     "essential_elements": "1) The SEM expresses uncertainty, or the typical size of error, in an observed score. 2) It does not identify the exact true score; one person's error size and direction are unknown.",
+     "rationales": {
+      "A": {
+       "rationale": "Treats the SEM as a known error that can be subtracted to give the exact true score.",
+       "idea_label": "SEM gives the exact true score"
+      },
+      "B": {
+       "rationale": "Treats the SEM as a known error that can be added to give the exact true score.",
+       "idea_label": "SEM gives the exact true score"
+      },
+      "D": {
+       "rationale": "Treats the SEM as a count of incorrect answers.",
+       "idea_label": "SEM counts wrong answers"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "R3",
+     "stem": "A vocabulary test's reliability was estimated in a mixed-ability sample. The test is now used with a highly selected advanced class. What should the teacher do about the original reliability estimate?",
+     "options": [
+      {
+       "label": "A",
+       "text": "Reuse it, because reliability is a permanent property of the test."
+      },
+      {
+       "label": "B",
+       "text": "Expect it to be higher, because the class gets more answers correct."
+      },
+      {
+       "label": "C",
+       "text": "Set it to one, because all the students are advanced."
+      },
+      {
+       "label": "D",
+       "text": "Re-estimate reliability for the new group and testing conditions."
+      }
+     ],
+     "key": "D",
+     "target_reasoning": "A reliability estimate depends on the group and conditions in which it was obtained. An advanced, more similar group has less score variation, which can change (often lower) the estimate, so reliability should be re-estimated for the new group.",
+     "essential_elements": "1) Reliability depends on the group and testing conditions; it is not a fixed property of the test. 2) It should be re-estimated for the new group.",
+     "rationales": {
+      "A": {
+       "rationale": "Treats reliability as a permanent property of the test.",
+       "idea_label": "reliability is fixed"
+      },
+      "B": {
+       "rationale": "Assumes that higher scores mean higher reliability.",
+       "idea_label": "higher scores mean more reliable"
+      },
+      "C": {
+       "rationale": "Assumes that able students produce perfectly reliable scores.",
+       "idea_label": "able students have no error"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "R4",
+     "stem": "Scores from the same test given twice, two weeks apart, correlate at .85. What does this coefficient describe?",
+     "options": [
+      {
+       "label": "A",
+       "text": "The proportion of items students answered correctly."
+      },
+      {
+       "label": "B",
+       "text": "How consistently students keep their relative standing across the two occasions."
+      },
+      {
+       "label": "C",
+       "text": "Evidence that the test measures the intended skill."
+      },
+      {
+       "label": "D",
+       "text": "That 85% of each student's score is free of error."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "A test-retest correlation describes the stability of scores over time: students who score relatively high or low the first time tend to do so again the second time.",
+     "essential_elements": "1) It describes consistency or stability across the two occasions (over time). 2) It concerns students' relative standing (ranking), not what the test measures.",
+     "rationales": {
+      "A": {
+       "rationale": "Confuses a reliability coefficient with the proportion of items answered correctly.",
+       "idea_label": "coefficient is percent correct"
+      },
+      "C": {
+       "rationale": "Treats a reliability coefficient as evidence of validity.",
+       "idea_label": "reliability proves validity"
+      },
+      "D": {
+       "rationale": "Reads a group-level coefficient as a statement about each individual's score.",
+       "idea_label": "coefficient describes each individual"
+      }
+     },
+     "known_ambiguity": null
+    }
+   ]
+  },
+  {
+   "topic_id": "V",
+   "title": "Sources of validity evidence",
+   "learning_objective": "Identify sources of validity evidence and explain that validity concerns the interpretation and use of scores.",
+   "description": "Validity is the degree to which evidence and theory support the interpretations of test scores for proposed uses. Evidence can come from test content, response processes, internal structure, relations to other variables (convergent, discriminant and criterion evidence) and consequences. Construct-irrelevant variance and construct underrepresentation threaten validity.",
+   "items": [
+    {
+     "item_id": "V1",
+     "stem": "A mathematics test uses long word problems that require advanced reading. Students who are still learning English score lower even when their mathematics is strong. Which threat to validity does this describe?",
+     "options": [
+      {
+       "label": "A",
+       "text": "Construct-irrelevant variance from the reading demand."
+      },
+      {
+       "label": "B",
+       "text": "Low reliability of the mathematics scores."
+      },
+      {
+       "label": "C",
+       "text": "The test is too short."
+      },
+      {
+       "label": "D",
+       "text": "Construct underrepresentation of reading skill."
+      }
+     ],
+     "key": "A",
+     "target_reasoning": "Reading skill is not what the test intends to measure, yet it affects the scores. Score differences caused by something other than the intended construct are construct-irrelevant variance.",
+     "essential_elements": "1) Reading ability is not the intended construct; mathematics is. 2) Reading nonetheless affects the scores, an irrelevant source of score differences.",
+     "rationales": {
+      "B": {
+       "rationale": "Treats a validity threat as a reliability problem.",
+       "idea_label": "validity problem means unreliable"
+      },
+      "C": {
+       "rationale": "Attributes the problem to the number of items.",
+       "idea_label": "more items fix validity"
+      },
+      "D": {
+       "rationale": "Confuses irrelevant variance with underrepresentation and treats reading as the construct the test should measure.",
+       "idea_label": "irrelevant means underrepresented"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "V2",
+     "stem": "A new anxiety scale correlates .70 with an established anxiety scale and .10 with a mathematics achievement test. This pattern is best described as:",
+     "options": [
+      {
+       "label": "A",
+       "text": "Evidence based on test content."
+      },
+      {
+       "label": "B",
+       "text": "Convergent and discriminant evidence."
+      },
+      {
+       "label": "C",
+       "text": "Test-retest reliability."
+      },
+      {
+       "label": "D",
+       "text": "Face validity."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "The scale relates strongly to another measure of the same construct (convergent evidence) and weakly to a measure of a different construct (discriminant evidence), which is evidence based on relations to other variables.",
+     "essential_elements": "1) A high correlation with a measure of the same construct shows convergent evidence. 2) A low correlation with a measure of a different construct shows discriminant evidence.",
+     "rationales": {
+      "A": {
+       "rationale": "Confuses correlational evidence with expert review of content.",
+       "idea_label": "any evidence is content evidence"
+      },
+      "C": {
+       "rationale": "Treats correlations between different measures as the consistency of one test over time.",
+       "idea_label": "any correlation is reliability"
+      },
+      "D": {
+       "rationale": "Treats statistical evidence as how the test appears to test takers.",
+       "idea_label": "validity is appearance"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "V3",
+     "stem": "Course instructors reviewed whether the items on a final exam match the course objectives. What kind of validity evidence does this review provide?",
+     "options": [
+      {
+       "label": "A",
+       "text": "Evidence based on test content."
+      },
+      {
+       "label": "B",
+       "text": "Criterion-related evidence."
+      },
+      {
+       "label": "C",
+       "text": "Internal consistency evidence."
+      },
+      {
+       "label": "D",
+       "text": "Evidence based on the consequences of testing."
+      }
+     ],
+     "key": "A",
+     "target_reasoning": "Judging how well the items represent the intended content domain, here the course objectives, is evidence based on test content.",
+     "essential_elements": "1) The review compares the items with the intended content or objectives (coverage of the domain). 2) This is content evidence, not a statistical relationship with another measure.",
+     "rationales": {
+      "B": {
+       "rationale": "Confuses expert content review with a relationship to an outside criterion.",
+       "idea_label": "content review is criterion evidence"
+      },
+      "C": {
+       "rationale": "Confuses content review with a reliability statistic.",
+       "idea_label": "any correlation is reliability"
+      },
+      "D": {
+       "rationale": "Confuses content review with the effects of using the test.",
+       "idea_label": "content review is about consequences"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "V4",
+     "stem": "Which statement best reflects current professional views of validity?",
+     "options": [
+      {
+       "label": "A",
+       "text": "Validity is a fixed property of the test itself."
+      },
+      {
+       "label": "B",
+       "text": "Validity concerns how well evidence supports the interpretation and use of scores."
+      },
+      {
+       "label": "C",
+       "text": "A reliable test is automatically valid."
+      },
+      {
+       "label": "D",
+       "text": "Validity is a single correlation coefficient."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "Validity is about the interpretations and uses of test scores and is supported by accumulated evidence; it is not a property of the test alone.",
+     "essential_elements": "1) Validity refers to the interpretation and use of scores, not the test itself. 2) It is supported by evidence and is a matter of degree.",
+     "rationales": {
+      "A": {
+       "rationale": "Treats validity as a property of the test rather than of score interpretations.",
+       "idea_label": "validity is a test property"
+      },
+      "C": {
+       "rationale": "Treats reliability as sufficient for validity.",
+       "idea_label": "reliability proves validity"
+      },
+      "D": {
+       "rationale": "Reduces validity to one coefficient.",
+       "idea_label": "validity is one number"
+      }
+     },
+     "known_ambiguity": null
+    }
+   ]
+  },
+  {
+   "topic_id": "S",
+   "title": "Interpreting scores",
+   "learning_objective": "Interpret norm-referenced and criterion-referenced scores, standard scores and score differences in light of measurement error.",
+   "description": "Norm-referenced scores such as percentile ranks and standard scores compare a person with a reference group; criterion-referenced interpretations compare performance with a defined standard. A z-score expresses distance from the mean in standard deviation units. Differences smaller than the measurement error may not reflect real differences.",
+   "items": [
+    {
+     "item_id": "S1",
+     "stem": "Maria's score is at the 80th percentile on a norm-referenced reading test. What does this mean?",
+     "options": [
+      {
+       "label": "A",
+       "text": "She answered 80% of the items correctly."
+      },
+      {
+       "label": "B",
+       "text": "She scored higher than about 80% of the students in the norm group."
+      },
+      {
+       "label": "C",
+       "text": "She mastered 80% of the reading objectives."
+      },
+      {
+       "label": "D",
+       "text": "Her score was 80 out of 100."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "A percentile rank compares a score with the norm group: a score at the 80th percentile is higher than the scores of about 80% of that group.",
+     "essential_elements": "1) The comparison is with the norm (reference) group. 2) About 80% of that group scored lower; it is not a percentage of items correct.",
+     "rationales": {
+      "A": {
+       "rationale": "Confuses a percentile rank with percent correct.",
+       "idea_label": "percentile is percent correct"
+      },
+      "C": {
+       "rationale": "Gives a mastery (criterion-referenced) reading of a norm-referenced score.",
+       "idea_label": "norm-referenced is criterion-referenced"
+      },
+      "D": {
+       "rationale": "Reads the percentile rank as a raw score.",
+       "idea_label": "percentile is a raw score"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "S2",
+     "stem": "A student's z-score on a test is -1.0. What does this indicate?",
+     "options": [
+      {
+       "label": "A",
+       "text": "The score is one standard deviation below the mean."
+      },
+      {
+       "label": "B",
+       "text": "The student lost one point."
+      },
+      {
+       "label": "C",
+       "text": "The student answered one item incorrectly."
+      },
+      {
+       "label": "D",
+       "text": "The score is the lowest in the group."
+      }
+     ],
+     "key": "A",
+     "target_reasoning": "A z-score gives the distance from the mean in standard deviation units; -1.0 means one standard deviation below the mean.",
+     "essential_elements": "1) The unit is the standard deviation. 2) The negative sign means below the mean.",
+     "rationales": {
+      "B": {
+       "rationale": "Reads the z-score as raw points.",
+       "idea_label": "z-score is raw points"
+      },
+      "C": {
+       "rationale": "Reads the z-score as a count of errors.",
+       "idea_label": "z-score counts errors"
+      },
+      "D": {
+       "rationale": "Treats a negative standard score as the minimum score.",
+       "idea_label": "negative means lowest"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "S3",
+     "stem": "A course test reports whether each student met a cut score of 70% on the unit objectives. This interpretation compares each student's performance with:",
+     "options": [
+      {
+       "label": "A",
+       "text": "The performance of other students in the class."
+      },
+      {
+       "label": "B",
+       "text": "A defined standard of performance."
+      },
+      {
+       "label": "C",
+       "text": "The class average."
+      },
+      {
+       "label": "D",
+       "text": "The student's own score last year."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "A criterion-referenced interpretation compares performance with a fixed standard, the cut score, not with other students.",
+     "essential_elements": "1) The comparison is with a fixed standard or criterion (the cut score). 2) It is not a comparison with other students.",
+     "rationales": {
+      "A": {
+       "rationale": "Gives a norm-referenced reading of a criterion-referenced interpretation.",
+       "idea_label": "criterion-referenced is norm-referenced"
+      },
+      "C": {
+       "rationale": "Treats the class average as the standard.",
+       "idea_label": "criterion-referenced is norm-referenced"
+      },
+      "D": {
+       "rationale": "Confuses a standard with growth from a previous score.",
+       "idea_label": "criterion means growth"
+      }
+     },
+     "known_ambiguity": null
+    },
+    {
+     "item_id": "S4",
+     "stem": "Two students' scores differ by 3 points on a test whose standard error of measurement is 4. What should the teacher conclude?",
+     "options": [
+      {
+       "label": "A",
+       "text": "The higher-scoring student knows more."
+      },
+      {
+       "label": "B",
+       "text": "The difference may reflect measurement error rather than a real difference."
+      },
+      {
+       "label": "C",
+       "text": "Only the lower-scoring student should be retested."
+      },
+      {
+       "label": "D",
+       "text": "More evidence is needed before deciding which student knows more."
+      }
+     ],
+     "key": "B",
+     "target_reasoning": "The difference is smaller than the typical measurement error, so it may not reflect a real difference in what the students know.",
+     "essential_elements": "1) The 3-point difference is smaller than the SEM of 4, that is, within measurement error. 2) So the scores do not show a real difference.",
+     "rationales": {
+      "A": {
+       "rationale": "Treats any observed difference as a real difference.",
+       "idea_label": "observed difference is real"
+      },
+      "C": {
+       "rationale": "Assumes measurement error affects only the lower score.",
+       "idea_label": "error only in low scores"
+      },
+      "D": {
+       "rationale": "Focuses on collecting more evidence rather than on what the measurement error implies.",
+       "idea_label": null
+      }
+     },
+     "known_ambiguity": "Option D follows from the keyed idea and can be read as a defensible conclusion. A student who chooses D with the keyed reasoning has a defensible reading; this item is the evaluation's planted item issue."
+    }
+   ]
+  }
+ ]
+}

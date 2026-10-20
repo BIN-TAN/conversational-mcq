@@ -12,16 +12,14 @@ import { toPrismaJson } from "@/lib/services/json";
 import {
   INTERPRETATION_V8_AGENT_NAME,
   INTERPRETATION_V8_AGENT_VERSION,
-  INTERPRETATION_V8_INSTRUCTIONS,
   INTERPRETATION_V8_PROMPT_HASH,
   INTERPRETATION_V8_PROMPT_VERSION,
   INTERPRETATION_V8_SCHEMA_VERSION,
-  InterpretationOutputV8Schema,
   type InterpretationInputV8,
   type InterpretationOutputV8
 } from "./contract";
+import { generateInterpretationV8 } from "./generate";
 import { buildLocalTestInterpretationV8 } from "./local-test";
-import { validateInterpretationOutputV8, type InterpretationIssue } from "./validate";
 
 /**
  * One v8 profiling call per submitted mini-test, with one regeneration when the
@@ -32,8 +30,6 @@ import { validateInterpretationOutputV8, type InterpretationIssue } from "./vali
  * validation. Until then a submission is interpreted by the fallback (no diagnostic claims).
  * The model and reasoning effort come from the approved student_profiling_agent settings.
  */
-export const INTERPRETATION_V8_MAX_ATTEMPTS = 2;
-const PROVIDER_TIMEOUT_MS = 180_000;
 
 export type InterpretationCallResult =
   | { status: "validated"; generation_mode: "live_model" | "local_test"; output: InterpretationOutputV8; agent_call_id: string }
@@ -145,85 +141,75 @@ export async function callInterpretationV8(input: {
   }
 
   assertNoProhibitedProviderInput(input.model_input);
-  let previousIssues: InterpretationIssue[] = [];
-  let lastReason = "provider_failure";
+  const model = callPlan.model_config;
+  let currentCallId: string | null = null;
   let lastCallId: string | null = null;
-  for (let attempt = 1; attempt <= INTERPRETATION_V8_MAX_ATTEMPTS; attempt += 1) {
-    const clientRequestId = `interpretation_v8_${randomUUID()}`;
-    const providerInput = previousIssues.length
-      ? { ...input.model_input, previous_attempt_rejected_for: previousIssues.slice(0, 30) }
-      : input.model_input;
-    const call = await prisma.agentCall.create({
-      data: {
-        ...common,
-        model_name: callPlan.model_config.model_name,
-        provider: "openai",
-        client_request_id: clientRequestId,
-        agent_invocation_key: `${invocationBase}:${attempt}:${randomUUID()}`,
-        reasoning_effort: callPlan.model_config.reasoning_effort ?? null,
-        max_output_tokens: callPlan.model_config.max_output_tokens ?? null,
-        input_payload: toPrismaJson(providerInput) ?? Prisma.JsonNull,
-        live_call_allowed: true,
-        call_status: "started",
-        retry_count: attempt - 1,
-        started_at: new Date()
-      }
-    });
-    lastCallId = call.id;
-    let result: StructuredAgentResult<InterpretationOutputV8>;
-    try {
-      result = await callPlan.provider.executeStructured({
-        agent_name: INTERPRETATION_V8_AGENT_NAME,
-        model_config: callPlan.model_config,
-        instructions: INTERPRETATION_V8_INSTRUCTIONS,
-        input: providerInput,
-        output_schema: InterpretationOutputV8Schema,
-        schema_name: INTERPRETATION_V8_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
-        client_request_id: clientRequestId,
-        timeout_ms: PROVIDER_TIMEOUT_MS,
-        metadata: { purpose: "student_interpretation_v8", prompt_version: INTERPRETATION_V8_PROMPT_VERSION, attempt: String(attempt) }
-      });
-    } catch {
-      lastReason = "provider_exception";
-      await prisma.agentCall.update({
-        where: { id: call.id },
-        data: { output_validated: false, call_status: "failed", error_category: "provider_exception", completed_at: new Date() }
-      });
-      continue;
-    }
-    if (result.status !== "completed" || !result.parsed_output) {
-      lastReason = result.error?.category ?? result.status;
-      await prisma.agentCall.update({
-        where: { id: call.id },
-        data: { ...auditUpdate(result), output_validated: false, call_status: "failed", error_category: lastReason, completed_at: new Date() }
-      });
-      if (result.error?.retryable === false) break;
-      continue;
-    }
-    const parsed = InterpretationOutputV8Schema.safeParse(result.parsed_output);
-    const issues = parsed.success ? validateInterpretationOutputV8(input.model_input, parsed.data) : [];
-    if (!parsed.success || issues.length > 0) {
-      previousIssues = parsed.success ? issues : [{ path: "$", code: "schema_mismatch", message: "The output did not match the required format." }];
-      lastReason = "validation_failed";
-      await prisma.agentCall.update({
-        where: { id: call.id },
+  const generation = await generateInterpretationV8({
+    provider: callPlan.provider,
+    model_config: model,
+    model_input: input.model_input,
+    async on_attempt_start({ attempt, client_request_id, provider_input }) {
+      const call = await prisma.agentCall.create({
         data: {
-          ...auditUpdate(result),
-          output_payload: toPrismaJson({ rejected_output: result.parsed_output, issues: previousIssues }),
-          output_validated: false,
-          call_status: "invalid_output",
-          error_category: "semantic_validation",
-          validation_error: previousIssues.map((issue) => `${issue.path}: ${issue.code}`).join("; ").slice(0, 4000),
-          completed_at: new Date()
+          ...common,
+          model_name: model.model_name,
+          provider: "openai",
+          client_request_id,
+          agent_invocation_key: `${invocationBase}:${attempt}:${randomUUID()}`,
+          reasoning_effort: model.reasoning_effort ?? null,
+          max_output_tokens: model.max_output_tokens ?? null,
+          input_payload: toPrismaJson(provider_input) ?? Prisma.JsonNull,
+          live_call_allowed: true,
+          call_status: "started",
+          retry_count: attempt - 1,
+          started_at: new Date()
         }
       });
-      continue;
+      currentCallId = call.id;
+      lastCallId = call.id;
+    },
+    async on_attempt_end(record) {
+      if (!currentCallId) return;
+      const id = currentCallId;
+      if (record.outcome === "provider_exception") {
+        await prisma.agentCall.update({
+          where: { id },
+          data: { output_validated: false, call_status: "failed", error_category: "provider_exception", completed_at: new Date() }
+        });
+        return;
+      }
+      const result = record.result!;
+      if (record.outcome === "provider_failure") {
+        await prisma.agentCall.update({
+          where: { id },
+          data: { ...auditUpdate(result), output_validated: false, call_status: "failed",
+            error_category: result.error?.category ?? result.status, completed_at: new Date() }
+        });
+        return;
+      }
+      if (record.outcome === "invalid_output") {
+        await prisma.agentCall.update({
+          where: { id },
+          data: {
+            ...auditUpdate(result),
+            output_payload: toPrismaJson({ rejected_output: result.parsed_output, issues: record.issues }),
+            output_validated: false,
+            call_status: "invalid_output",
+            error_category: "semantic_validation",
+            validation_error: record.issues.map((issue) => `${issue.path}: ${issue.code}`).join("; ").slice(0, 4000),
+            completed_at: new Date()
+          }
+        });
+        return;
+      }
+      await prisma.agentCall.update({
+        where: { id },
+        data: { ...auditUpdate(result), output_payload: toPrismaJson(record.output), output_validated: true, call_status: "succeeded", completed_at: new Date() }
+      });
     }
-    await prisma.agentCall.update({
-      where: { id: call.id },
-      data: { ...auditUpdate(result), output_payload: toPrismaJson(parsed.data), output_validated: true, call_status: "succeeded", completed_at: new Date() }
-    });
-    return { status: "validated", generation_mode: "live_model", output: parsed.data, agent_call_id: call.id };
+  });
+  if (generation.status === "validated") {
+    return { status: "validated", generation_mode: "live_model", output: generation.output, agent_call_id: lastCallId! };
   }
-  return { status: "failed", reason: lastReason, agent_call_id: lastCallId };
+  return { status: "failed", reason: generation.reason, agent_call_id: lastCallId };
 }

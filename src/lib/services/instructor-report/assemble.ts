@@ -81,7 +81,7 @@ export type LoadedReportRecords = {
   items: LoadedReportItem[];
   eligible_student_count: number;
   attempts: LoadedReportAttempt[];
-  /** Instructor item decisions (section 4.4); none are recorded yet, so this is usually empty. */
+  /** Instructor item decisions (section 4.4), from the item review. */
   item_decisions?: ReadonlyMap<string, InstructorItemDecision>;
 };
 

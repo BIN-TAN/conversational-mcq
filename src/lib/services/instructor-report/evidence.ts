@@ -1,4 +1,5 @@
 import type { Prisma } from "@prisma/client";
+import { loadItemReviewDecisionsForAssessment } from "@/lib/services/item-review/service";
 import {
   FEEDBACK_V8_AGENT_NAME,
   FEEDBACK_V8_CONTRACT_VERSION
@@ -190,6 +191,8 @@ export async function loadInstructorReportRecords(db: Db, input: {
     topic: topic ? { title: topic.title, learning_objective: str(topic.learning_objective), description: str(topic.related_concept_description) } : null,
     items,
     eligible_student_count: eligibleUserIds.size,
-    attempts
+    attempts,
+    // The instructor's current item-review decisions (section 4.4), applied to every label.
+    item_decisions: await loadItemReviewDecisionsForAssessment(assessment.id)
   };
 }
