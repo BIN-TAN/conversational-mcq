@@ -89,7 +89,13 @@ function validItemInput(itemOrder: number, stemSuffix: string) {
     },
     expected_reasoning_patterns: ["Selects A with conceptually supported reasoning."],
     possible_misconception_indicators: ["Selects B or C with aligned misconception reasoning."],
-    administration_rules: { no_feedback_during_initial_administration: true },
+    administration_rules: {
+      no_feedback_during_initial_administration: true,
+      // Every published item lists one to three essential elements.
+      teacher_diagnostic_context: {
+        correct_option_notes: { strong_reasoning_should_mention: "Names the evidence that supports the correct option." }
+      }
+    },
     item_order: itemOrder
   };
 }
@@ -293,9 +299,9 @@ async function main() {
     assert(missingTeacherMetadataValidation.ok, "Missing teacher metadata should warn, not block publish validation.");
     assert(
       missingTeacherMetadataValidation.warnings.some(
-        (warning) => warning.code === "teacher_distractor_diagnostic_notes_missing"
+        (warning) => warning.code === "option_rationale_missing"
       ),
-      "Missing teacher distractor diagnostic notes did not return expected warning code."
+      "A missing per-option rationale did not return the expected warning code."
     );
     assert(
       missingTeacherMetadataValidation.warnings.some(

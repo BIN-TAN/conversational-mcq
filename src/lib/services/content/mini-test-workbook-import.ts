@@ -5,6 +5,7 @@ import { ContentServiceError } from "./errors";
 import { MiniTestJsonSchema, MINI_TEST_JSON_VERSION, type MiniTestJson } from "./mini-test-json-contract";
 import { stageMiniTestDocument, withImportTransaction } from "./mini-test-json-import";
 import { WORKBOOK_MAX_BYTES, type WorkbookGuide, type WorkbookPreview } from "./mini-test-workbook-contract";
+import { WORKBOOK_NOTE_COLUMNS, workbookItemNoteFields } from "./item-notes-import";
 
 const header = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
 const reject = (message: string): never => { throw new ContentServiceError("validation_failed", message, 400); };
@@ -50,24 +51,28 @@ export async function parseMiniTestWorkbook(bytes: Buffer) {
       if (cells.some((value, column) => value.trim() && !keys[column])) reject(`${name}, row ${row}: every nonempty column needs a header.`);
       return { row, values: Object.fromEntries(keys.filter(Boolean).map(key => [key, cells[keys.indexOf(key)] ?? ""])) };
     });
-    const items = sourceRows.map(({ row, values: v }) => ({
-      item_label: v.item_label || v.item_id || null, stem: v.stem || v.item_stem || "",
-      options: ["A", "B", "C", "D", "E", "F"].filter(label => v[`option_${label.toLowerCase()}`]?.trim())
-        .map(label => ({ label, text: v[`option_${label.toLowerCase()}`] })),
-      key: (v.key || v.correct_option || "").trim().toUpperCase() || null,
-      target_reasoning_note: v.target_reasoning_note || null,
-      strong_reasoning_should_mention: v.strong_reasoning_should_mention || null,
-      distractor_diagnostic_notes: v.distractor_diagnostic_notes || null,
-      source_reference: v.source_attribution || v.source_reference || `${name}!${row}`
-    }));
+    const items = sourceRows.map(({ row, values: v }) => {
+      const options = ["A", "B", "C", "D", "E", "F"].filter(label => v[`option_${label.toLowerCase()}`]?.trim())
+        .map(label => ({ label, text: v[`option_${label.toLowerCase()}`] }));
+      return {
+        item_label: v.item_label || v.item_id || null, stem: v.stem || v.item_stem || "",
+        options,
+        key: (v.key || v.correct_option || "").trim().toUpperCase() || null,
+        target_reasoning_note: v.target_reasoning_note || null,
+        distractor_diagnostic_notes: v.distractor_diagnostic_notes || null,
+        // essential_elements (or strong_reasoning_should_mention), rationale_x, idea_label_x
+        ...workbookItemNoteFields(v, options.map(option => option.label)),
+        source_reference: v.source_attribution || v.source_reference || `${name}!${row}`
+      };
+    });
     const parsed = MiniTestJsonSchema.safeParse({ schema_version: MINI_TEST_JSON_VERSION, assessment: { title: name }, items });
     if (!parsed.success) reject(`${name}: ${parsed.error.issues.slice(0, 5).map(issue => `${issue.path.join(".")}: ${issue.message}`).join("; ")}`);
     sheets.push({ sheet_name: name, document: parsed.data!, rows: sourceRows });
-    const unmapped = named.filter(key => !["item_label", "item_id", "stem", "item_stem", "option_a", "option_b", "option_c", "option_d", "option_e", "option_f", "key", "correct_option", "target_reasoning_note", "strong_reasoning_should_mention", "distractor_diagnostic_notes", "source_attribution", "source_reference"].includes(key));
+    const unmapped = named.filter(key => !["item_label", "item_id", "stem", "item_stem", "option_a", "option_b", "option_c", "option_d", "option_e", "option_f", "key", "correct_option", "target_reasoning_note", "strong_reasoning_should_mention", "distractor_diagnostic_notes", "source_attribution", "source_reference", ...WORKBOOK_NOTE_COLUMNS].includes(key));
     if (unmapped.length) warnings.push(`${name}: additional columns retained in original source only: ${unmapped.join(", ")}`);
     if (items.length < 3 || items.length > 12) warnings.push(`${name}: select 3-12 items before publishing this mini test.`);
   }
-  if (!sheets.length) reject("No item sheets found. Use stem, option_a, option_b, and key headers; additional options C-F and diagnostic notes are supported.");
+  if (!sheets.length) reject("No item sheets found. Use stem, option_a, option_b, and key headers; options C-F, essential_elements, and rationale_x / idea_label_x columns for each incorrect option are also supported.");
   if (sheets.reduce((sum, sheet) => sum + sheet.document.items.length, 0) > 500) reject("A workbook may contain at most 500 item candidates.");
   const checksum = createHash("sha256").update(bytes).digest("hex");
   const preview: WorkbookPreview = { checksum, sheets: sheets.map(sheet => ({ sheet_name: sheet.sheet_name,

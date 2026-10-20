@@ -1,6 +1,12 @@
 import { constraintsBlock } from "../shared/constraints";
 import type { AgentPromptDefinition } from "../types";
 
+/**
+ * Earlier verification prompt. The topic check now runs item-preparation-v8 (task 3, see
+ * src/lib/services/content/item-preparation). This definition stays registered because the
+ * approved operational manifest pins every registered prompt by hash, and earlier
+ * verification runs and evaluations refer to it.
+ */
 export const itemVerificationPromptV1: AgentPromptDefinition = {
   agent_name: "item_verification_agent",
   agent_version: "7d-draft",

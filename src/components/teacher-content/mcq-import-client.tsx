@@ -7,7 +7,20 @@ import { ModalDialog } from "@/components/ui/modal-dialog";
 import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { MINI_TEST_JSON_SAMPLE_URL } from "@/lib/services/content/mini-test-json-contract";
 import { WorkbookGuides, WorkbookItemGuide, readWorkbookGuides } from "./workbook-guide";
-import { applyNoteSuggestion, blankNoteSuggestions, isImported, needsNotes, noteFields } from "./mcq-review";
+import {
+  applyNoteSuggestion,
+  blankNoteSuggestions,
+  incorrectOptionLabels,
+  isImported,
+  needsNotes,
+  noteFields,
+  optionRationaleFor,
+  optionRationaleSuggestionKey,
+  preparationProblems,
+  setOptionRationale,
+  suggestedOptionRationales,
+  type PreparationProblemView
+} from "./mcq-review";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   McqImportBatch,
@@ -173,6 +186,7 @@ export function McqImportClient({
       target_reasoning_note: candidate.target_reasoning_note,
       strong_reasoning_should_mention: candidate.strong_reasoning_should_mention,
       distractor_diagnostic_notes: candidate.distractor_diagnostic_notes,
+      option_rationales: candidate.option_rationales ?? [],
       media_assets: candidate.media_assets,
       formatting_decisions: candidate.formatting_decisions,
       suggestion_decisions: candidate.suggestion_decisions
@@ -505,7 +519,7 @@ export function McqImportClient({
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 Reload
               </Button>
-              <span title={noteTargets.length > 10 ? "Select at most 10 items with missing notes." : "AI proposes target reasoning, strong-reasoning evidence and distractor notes for empty fields. Existing notes are kept."}>
+              <span title={noteTargets.length > 10 ? "Select at most 10 items with missing notes." : "AI proposes target reasoning, essential elements and a rationale for each incorrect option, and reports problems. Existing notes and confirmed keys are kept."}>
               <Button disabled={!noteTargets.length || noteTargets.length > 10 || Boolean(busyAction)} onClick={suggestForSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Suggest missing notes ({noteTargets.length})
@@ -700,7 +714,7 @@ export function McqImportClient({
                       />
                     ) : null}
 
-                    <Field label="Strong reasoning should mention">
+                    <Field label="Essential elements (1 to 3)" hint="One per line. Required before publishing.">
                       <textarea
                         className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                         onChange={(event) =>
@@ -716,35 +730,42 @@ export function McqImportClient({
                       <SuggestionReview
                         candidate={candidate}
                         field="suggested_strong_reasoning_should_mention"
-                        label="Suggested strong-reasoning note"
+                        label="Suggested essential elements"
                         onUpdate={updateCandidate}
                       />
                     ) : null}
 
-                    <Field label="Distractor diagnostic notes">
-                      <textarea
-                        className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                        onChange={(event) =>
-                          updateCandidate(candidate.candidate_public_id, (entry) => ({
-                            ...entry,
-                            distractor_diagnostic_notes: event.target.value || null
-                          }))
-                        }
-                        value={candidate.distractor_diagnostic_notes ?? ""}
-                      />
-                    </Field>
+                    <OptionRationalesEditor candidate={candidate} onUpdate={updateCandidate} />
+
+                    {candidate.distractor_diagnostic_notes?.trim() || suggestionText(candidate, "suggested_plain_language_distractor_notes") ? (
+                      <Field
+                        label="Note for all options (older format)"
+                        hint="Kept as imported. Move each point into the option it describes."
+                      >
+                        <textarea
+                          className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                          onChange={(event) =>
+                            updateCandidate(candidate.candidate_public_id, (entry) => ({
+                              ...entry,
+                              distractor_diagnostic_notes: event.target.value || null
+                            }))
+                          }
+                          value={candidate.distractor_diagnostic_notes ?? ""}
+                        />
+                      </Field>
+                    ) : null}
                     {suggestionText(candidate, "suggested_plain_language_distractor_notes") ? (
                       <SuggestionReview
                         candidate={candidate}
                         field="suggested_plain_language_distractor_notes"
-                        label="Suggested distractor notes"
+                        label="Suggested note for all options"
                         onUpdate={updateCandidate}
                       />
                     ) : null}
 
                     {Object.keys(suggestion).length > 0 ? (
                       <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5 text-blue-950">
-                        <p className="font-semibold">Assistant rationale and limitations</p>
+                        <p className="font-semibold">Assistant notes and reported problems</p>
                         {typeof suggestion.suggested_key === "string" && suggestion.suggested_key ? (
                           <p className="mt-1">
                             Unofficial key suggestion: {String(suggestion.suggested_key)}. Confirm or edit the key before import.
@@ -753,7 +774,9 @@ export function McqImportClient({
                         <p className="mt-1">
                           {String(suggestion.evidence_justification_summary ?? "Suggestion rationale unavailable.")}
                         </p>
-                        {Array.isArray(suggestion.limitations) ? (
+                        {preparationProblems(suggestion).length > 0 ? (
+                          <ProblemList problems={preparationProblems(suggestion)} />
+                        ) : Array.isArray(suggestion.limitations) ? (
                           <ul className="mt-2 list-disc pl-5">
                             {suggestion.limitations.map((limitation, index) => (
                               <li key={index}>{String(limitation)}</li>
@@ -901,7 +924,9 @@ function FormattingReview({
           <p className="mt-2 text-xs text-muted">
             {String(formatting.normalization_summary ?? "Normalization summary unavailable.")}
           </p>
-          {Array.isArray(formatting.limitations) ? (
+          {preparationProblems(formatting).length > 0 ? (
+            <ProblemList problems={preparationProblems(formatting)} />
+          ) : Array.isArray(formatting.limitations) ? (
             <ul className="mt-2 list-disc pl-5 text-xs text-muted">
               {formatting.limitations.map((limitation, index) => (
                 <li key={index}>{String(limitation)}</li>
@@ -1004,5 +1029,134 @@ function SuggestionReview({
         </Button>
       </div>
     </div>
+  );
+}
+
+const PROBLEM_FIELD_LABELS: Record<string, string> = {
+  topic: "Topic",
+  item: "Item",
+  stem: "Stem",
+  options: "Options",
+  key: "Key",
+  target_reasoning: "Target reasoning",
+  essential_elements: "Essential elements"
+};
+
+function ProblemList({ problems }: { problems: PreparationProblemView[] }) {
+  return (
+    <ul className="mt-2 space-y-1">
+      {problems.map((problem, index) => (
+        <li key={`${problem.code}-${index}`}>
+          <span className="font-semibold">
+            {problem.option_label
+              ? problem.field === "distractor_rationale"
+                ? `Rationale ${problem.option_label}:`
+                : `Option ${problem.option_label}:`
+              : `${PROBLEM_FIELD_LABELS[problem.field] ?? "Item"}:`}
+          </span>{" "}
+          {problem.message}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function OptionRationalesEditor({
+  candidate,
+  onUpdate
+}: {
+  candidate: McqImportCandidate;
+  onUpdate: (
+    candidatePublicId: string,
+    updater: (candidate: McqImportCandidate) => McqImportCandidate
+  ) => void;
+}) {
+  const labels = incorrectOptionLabels(candidate);
+  const suggested = suggestedOptionRationales(candidate);
+  if (labels.length === 0) return null;
+
+  return (
+    <fieldset className="grid min-w-0 gap-3 rounded-md border border-line p-3">
+      <legend className="px-1 text-sm font-semibold text-ink">Incorrect options</legend>
+      {!candidate.teacher_confirmed_key ? (
+        <p className="text-xs leading-5 text-muted">
+          Confirm the key to see which options need a rationale. A note on the key option is not kept.
+        </p>
+      ) : null}
+      {labels.map((label) => {
+        const option = candidate.options.find((entry) => entry.label === label);
+        const entry = optionRationaleFor(candidate, label);
+        const proposal = suggested.find((value) => value.label === label);
+        const decisionKey = optionRationaleSuggestionKey(label);
+        const decision = candidate.suggestion_decisions?.[decisionKey]?.decision;
+        return (
+          <div className="grid gap-2 md:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" key={`${candidate.candidate_public_id}-rationale-${label}`}>
+            <p className="text-sm text-ink md:col-span-2">
+              <span className="font-semibold">Option {label}.</span>{" "}
+              <span className="text-muted">{option?.text || "Option text"}</span>
+            </p>
+            <Field label={`Why a student might choose option ${label}`}>
+              <textarea
+                className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                onChange={(event) =>
+                  onUpdate(candidate.candidate_public_id, (current) =>
+                    setOptionRationale(current, label, { rationale: event.target.value || null })
+                  )
+                }
+                value={entry.rationale ?? ""}
+              />
+            </Field>
+            <Field label="Idea label (optional)" hint="A few words, shared by options that rest on the same idea.">
+              <input
+                className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                maxLength={60}
+                onChange={(event) =>
+                  onUpdate(candidate.candidate_public_id, (current) =>
+                    setOptionRationale(current, label, { idea_label: event.target.value || null })
+                  )
+                }
+                value={entry.idea_label ?? ""}
+              />
+            </Field>
+            {proposal && !decision && proposal.rationale !== (entry.rationale ?? "").trim() ? (
+              <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 md:col-span-2">
+                <p>
+                  <span className="font-semibold">Suggested:</span> {proposal.rationale}
+                  {proposal.idea_label ? <span className="text-blue-900"> (idea: {proposal.idea_label})</span> : null}
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <Button
+                    onClick={() =>
+                      onUpdate(candidate.candidate_public_id, (current) =>
+                        applyNoteSuggestion(current, decisionKey, proposal.rationale)
+                      )
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    Use suggestion
+                  </Button>
+                  <Button
+                    onClick={() =>
+                      onUpdate(candidate.candidate_public_id, (current) => ({
+                        ...current,
+                        suggestion_decisions: {
+                          ...(current.suggestion_decisions ?? {}),
+                          [decisionKey]: { decision: "reject", edited_value: null }
+                        }
+                      }))
+                    }
+                    type="button"
+                    variant="secondary"
+                  >
+                    Dismiss
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+    </fieldset>
   );
 }

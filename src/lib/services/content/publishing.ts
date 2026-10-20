@@ -12,6 +12,7 @@ import {
   readTeacherItemMetadata,
   readTopicDiagnosticNote
 } from "./teacher-diagnostic-context";
+import { essentialElementsIssues, optionRationaleWarnings } from "./item-publication-rules";
 import { ItemDraftInputSchema, zodIssuesToContentIssues } from "./validation";
 import { archiveSupersededAssessmentForRevision } from "./assessment-revisions";
 import { preparePublishedAssessmentContext } from "./prepared-assessment-context";
@@ -36,7 +37,7 @@ export type PublishValidationResult = {
   warnings: ContentValidationIssue[];
 };
 
-type PublishableItem = Pick<
+export type PublishableItem = Pick<
   Item,
   | "item_public_id"
   | "item_order"
@@ -65,7 +66,7 @@ function isBlank(value: string | null | undefined): boolean {
   return !value || value.trim().length === 0;
 }
 
-function validatePublishableItem(item: PublishableItem, itemIndex: number): ContentValidationIssue[] {
+export function validatePublishableItem(item: PublishableItem, itemIndex: number): ContentValidationIssue[] {
   const pathPrefix = `items.${itemIndex}`;
   const parsed = ItemDraftInputSchema.safeParse({
     item_stem: item.item_stem,
@@ -92,10 +93,12 @@ function validatePublishableItem(item: PublishableItem, itemIndex: number): Cont
     )];
   }
 
-  return [];
+  // docs/AI_MODULE_REDESIGN_2026-10-19.md 4.2: every published item lists one to three
+  // essential elements, so the model and human reviewers judge against the same standard.
+  return essentialElementsIssues(item, itemIndex);
 }
 
-function validatePublishableItemWarnings(
+export function validatePublishableItemWarnings(
   item: PublishableItem,
   itemIndex: number
 ): ContentValidationIssue[] {
@@ -116,15 +119,8 @@ function validatePublishableItemWarnings(
     );
   }
 
-  if (!metadata.plain_language_distractor_diagnostic_notes && metadata.option_notes.length === 0) {
-    warnings.push(
-      validationIssue(
-        `${pathPrefix}.teacher_diagnostic_context.plain_language_distractor_diagnostic_notes`,
-        "teacher_distractor_diagnostic_notes_missing",
-        "Diagnostic notes are optional but can help later interpretation."
-      )
-    );
-  }
+  // One rationale per incorrect option (section 5): a warning, never blocking.
+  warnings.push(...optionRationaleWarnings(item, itemIndex));
 
   return warnings;
 }

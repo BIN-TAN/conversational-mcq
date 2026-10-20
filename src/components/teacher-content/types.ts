@@ -212,6 +212,12 @@ export type ImportResult = {
   concept_units: Array<ConceptUnitSummary & { items: ItemDetail[] }>;
 };
 
+export type McqImportOptionRationale = {
+  label: string;
+  rationale: string | null;
+  idea_label: string | null;
+};
+
 export type McqImportCandidate = {
   candidate_public_id: string;
   source_item_number: number;
@@ -226,6 +232,8 @@ export type McqImportCandidate = {
   target_reasoning_note: string | null;
   strong_reasoning_should_mention: string | null;
   distractor_diagnostic_notes: string | null;
+  /** One entry per incorrect option: "why a student might choose it" and an optional idea label. */
+  option_rationales?: McqImportOptionRationale[];
   media_assets: unknown[];
   missing_fields: string[];
   parsing_confidence: number;
