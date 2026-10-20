@@ -13,7 +13,7 @@ import {
 import { updateAssessmentSessionPhase } from "@/lib/services/session-state";
 import { attemptContextForSession } from "./attempts";
 import { callInterpretationV8 } from "./call";
-import { loadInterpretationInputV8 } from "./input-builder";
+import { chosenOptionTagsFromPackage, loadInterpretationInputV8 } from "./input-builder";
 import { buildStoredInterpretationV8, INTERPRETATION_V8_PROFILE_SCHEMA, studentProfileDataV8 } from "./profile";
 
 /**
@@ -111,7 +111,8 @@ export async function prepareInitialInterpretationV8(input: {
       generation_mode: result.status === "validated" ? result.generation_mode : "fallback",
       fallback_reason: result.status === "validated" ? null : result.reason,
       response_package_id: input.response_package_id,
-      answer_review_v2: answerReview
+      answer_review_v2: answerReview,
+      chosen_option_tags: chosenOptionTagsFromPackage(responsePackage.payload)
     });
     await input.assert_preparation_active?.();
     try {

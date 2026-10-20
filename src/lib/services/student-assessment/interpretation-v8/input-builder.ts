@@ -5,6 +5,7 @@ import {
   type InterpretationItemInputV8,
   type InterpretationReference
 } from "./contract";
+import { optionIdeaLabels } from "@/lib/services/content/teacher-diagnostic-context";
 import { computeProcessIndicators, type IndicatorEvent } from "./indicators";
 
 /**
@@ -129,6 +130,24 @@ export function buildInterpretationInputV8FromPackage(
     },
     items
   };
+}
+
+/**
+ * The instructor's idea label for each chosen option (section 4.2, answer patterns), read
+ * from the item context sealed in the response package. Null when the chosen option has no
+ * label or no option was chosen. Labels are used only to spot two or more incorrect choices
+ * that share an idea; they never become claims about the student.
+ */
+export function chosenOptionTagsFromPackage(packagePayload: unknown): Map<string, string | null> {
+  const payload = record(packagePayload);
+  const responses = (Array.isArray(payload.item_responses) ? payload.item_responses : []).map(record);
+  return new Map(responses.map((response, index) => {
+    const snapshot = record(response.item_snapshot);
+    const itemId = text(response.item_public_id) ?? text(snapshot.item_public_id) ?? `item-${index + 1}`;
+    const chosen = text(response.selected_answer_final) ?? text(response.selected_option);
+    const labels = optionIdeaLabels(response.teacher_diagnostic_context);
+    return [itemId, chosen ? labels.get(chosen.toUpperCase()) ?? null : null] as const;
+  }));
 }
 
 /** Loads the sealed package and each item's own events (initial administration only). */

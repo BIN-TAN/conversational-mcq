@@ -538,16 +538,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
       };
     }
 
-    const elementCount = essentialElementsList(strongReasoningNote).length;
-    if (elementCount < ESSENTIAL_ELEMENTS_RANGE.min || elementCount > ESSENTIAL_ELEMENTS_RANGE.max) {
-      return {
-        code: "validation_failed",
-        message: "List one to three essential elements, one per line.",
-        details: {
-          issues: [{ path: "essential_elements", message: `${elementCount} listed. Use one to three.` }]
-        }
-      };
-    }
+    // Essential elements are required for publishing (item-publication-rules), not for saving
+    // a draft, so an instructor can save work in progress.
 
     for (const [index, media] of mediaAssets.entries()) {
       if (!media.alt_text_or_description.trim()) {
@@ -1377,7 +1369,6 @@ export function ItemEditorClient(props: ItemEditorProps) {
                     setStrongReasoningNote(event.target.value);
                   }}
                   placeholder={"Reliability is consistency of scores\nHigh reliability does not establish validity"}
-                  required
                   value={strongReasoningNote}
                 />
               </Field>
@@ -1385,7 +1376,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 className={`-mt-2 text-xs ${essentialElementCount >= ESSENTIAL_ELEMENTS_RANGE.min && essentialElementCount <= ESSENTIAL_ELEMENTS_RANGE.max ? "text-muted" : "text-amber-800"}`}
                 id="essential-elements-count"
               >
-                {essentialElementCount} listed
+                {essentialElementCount} listed{essentialElementCount >= ESSENTIAL_ELEMENTS_RANGE.min && essentialElementCount <= ESSENTIAL_ELEMENTS_RANGE.max ? "" : " (one to three are needed before publishing; you can save a draft now)"}
               </p>
 
               <div className="grid gap-3">
