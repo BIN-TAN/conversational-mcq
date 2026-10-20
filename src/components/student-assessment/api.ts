@@ -93,14 +93,16 @@ export function newClientActionId(prefix: string) {
 }
 
 export function fetchFormativeConversation(
-  sessionPublicId: string
+  sessionPublicId: string,
+  signal?: AbortSignal
 ): Promise<StudentFormativeConversation | null> {
   return get(
     `/api/student/sessions/${sessionPublicId}/formative-conversation`,
     (value) =>
       StudentFormativeConversationSchema.nullable().parse(
         (value as { formative_conversation: unknown }).formative_conversation
-      )
+      ),
+    signal
   );
 }
 
@@ -361,7 +363,8 @@ async function post<T>(
     keepalive: options?.keepalive ?? false,
     // A request that never settles would keep the page busy and its buttons disabled.
     // The ceiling is above the longest legitimate request (a tutor reply with one
-    // regeneration); after it the student sees Retry and the state is re-read.
+    // regeneration); after it the student sees Retry, which replays the same request, and a
+    // reply still being generated shows as pending (the conversation poll picks it up).
     signal: options?.keepalive || typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function"
       ? undefined : AbortSignal.timeout(STUDENT_POST_TIMEOUT_MS)
   });

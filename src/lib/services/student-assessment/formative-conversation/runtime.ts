@@ -1712,13 +1712,12 @@ export async function processFormativeConversationStudentMessage(
           })
         : []);
     // The final reply was saved but the close at the turn limit may have failed: a replay
-    // closes it, so the student is never left in a conversation that cannot continue.
-    const replayContext = existingContext?.context;
-    if (existingCall && replayContext && (
-      (replayContext.contract_version === FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
-        (replayContext as FormativeConversationV18R2AgentInput).formative_lifecycle.final_allowed_turn) ||
-      (isFeedbackV8Context(replayContext) && replayContext.lifecycle.final_allowed_turn)
-    )) {
+    // of that final turn closes it, so the student is never left in a conversation that
+    // cannot continue. Only the turn reserved as the final allowed turn closes it (an older
+    // turn replayed while a later reply is still generating must not).
+    const replayedTurnWasFinal = Boolean(studentTurn?.structured_payload && typeof studentTurn.structured_payload === "object" &&
+      (studentTurn.structured_payload as Record<string, unknown>).final_allowed_turn === true);
+    if (existingCall && replayedTurnWasFinal) {
       try {
         await closeFormativeConversationAtStudentTurnLimit({
           conversation_public_id: input.conversation_public_id,

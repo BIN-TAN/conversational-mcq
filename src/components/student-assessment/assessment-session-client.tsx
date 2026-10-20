@@ -33,6 +33,7 @@ import {
   completeReadyItem,
   endAssessmentAttempt,
   exitSession,
+  fetchFormativeConversation,
   fetchSessionState,
   fetchPreparationStatus,
   fetchStudentReview,
@@ -619,6 +620,17 @@ function FormativeConversationControls(input: {
       )}
     </section>
   );
+}
+
+/** An abort signal that also fires after `ms`, without AbortSignal.any (missing on older Safari). */
+function signalWithTimeout(base: AbortSignal, ms: number): AbortSignal {
+  if (typeof AbortSignal.any === "function" && typeof AbortSignal.timeout === "function") {
+    return AbortSignal.any([base, AbortSignal.timeout(ms)]);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  base.addEventListener("abort", () => { clearTimeout(timer); controller.abort(); }, { once: true });
+  return controller.signal;
 }
 
 function shouldHideActiveAgentTranscriptEntry(entry: StudentTranscriptEntry, state: StudentSessionState) {
@@ -2678,7 +2690,7 @@ export function AssessmentSessionClient({
     async function poll() {
       let again = true;
       try {
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+        const signal = signalWithTimeout(controller.signal, 10_000);
         const result = await fetchPreparationStatus(activeSessionPublicId!, signal);
         if (disposed) return;
         if (result.preparation && ["queued", "preparing", "retrying"].includes(result.preparation.status)) {
@@ -2725,18 +2737,35 @@ export function AssessmentSessionClient({
   useEffect(() => {
     if (!activeSessionPublicId || !conversationWaiting || readOnlyReview || isBusy) return;
     let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const controller = new AbortController();
-    const timer = setInterval(async () => {
+    // One request at a time (chained timeouts), reading only the conversation while it is
+    // waiting; once it settles, the whole state is read once so every control is current.
+    const tick = async () => {
       try {
-        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
-        const nextState = await fetchSessionState(activeSessionPublicId, signal);
-        if (!disposed) setState(nextState);
+        const signal = signalWithTimeout(controller.signal, 10_000);
+        const conversation = await fetchFormativeConversation(activeSessionPublicId, signal);
+        if (disposed) return;
+        const stillWaiting = Boolean(conversation && (conversation.opening_status === "preparing" ||
+          (conversation.assistant_response && ["pending", "retrying"].includes(conversation.assistant_response.status))));
+        if (stillWaiting) {
+          setState((current) => current ? { ...current, formative_conversation: conversation } : current);
+        } else {
+          const nextState = await fetchSessionState(activeSessionPublicId, signal);
+          if (!disposed) setState(nextState);
+          return;
+        }
       } catch (errorValue) {
         const status = (errorValue as StructuredStudentApiError | undefined)?.status;
-        if (!disposed && (status === 401 || status === 403)) router.replace("/student/login");
+        if (!disposed && (status === 401 || status === 403)) {
+          router.replace("/student/login");
+          return;
+        }
       }
-    }, 5000);
-    return () => { disposed = true; controller.abort(); clearInterval(timer); };
+      if (!disposed) timer = setTimeout(tick, 5000);
+    };
+    timer = setTimeout(tick, 5000);
+    return () => { disposed = true; controller.abort(); if (timer) clearTimeout(timer); };
   }, [activeSessionPublicId, conversationWaiting, readOnlyReview, isBusy, router]);
 
   const sendObservation = useStudentProcessEvents({
