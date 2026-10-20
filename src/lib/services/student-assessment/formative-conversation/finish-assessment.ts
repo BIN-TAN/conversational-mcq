@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { resolveCanonicalAttemptLifecycle } from "../attempt-lifecycle";
 import { StudentAssessmentServiceError } from "../errors";
+import { preparationOverdue } from "@/lib/workflow/initial-preparation-status";
 
 const closed = ["ended", "completed", "teacher_assistance_recommended"];
 const studentEndedReason = "student_ended_conversation";
@@ -18,14 +19,20 @@ export async function canFinishConversationAssessment(sessionId: string, assessm
       message_receipts: { select: { assistant_turn_db_id: true, assistant_response_status: true } },
       conversation_turns: { where: { actor_type: "agent", message_text: { not: null } }, select: { id: true } }
     } }, response_packages: { where: { package_type: "initial_concept_unit_response_package" }, select: { id: true } },
-    workflow_jobs: { where: { job_type: "prepare_initial_conversation", status: "failed" }, select: { id: true } } }
+    workflow_jobs: { where: { job_type: "prepare_initial_conversation" }, select: { status: true, created_at: true } } }
   });
+  const session = await db.assessmentSession.findUnique({ where: { id: sessionId }, select: { automation_paused_at: true } });
+  const now = new Date();
   return topics.length > 0 && units.length === topics.length && units.every(unit => {
     const conversation = unit.formative_conversation_session;
     if (!unit.initial_completed_at || unit.response_packages.length === 0) return false;
     // Never a dead end: when learning support could not be prepared at all, the
     // student may still finish; the attempt is flagged for the instructor.
-    if (!conversation) return unit.workflow_jobs.length > 0;
+    // The same holds when preparation is paused by the instructor or has taken too long.
+    if (!conversation) {
+      return unit.workflow_jobs.some(job => job.status === "failed" || preparationOverdue(job, now)
+        || (Boolean(session?.automation_paused_at) && job.status !== "completed"));
+    }
     if (!closed.includes(conversation.status)) return false;
     // D2 (DESIGN_ALIGNMENT_2026-10-17.md): an explicit student stop is a valid end
     // of the optional conversation even when the opening or a tutor reply was

@@ -56,7 +56,11 @@ async function main() {
   const { canFinishConversationAssessment } = await import(
     "../src/lib/services/student-assessment/formative-conversation/finish-assessment"
   );
-  const finishDb = (conversation: Record<string, unknown> | null, failedPreparation = false) => ({
+  const finishDb = (
+    conversation: Record<string, unknown> | null,
+    failedPreparation = false,
+    options: { jobs?: Array<{ status: string; created_at: Date }>; automation_paused_at?: Date | null } = {}
+  ) => ({
     conceptUnit: { findMany: async () => [{ id: "unit-1" }] },
     conceptUnitSession: {
       findMany: async () => [{
@@ -64,9 +68,10 @@ async function main() {
         initial_completed_at: new Date(),
         response_packages: [{ id: "pkg-1" }],
         formative_conversation_session: conversation,
-        workflow_jobs: failedPreparation ? [{ id: "job-1" }] : []
+        workflow_jobs: options.jobs ?? (failedPreparation ? [{ status: "failed", created_at: new Date() }] : [])
       }]
     },
+    assessmentSession: { findUnique: async () => ({ automation_paused_at: options.automation_paused_at ?? null }) },
     conversationTurn: { findMany: async () => [] },
     agentCall: { findFirst: async () => null }
   }) as never;
@@ -90,6 +95,43 @@ async function main() {
   await check("No dead end: finish is allowed without a conversation only when preparation failed for good", async () => {
     assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, true)), true);
     assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, false)), false);
+  });
+  await check("No dead end: a stalled or paused preparation lets the student finish", async () => {
+    const { PREPARATION_FINISH_AFTER_MS, preparationOverdue } = await import("../src/lib/workflow/initial-preparation-status");
+    const old = new Date(Date.now() - PREPARATION_FINISH_AFTER_MS - 1000);
+    const recent = new Date(Date.now() - 60_000);
+    assert.equal(preparationOverdue({ status: "running", created_at: old }), true);
+    assert.equal(preparationOverdue({ status: "completed", created_at: old }), false);
+    assert.equal(preparationOverdue({ status: "pending", created_at: recent }), false);
+    assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, false, { jobs: [{ status: "pending", created_at: old }] })), true);
+    assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, false, { jobs: [{ status: "running", created_at: recent }] })), false);
+    assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, false, {
+      jobs: [{ status: "retryable", created_at: recent }], automation_paused_at: new Date()
+    })), true);
+  });
+  await check("No dead end: item administration accepts the next reply after two prompts, whatever the model says", async () => {
+    const { applyItemAdministrationCollectionRules, ITEM_ADMINISTRATION_MAX_PROMPTS_PER_STEP } = await import(
+      "../src/lib/services/student-assessment/item-administration-tutor"
+    );
+    for (const action of ["redirect", "defer_question", "procedural_help", "clarify_once"] as const) {
+      const decision = applyItemAdministrationCollectionRules({
+        proposed_action: action, saved_question: null, text: "still not sure", prior_neutral_prompt_count: ITEM_ADMINISTRATION_MAX_PROMPTS_PER_STEP
+      });
+      assert.equal(decision.collection_action, "accept", action);
+    }
+    assert.equal(applyItemAdministrationCollectionRules({
+      proposed_action: "redirect", saved_question: null, text: "   ", prior_neutral_prompt_count: 5
+    }).collection_action, "redirect", "Empty text is still never accepted");
+  });
+  await check("No dead end: an opening left reserved by an interrupted process becomes retryable", async () => {
+    const { isStaleOpeningReservation, FORMATIVE_CONVERSATION_STALE_OPENING_MS } = await import(
+      "../src/lib/services/student-assessment/formative-conversation/opening-stale"
+    );
+    const old = new Date(Date.now() - FORMATIVE_CONVERSATION_STALE_OPENING_MS - 1000);
+    assert.equal(isStaleOpeningReservation({ status: "reserved", updated_at: old }), true);
+    assert.equal(isStaleOpeningReservation({ status: "reserved", updated_at: new Date() }), false);
+    assert.equal(isStaleOpeningReservation({ status: "reserved", updated_at: old, assistant_turn_db_id: "t1" }), false);
+    assert.equal(isStaleOpeningReservation({ status: "failed", updated_at: old }), false);
   });
   await check("No dead end: an attempt held for review or inconsistent can still be ended", async () => {
     const { resolveCanonicalAttemptLifecycle } = await import("../src/lib/services/student-assessment/attempt-lifecycle");

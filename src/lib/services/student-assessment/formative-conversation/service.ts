@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { isStaleOpeningReservation } from "./opening-stale";
 import { Prisma, type AssessmentPhase } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { attemptAllowsConversation, lockConversationAttempt } from "./attempt-boundary";
@@ -913,7 +914,8 @@ export async function reserveFormativeConversationOpening(
             "The formative conversation opening identity does not match."
           );
         }
-        if (existing.status === "failed" && !existing.assistant_turn) {
+        // A failed opening, or one left reserved by an interrupted process, can be retried.
+        if ((existing.status === "failed" || isStaleOpeningReservation(existing)) && !existing.assistant_turn) {
           const openingAttempt = openingAttemptFromReceipt(existing) + 1;
           const retryReceipt =
             await tx.formativeConversationMessageReceipt.update({

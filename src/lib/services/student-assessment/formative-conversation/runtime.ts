@@ -1711,6 +1711,26 @@ export async function processFormativeConversationStudentMessage(
             orderBy: { evidence_observation_index: "asc" }
           })
         : []);
+    // The final reply was saved but the close at the turn limit may have failed: a replay
+    // closes it, so the student is never left in a conversation that cannot continue.
+    const replayContext = existingContext?.context;
+    if (existingCall && replayContext && (
+      (replayContext.contract_version === FORMATIVE_CONVERSATION_V18R2_AGENT_CONTRACT_VERSION &&
+        (replayContext as FormativeConversationV18R2AgentInput).formative_lifecycle.final_allowed_turn) ||
+      (isFeedbackV8Context(replayContext) && replayContext.lifecycle.final_allowed_turn)
+    )) {
+      try {
+        await closeFormativeConversationAtStudentTurnLimit({
+          conversation_public_id: input.conversation_public_id,
+          client_message_id: input.client_message_id,
+          agent_call_db_id: existingCall.id,
+          source: "llm_terminal_recommendation",
+          reason_code: "final_allowed_turn_terminal_recommendation_recorded"
+        });
+      } catch (error) {
+        if (!(error instanceof FormativeConversationFoundationError) || error.code !== "conversation_not_active") throw error;
+      }
+    }
     return {
       receipt: responseReceipt,
       student_turn: studentTurn,

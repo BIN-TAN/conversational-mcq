@@ -127,8 +127,6 @@ const MAX_EVENT_PAYLOAD_BYTES = 4000;
 const IDK_OPTION_LABEL = "E";
 /** D3: student-facing payloads never include the understanding profile. */
 const STUDENT_LEARNING_PROFILE_VISIBLE = false as boolean;
-const ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE =
-  "This assessment is temporarily unavailable. Please try again later.";
 const REPEATED_INVALID_RESPONSE_PROMPT =
   "Please keep your response about this question. A brief reason is enough; you can also say you are unsure or have no more to add.";
 
@@ -1934,12 +1932,6 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   const student = await assertActiveStudentAccount(input.student_user_db_id);
-  const tutorRuntimeStatus = await getAssessmentTutorRuntimeStatus().catch((error) => ({
-    ready: false,
-    reason_codes: ["llm_runtime_status_unavailable"],
-    runtime_source: "configuration_error",
-    error
-  }));
   const assessments = await prisma.assessment.findMany({
     where: studentAssessmentCatalogWhere({
       student_user_db_id: input.student_user_db_id,
@@ -2028,19 +2020,18 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       ? "A resumable attempt already exists. Resume or end it before starting another attempt."
       : !catalogStartAllowed
         ? "This assessment is closed to new starts. Your previous attempts remain available."
-        : !tutorRuntimeStatus.ready
-          ? ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE
-          : manualReviewNewStartBlocked
+        : manualReviewNewStartBlocked
             ? "This assessment is not available for student starts yet."
             : computed.student_safe_availability_message;
-    const tutorRuntimeBlocksOpen = !tutorRuntimeStatus.ready;
+    // The item-administration tutor falls back to fixed wording when the model is not ready,
+    // so a model hiccup never blocks a start (students are never stuck). Readiness is still
+    // reported to instructors and logged.
     const canStart =
       computed.can_start_new_session &&
       chances.remaining_attempts > 0 &&
       !anotherFamilyAttemptOpen &&
       catalogStartAllowed &&
-      !manualReviewNewStartBlocked &&
-      !tutorRuntimeBlocksOpen;
+      !manualReviewNewStartBlocked;
     const canResume = Boolean(
       existingSession &&
       !completed &&
@@ -2426,30 +2417,19 @@ export async function startOrResumeStudentAssessmentSession(
                 reason_codes: [] as string[],
                 runtime_source: "deterministic_evaluation_adapter"
               }
-            : await getAssessmentTutorRuntimeStatus().catch((error) => {
-                throw new StudentAssessmentServiceError(
-                  "llm_runtime_status_unavailable",
-                  ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE,
-                  409,
-                  {
-                    assessment_public_id: assessment.assessment_public_id,
-                    reason_codes: ["llm_runtime_status_unavailable"],
-                    runtime_source: "configuration_error",
-                    error_name: error instanceof Error ? error.name : "unknown_error"
-                  }
-                );
-              });
+            : await getAssessmentTutorRuntimeStatus().catch((error) => ({
+                ready: false,
+                reason_codes: ["llm_runtime_status_unavailable"],
+                runtime_source: `configuration_error:${error instanceof Error ? error.name : "unknown_error"}`
+              }));
           if (!tutorRuntimeStatus.ready) {
-            throw new StudentAssessmentServiceError(
-              "llm_not_ready",
-              ASSESSMENT_TEMPORARILY_UNAVAILABLE_MESSAGE,
-              409,
-              {
-                assessment_public_id: assessment.assessment_public_id,
-                reason_codes: tutorRuntimeStatus.reason_codes,
-                runtime_source: tutorRuntimeStatus.runtime_source
-              }
-            );
+            // Not a reason to refuse the start: item administration uses its deterministic
+            // fallback until the model is ready again.
+            console.warn("[student-assessment] starting with the item-administration fallback", {
+              assessment_public_id: assessment.assessment_public_id,
+              reason_codes: tutorRuntimeStatus.reason_codes,
+              runtime_source: tutorRuntimeStatus.runtime_source
+            });
           }
 
           if (assessment.status === "archived") {
@@ -3026,9 +3006,10 @@ export async function getStudentSessionState(input: {
       automaticJobs.some((job) => job.status === "failed"));
   const automaticAgentIntegrationReady =
     session.workflow_mode_snapshot === "automatic"
-      ? (await getGuardedOperationalAgentIntegrationReadiness({
+      ? // A readiness check that throws must never take down the student's state.
+        (await getGuardedOperationalAgentIntegrationReadiness({
           checkDatabase: true
-        })).allowed
+        }).catch(() => ({ allowed: false }))).allowed
       : false;
   const phaseFiveFormativeRound =
     conceptUnitSession && ["planning_completed", "followup_active", "followup_stopped"].includes(effectivePhase)

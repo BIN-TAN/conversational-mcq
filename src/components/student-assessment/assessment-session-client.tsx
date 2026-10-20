@@ -477,7 +477,7 @@ function FormativeConversationControls(input: {
       {conversation.can_finish_assessment ? <button type="button" disabled={input.isBusy}
         className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60"
         onClick={input.onFinish} data-testid="finish-assessment">Finish assessment</button> :
-        <p className="text-sm text-muted">Please contact your teacher for help with this assessment. Your responses are saved.</p>}
+        <p className="text-sm text-muted">Your responses are saved. Use End attempt at the top of the page to finish, or contact your teacher if you need help.</p>}
     </section>;
   }
   const response = conversation.assistant_response;
@@ -612,7 +612,9 @@ function FormativeConversationControls(input: {
         <p className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted">
           {conversation.status === "paused"
             ? "This conversation is paused. Resume it when you are ready to continue."
-            : "This conversation has ended. Use End attempt when you are ready to finish the assessment."}
+            : conversation.can_end
+              ? `You have reached the end of this conversation. Select "${input.finishLabel}" when you are ready.`
+              : "This conversation has ended. Use End attempt at the top of the page when you are ready to finish the assessment."}
         </p>
       )}
     </section>
@@ -2712,6 +2714,31 @@ export function AssessmentSessionClient({
     return () => { disposed = true; controller.abort(); clearTimeout(timer); };
   }, [activeSessionPublicId, preparationPending, readOnlyReview, isBusy, router]);
 
+  // Never wait on a spinner that nothing will update: while the opening is being prepared
+  // or a tutor reply is pending (for example after a reload or a dropped connection), the
+  // conversation state is re-read every few seconds until it settles.
+  const conversationWaiting = Boolean(state?.formative_conversation && (
+    state.formative_conversation.opening_status === "preparing" ||
+    (state.formative_conversation.assistant_response &&
+      ["pending", "retrying"].includes(state.formative_conversation.assistant_response.status))
+  ));
+  useEffect(() => {
+    if (!activeSessionPublicId || !conversationWaiting || readOnlyReview || isBusy) return;
+    let disposed = false;
+    const controller = new AbortController();
+    const timer = setInterval(async () => {
+      try {
+        const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]);
+        const nextState = await fetchSessionState(activeSessionPublicId, signal);
+        if (!disposed) setState(nextState);
+      } catch (errorValue) {
+        const status = (errorValue as StructuredStudentApiError | undefined)?.status;
+        if (!disposed && (status === 401 || status === 403)) router.replace("/student/login");
+      }
+    }, 5000);
+    return () => { disposed = true; controller.abort(); clearInterval(timer); };
+  }, [activeSessionPublicId, conversationWaiting, readOnlyReview, isBusy, router]);
+
   const sendObservation = useStudentProcessEvents({
     sessionPublicId: state?.session_public_id ?? resolvedInitialSessionPublicId ?? "pending-session",
     // R5: general activity events (typing summaries, pastes, focus and visibility) belong
@@ -3865,6 +3892,12 @@ export function AssessmentSessionClient({
           onClick={() => void handleFormativeConversationLifecycle("finish")}>
           Finish assessment
         </button>
+      ) : null}
+      {state.preparation.taking_long && state.preparation.can_finish ? (
+        <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-taking-long">
+          This is taking longer than usual. You can keep waiting, or finish now. Your responses are saved either way,
+          and your teacher will see if learning support was not available.
+        </p>
       ) : null}
       {state.preparation.status === "failed" ? (
         <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-help">

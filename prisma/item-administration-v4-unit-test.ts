@@ -489,8 +489,11 @@ async function main() {
     assert.equal(reason.item_admin_tutor_source, "deterministic_mock");
     assert.equal(reason.fallback_used, false);
     assert.equal(reason.should_advance, true);
-    const gibberish = await run("asdfghjkl", { prior_neutral_prompt_count: 2 });
-    assert.equal(gibberish.should_advance, false, "Only a model failure relaxes the redirect");
+    const gibberish = await run("asdfghjkl", { prior_neutral_prompt_count: 1 });
+    assert.equal(gibberish.should_advance, false, "One prompt is not yet the limit when the model is available");
+    const afterLimit = await run("asdfghjkl", { prior_neutral_prompt_count: 2 });
+    assert.equal(afterLimit.should_advance, true, "After two prompts the next non-empty reply is accepted (never stuck)");
+    assert.equal(afterLimit.application_override, "prompt_limit_reached");
     const fragment = await run("B");
     assert.equal(fragment.collection_action, "clarify_once");
     const afterClarification = await run("B", { prior_neutral_clarification_count: 1 });

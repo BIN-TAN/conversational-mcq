@@ -161,6 +161,7 @@ export type ItemAdministrationCollectionOverride =
   | "none"
   | "clarification_already_used"
   | "fallback_prompt_already_given"
+  | "prompt_limit_reached"
   | "empty_response";
 
 export type ItemAdministrationTutorResult = {
@@ -684,8 +685,13 @@ function cleanSavedQuestion(value: string | null | undefined) {
  *   non-empty reply is accepted as it is (any question in it stays saved).
  * - When the model is unavailable, a model failure never blocks: after one neutral prompt for this
  *   item and step, the next non-empty reply is accepted as it is.
+ * - Whatever the model proposes, a student is never held at one step: after two prompts for this
+ *   item and step, the next non-empty reply is accepted as it is.
  * - A deferred question is always saved.
  */
+/** Prompts for one item and step after which the next non-empty reply is always accepted. */
+export const ITEM_ADMINISTRATION_MAX_PROMPTS_PER_STEP = 2;
+
 export function applyItemAdministrationCollectionRules(input: {
   proposed_action: ItemAdministrationTutorAction;
   saved_question: string | null;
@@ -710,6 +716,10 @@ export function applyItemAdministrationCollectionRules(input: {
 
   if (input.proposed_action !== "accept" && input.model_unavailable && (input.prior_neutral_prompt_count ?? 0) >= 1) {
     return { collection_action: "accept", application_override: "fallback_prompt_already_given", saved_question: savedQuestion };
+  }
+
+  if (input.proposed_action !== "accept" && (input.prior_neutral_prompt_count ?? 0) >= ITEM_ADMINISTRATION_MAX_PROMPTS_PER_STEP) {
+    return { collection_action: "accept", application_override: "prompt_limit_reached", saved_question: savedQuestion };
   }
 
   return {
@@ -1102,7 +1112,18 @@ export async function runItemAdministrationTutor(input: {
   });
   assertNoProhibitedProviderInput(modelInput);
   const store = itemAdministrationTutorAgentCallStoreOverrideForTest ?? prismaAgentCallStore;
-  const agentCall = await store.create({
+  // A retried request reuses the client's action id, and so the invocation key, after an
+  // earlier attempt already created its AgentCall (for example when a later write failed or
+  // the server restarted). The retry gets its own key instead of failing every time.
+  const createAgentCall = async (data: Prisma.AgentCallUncheckedCreateInput) => {
+    try {
+      return await store.create(data);
+    } catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002")) throw error;
+      return store.create({ ...data, id: randomUUID(), agent_invocation_key: `${data.agent_invocation_key}:retry:${randomUUID()}` });
+    }
+  };
+  const agentCall = await createAgentCall({
     id: randomUUID(),
     assessment_session_db_id: input.audit_context.assessment_session_db_id,
     concept_unit_session_db_id: input.audit_context.concept_unit_session_db_id,

@@ -263,6 +263,8 @@ export function normalizeStudentApiError(
   };
 }
 
+const STUDENT_POST_TIMEOUT_MS = 6 * 60_000;
+
 async function get<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal) {
   const response = await fetch(path, {
     signal,
@@ -356,7 +358,12 @@ async function post<T>(
       ...tabHeaders
     },
     body: JSON.stringify(body),
-    keepalive: options?.keepalive ?? false
+    keepalive: options?.keepalive ?? false,
+    // A request that never settles would keep the page busy and its buttons disabled.
+    // The ceiling is above the longest legitimate request (a tutor reply with one
+    // regeneration); after it the student sees Retry and the state is re-read.
+    signal: options?.keepalive || typeof AbortSignal === "undefined" || typeof AbortSignal.timeout !== "function"
+      ? undefined : AbortSignal.timeout(STUDENT_POST_TIMEOUT_MS)
   });
   let response = await send();
 

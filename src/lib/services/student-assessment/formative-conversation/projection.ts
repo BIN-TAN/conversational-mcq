@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { isStaleOpeningReservation } from "./opening-stale";
 import { canFinishConversationAssessment, finishConversationAssessment } from "./finish-assessment";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { logProductionError } from "@/lib/observability/production-safe-logger";
@@ -233,9 +234,12 @@ export async function getStudentFormativeConversationProjection(input: {
   const failureRetryable = failurePayload.retryable !== false;
   const preparation = await getInitialPreparationStatus(conversation.assessment_session);
   const preparationInProgress = preparation && ["queued", "preparing", "retrying", "paused"].includes(preparation.status);
+  const openingInterrupted = !preparationInProgress && isStaleOpeningReservation(openingReceipt);
   const openingStatus: FormativeConversationOpeningStatus = persistedOpening
     ? "ready"
-    : preparationInProgress || openingReceipt?.status === "reserved"
+    : openingInterrupted
+      ? "retry_available"
+      : preparationInProgress || openingReceipt?.status === "reserved"
       ? "preparing"
       : openingReceipt?.status === "failed"
         ? failureRetryable
