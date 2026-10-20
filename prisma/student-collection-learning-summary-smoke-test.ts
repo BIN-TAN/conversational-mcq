@@ -45,10 +45,13 @@ for (const stage of ["reasoning", "tempting_reason"] as const) {
       assert.doesNotMatch(output.student_facing_message, /timing|predefined|other students|correct/);
     });
     for (const action of ["defer_question", "procedural_help", "redirect"] as const) {
-      check(`${role}/${stage}: repeated ${action} without a clarification is not a justification`, () => {
-        const output = decide(proposed(action), { ...state, prior_neutral_prompt_count: 8, prior_neutral_clarification_count: 0 });
-        assert.equal(output.should_advance, false);
-        assert.doesNotMatch(output.student_facing_message, /timing|predefined|other students/);
+      check(`${role}/${stage}: one ${action} prompt does not yet advance; after the per-step limit the reply is accepted (never stuck)`, () => {
+        const first = decide(proposed(action), { ...state, prior_neutral_prompt_count: 1, prior_neutral_clarification_count: 0 });
+        assert.equal(first.should_advance, false);
+        assert.doesNotMatch(first.student_facing_message, /timing|predefined|other students/);
+        const limit = decide(proposed(action), { ...state, prior_neutral_prompt_count: 8, prior_neutral_clarification_count: 0 });
+        assert.equal(limit.should_advance, true);
+        assert.doesNotMatch(limit.student_facing_message, /timing|predefined|other students/);
       });
     }
   }

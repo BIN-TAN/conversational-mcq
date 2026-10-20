@@ -63,11 +63,15 @@ for (const role of ["initial", "transfer"] as const) {
   }
 }
 for (const action of ["defer_question", "redirect"] as const) {
-  check(`${action} alone never advances, even after repeated submissions`, () => {
+  check(`${action} does not advance at first; after repeated submissions the reply is accepted and any question saved (never stuck)`, () => {
+    const first = { ...packet, latest_student_message: "Could you explain this concept?", prior_neutral_prompt_count: 1, prior_neutral_clarification_count: 0 };
+    const firstOutput = itemAdministrationTutorResultFromModelOutput({ output: { action, saved_question: null }, state_packet: first, text: first.latest_student_message });
+    assert.equal(firstOutput.should_advance, false);
+    assert.equal(firstOutput.collection_action, action);
     const state = { ...packet, latest_student_message: "Could you explain this concept?", prior_neutral_prompt_count: 9, prior_neutral_clarification_count: 0 };
     const output = itemAdministrationTutorResultFromModelOutput({ output: { action, saved_question: null }, state_packet: state, text: state.latest_student_message });
-    assert.equal(output.should_advance, false);
-    assert.equal(output.collection_action, action);
+    assert.equal(output.should_advance, true);
+    assert.equal(output.collection_action, "accept");
   });
 }
 check("Teaching instructions distinguish selection from explanation and preserve provenance", () => {

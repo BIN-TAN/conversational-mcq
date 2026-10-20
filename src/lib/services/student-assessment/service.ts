@@ -37,7 +37,6 @@ import {
 } from "@/lib/services/content/item-media";
 import { INCLUDED_ITEM_RANGE } from "@/lib/services/content/governance";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
-import { getAssessmentTutorRuntimeStatus } from "@/lib/llm/assessment-tutor-readiness";
 import { getStudentProgressionStateBySessionDbId } from "@/lib/services/concept-progression/progression";
 import {
   planAttemptLifecycleReconciliation,
@@ -2090,9 +2089,8 @@ export async function startOrResumeStudentAssessmentSession(
   }
 ): Promise<StudentSessionCommandResponse | StudentSessionCommandDeliveryResponse> {
   await assertActiveStudentAccount(input.student_user_db_id);
-  const executionPlan = resolveTopicDialogueExecutionPlan(
-    input.execution_mode ?? "production"
-  );
+  // Validates the execution mode; the plan itself is resolved again where it is used.
+  resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production");
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -2411,26 +2409,9 @@ export async function startOrResumeStudentAssessmentSession(
               { existing_session_public_id: familyResumable.session_public_id });
           }
 
-          const tutorRuntimeStatus = executionPlan.adapter === "deterministic_mock_safe"
-            ? {
-                ready: true,
-                reason_codes: [] as string[],
-                runtime_source: "deterministic_evaluation_adapter"
-              }
-            : await getAssessmentTutorRuntimeStatus().catch((error) => ({
-                ready: false,
-                reason_codes: ["llm_runtime_status_unavailable"],
-                runtime_source: `configuration_error:${error instanceof Error ? error.name : "unknown_error"}`
-              }));
-          if (!tutorRuntimeStatus.ready) {
-            // Not a reason to refuse the start: item administration uses its deterministic
-            // fallback until the model is ready again.
-            console.warn("[student-assessment] starting with the item-administration fallback", {
-              assessment_public_id: assessment.assessment_public_id,
-              reason_codes: tutorRuntimeStatus.reason_codes,
-              runtime_source: tutorRuntimeStatus.runtime_source
-            });
-          }
+          // The item-administration tutor's readiness is not checked here: when the model is not
+          // ready, item administration uses its deterministic fallback and each response records
+          // it, so a model hiccup never blocks a start.
 
           if (assessment.status === "archived") {
             throw new StudentAssessmentServiceError(
