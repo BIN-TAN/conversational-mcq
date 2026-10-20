@@ -2065,6 +2065,7 @@ function StudentAssessmentChatShell({
   onBackToAssessments,
   onExit,
   onEndAttempt,
+  onResumeAttempt,
   children
 }: {
   state: StudentSessionState;
@@ -2073,6 +2074,7 @@ function StudentAssessmentChatShell({
   onBackToAssessments: () => void;
   onExit: () => void;
   onEndAttempt: () => void;
+  onResumeAttempt: () => void;
   children: React.ReactNode;
 }) {
   return (
@@ -2106,6 +2108,18 @@ function StudentAssessmentChatShell({
             </button>
           ) : (
             <>
+              {/* A paused attempt opened directly (Back button, bookmark) resumes here. */}
+              {state.attempt_lifecycle?.canonical_status === "paused" ? (
+                <button
+                  className="inline-flex w-fit items-center justify-center gap-2 rounded-full bg-accent px-3 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-60"
+                  data-testid="resume-attempt"
+                  disabled={isBusy}
+                  onClick={onResumeAttempt}
+                  type="button"
+                >
+                  Resume attempt
+                </button>
+              ) : null}
               <button
                 className="inline-flex w-fit items-center justify-center gap-2 rounded-full border border-line bg-white px-3 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
                 data-testid="save-exit"
@@ -2116,7 +2130,10 @@ function StudentAssessmentChatShell({
                 <LogOut className="h-4 w-4" aria-hidden="true" />
                 Pause and leave
               </button>
-              {state.preparation?.status !== "failed" && !state.formative_conversation ? (
+              {/* Never a dead end: End attempt is offered whenever the conversation panel
+                  cannot end or finish the attempt itself. */}
+              {!state.formative_conversation ||
+              (!state.formative_conversation.can_end && !state.formative_conversation.can_finish_assessment) ? (
                 <button
                   className="inline-flex w-fit items-center justify-center rounded-full border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-800 transition hover:border-red-300 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
                   data-testid="end-attempt"
@@ -3424,6 +3441,23 @@ export function AssessmentSessionClient({
     }
   }
 
+  async function handleResumeAttempt() {
+    if (!state) return;
+    setIsBusy(true);
+    setError(null);
+    setFailedAction(null);
+    try {
+      const resumed = await startAssessmentSession(state.assessment.assessment_public_id);
+      setState(resumed.state);
+    } catch (errorValue) {
+      handleError(errorValue, "Resume attempt", () => {
+        void handleResumeAttempt();
+      });
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function handleEndAttempt() {
     if (!activeSessionPublicId) {
       return;
@@ -3796,7 +3830,10 @@ export function AssessmentSessionClient({
 
   const isReviewablePastAttempt =
     readOnlyReview && state.attempt_lifecycle?.terminal === true;
-  const activePrompt = readOnlyReview ? null : state.preparation && state.preparation.status !== "ready" && state.preparation.status !== "cancelled" ? (
+  // When the conversation exists, its panel comes first: it already shows the opening's
+  // status and offers End and Finish, so the student is never held at a preparation notice.
+  const activePrompt = readOnlyReview ? null : !state.formative_conversation && state.preparation &&
+    state.preparation.status !== "ready" && state.preparation.status !== "cancelled" ? (
     <div className="rounded-lg border border-line bg-white p-4" data-testid="initial-preparation-status" role="status" aria-live="polite">
       <p className="font-medium text-ink">
         {preparationPending ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" /> : null}
@@ -3822,12 +3859,22 @@ export function AssessmentSessionClient({
           <RefreshCw className="h-4 w-4" aria-hidden="true" /> Try again
         </button>
       ) : null}
+      {state.preparation.can_finish ? (
+        <button type="button" className="ml-2 mt-3 inline-flex items-center gap-2 rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-50"
+          data-testid="finish-without-learning-support" disabled={isBusy}
+          onClick={() => void handleFormativeConversationLifecycle("finish")}>
+          Finish assessment
+        </button>
+      ) : null}
       {state.preparation.status === "failed" ? (
         <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-help">
-          {state.preparation.can_retry
-            ? "You can try again or contact your teacher for help."
-            : "Please contact your teacher for help with this test."}{" "}
-          Your attempt stays open. You can pause and return later without starting a new attempt.
+          {state.preparation.can_retry && state.preparation.can_finish
+            ? "You can try again, or finish now. Your responses are saved either way, and your teacher will see that learning support was not available."
+            : state.preparation.can_retry
+              ? "You can try again or contact your teacher for help."
+              : state.preparation.can_finish
+                ? "You can finish now. Your responses are saved, and your teacher will see that learning support was not available."
+                : "Please contact your teacher for help with this test."}
         </p>
       ) : null}
       {review?.locked && !state.package_results ? (
@@ -3950,6 +3997,7 @@ export function AssessmentSessionClient({
       onBackToAssessments={() => router.push("/student/assessment")}
       onEndAttempt={() => void handleEndAttempt()}
       onExit={() => void handleExit()}
+      onResumeAttempt={() => void handleResumeAttempt()}
       readOnlyReview={readOnlyReview}
       state={state}
     >

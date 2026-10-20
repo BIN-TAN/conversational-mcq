@@ -11,7 +11,10 @@ export const INITIAL_PREPARATION_JOB = "prepare_initial_conversation" as const;
 const payloadSchema = z.object({
   session_public_id: z.string(), concept_unit_public_id: z.string(),
   response_package_id: z.string(), response_package_hash: z.string(),
-  execution_mode: z.enum(["production", "deterministic_e1", "no_live_e2a_contract"])
+  execution_mode: z.enum(["production", "deterministic_e1", "no_live_e2a_contract"]),
+  // Set by the instructor's "retry step" control; without it that retry failed as a conflict.
+  retry_of_job_public_id: z.string().optional(),
+  requested_by_override_public_id: z.string().optional()
 }).strict();
 
 function leaseWhere(job: WorkflowJob) {
@@ -204,6 +207,18 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
     clearInterval(timer);
     await heartbeat;
   }
+  // Students are never left at a dead end. When preparation has failed for good, the
+  // student is handed to the conversation panel (answer review, opening retry, End and
+  // Finish): an existing conversation is used as it is; otherwise a no-claims fallback
+  // profile and its conversation are saved without any model call. A source conflict is
+  // not salvaged (the sealed responses do not match); the student can still finish.
+  if (status === "failed" && errorCategory !== "preparation_source_conflict" && !options.prepare) {
+    const handedOver = await handOverAfterFailedPreparation(job, errorCategory).catch(() => false);
+    if (handedOver) {
+      errorCategory = `handed_over_after_${errorCategory ?? "preparation_failed"}`;
+      status = "completed";
+    }
+  }
   const outcome = status;
   await prisma.$transaction(async (tx) => {
     const updated = await tx.workflowJob.updateMany({ where: leaseWhere(job), data: {
@@ -224,6 +239,26 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
     }, tx);
   });
   return outcome;
+}
+
+async function handOverAfterFailedPreparation(job: WorkflowJob, errorCategory: string | null) {
+  if (!job.concept_unit_session_db_id) return false;
+  const existing = await prisma.formativeConversationSession.findUnique({
+    where: { concept_unit_session_db_id: job.concept_unit_session_db_id },
+    select: { id: true }
+  });
+  if (existing) return true;
+  const payload = payloadSchema.safeParse(job.payload);
+  if (!payload.success) return false;
+  const { prepareInitialInterpretationV8 } = await import("@/lib/services/student-assessment/interpretation-v8/prepare");
+  await prepareInitialInterpretationV8({
+    concept_unit_session_db_id: job.concept_unit_session_db_id,
+    response_package_id: payload.data.response_package_id,
+    execution_mode: payload.data.execution_mode,
+    mode: "fallback_only",
+    fallback_reason: `preparation_failed:${errorCategory ?? "unknown"}`
+  });
+  return true;
 }
 
 export async function runInitialPreparationWorker(signal: AbortSignal) {

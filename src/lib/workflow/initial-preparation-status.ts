@@ -9,7 +9,7 @@ export async function getInitialPreparationStatus(session: {
   const job = await prisma.workflowJob.findFirst({ where: {
     assessment_session_db_id: session.id, job_type: "prepare_initial_conversation",
     concept_unit_session: { concept_unit_db_id: session.current_concept_unit_db_id ?? "00000000-0000-0000-0000-000000000000" }
-  }, select: { id: true, status: true, last_error_category: true, concept_unit_session_db_id: true } });
+  }, orderBy: [{ created_at: "desc" }], select: { id: true, status: true, last_error_category: true, concept_unit_session_db_id: true } });
   if (!job) return null;
   const terminal = resolveCanonicalAttemptLifecycle(session).terminal;
   const paused = session.status !== "active" || Boolean(session.automation_paused_at);
@@ -25,6 +25,9 @@ export async function getInitialPreparationStatus(session: {
       : job.status === "running" ? "preparing" as const : job.status === "retryable" ? "retrying" as const : job.status,
     can_retry: !terminal && !paused && recoverable,
     can_continue: false,
+    // Never a dead end: once preparation has failed for good, the student may finish the
+    // assessment without learning support (the attempt is flagged for the instructor).
+    can_finish: failed && !terminal,
     failure_reason: failed ? job.last_error_category === "output_token_limit" ? "output_token_limit" as const
       : job.last_error_category === "preparation_source_conflict" ? "source_conflict" as const
       : "unavailable" as const : null

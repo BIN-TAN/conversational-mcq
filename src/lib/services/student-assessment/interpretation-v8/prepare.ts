@@ -48,7 +48,15 @@ export async function prepareInitialInterpretationV8(input: {
   response_package_id: string;
   execution_mode?: FormativeExecutionMode;
   assert_preparation_active?: () => Promise<void>;
+  /**
+   * "fallback_only": no model call and no opening. Used after preparation has failed for
+   * good, so the student still gets the answer review and the conversation panel (with
+   * End and Finish) instead of a dead end. The profile makes no diagnostic claims.
+   */
+  mode?: "full" | "fallback_only";
+  fallback_reason?: string;
 }) {
+  const fallbackOnly = input.mode === "fallback_only";
   await input.assert_preparation_active?.();
   const conceptUnitSession = await prisma.conceptUnitSession.findUniqueOrThrow({
     where: { id: input.concept_unit_session_db_id },
@@ -77,13 +85,15 @@ export async function prepareInitialInterpretationV8(input: {
       response_package_id: input.response_package_id
     });
     await input.assert_preparation_active?.();
-    const result = await callInterpretationV8({
-      assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
-      concept_unit_session_db_id: conceptUnitSession.id,
-      response_package_id: input.response_package_id,
-      model_input: loaded.input,
-      provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed
-    });
+    const result = fallbackOnly
+      ? { status: "failed" as const, reason: input.fallback_reason ?? "preparation_failed", agent_call_id: null }
+      : await callInterpretationV8({
+          assessment_session_db_id: conceptUnitSession.assessment_session_db_id,
+          concept_unit_session_db_id: conceptUnitSession.id,
+          response_package_id: input.response_package_id,
+          model_input: loaded.input,
+          provider_generation_allowed: resolveTopicDialogueExecutionPlan(executionMode).provider_generation_allowed
+        });
     // Whatever the outcome (validated, rejected twice, model unreachable or not approved), a
     // profile is saved and the student continues. A rejection never blocks the student: the
     // fallback profile carries the deterministic answer review but no ratings or claims, its
@@ -142,6 +152,7 @@ export async function prepareInitialInterpretationV8(input: {
   }
 
   await walkPhasesToPlanningCompleted(conceptUnitSession.assessment_session_db_id);
+  if (fallbackOnly) return { profile_db_id: profileId, opening_status: "not_attempted" as const };
   const opening = await ensureFormativeConversationOpeningForConceptUnitSession({
     concept_unit_session_db_id: conceptUnitSession.id,
     execution_mode: executionMode,

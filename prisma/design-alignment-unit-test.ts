@@ -56,14 +56,15 @@ async function main() {
   const { canFinishConversationAssessment } = await import(
     "../src/lib/services/student-assessment/formative-conversation/finish-assessment"
   );
-  const finishDb = (conversation: Record<string, unknown> | null) => ({
+  const finishDb = (conversation: Record<string, unknown> | null, failedPreparation = false) => ({
     conceptUnit: { findMany: async () => [{ id: "unit-1" }] },
     conceptUnitSession: {
       findMany: async () => [{
         id: "cus-1",
         initial_completed_at: new Date(),
         response_packages: [{ id: "pkg-1" }],
-        formative_conversation_session: conversation
+        formative_conversation_session: conversation,
+        workflow_jobs: failedPreparation ? [{ id: "job-1" }] : []
       }]
     },
     conversationTurn: { findMany: async () => [] },
@@ -78,13 +79,23 @@ async function main() {
     }));
     assert.equal(allowed, true);
   });
-  await check("D2 platform-failure closure with an unanswered message still blocks finish", async () => {
+  await check("No dead end: a platform closure (for example the turn limit with no final reply) allows finish", async () => {
     const allowed = await canFinishConversationAssessment("s", "a", finishDb({
       id: "conv-1", status: "ended", lifecycle_reason: "platform_failure:opening_unavailable",
       conversation_turns: [], message_receipts: [{ id: "r1", status: "failed", student_turn_db_id: null,
         assistant_turn_db_id: null, assistant_response_status: "failed" }]
     }));
-    assert.equal(allowed, false);
+    assert.equal(allowed, true);
+  });
+  await check("No dead end: finish is allowed without a conversation only when preparation failed for good", async () => {
+    assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, true)), true);
+    assert.equal(await canFinishConversationAssessment("s", "a", finishDb(null, false)), false);
+  });
+  await check("No dead end: an attempt held for review or inconsistent can still be ended", async () => {
+    const { resolveCanonicalAttemptLifecycle } = await import("../src/lib/services/student-assessment/attempt-lifecycle");
+    assert.equal(resolveCanonicalAttemptLifecycle({ status: "needs_review", current_phase: "needs_review" }).can_end, true);
+    assert.equal(resolveCanonicalAttemptLifecycle({ status: "weird", current_phase: "weird" }).can_end, true);
+    assert.equal(resolveCanonicalAttemptLifecycle({ status: "completed", current_phase: "session_completed" }).can_end, false);
   });
   await check("D2 an active conversation still blocks finish", async () => {
     const allowed = await canFinishConversationAssessment("s", "a", finishDb({

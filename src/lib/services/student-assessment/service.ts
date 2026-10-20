@@ -1833,6 +1833,9 @@ async function assertActiveStudentAccount(
   return user;
 }
 
+/** Longer than any student action can run, including a slow model call. */
+const ABANDONED_ACTION_KEY_MS = 5 * 60 * 1000;
+
 async function withActionIdempotency<T extends Record<string, unknown>>(
   input: {
     assessment_session_db_id: string;
@@ -1869,11 +1872,20 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
       return existing.response_payload as T;
     }
 
-    throw new StudentAssessmentServiceError(
-      "session_start_conflict",
-      "A matching request is already in progress.",
-      409
-    );
+    // A key with no stored response that is older than any request can run belongs to a
+    // request that was interrupted (for example a server restart). Treat it as abandoned so
+    // the student's retry can run, instead of failing with "in progress" forever.
+    const abandoned = Date.now() - existing.updated_at.getTime() > ABANDONED_ACTION_KEY_MS;
+    if (!abandoned) {
+      throw new StudentAssessmentServiceError(
+        "session_start_conflict",
+        "A matching request is already in progress.",
+        409
+      );
+    }
+    await prisma.studentActionIdempotencyKey.deleteMany({
+      where: { id: existing.id, response_payload: { equals: Prisma.DbNull }, updated_at: existing.updated_at }
+    });
   }
 
   const created = await prisma.studentActionIdempotencyKey.create({
@@ -6951,6 +6963,17 @@ export async function exitStudentAssessmentSession(input: {
       can_resume: true,
       lifecycle_version: lifecycle.lifecycle_version,
       command_result: commandResult
+    };
+  }
+
+  // An attempt held for review or in an inconsistent state cannot be paused, but the
+  // student can always leave the page: nothing changes and they return to the list.
+  if (!lifecycle.can_pause && (lifecycle.canonical_status === "needs_review" || lifecycle.canonical_status === "inconsistent")) {
+    return {
+      exit_status: "left_without_pause",
+      can_resume: lifecycle.can_resume,
+      lifecycle_version: lifecycle.lifecycle_version,
+      command_result: null
     };
   }
 

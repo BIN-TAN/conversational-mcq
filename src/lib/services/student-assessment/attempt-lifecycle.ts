@@ -139,7 +139,10 @@ export function resolveCanonicalAttemptLifecycle(
     resumable,
     can_resume: resumable,
     can_pause: canonicalStatus === "active",
-    can_end: canonicalStatus === "active" || canonicalStatus === "paused",
+    // A student can always end an attempt that is still open, including one held for
+    // review or in an inconsistent state, so no attempt is a dead end.
+    can_end: canonicalStatus === "active" || canonicalStatus === "paused" ||
+      canonicalStatus === "needs_review" || canonicalStatus === "inconsistent",
     can_start_another: terminal,
     terminal_status: completed ? "completed" : endedByStudent ? "ended_by_student" : null,
     consistency_issues: consistencyIssues,

@@ -17,18 +17,24 @@ export async function canFinishConversationAssessment(sessionId: string, assessm
     include: { formative_conversation_session: { include: {
       message_receipts: { select: { assistant_turn_db_id: true, assistant_response_status: true } },
       conversation_turns: { where: { actor_type: "agent", message_text: { not: null } }, select: { id: true } }
-    } }, response_packages: { where: { package_type: "initial_concept_unit_response_package" }, select: { id: true } } }
+    } }, response_packages: { where: { package_type: "initial_concept_unit_response_package" }, select: { id: true } },
+    workflow_jobs: { where: { job_type: "prepare_initial_conversation", status: "failed" }, select: { id: true } } }
   });
   return topics.length > 0 && units.length === topics.length && units.every(unit => {
     const conversation = unit.formative_conversation_session;
-    if (!unit.initial_completed_at || unit.response_packages.length === 0 || !conversation ||
-        !closed.includes(conversation.status)) return false;
+    if (!unit.initial_completed_at || unit.response_packages.length === 0) return false;
+    // Never a dead end: when learning support could not be prepared at all, the
+    // student may still finish; the attempt is flagged for the instructor.
+    if (!conversation) return unit.workflow_jobs.length > 0;
+    if (!closed.includes(conversation.status)) return false;
     // D2 (DESIGN_ALIGNMENT_2026-10-17.md): an explicit student stop is a valid end
     // of the optional conversation even when the opening or a tutor reply was
     // still pending or failed. The submitted initial record is already sealed.
     if (conversation.lifecycle_reason === studentEndedReason) return true;
+    // A platform close (for example the turn limit reached while the final reply could
+    // not be produced) is also a valid end: the student did everything asked of them.
+    if (conversation.lifecycle_reason?.startsWith("platform_")) return true;
     return conversation.conversation_turns.length > 0 && conversation.message_receipts.length > 0 &&
-      !conversation.lifecycle_reason?.startsWith("platform_") &&
       conversation.message_receipts.every(receipt => receipt.assistant_turn_db_id && receipt.assistant_response_status === "completed");
   });
 }
@@ -58,9 +64,20 @@ export async function finishConversationAssessment(input: { student_user_db_id: 
     }, data: {
       status: "completed", followup_status: "stopped", followup_completed_at: now
     } });
+    // Topics whose learning support could not be prepared: finished, marked incomplete.
+    const unsupported = await tx.conceptUnitSession.findMany({ where: { assessment_session_db_id: session.id,
+      initial_completed_at: { not: null }, formative_conversation_session: null }, select: { id: true } });
+    if (unsupported.length) {
+      await tx.conceptUnitSession.updateMany({ where: { id: { in: unsupported.map(unit => unit.id) } },
+        data: { status: "completed", followup_status: "incomplete", followup_completed_at: now } });
+      await tx.assessmentSession.update({ where: { id: session.id }, data: { needs_review: true,
+        needs_review_reason: [session.needs_review_reason,
+          "Learning support could not be prepared; the student finished the assessment without it."].filter(Boolean).join("\n") } });
+    }
     await logProcessEvent({ assessment_session_db_id: session.id, event_type: "session_completed",
       event_category: "session", event_source: "backend", occurred_at: now, payload: {
-        reason: "student_confirmed_finish_after_learning_conversation", completion_contract_version: "conversation-finish-v1",
+        reason: unsupported.length ? "student_finished_without_learning_support" : "student_confirmed_finish_after_learning_conversation",
+        completion_contract_version: "conversation-finish-v2",
         from_phase: session.current_phase, to_phase: "session_completed", learning_outcome_generated: false
       } }, tx);
   });
