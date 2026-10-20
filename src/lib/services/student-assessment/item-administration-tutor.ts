@@ -541,8 +541,11 @@ function looksLikeASingleWord(text: string) {
 /** An unfinished fragment with no reason: a bare option label, a single word, or a dangling end. */
 function isUnfinishedFragment(text: string) {
   const lower = lowerText(text).replace(/[.!…,;:\s]+$/u, "");
+  // A complete embedded clause can end with a copula ("how steep the curve is").
+  const endsWithEmbeddedClause = /\b(?:how|what|where|who)\s+.+\s+(?:is|are|was)$/.test(lower);
 
-  if (!lower || OPTION_ONLY_PATTERN.test(lower) || DANGLING_END_PATTERN.test(lower)) {
+  if (!lower || lower === "i think" || OPTION_ONLY_PATTERN.test(lower) ||
+    (DANGLING_END_PATTERN.test(lower) && !endsWithEmbeddedClause)) {
     return true;
   }
 

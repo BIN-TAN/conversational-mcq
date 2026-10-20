@@ -220,6 +220,30 @@ async function main() {
     assert.match(tempting.student_facing_message, /tempting/);
   });
 
+  await check("Fragments get one clarification while complete reasons, including embedded clauses, are accepted", () => {
+    for (const text of ["I think", "I think.", " I THINK… ", "Theta is", "Because it is"]) {
+      const proposal = tutor.deterministicCollectionProposal({ stage: "initial_item_reasoning", text });
+      assert.equal(proposal.action, "clarify_once");
+      const next = tutor.applyItemAdministrationCollectionRules({
+        proposed_action: proposal.action,
+        saved_question: proposal.saved_question,
+        text,
+        prior_neutral_clarification_count: 1
+      });
+      assert.equal(next.collection_action, "accept");
+      assert.equal(next.application_override, "clarification_already_used");
+    }
+    for (const text of [
+      "I think theta is the person location, while difficulty is about the item.",
+      "It sounded related to how steep the item curve is.",
+      "This reflects what theta is."
+    ]) {
+      for (const stage of ["initial_item_reasoning", "initial_tempting_reason"] as const) {
+        assert.equal(tutor.deterministicCollectionProposal({ stage, text }).action, "accept");
+      }
+    }
+  });
+
   // 4. One clarification per response -------------------------------------------------------
   await check("At most one clarification: after it, the next non-empty reply is accepted as it is", () => {
     assert.equal(fromModel("clarify_once").collection_action, "clarify_once");

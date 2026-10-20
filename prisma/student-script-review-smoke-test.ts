@@ -280,6 +280,10 @@ async function runScenario(input: {
   ).state;
 
   for (const [index, message] of input.scenario.first_reason_attempts.entries()) {
+    assert(
+      state.assessment_state === "AWAIT_REASON",
+      `${input.scenario.name}: reason ${index + 1} was scripted after the state advanced to ${state.assessment_state}.`
+    );
     state = (
       await recordReasoning({
         student_user_db_id: input.studentDbId,
