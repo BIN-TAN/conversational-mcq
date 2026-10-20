@@ -1,5 +1,11 @@
 export type TeacherDiagnosticOptionNote = {
   label: string;
+  /**
+   * A few words naming the incorrect idea behind this option (for example
+   * "reliability = validity"). Two chosen incorrect options in one mini-test with the
+   * same idea label form an answer pattern (docs/AI_MODULE_REDESIGN_2026-10-19.md, 4.4).
+   */
+  idea_label?: string;
   distractor_diagnostic_value?: string;
   why_tempting?: string;
   misconception_reasoning_pattern?: string;
@@ -103,6 +109,7 @@ function optionNoteFromUnknown(entry: unknown): TeacherDiagnosticOptionNote | nu
 
   return compactRecord({
     label,
+    idea_label: trimString(value.idea_label),
     distractor_diagnostic_value: trimString(value.distractor_diagnostic_value),
     why_tempting: trimString(value.why_tempting),
     misconception_reasoning_pattern: trimString(value.misconception_reasoning_pattern),
@@ -246,6 +253,13 @@ export function buildItemAdministrationRulesFromTeacherMetadata(input: {
   });
 }
 
+/**
+ * Item.distractor_rationales[label] for every incorrect option. An option's own rationale
+ * ("Why a student might choose this option", stored in
+ * option_notes[].misconception_reasoning_pattern) is used as written, so each option keeps
+ * its own text. Older notes fall back to their combined diagnostic text, then to the
+ * item's plain-language note for all options.
+ */
 export function buildDistractorRationalesFromTeacherNotes(input: {
   option_labels: string[];
   correct_option: string;
@@ -261,12 +275,135 @@ export function buildDistractorRationalesFromTeacherNotes(input: {
       .filter((label) => label !== input.correct_option)
       .map((label) => {
         const existing = trimString(input.existing_rationales[label]);
-        const diagnostic = notesByLabel.get(label) ? optionDiagnosticText(notesByLabel.get(label)!) : "";
-        return [label, existing ?? (diagnostic || plainLanguageNote)];
+        const note = notesByLabel.get(label);
+        const ownRationale = trimString(note?.misconception_reasoning_pattern);
+        const diagnostic = note ? optionDiagnosticText(note) : "";
+        return [label, existing ?? ownRationale ?? (diagnostic || plainLanguageNote)];
       })
       .filter(([, value]) => typeof value === "string" && value.trim().length > 0)
   );
 }
+
+/** The item's older plain-language note for all distractors, exactly as stored (never synthesized). */
+export function readLegacyDistractorNote(value: unknown): string {
+  const context = readTeacherDiagnosticContext(value);
+  return (
+    trimString(context.plain_language_distractor_diagnostic_notes) ??
+    trimString(context.item_distractor_diagnostic_notes_plain) ??
+    ""
+  );
+}
+
+/**
+ * Older structured fields of one option note (diagnostic value, why tempting, and so on),
+ * without the option's own rationale or idea label. Shown read-only in the item editor.
+ */
+export function earlierOptionNoteText(note: TeacherDiagnosticOptionNote | null | undefined): string {
+  if (!note) return "";
+  return optionDiagnosticText({ ...note, misconception_reasoning_pattern: undefined });
+}
+
+/**
+ * The shared text when every incorrect option has the same distractor_rationales value
+ * (an older blanket note copied to each option); empty otherwise.
+ */
+export function blanketDistractorRationale(input: {
+  distractor_rationales?: unknown;
+  option_labels: string[];
+  correct_option: string;
+}): string {
+  const rationales = record(input.distractor_rationales);
+  const values = input.option_labels
+    .filter((label) => label.trim() && label.trim().toUpperCase() !== input.correct_option.trim().toUpperCase())
+    .map((label) => trimString(rationales[label]) ?? "");
+  return values.length >= 2 && values[0] && values.every((value) => value === values[0]) ? values[0] : "";
+}
+
+export type OptionRationaleEntry = {
+  label: string;
+  /** "Why a student might choose this option"; empty when the instructor has not written one. */
+  rationale: string;
+  idea_label: string;
+};
+
+/**
+ * One rationale entry per incorrect option, as the instructor wrote it. The source is the
+ * option's own note; failing that, the item's distractor_rationales[label] when it is
+ * option-specific. A value that only copies the item's plain-language note, or that is the
+ * same text for every incorrect option, is a blanket note and is not counted as a rationale.
+ */
+export function readOptionRationales(input: {
+  administration_rules: unknown;
+  distractor_rationales?: unknown;
+  option_labels: string[];
+  correct_option: string;
+}): OptionRationaleEntry[] {
+  const notes = readTeacherItemMetadata(input.administration_rules).option_notes;
+  const noteFor = (label: string) =>
+    notes.find((note) => note.label.trim().toUpperCase() === label.trim().toUpperCase());
+  const itemRationales = record(input.distractor_rationales);
+  const legacyNote = readLegacyDistractorNote(input.administration_rules);
+  const incorrect = input.option_labels.filter(
+    (label) => label.trim() && label.trim().toUpperCase() !== input.correct_option.trim().toUpperCase()
+  );
+  const itemValues = incorrect.map((label) => trimString(itemRationales[label]) ?? "");
+  const blanket = Boolean(blanketDistractorRationale(input));
+
+  return incorrect.map((label, index) => {
+    const note = noteFor(label);
+    const itemValue = itemValues[index];
+    const itemRationale = itemValue && itemValue !== legacyNote && !blanket ? itemValue : "";
+    return {
+      label,
+      rationale: trimString(note?.misconception_reasoning_pattern) ?? itemRationale,
+      idea_label: trimString(note?.idea_label) ?? ""
+    };
+  });
+}
+
+function optionNotesFromAnyShape(value: unknown): unknown[] {
+  const root = record(value);
+  const context = record(root[CONTEXT_KEY]);
+  const nested = record(context[CONTEXT_KEY]);
+  for (const candidate of [root.option_notes, context.option_notes, nested.option_notes]) {
+    if (Array.isArray(candidate)) return candidate;
+  }
+  return [];
+}
+
+/**
+ * Idea labels by option label (upper-cased), read from an item's administration_rules
+ * ({ teacher_diagnostic_context: { option_notes } }), from the provider object built by
+ * teacherDiagnosticContextForProvider (same shape), from a stored response that holds that
+ * provider object under teacher_diagnostic_context, or from a bare context ({ option_notes }).
+ */
+export function optionIdeaLabels(value: unknown): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const entry of optionNotesFromAnyShape(value)) {
+    const note = record(entry);
+    const label = trimString(note.label);
+    const idea = trimString(note.idea_label);
+    if (label && idea) labels.set(label.toUpperCase(), idea);
+  }
+  return labels;
+}
+
+// A leading dash, star or bullet, or a list marker such as "1." "2)" "(a)" "b." before a space.
+const BULLET_PREFIX = /^(?:[-*–—•·]+\s*|\(?\d{1,2}[.)]\s+|\(?[a-z][.)]\s+)/;
+
+/**
+ * The essential elements written under "Essential elements (1 to 3)": one per line, or
+ * separated by semicolons or bullets. Items are trimmed and empty items removed.
+ */
+export function essentialElementsList(text: string): string[] {
+  if (typeof text !== "string") return [];
+  return text
+    .split(/\r?\n|;|•|·/)
+    .map((entry) => entry.trim().replace(BULLET_PREFIX, "").trim())
+    .filter((entry) => entry.length > 0);
+}
+
+export const ESSENTIAL_ELEMENTS_RANGE = { min: 1, max: 3 } as const;
 
 export function teacherDiagnosticContextForProvider(input: {
   administration_rules: unknown;

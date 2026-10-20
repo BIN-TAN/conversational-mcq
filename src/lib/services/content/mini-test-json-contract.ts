@@ -6,6 +6,11 @@ export const MINI_TEST_JSON_MAX_BYTES = 2_000_000;
 export const MINI_TEST_JSON_SAMPLE_URL = "/samples/mini-test-import.json";
 
 const note = z.string().trim().max(4000).nullable().optional();
+const optionLabel = z.string().regex(/^[A-F]$/);
+// Per-option notes (docs/AI_MODULE_REDESIGN_2026-10-19.md, section 5): one rationale per
+// incorrect option, and an optional idea label of a few words used to spot answer patterns.
+const optionRationales = z.record(optionLabel, z.string().trim().min(1).max(4000)).optional();
+const optionIdeaLabels = z.record(optionLabel, z.string().trim().min(1).max(60)).optional();
 const ids = z.array(z.string().trim().min(1).max(80)).max(20).default([]);
 const mediaSchema = z.object({
   media_type: z.enum(["image", "video", "reference_link"]),
@@ -33,7 +38,10 @@ const itemSchema = z.object({
   key: z.string().regex(/^[A-F]$/).nullable().optional(),
   target_reasoning_note: note,
   strong_reasoning_should_mention: note,
+  essential_elements: z.array(z.string().trim().min(1).max(1000)).min(1).max(3).optional(),
   distractor_diagnostic_notes: note,
+  distractor_rationales: optionRationales,
+  idea_labels: optionIdeaLabels,
   objective_ids: ids,
   misconception_hypothesis_ids: ids,
   cognitive_demand: z.enum(["remember", "understand", "apply", "analyze", "evaluate", "create"]).nullable().optional(),
@@ -43,6 +51,17 @@ const itemSchema = z.object({
   const labels = new Set(item.options.map(option => option.label));
   if (labels.size !== item.options.length) ctx.addIssue({ code: "custom", path: ["options"], message: "Option labels must be unique." });
   if (item.key && !labels.has(item.key)) ctx.addIssue({ code: "custom", path: ["key"], message: "The supplied key must match an option label." });
+  if (item.essential_elements && item.strong_reasoning_should_mention) {
+    ctx.addIssue({ code: "custom", path: ["essential_elements"], message: "Use essential_elements or strong_reasoning_should_mention, not both." });
+  }
+  for (const field of ["distractor_rationales", "idea_labels"] as const) {
+    for (const label of Object.keys(item[field] ?? {})) {
+      if (!labels.has(label)) ctx.addIssue({ code: "custom", path: [field, label], message: `Option ${label} does not exist in this item.` });
+      else if (field === "distractor_rationales" && item.key === label) {
+        ctx.addIssue({ code: "custom", path: [field, label], message: "The key needs no distractor rationale; describe its reasoning in target_reasoning_note." });
+      }
+    }
+  }
   item.media_assets.forEach((media, index) => {
     if (media.placement === "option" ? !media.option_label || !labels.has(media.option_label) : Boolean(media.option_label)) {
       ctx.addIssue({ code: "custom", path: ["media_assets", index, "option_label"], message: "Media must reference an existing option, or the item stem without an option label." });

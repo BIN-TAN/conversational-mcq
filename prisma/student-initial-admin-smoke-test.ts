@@ -98,7 +98,13 @@ function validItemInput(itemOrder: number) {
     },
     expected_reasoning_patterns: ["Explains why A is supported."],
     possible_misconception_indicators: ["Chooses B or C with aligned reasoning."],
-    administration_rules: { no_feedback_during_initial_administration: true },
+    administration_rules: {
+      no_feedback_during_initial_administration: true,
+      // Every published item lists one to three essential elements.
+      teacher_diagnostic_context: {
+        correct_option_notes: { strong_reasoning_should_mention: "Names the evidence that supports the correct option." }
+      }
+    },
     included_in_published_set: true,
     item_order: itemOrder
   };

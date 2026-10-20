@@ -1,10 +1,18 @@
 import { createHash, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import type { AgentInputByName, AgentOutputByName } from "@/lib/agents/contracts";
-import { executeOperationalAgent } from "@/lib/agents/operational/executor";
 import { persistOperationalEffectiveResult } from "@/lib/agents/operational/effective-results";
-import { getPromptForAgent } from "@/lib/agents/prompts/registry";
 import { prisma } from "@/lib/db";
+import {
+  ITEM_PREPARATION_PROMPT_HASH,
+  ITEM_PREPARATION_PROMPT_VERSION,
+  ITEM_PREPARATION_SCHEMA_VERSION
+} from "@/lib/services/content/item-preparation/contract";
+import { planItemCheck, runItemPreparation } from "@/lib/services/content/item-preparation/call";
+import {
+  preparationInputForItemCheck,
+  verificationOutputFromPreparation
+} from "@/lib/services/content/item-preparation/check-adapter";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { serializeAssessmentContentState } from "@/lib/services/content/governance";
 import { validateConceptUnitPublishable } from "@/lib/services/content/publishing";
@@ -214,26 +222,42 @@ export async function runConceptUnitVerification(input: {
     conceptUnit: context.conceptUnit,
     items: context.conceptUnit.items
   });
-  const prompt = getPromptForAgent("item_verification_agent");
   const agentInvocationKey = invocationKey({
     conceptUnitDbId: context.conceptUnit.id,
     contentFingerprint: context.content_fingerprint,
-    promptVersion: prompt.prompt_version,
-    schemaVersion: prompt.schema_version,
-    promptHash: prompt.prompt_hash
+    promptVersion: ITEM_PREPARATION_PROMPT_VERSION,
+    schemaVersion: ITEM_PREPARATION_SCHEMA_VERSION,
+    promptHash: ITEM_PREPARATION_PROMPT_HASH
   });
-  const execution = await executeOperationalAgent({
-    agentName: "item_verification_agent",
-    allowlistedInput: providerInput,
-    invocationKey: agentInvocationKey,
-    operationalContext: {},
-    metadata: input.mock_mode ? { mock_mode: input.mock_mode } : undefined
+  // Item preparation task 3, "check items and report problems" (docs/AI_MODULE_REDESIGN_
+  // 2026-10-19.md, section 9.2), replaces the earlier verification prompt. Its problems
+  // become verification findings; the deterministic checks and fallback are unchanged.
+  const check = await runItemPreparation({
+    model_input: preparationInputForItemCheck({
+      concept_unit: context.conceptUnit,
+      diagnostic_focus: context.conceptUnit.assessment.diagnostic_focus,
+      items: context.conceptUnit.items
+    }),
+    plan: planItemCheck({ mock_mode: input.mock_mode }),
+    invocation_key_base: `item-preparation-v8:check:${agentInvocationKey}`,
+    record_local_test: true
   });
+  const execution = check.status === "succeeded"
+    ? {
+        status: "succeeded" as const,
+        agent_call_id: check.agent_call_id,
+        output: verificationOutputFromPreparation({
+          providerInput,
+          result: check.result,
+          generation_mode: check.generation_mode
+        })
+      }
+    : { status: "unavailable" as const, reason: check.reason, agent_call_id: check.agent_call_id };
 
   if (execution.status !== "succeeded") {
     const fallback = deterministicVerificationFallback({
       providerInput,
-      reason: execution.status
+      reason: execution.reason
     });
     const combinedFallback = combineItemVerificationWithDeterministicDuplicates({
       providerInput,
@@ -246,7 +270,7 @@ export async function runConceptUnitVerification(input: {
       deterministic_duplicate_applied: combinedFallback.deterministic_duplicate_applied,
       effective_combined_advisory_result: true,
       provider_unavailable_fallback: true,
-      provider_status: execution.status
+      provider_status: execution.reason
     };
     const run = await prisma.$transaction(async (tx) => {
       const created = await tx.itemVerificationRun.create({
@@ -298,7 +322,7 @@ export async function runConceptUnitVerification(input: {
       deterministic_guard_version: "item-verification-duplicate-guard-v1",
       canonicalization_version: "item-verification-effective-combine-v1",
       fallback_version: "item-verification-deterministic-fallback-v1",
-      raw_output_status: execution.status,
+      raw_output_status: execution.reason,
       raw_semantic_status: "not_run",
       effective_semantic_status: "pass",
       effective_overall_status: "fallback_safe",
@@ -333,19 +357,22 @@ export async function runConceptUnitVerification(input: {
   });
   const semantic = validateItemVerificationOutputSemantics({
     providerInput,
-    output: combined.output
+    output: combined.output,
+    allowSuggestedWording: true
   });
 
   if (!semantic.ok) {
-    await prisma.agentCall.update({
-      where: { id: execution.agent_call_id },
-      data: {
-        output_validated: false,
-        validation_error: semantic.errors.join("; "),
-        call_status: "invalid_output",
-        error_category: "semantic_validation"
-      }
-    });
+    if (execution.agent_call_id) {
+      await prisma.agentCall.update({
+        where: { id: execution.agent_call_id },
+        data: {
+          output_validated: false,
+          validation_error: semantic.errors.join("; "),
+          call_status: "invalid_output",
+          error_category: "semantic_validation"
+        }
+      });
+    }
 
     const fallback = deterministicVerificationFallback({
       providerInput,

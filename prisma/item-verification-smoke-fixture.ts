@@ -24,7 +24,13 @@ function itemSeed(prefix: string, order: number) {
     possible_misconception_indicators: [
       "Student treats a direct relation as random or unrelated."
     ],
-    administration_rules: { no_feedback_during_initial_administration: true },
+    administration_rules: {
+      no_feedback_during_initial_administration: true,
+      // Every published item lists one to three essential elements.
+      teacher_diagnostic_context: {
+        correct_option_notes: { strong_reasoning_should_mention: "Names the evidence that supports the correct option." }
+      }
+    },
     included_in_published_set: true,
     status: "draft" as const,
     version: 1

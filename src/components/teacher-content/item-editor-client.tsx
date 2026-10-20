@@ -10,9 +10,16 @@ import {
   stringifyJson
 } from "./form-utils";
 import {
+  blanketDistractorRationale,
   buildDistractorRationalesFromTeacherNotes,
   buildItemAdministrationRulesFromTeacherMetadata,
-  readTeacherItemMetadata
+  earlierOptionNoteText,
+  ESSENTIAL_ELEMENTS_RANGE,
+  essentialElementsList,
+  readLegacyDistractorNote,
+  readOptionRationales,
+  readTeacherItemMetadata,
+  type TeacherDiagnosticOptionNote
 } from "@/lib/services/content/teacher-diagnostic-context";
 import type { AssessmentDetail, ItemDetail, ItemMediaAsset, ItemOption, StructuredApiError } from "./types";
 import {
@@ -43,6 +50,42 @@ type CreateAssessmentRevisionResponse = {
 };
 
 type SaveIntent = "add_another" | "return" | "stay";
+
+// Teacher notes for one option, kept in the same order as the options so that removing or
+// relabelling an option moves its notes with it. "preserved" keeps older note fields.
+type OptionNoteDraft = {
+  rationale: string;
+  idea_label: string;
+  preserved: TeacherDiagnosticOptionNote | null;
+};
+
+const IDEA_LABEL_MAX_LENGTH = 60;
+
+function blankOptionNote(): OptionNoteDraft {
+  return { rationale: "", idea_label: "", preserved: null };
+}
+
+function optionNotesForSave(
+  options: ItemOption[],
+  drafts: OptionNoteDraft[],
+  correctOption: string
+): TeacherDiagnosticOptionNote[] {
+  return options.flatMap((option, index) => {
+    const label = option.label.trim();
+    if (!label || label === correctOption) return [];
+    const draft = drafts[index] ?? blankOptionNote();
+    const preserved: Partial<TeacherDiagnosticOptionNote> = { ...(draft.preserved ?? {}) };
+    delete preserved.label;
+    delete preserved.misconception_reasoning_pattern;
+    delete preserved.idea_label;
+    return [{
+      ...preserved,
+      label,
+      misconception_reasoning_pattern: draft.rationale.trim() || undefined,
+      idea_label: draft.idea_label.trim() || undefined
+    }];
+  });
+}
 
 type ItemMediaDraft = {
   media_public_id?: string;
@@ -249,7 +292,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const [itemDiagnosticValueNote, setItemDiagnosticValueNote] = useState("");
   const [targetReasoningNote, setTargetReasoningNote] = useState("");
   const [strongReasoningNote, setStrongReasoningNote] = useState("");
-  const [plainLanguageDistractorNotes, setPlainLanguageDistractorNotes] = useState("");
+  const [optionNotes, setOptionNotes] = useState<OptionNoteDraft[]>(() => defaultOptions().map(blankOptionNote));
+  // The older single note for all distractors. Shown (and kept) only when the item has one.
+  const [legacyDistractorNote, setLegacyDistractorNote] = useState("");
+  const [showLegacyDistractorNote, setShowLegacyDistractorNote] = useState(false);
   const [mediaAssets, setMediaAssets] = useState<ItemMediaDraft[]>([]);
   const [administrationRules, setAdministrationRules] = useState("{}");
   const [itemOrder, setItemOrder] = useState("");
@@ -325,7 +371,36 @@ export function ItemEditorClient(props: ItemEditorProps) {
       setItemDiagnosticValueNote(metadata.item_diagnostic_value_note);
       setTargetReasoningNote(metadata.correct_option_notes.target_reasoning_note ?? "");
       setStrongReasoningNote(metadata.correct_option_notes.strong_reasoning_should_mention ?? "");
-      setPlainLanguageDistractorNotes(metadata.plain_language_distractor_diagnostic_notes);
+      const loadedOptions = normalizeOptions(loaded.options);
+      const rationales = readOptionRationales({
+        administration_rules: loaded.administration_rules,
+        distractor_rationales: loaded.distractor_rationales,
+        option_labels: loadedOptions.map((option) => option.label),
+        correct_option: loaded.correct_option
+      });
+      setOptionNotes(
+        loadedOptions.map((option) => {
+          const preserved =
+            metadata.option_notes.find(
+              (note) => note.label.trim().toUpperCase() === option.label.trim().toUpperCase()
+            ) ?? null;
+          const entry = rationales.find((candidate) => candidate.label === option.label);
+          return {
+            rationale: entry?.rationale || preserved?.misconception_reasoning_pattern || "",
+            idea_label: entry?.idea_label || preserved?.idea_label || "",
+            preserved
+          };
+        })
+      );
+      const legacyNote =
+        readLegacyDistractorNote(loaded.administration_rules) ||
+        blanketDistractorRationale({
+          distractor_rationales: loaded.distractor_rationales,
+          option_labels: loadedOptions.map((option) => option.label),
+          correct_option: loaded.correct_option
+        });
+      setLegacyDistractorNote(legacyNote);
+      setShowLegacyDistractorNote(Boolean(legacyNote));
       setMediaAssets((loaded.media_assets ?? []).map(draftFromMediaAsset));
       setHasUnsavedChanges(false);
     } catch (caught) {
@@ -360,6 +435,17 @@ export function ItemEditorClient(props: ItemEditorProps) {
     const nextLabel = String.fromCharCode(65 + options.length);
     markDirty();
     setOptions((current) => [...current, { label: nextLabel, text: "" }]);
+    setOptionNotes((current) => [...current, blankOptionNote()]);
+  }
+
+  function updateOptionNote(index: number, patch: Partial<Omit<OptionNoteDraft, "preserved">>) {
+    markDirty();
+    setOptionNotes((current) => {
+      const next = [...current];
+      while (next.length <= index) next.push(blankOptionNote());
+      next[index] = { ...next[index], ...patch };
+      return next;
+    });
   }
 
   function removeOption(index: number) {
@@ -374,6 +460,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
           label: String.fromCharCode(65 + optionIndex)
         }))
     );
+    setOptionNotes((current) => current.filter((_, optionIndex) => optionIndex !== index));
     if (label === correctOption) {
       setCorrectOption("");
     } else if (correctOptionIndex > index) {
@@ -391,7 +478,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
     setItemDiagnosticValueNote("");
     setTargetReasoningNote("");
     setStrongReasoningNote("");
-    setPlainLanguageDistractorNotes("");
+    setOptionNotes(defaultOptions().map(blankOptionNote));
+    setLegacyDistractorNote("");
+    setShowLegacyDistractorNote(false);
     setMediaAssets([]);
     setAdministrationRules("{}");
     setItemOrder("");
@@ -446,6 +535,17 @@ export function ItemEditorClient(props: ItemEditorProps) {
         code: "validation_failed",
         message: "Correct option must match one option label.",
         details: { issues: [{ path: "correct_option", message: "Choose an existing option label." }] }
+      };
+    }
+
+    const elementCount = essentialElementsList(strongReasoningNote).length;
+    if (elementCount < ESSENTIAL_ELEMENTS_RANGE.min || elementCount > ESSENTIAL_ELEMENTS_RANGE.max) {
+      return {
+        code: "validation_failed",
+        message: "List one to three essential elements, one per line.",
+        details: {
+          issues: [{ path: "essential_elements", message: `${elementCount} listed. Use one to three.` }]
+        }
       };
     }
 
@@ -581,6 +681,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
     try {
       const advancedRules = parseJsonObject(administrationRules, "Advanced settings");
+      const savedOptionNotes = optionNotesForSave(options, optionNotes, correctOption);
+      const legacyNoteToKeep = showLegacyDistractorNote ? legacyDistractorNote : "";
       const administration_rules = buildItemAdministrationRulesFromTeacherMetadata({
         administration_rules: advancedRules,
         metadata: {
@@ -588,11 +690,12 @@ export function ItemEditorClient(props: ItemEditorProps) {
           item_purpose: "initial_item",
           expected_reasoning_note: expectedReasoningNote,
           item_diagnostic_value_note: itemDiagnosticValueNote,
-          plain_language_distractor_diagnostic_notes: plainLanguageDistractorNotes,
+          plain_language_distractor_diagnostic_notes: legacyNoteToKeep,
           correct_option_notes: {
             target_reasoning_note: targetReasoningNote,
             strong_reasoning_should_mention: strongReasoningNote
-          }
+          },
+          option_notes: savedOptionNotes
         }
       });
       const derivedExpectedReasoning = [
@@ -613,8 +716,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
           option_labels: optionLabels,
           correct_option: correctOption,
           existing_rationales: {},
-          option_notes: [],
-          plain_language_distractor_diagnostic_notes: plainLanguageDistractorNotes
+          option_notes: savedOptionNotes,
+          plain_language_distractor_diagnostic_notes: legacyNoteToKeep
         }),
         expected_reasoning_patterns:
           derivedExpectedReasoning,
@@ -749,6 +852,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
   }
 
   const title = props.mode === "create" ? "Add MCQ item" : "Edit MCQ item";
+  const essentialElements = essentialElementsList(strongReasoningNote);
+  const essentialElementCount = essentialElements.length;
   const assessmentHref = parentAssessmentHref();
   const assessmentTitle = parentAssessmentTitle();
   const existingItemCount = assessmentContext?.mini_test_items?.length ?? 0;
@@ -1236,17 +1341,19 @@ export function ItemEditorClient(props: ItemEditorProps) {
             </div>
           </section>
 
-          <details className="rounded-lg border border-line bg-white p-5 shadow-soft">
-            <summary className="cursor-pointer text-xl font-semibold text-ink">
-              Optional diagnostic guidance
-            </summary>
-            <p className="mt-3 text-sm leading-6 text-muted">
-              These teacher-only notes are optional guidance for later interpretation. They are design intentions and
-              plausible hypotheses, not observed student evidence or confirmed misconception labels. Students never see
-              the answer key or these notes.
+          <section className="rounded-lg border border-line bg-white p-5 shadow-soft" aria-labelledby="item-reasoning-heading">
+            <h2 className="text-xl font-semibold text-ink" id="item-reasoning-heading">
+              Reasoning and distractors
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-muted">
+              Teacher-only. Students never see the key or these notes. Rationales describe ideas a student might
+              hold; they are hypotheses, not judgments of any student.
             </p>
             <div className="mt-5 grid gap-4">
-              <Field label="Target reasoning note (optional)">
+              <Field
+                label="Target reasoning note (optional)"
+                hint="What a student needs to understand to reach the correct answer."
+              >
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
@@ -1257,34 +1364,99 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   value={targetReasoningNote}
                 />
               </Field>
-              <Field label="Strong reasoning should mention (optional)">
+              <Field
+                label="Essential elements (1 to 3)"
+                hint="One per line: the points a strong explanation should mention. Explanations are judged against them. Required before publishing."
+              >
                 <textarea
+                  aria-describedby="essential-elements-count"
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!isEditable}
                   onChange={(event) => {
                     markDirty();
                     setStrongReasoningNote(event.target.value);
                   }}
+                  placeholder={"Reliability is consistency of scores\nHigh reliability does not establish validity"}
+                  required
                   value={strongReasoningNote}
                 />
               </Field>
-              <Field
-                label="Distractor diagnostic notes (optional)"
-                hint="Use one plain-language box. Selecting a distractor is indirect evidence only; interpretation must also consider reasoning, confidence, timing, and cross-item evidence."
+              <p
+                className={`-mt-2 text-xs ${essentialElementCount >= ESSENTIAL_ELEMENTS_RANGE.min && essentialElementCount <= ESSENTIAL_ELEMENTS_RANGE.max ? "text-muted" : "text-amber-800"}`}
+                id="essential-elements-count"
               >
-                <textarea
-                  className="min-h-48 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
-                  onChange={(event) => {
-                    markDirty();
-                    setPlainLanguageDistractorNotes(event.target.value);
-                  }}
-                  placeholder="Option B may suggest confusion between reliability and validity. Option C may suggest treating reliability as a fixed property of the test rather than a sample-dependent estimate. Option D may suggest interpreting a group-level coefficient as an individual-level statement. These are possible interpretations, not firm conclusions."
-                  value={plainLanguageDistractorNotes}
-                />
-              </Field>
+                {essentialElementCount} listed
+              </p>
+
+              <div className="grid gap-3">
+                <h3 className="text-sm font-semibold text-ink">Incorrect options</h3>
+                {options.every((option) => option.label === correctOption) ? (
+                  <p className="text-sm text-muted">Add options to describe them here.</p>
+                ) : null}
+                {options.map((option, index) => {
+                  if (option.label === correctOption) return null;
+                  const note = optionNotes[index] ?? blankOptionNote();
+                  const earlier = earlierOptionNoteText(note.preserved);
+                  return (
+                    <div
+                      className="grid gap-3 rounded-md border border-line p-3"
+                      data-testid={`option-rationale-${option.label}`}
+                      key={`option-notes-${index}`}
+                    >
+                      <p className="text-sm font-semibold text-ink">
+                        Option {option.label}
+                        {option.text ? <span className="ml-2 font-normal text-muted">{option.text}</span> : null}
+                      </p>
+                      <Field label="Why a student might choose this option">
+                        <textarea
+                          className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                          disabled={!isEditable}
+                          onChange={(event) => updateOptionNote(index, { rationale: event.target.value })}
+                          placeholder="The specific incorrect idea that could lead to this choice."
+                          value={note.rationale}
+                        />
+                      </Field>
+                      <Field
+                        label="Idea label (optional)"
+                        hint="A few words. Two chosen options in a mini test with the same label show as an answer pattern."
+                      >
+                        <input
+                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                          disabled={!isEditable}
+                          maxLength={IDEA_LABEL_MAX_LENGTH}
+                          onChange={(event) => updateOptionNote(index, { idea_label: event.target.value })}
+                          placeholder="reliability = validity"
+                          value={note.idea_label}
+                        />
+                      </Field>
+                      {earlier && earlier !== legacyDistractorNote.trim() ? (
+                        <p className="text-xs leading-5 text-muted">
+                          <span className="font-semibold">Earlier note for this option (kept):</span> {earlier}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {showLegacyDistractorNote ? (
+                <Field
+                  label="Earlier note for all options"
+                  hint="From the older single note box. It is kept as written; move each point into the option it describes."
+                >
+                  <textarea
+                    className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    disabled={!isEditable}
+                    onChange={(event) => {
+                      markDirty();
+                      setLegacyDistractorNote(event.target.value);
+                    }}
+                    value={legacyDistractorNote}
+                  />
+                </Field>
+              ) : null}
             </div>
-          </details>
+          </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
             <div className="rounded-lg border border-line bg-white p-5 shadow-soft" id="student-preview">
@@ -1332,15 +1504,38 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Strong reasoning should mention</dt>
-                  <dd className="whitespace-pre-wrap text-ink">
-                    {strongReasoningNote || "No strong-reasoning note yet."}
+                  <dt className="text-muted">Essential elements</dt>
+                  <dd className="text-ink">
+                    {essentialElements.length > 0 ? (
+                      <ol className="list-decimal space-y-1 pl-5">
+                        {essentialElements.map((element, index) => (
+                          <li key={`essential-${index}`}>{element}</li>
+                        ))}
+                      </ol>
+                    ) : (
+                      "None listed yet."
+                    )}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-muted">Distractor diagnostic notes</dt>
-                  <dd className="whitespace-pre-wrap text-ink">
-                    {plainLanguageDistractorNotes || "No distractor note yet."}
+                  <dt className="text-muted">Why a student might choose each incorrect option</dt>
+                  <dd className="text-ink">
+                    <ul className="space-y-1">
+                      {options.map((option, index) =>
+                        option.label === correctOption ? null : (
+                          <li key={`preview-rationale-${index}`}>
+                            <span className="font-semibold">{option.label}.</span>{" "}
+                            {optionNotes[index]?.rationale.trim() || "No rationale yet."}
+                            {optionNotes[index]?.idea_label.trim() ? (
+                              <span className="ml-1 text-muted">({optionNotes[index]?.idea_label.trim()})</span>
+                            ) : null}
+                          </li>
+                        )
+                      )}
+                    </ul>
+                    {showLegacyDistractorNote && legacyDistractorNote.trim() ? (
+                      <p className="mt-2 whitespace-pre-wrap text-muted">Earlier note for all options: {legacyDistractorNote}</p>
+                    ) : null}
                   </dd>
                 </div>
                 <div>

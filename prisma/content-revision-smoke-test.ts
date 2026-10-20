@@ -35,7 +35,13 @@ function itemInput(order: number) {
     },
     expected_reasoning_patterns: ["Uses the relevant course concept."],
     possible_misconception_indicators: ["Treats a distractor as definitive."],
-    administration_rules: { no_feedback_during_initial_administration: true },
+    administration_rules: {
+      no_feedback_during_initial_administration: true,
+      // Every published item lists one to three essential elements.
+      teacher_diagnostic_context: {
+        correct_option_notes: { strong_reasoning_should_mention: "Names the evidence that supports the correct option." }
+      }
+    },
     included_in_published_set: true,
     item_order: order,
     media_assets:

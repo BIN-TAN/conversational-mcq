@@ -16,8 +16,12 @@ used tests are not overwritten or silently copied.
 
 The first nonempty row of each item sheet must contain `stem` (or `item_stem`),
 `option_a`, and `option_b`. Options C-F, `key`, `item_label`,
-`target_reasoning_note`, `strong_reasoning_should_mention`,
-`distractor_diagnostic_notes`, and `source_attribution` are supported. Invalid
+`target_reasoning_note`, `essential_elements` (or the older
+`strong_reasoning_should_mention`; one element per line or separated by semicolons),
+`rationale_a` ... `rationale_f` (why a student might choose that incorrect option),
+`idea_label_a` ... `idea_label_f` (a few words; options in a mini test that share an
+idea label show as an answer pattern), the older single `distractor_diagnostic_notes`,
+and `source_attribution` are supported. Invalid
 keys, malformed item sheets, oversized ranges, formulas, spreadsheet errors,
 macros and embedded media/objects are rejected rather than silently dropped.
 Additional named columns remain in original-source provenance with a warning.
@@ -69,6 +73,14 @@ workflow, or a new import with a distinct assessment title/content.
   available to the regular item-design assistant; importing does not call it.
 - `items`: ordered stems, labeled options, optional supplied `key`, diagnostic
   notes, objective/hypothesis links, cognitive demand, source references and media.
+  Optional per-item notes: `essential_elements` (one to three strings; use it or
+  `strong_reasoning_should_mention`, not both), `distractor_rationales`
+  (`{ "B": "..." }`, one per incorrect option, never for the key) and `idea_labels`
+  (`{ "B": "reliability = validity" }`, at most 60 characters). The older single
+  `distractor_diagnostic_notes` is still accepted.
+
+Every published item needs one to three essential elements; publishing is blocked
+without them. An incorrect option without its own rationale is a publishing warning.
 
 Keys in a file are proposals, never teacher confirmation. Missing keys, design,
 or notes are not inferred. References must resolve to the supplied design. Unknown

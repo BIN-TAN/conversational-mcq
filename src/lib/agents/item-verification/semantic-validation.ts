@@ -29,6 +29,11 @@ function allFindings(output: AgentOutputByName["item_verification_agent"]) {
 export function validateItemVerificationOutputSemantics(input: {
   providerInput: AgentInputByName["item_verification_agent"];
   output: AgentOutputByName["item_verification_agent"];
+  /**
+   * The item-preparation check (item-preparation-v8) may suggest wording: the instructor
+   * decides. The earlier verification prompt was not allowed to.
+   */
+  allowSuggestedWording?: boolean;
 }) {
   const itemIds = new Set(input.providerInput.items.map((item) => item.item_public_id));
   const optionLabelsByItem = new Map(
@@ -104,7 +109,10 @@ export function validateItemVerificationOutputSemantics(input: {
       errors.push("Finding explanation is too long.");
     }
 
-    if (prohibitedSuggestionPatterns.some((pattern) => pattern.test(finding.brief_explanation))) {
+    if (
+      !input.allowSuggestedWording &&
+      prohibitedSuggestionPatterns.some((pattern) => pattern.test(finding.brief_explanation))
+    ) {
       errors.push("Finding explanation contains prohibited rewrite or generation language.");
     }
   }
