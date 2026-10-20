@@ -6,6 +6,8 @@
  *   npx tsx prisma/interpretation-v8-unit-test.ts
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 process.env.DATABASE_URL ??= "postgresql://synthetic:synthetic@127.0.0.1:5432/interpretation_v8_unit";
 process.env.SESSION_SECRET ??= "interpretation-v8-unit-test-session-secret-0000000000";
@@ -343,6 +345,17 @@ async function main() {
     assert.notEqual(grown.output.items[0].evidence_quote, "Does a larger spread mean a larger SD?", "A short quote never grows into a question");
   });
 
+  await check("Placeholder text in optional fields becomes null; real text is kept", () => {
+    const placeholders = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], side_remark: "null", uncertainty_note: "N/A", missing_elements: ": " }] });
+    assert.equal(placeholders.output.items[0].side_remark, null);
+    assert.equal(placeholders.output.items[0].uncertainty_note, null);
+    assert.equal(placeholders.output.items[0].missing_elements, "One or more essential elements are not stated.", "A limited rating still names what is missing");
+    assert.ok(placeholders.repairs.filter((repair) => repair.code === "placeholder_text_cleared").length >= 3);
+    assert.deepEqual(validateInterpretationOutputV8(built, placeholders.output), []);
+    const real = repairInterpretationOutputV8(built, { ...good, items: [{ ...good.items[0], side_remark: "None of the options mention spread." }] });
+    assert.equal(real.output.items[0].side_remark, "None of the options mention spread.");
+  });
+
   await check("Claims are never repaired into another of the student's texts", () => {
     const misquoted = { ...good, items: [{ ...good.items[0], process_interpretation: null }], considered_ideas: [],
       possible_misconceptions: [{ item_ids: ["q1"], idea: "Equal ranges imply equal SD.", student_quote: "the same range means the same SD",
@@ -363,6 +376,14 @@ async function main() {
     for (const claim of ["The answer was written independently.", "Independence of the response cannot be established.",
       "The student lacked motivation.", "Motivation appears low.", "The student did not work independently."]) {
       assert.equal(interpretationTextProblem(claim), "forbidden_wording", claim);
+    }
+    for (const claim of ["The evidence shows the student independently determined the rule.", "This is not evidence of independent mastery.",
+      "The data suggest the student worked independently."]) {
+      assert.equal(interpretationTextProblem(claim), "forbidden_wording", claim);
+    }
+    for (const neutral of ["The response states that the intended selection was B, but the record cannot independently establish whether the incorrect selection was a mis-click.",
+      "The wrong option looks like an independent arithmetic slip."]) {
+      assert.equal(interpretationTextProblem(neutral), null, neutral);
     }
     for (const claim of ["Engagement was low.", "Shows limited engagement with the item.", "The student disengaged."]) {
       assert.equal(processReferenceProblem(claim), "process_reference_outside_process_interpretation", claim);
@@ -474,6 +495,14 @@ async function main() {
   });
 
   const contract = await import("../src/lib/services/student-assessment/interpretation-v8/contract");
+  await check("The prompt is section 9.4 of the design document, verbatim", () => {
+    const doc = readFileSync(path.join(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8").replace(/\r\n/g, "\n");
+    const section = doc.slice(doc.indexOf("### 9.4 Student profiling"), doc.indexOf("### 9.5 Opening feedback"));
+    assert.equal(/```text\n([\s\S]*?)\n```/.exec(section)?.[1], contract.INTERPRETATION_V8_INSTRUCTIONS);
+    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /check this before calling an incorrect choice an execution slip/);
+    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /a false or missing value is no evidence/);
+  });
+
   await check("The prompt matches the documented rules and has a stable hash", () => {
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /Report a possible misconception only when both conditions hold/);
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /Use each process indicator only in its stated role/);

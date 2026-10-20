@@ -24,6 +24,52 @@ function criteriaTable(criteria: Array<{ name: string; threshold: string; value:
   ].join("\n");
 }
 
+const PROCESS_SITUATIONS: Record<string, string> = {
+  S16: "rapid selection with no explanation",
+  S27: "answer changed with a revised explanation",
+  S28: "long time away from the page",
+  S29: "blocked paste attempts"
+};
+
+/**
+ * Every measure grouped by the appendix tables that describe the interpretation scheme:
+ * C1 the model's item ratings and claims, C2 the application's fixed rules, C3 the process
+ * indicators, C4 the opening feedback and C5 the formative conversation.
+ */
+export function resultsByAppendixTable(report: InterpretationReport | null, feedback: FeedbackReport | null) {
+  const rows: string[] = [];
+  const add = (table: string, interpretation: string, result: string) => rows.push(`| ${table} | ${cell(interpretation)} | ${cell(result)} |`);
+  if (report) {
+    const quality = report.explanation_quality;
+    add("C1", "Explanation quality", `${quality.acceptable} of ${quality.items} within the accepted labels; AC1 ${num(quality.gwet_ac1)}; adequate/incorrect confusions ${quality.adequate_incorrect_disagreements}`);
+    add("C1", "Error source", `agreement ${pct(report.error_source.acceptable_agreement)} of ${report.error_source.items}; ${report.error_source.unexpected_error_source} where none was expected`);
+    add("C1", "Possible item issue flag", `${report.error_source.possible_item_issue_recall.flagged} of ${report.error_source.possible_item_issue_recall.items} planted issues flagged; ${report.error_source.possible_item_issue_false_flags} false flags`);
+    add("C1", "Possible misconceptions", `precision ${num(report.misconceptions.precision)}, recall ${num(report.misconceptions.recall)}; endorsement agreement ${pct(report.misconceptions.endorsement_agreement)}; claims from a choice, a rejected idea, a question or process data alone: ${report.misconceptions.critical_claims.length}`);
+    add("C1", "Ideas considered, not endorsed", `precision ${num(report.considered_ideas.precision)}, recall ${num(report.considered_ideas.recall)}`);
+    add("C1", "Beyond the option text", `agreement ${pct(report.beyond_option_text.agreement)} of ${report.beyond_option_text.items}`);
+    add("C1", "Side remarks", `${report.side_remarks.recorded_when_expected} of ${report.side_remarks.expected} recorded when expected; ${report.side_remarks.recorded_when_not_expected} when none was expected`);
+    add("C2", "Item status (application rule)", `agreement ${pct(report.item_status.agreement)}; AC1 ${num(report.item_status.gwet_ac1)}`);
+    add("C2", "Topic summary label (application rule)", `agreement ${pct(report.summary_label.agreement)} of ${report.summary_label.submissions}; same label in every run for ${report.summary_label.stability.stable} of ${report.summary_label.stability.units} students`);
+    for (const [code, label] of Object.entries(PROCESS_SITUATIONS)) {
+      const row = report.situations.find((entry) => entry.situation === code);
+      if (row) add("C3", `Process indicator: ${label} (${code})`, `rating as expected ${row.quality_acceptable} of ${row.responses}; status as expected ${row.status_agreement} of ${row.responses}; false misconception claims ${row.misconception_false_positives}`);
+    }
+    const processRejections = report.generation.rejection_reasons
+      .filter((entry) => entry.code === "role_violation" || entry.code === "process_reference_outside_process_interpretation")
+      .reduce((sum, entry) => sum + entry.count, 0);
+    add("C3", "Process indicators used outside their roles", `${processRejections} rejected and regenerated (role violations and process wording outside the process interpretation)`);
+  }
+  if (feedback) {
+    for (const [table, mode, label] of [["C4", "opening", "Opening feedback"], ["C5", "reply", "Formative conversation replies"]] as const) {
+      const part = feedback.by_mode[mode];
+      if (!part.runs) continue;
+      add(table, label, `${part.delivered} of ${part.runs} delivered; focus ${pct(part.focus_type)}, strategy ${pct(part.strategy)}, instructor flag ${pct(part.review_flag)}, within the question limit ${pct(part.question_limit)}; audience violations ${part.audience_violations}`
+        + (mode === "reply" ? `; focus status ${pct(part.focus_status)}; echoes recorded as corrected reasoning ${part.false_corrected}` : ""));
+    }
+  }
+  return rows.length ? ["## Results by appendix table", "", "| Table | Interpretation | Result |", "|---|---|---|", ...rows, ""].join("\n") : "";
+}
+
 export function renderMarkdownReport(input: {
   title: string;
   generated_at: string;
@@ -43,6 +89,8 @@ export function renderMarkdownReport(input: {
   if (input.engine === "local") {
     lines.push("> These results come from the local stand-ins, which are not a model. They check that the pipeline runs; they say nothing about model quality.", "");
   }
+  const byTable = resultsByAppendixTable(input.interpretation, input.feedback);
+  if (byTable) lines.push(byTable);
   const report = input.interpretation;
   if (report) {
     lines.push(

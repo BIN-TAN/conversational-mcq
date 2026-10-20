@@ -616,8 +616,9 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
   const rows = input.records.map((record) => {
     const feedbackCase = byId.get(record.feedback_case_id) as FeedbackCase | undefined;
     const output = record.output;
+    const mode = feedbackCase?.mode ?? null;
     if (!feedbackCase || !output) {
-      return { feedback_case_id: record.feedback_case_id, run: record.run, validated: false, checks: null, message: null, output: null };
+      return { feedback_case_id: record.feedback_case_id, run: record.run, mode, validated: false, checks: null, message: null, output: null };
     }
     const expected = feedbackCase.expected;
     const questions = questionsAsked(output.student_visible_message);
@@ -634,6 +635,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     return {
       feedback_case_id: record.feedback_case_id,
       run: record.run,
+      mode,
       validated: true,
       checks,
       questions,
@@ -656,9 +658,29 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     criterion("Messages over the question limit", "<=", 0, scored.filter((row) => !row.checks!.question_limit).length),
     criterion("Echo or bare answer recorded as corrected reasoning", "<=", 0, scored.filter((row) => !row.checks!.no_false_corrected).length)
   ];
+  // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
+  const byMode = (mode: "opening" | "reply") => {
+    const all = rows.filter((row) => row.mode === mode);
+    const delivered = all.filter((row) => row.checks);
+    const part = (pick: (checks: NonNullable<(typeof rows)[number]["checks"]>) => boolean) =>
+      delivered.length ? round(delivered.filter((row) => pick(row.checks!)).length / delivered.length) : null;
+    return {
+      runs: all.length,
+      delivered: delivered.length,
+      focus_type: part((checks) => checks.focus_type),
+      strategy: part((checks) => checks.strategy),
+      focus_items: part((checks) => checks.items),
+      focus_status: part((checks) => checks.focus_status),
+      review_flag: part((checks) => checks.review_flag),
+      question_limit: part((checks) => checks.question_limit),
+      audience_violations: delivered.filter((row) => !row.checks!.audience).length,
+      false_corrected: delivered.filter((row) => !row.checks!.no_false_corrected).length
+    };
+  };
   return {
     runs: rows.length,
     failed,
+    by_mode: { opening: byMode("opening"), reply: byMode("reply") },
     shares: {
       focus_type: share((checks) => checks.focus_type),
       strategy: share((checks) => checks.strategy),

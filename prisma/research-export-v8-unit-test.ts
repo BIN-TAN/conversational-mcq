@@ -250,7 +250,7 @@ async function main() {
     assert.equal(rows[0].attempt_role, "initial_diagnosis");
     assert.equal(rows[0].generation_mode, "live_model");
     assert.equal(rows[0].rules_version, "interpretation-rules-v8.1");
-    assert.equal(rows[0].prompt_version, "student-profiling-v8");
+    assert.equal(rows[0].prompt_version, "student-profiling-v8.1");
     assert.equal(rows[0].schema_version, "student-interpretation-output-v8");
     assert.equal(rows[0].profile_record_id, "profile_a1");
     assert.equal(rows[0].item_counted_with_decisions, true);
@@ -414,7 +414,7 @@ async function main() {
     assert.equal(opening.strategy, "explain");
     assert.equal(opening.focus_status, null);
     assert.equal(opening.student_evidence_count, 0);
-    assert.equal(opening.mode_prompt_version, "formative-opening-v8");
+    assert.equal(opening.mode_prompt_version, "formative-opening-v8.1");
     assert.equal(opening.review_signal_public_id, null);
     assert.equal(reply.feedback_mode, "reply");
     assert.equal(reply.turn_sequence_index, 42);
@@ -427,7 +427,7 @@ async function main() {
     assert.equal(reply.instructor_review_reason, "Question 4's options may read as equivalent.");
     assert.equal(reply.review_signal_public_id, "sig_a1");
     assert.equal(reply.review_signal_status, "open");
-    assert.equal(reply.mode_prompt_version, "formative-conversation-v8");
+    assert.equal(reply.mode_prompt_version, "formative-conversation-v8.1");
     assert.equal(reply.prompt_hash, "hash-feedback");
     assert.ok(!("message_text" in reply) && !("student_visible_message" in reply), "The tutor text stays in formative_conversation_turns.csv");
   });

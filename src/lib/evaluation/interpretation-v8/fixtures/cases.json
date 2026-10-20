@@ -1,5 +1,5 @@
 {
- "cases_version": "interpretation-v8-eval-cases-2",
+ "cases_version": "interpretation-v8-eval-cases-3",
  "situations": {
   "S01": "Complete reasoning in the student's own words",
   "S02": "Brief but complete reasoning",
@@ -352,6 +352,13 @@
      "endorsement": "endorsed",
      "distractor": "A",
      "note": ""
+    },
+    {
+     "item_id": "R3",
+     "kind": "considered_idea",
+     "endorsement": null,
+     "distractor": "A",
+     "note": "Asks whether reliability stays with the test; an idea asked about is considered, not endorsed."
     }
    ],
    "forbidden_claim_items": [
@@ -753,7 +760,15 @@
      }
     }
    ],
-   "claims": [],
+   "claims": [
+    {
+     "item_id": "R1",
+     "kind": "considered_idea",
+     "endorsement": null,
+     "distractor": "B",
+     "note": "An earlier view the student says they revised (consistency means good for hiring)."
+    }
+   ],
    "forbidden_claim_items": [
     "R1",
     "R2",
@@ -1645,6 +1660,13 @@
      "endorsement": "endorsed",
      "distractor": "C",
      "note": ""
+    },
+    {
+     "item_id": "V3",
+     "kind": "considered_idea",
+     "endorsement": null,
+     "distractor": "C",
+     "note": "Asks whether a content check counts as internal consistency; considered, not endorsed."
     }
    ],
    "forbidden_claim_items": [
@@ -2471,6 +2493,13 @@
      "endorsement": "endorsed",
      "distractor": "B",
      "note": ""
+    },
+    {
+     "item_id": "S3",
+     "kind": "considered_idea",
+     "endorsement": null,
+     "distractor": "A",
+     "note": "Asks whether a cut score compares students with the class; considered, not endorsed."
     }
    ],
    "forbidden_claim_items": [
@@ -2667,7 +2696,15 @@
      }
     }
    ],
-   "claims": [],
+   "claims": [
+    {
+     "item_id": "S2",
+     "kind": "considered_idea",
+     "endorsement": null,
+     "distractor": "D",
+     "note": "An earlier view the student says they revised (a negative z-score is the lowest score)."
+    }
+   ],
    "forbidden_claim_items": [
     "S1",
     "S2",

@@ -167,6 +167,14 @@ function neutralCopyWording(text: string | null) {
     });
 }
 
+/**
+ * Text that stands for "nothing" in an optional field ("null", "none", "n/a", "." or ":").
+ * Clearing it to null changes nothing the output claims.
+ */
+export function isPlaceholderText(value: string | null) {
+  return value !== null && /^\s*(?:null|none|nil|undefined|n\/?a|not applicable|[-–—.:;,]*)\s*\.?\s*$/i.test(value);
+}
+
 export function repairInterpretationOutputV8(input: InterpretationInputV8, original: InterpretationOutputV8): {
   output: InterpretationOutputV8;
   repairs: InterpretationRepair[];
@@ -193,6 +201,12 @@ export function repairInterpretationOutputV8(input: InterpretationInputV8, origi
     if (seen.has(source.item_id)) { repairs.push({ path, code: "dropped_duplicate_item" }); return; }
     seen.add(source.item_id);
     const entry = { ...source };
+    for (const field of ["side_remark", "uncertainty_note", "missing_elements", "reference_id"] as const) {
+      if (entry[field] !== null && isPlaceholderText(entry[field])) {
+        entry[field] = null;
+        repairs.push({ path: `${path}.${field}`, code: "placeholder_text_cleared" });
+      }
+    }
     const noUsable = entry.explanation_quality === "no_usable_explanation";
 
     if (noUsable && entry.no_usable_reason === null && !item.response.explanation?.trim()) {
@@ -258,6 +272,12 @@ export function repairInterpretationOutputV8(input: InterpretationInputV8, origi
   // Claims: only wrapping quotation marks are removed, in the source the model named.
   const possible_misconceptions = original.possible_misconceptions.map((source, index) => {
     const entry = { ...source, item_ids: [...new Set(source.item_ids)] };
+    for (const field of ["alternative_explanation", "matching_distractor_reference_id"] as const) {
+      if (entry[field] !== null && isPlaceholderText(entry[field])) {
+        entry[field] = null;
+        repairs.push({ path: `possible_misconceptions[${index}].${field}`, code: "placeholder_text_cleared" });
+      }
+    }
     const quoteItem = itemsById.get(entry.quote_item_id);
     const unwrapped = unwrap(entry.student_quote);
     if (quoteItem && unwrapped !== entry.student_quote && quoteProblem(quoteItem, entry.quote_source, entry.student_quote)

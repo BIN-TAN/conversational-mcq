@@ -56,6 +56,8 @@ Essential elements list only the points an explanation must state to justify the
 
 Version 2 of the feedback cases also accepts an instructor flag for item S4 in F09. The item editors give the same guidance to instructors.
 
+Version 3 of the cases (`interpretation-v8-eval-cases-3`) follows the clarified definition of ideas considered but not endorsed: an incorrect idea the student mentions without holding it now, in a tempting-option reason the student does not call true, a question, or an earlier view the student says they revised. Five responses (R-03/R3, V-05/V3 and S-03/S3, which ask about an idea, and R-07/R1 and S-05/S2, which describe a revised view) now expect a considered idea. A misconception claim on any of them remains a critical error.
+
 **Simulated students.** Each simulated student answers all four items of one topic with a profile, for example "states that reliability establishes validity". Each response is written to show one situation (next section). Each response records the expected rating (with acceptable alternatives where two readings are defensible), the beyond-option-text flag, the error source, the no-usable reason and any side remark. Each student also lists the misconceptions and considered ideas expected, the items where a claim would be a critical error, and the items where a claim is defensible either way.
 
 The expected item statuses and summary labels are computed from the expected ratings by the application's own rules, so they cannot disagree with the rules.
@@ -65,7 +67,7 @@ The expected item statuses and summary labels are computed from the expected rat
 | Ratings: adequate / limited / incorrect / no usable explanation | 63 / 14 / 17 / 30 |
 | Summary labels: Mostly understood / Still developing / Need more work / Unavailable / Pending item review | 7 / 10 / 11 / 2 / 1 |
 | Possible misconceptions (endorsed or tentative) | 23 |
-| Ideas considered and rejected | 3 |
+| Ideas considered but not endorsed (tempting-option reasons, questions, revised earlier views) | 8 |
 | Items where any misconception claim is a critical error | 39 |
 
 The reviewer's four-item example is student R-11: one item supported, one correct but limited, one misconception and one execution slip. It is expected to give Still developing with one misconception listed.
@@ -214,7 +216,7 @@ The live runs are done by Codex on the researcher's computer, following `docs/CO
 
 ## Measures and go-live criteria
 
-Go-live needs every criterion below to pass on the decision run, scored against the resolved reference.
+Go-live needs every criterion below to pass on the decision run, scored against the resolved reference. Each report opens with a table that groups every measure by the appendix table it concerns: C1 the model's item ratings and claims, C2 the application's fixed rules, C3 the process indicators, C4 the opening feedback and C5 the formative conversation.
 
 | Criterion | Threshold | How it is computed |
 | --- | --- | --- |

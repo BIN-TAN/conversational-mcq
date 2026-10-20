@@ -6,6 +6,8 @@
  *   npx tsx prisma/feedback-v8-unit-test.ts
  */
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 process.env.DATABASE_URL ??= "postgresql://synthetic:synthetic@127.0.0.1:5432/feedback_v8_unit";
 process.env.SESSION_SECRET ??= "feedback-v8-unit-test-session-secret-00000000000000";
@@ -130,6 +132,15 @@ async function main() {
     assert.deepEqual(validateFeedbackV8Output(opening, buildLocalTestFeedbackV8(opening)), []);
     assert.deepEqual(validateFeedbackV8Output(reply, buildLocalTestFeedbackV8(reply)), []);
     assert.equal(buildLocalTestFeedbackV8(opening).focus.focus_type, "possible_misconception");
+  });
+
+  await check("Prompts are sections 9.5 and 9.6 of the design document, verbatim", () => {
+    const doc = readFileSync(path.join(process.cwd(), "docs/AI_MODULE_REDESIGN_2026-10-19.md"), "utf8").replace(/\r\n/g, "\n");
+    const block = (from: string, to: string) => /```text\n([\s\S]*?)\n```/.exec(doc.slice(doc.indexOf(from), doc.indexOf(to)))?.[1];
+    assert.equal(block("### 9.5 Opening feedback", "### 9.6 Formative conversation"), contract.FEEDBACK_V8_OPENING_INSTRUCTIONS);
+    assert.equal(block("### 9.6 Formative conversation", "### 9.7 Instructor reporting"), contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS);
+    assert.doesNotMatch(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /independent mastery|independently demonstrated/,
+      "The prompt does not lead the model into wording the note check rejects");
   });
 
   await check("Prompts are the documented text and the hash is stable", () => {

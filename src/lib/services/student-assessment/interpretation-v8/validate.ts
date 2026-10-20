@@ -54,9 +54,18 @@ const FORBIDDEN_INTERPRETATION_WORDS =
   /\b(cheat\w*|dishonest\w*|plagiar\w*|copied|copying|misconduct|lazy|careless\w*|(?<!test-taking |examinee |respondent )(?:un)?motivat\w*(?! for (?:using|choosing|the|this|that|a)\b)|independen\w*(?! of\b(?! (?:the |this |that |their |his |her |its )?(?:response|answer|work|student|explanation|submission|writing|reasoning|attempt)s?\b)| (?:samples?|events?|variables?|observations?|errors?|groups?|measures?|raters?|coders?|scorers?|items?|t-tests?|random|and identically)\b)|gen ?ai|chatgpt|artificial intelligence|ai tool\w*|ai assistance)\b/gi;
 const SECOND_PERSON = /\b(you|your|yours|yourself)\b/gi;
 
+/**
+ * Two neutral uses of "independent" seen in live runs are not claims about the student: a
+ * record or the evidence that cannot independently establish something ("the record cannot
+ * independently establish whether it was a mis-click"), and a separate slip ("an independent
+ * arithmetic slip"). Statements about the student's independence are still caught.
+ */
+const NEUTRAL_INDEPENDENCE =
+  /(?<=\b(?:record|records|data|logs?|evidence|information|indicators?)\b[^.?!;]{0,40}?\b(?:cannot|can't|could not|does not|do not|did not|may not)\s+)independently(?=\s+(?:establish|verif|confirm|corroborat|determin|show)\w*)|\bindependent(?=\s+(?:arithmetic|calculation|computational|clerical|transcription|recording)\s+(?:slip|error|mistake)s?\b)/gi;
+
 /** Quoted student words are exempt: a student may write "you" or name a tool. */
 function withoutQuotations(text: string) {
-  return text.replace(/"[^"]*"|“[^”]*”/g, " ");
+  return text.replace(/"[^"]*"|“[^”]*”/g, " ").replace(NEUTRAL_INDEPENDENCE, " ");
 }
 
 function matchesOf(pattern: RegExp, text: string) {

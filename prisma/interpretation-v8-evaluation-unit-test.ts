@@ -32,7 +32,7 @@ import {
   stability,
   wilsonInterval
 } from "../src/lib/evaluation/interpretation-v8/metrics";
-import { renderMarkdownReport } from "../src/lib/evaluation/interpretation-v8/report";
+import { renderMarkdownReport, resultsByAppendixTable } from "../src/lib/evaluation/interpretation-v8/report";
 import { keyVariablesFromEnvFile, modelSettingsFromRuntimeEnv } from "../src/lib/evaluation/interpretation-v8/live-setup";
 import { localStandInProvider, runFeedbackCase, runInterpretationCase, type InterpretationRunRecord } from "../src/lib/evaluation/interpretation-v8/run";
 import type { LlmProvider } from "../src/lib/llm/providers/types";
@@ -42,6 +42,7 @@ import {
   expectationsFromReference,
   labelDistribution,
   questionsAsked,
+  scoreFeedback,
   scoreInterpretation,
   type ReferenceCodingRow
 } from "../src/lib/evaluation/interpretation-v8/score";
@@ -368,6 +369,21 @@ async function main() {
     assert.equal(questionsAsked("Which part would you like to look at first?"), 1);
     assert.equal(questionsAsked("Reliability answers \u201CHow consistently are scores produced?\u201D and validity answers \"What evidence supports this use?\" Which would you like to explore?"), 1);
     assert.equal(questionsAsked("Is it the group? Or the conditions?"), 2);
+  });
+
+  await check("results are reported by appendix table, with opening feedback (C4) and replies (C5) apart", async () => {
+    const opening = feedback.cases.find((entry) => entry.mode === "opening")!;
+    const reply = feedback.cases.find((entry) => entry.mode === "reply")!;
+    const records = [];
+    for (const feedbackCase of [opening, reply]) {
+      records.push(await runFeedbackCase({ bank, base_case: caseById.get(feedbackCase.base_case_id)!, feedback_case: feedbackCase, run: 1, engine: { kind: "local" } }));
+    }
+    const scored = scoreFeedback({ cases: feedback, records });
+    assert.equal(scored.by_mode.opening.runs, 1);
+    assert.equal(scored.by_mode.reply.runs, 1);
+    const section = resultsByAppendixTable(null, scored);
+    assert.match(section, /\| C4 \| Opening feedback \|/);
+    assert.match(section, /\| C5 \| Formative conversation replies \|/);
   });
 
   await check("a rejected attempt keeps the output the checks rejected, for the strictness review", async () => {

@@ -35,22 +35,22 @@ The researcher's guidance: the model should not be rejected too often, and the c
 
 ## Phase 0: get the code and check it (no model calls)
 
-Earlier runs stopped at Phase 0 (Windows line endings, fixed), before Phase 1 (no key in this repository's `.env.local`; Phase 1 now uses the earlier live configuration), and in Phase 2 (a fixture conflict). Bundle v5 corrects the fixtures that run found: the essential elements of V4, R3 and R4 asked for more than those items need, and F09 now also accepts a flag for the planted item issue. These steps also work when the evaluation branch already exists.
+Bundle v6 follows the v5 evaluation (stability-2, dev-2 and dev-3). It revises the profiling and feedback prompts for what that run found (prompt versions v8.1): reference IDs for misconception claims, an incorrect side remark or tempting idea kept out of the error source, process indicators used only when their value shows they occurred, a check for a defensible reading of the item before an execution slip, null in place of placeholder text, a clearer scope for ideas considered but not endorsed, and feedback notes and definitions written without independence or mastery wording and as statements. It also narrows the independence-word check to the two neutral uses that run found (as a general rule), clears placeholder text such as "null" by a fixed repair, expects considered ideas for questions and revised views (cases version 3), and opens every report with a table of results by appendix table (C1 to C5). These steps also work when the evaluation branch already exists.
 
 ```powershell
 cd "E:\New_Downloads\Conversational MCQ"
 git status
 git fetch origin
-git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v5.bundle"
+git bundle verify ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v6.bundle"
 git switch --detach
-git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v5.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
+git fetch ".data\redesign-2026-10-19\redesign-interpretation-2026-10-19-v6.bundle" "+redesign/interpretation-2026-10:eval/live-2026-10"
 git switch eval/live-2026-10
 git log -1 --oneline
 npm install
 npx prisma generate
 npm run test:redesign-v8
 npx tsx prisma/interpretation-v8-evaluation-cli.ts check
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine local --runs 1 --out .data\interpretation-v8-evaluation\local-check
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine local --runs 1 --out .data\interpretation-v8-evaluation\local-check-v6
 ```
 
 About `git status`:
@@ -64,8 +64,8 @@ Run every evaluation command as `npx tsx prisma/interpretation-v8-evaluation-cli
 
 What to expect:
 
-- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v5". Report its hash.
-- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (22), feedback (8), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (19) suites.
+- **`git log -1 --oneline`** shows the commit whose message starts with "Codex prompt v6". Report its hash.
+- **`test:redesign-v8`** must pass: 50 design-alignment checks, then the interpretation (24), feedback (9), item preparation (22), item administration (19), instructor report (17), research export (18) and evaluation (20) suites: 179 checks.
 - **`check`** must report 31 simulated students, 124 item responses, 18 feedback cases and no problems.
 - **The local run** uses deterministic stand-ins, which are not a model. It only shows that the pipeline runs. Its quality numbers are meaningless; do not report them.
 
@@ -94,7 +94,7 @@ Rules:
 - `settings.json` in the run folder records the model names. Report them, and say that they are the 13 October approved settings the earlier live runs used. If Render now uses different model settings, the researcher will say so.
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\dev-2
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 1 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\dev-4
 ```
 
 This runs 49 cases: 31 profiling submissions and 18 feedback messages.
@@ -110,12 +110,12 @@ The command writes these files to the run folder:
 - `feedback-reading-sheet.csv`
 - `runs.jsonl`, the raw outputs, including the output each check rejected (`attempts[].rejected_output`)
 
-Write to the new folders `dev-2` and `stability-2`. Keep `dev-1` and `stability-1` as they are: they used the earlier fixture version, so do not resume into them. Compare `dev-2` with `dev-1` for V-01, V-02, V-04 and V-05 (item V4), R-02 and R-04 (items R3 and R4), and F09, the cases the fixture correction concerns.
+Write to the new folders `dev-4` and `stability-3`. Keep every earlier folder as it is and never resume into one: they used earlier prompts or fixtures. Compare `stability-3` with `stability-2` measure by measure, above all: misconception precision and its false claims with a wrong contradicted reference; the possible item issue flags for S-02/S4 and S-09/S4; adequate ratings rejected for a conceptual error source; role violations; side remarks recorded when none was expected; ideas considered but not endorsed; F12 and the other feedback notes rejected for wording; and the question limit.
 
 ## Phase 2: stability and fallback rate (three runs)
 
 ```powershell
-npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\stability-2
+npx tsx prisma/interpretation-v8-evaluation-cli.ts run --engine live --runs 3 --allow-live --env-file "E:\New_Downloads\cmcq-release\.env.local" --runtime-env "E:\New_Downloads\Conversational MCQ\.data\release-candidate-2026-10-17\sim\runtime-env.json" --out .data\interpretation-v8-evaluation\stability-3
 ```
 
 This makes 147 runs: 93 profiling submissions and 54 feedback messages. Expect about 190 calls, at most 666.
@@ -149,7 +149,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
    - **Mechanical slip:** something a fixed rule could repair without changing what the output claims.
 
    Give a table with the columns code, count, share of attempts, two real examples (path plus the offending text), verdict and proposed change.
-4. **Allowed fixes.** Make these only on a new branch, `eval/strictness-fixes`, created from `eval/live-2026-10`. Make one commit per change, each with a unit test in `prisma\interpretation-v8-unit-test.ts` or `prisma\feedback-v8-unit-test.ts`.
+4. **Allowed fixes.** Make these only on a new branch, `eval/strictness-fixes-2`, created from `eval/live-2026-10`. Do not reuse or merge the earlier `eval/strictness-fixes` branch: v6 contains a general version of its change. Make one commit per change, each with a unit test in `prisma\interpretation-v8-unit-test.ts` or `prisma\feedback-v8-unit-test.ts`.
    - **(a) Narrow a wording pattern** that produced a false rejection on course content or neutral description. The patterns are in `src\lib\services\student-assessment\interpretation-v8\validate.ts` and `src\lib\services\student-assessment\feedback-v8\validate.ts`. The test must show the false positive now passes and a true positive still fails.
    - **(b) Add a deterministic repair** in `src\lib\services\student-assessment\interpretation-v8\repair.ts`, for a mechanical slip seen at least twice that a fixed rule can correct without changing what the output claims about the student. Record it with its own repair code.
 5. **Never loosen these, even if they reject often:**
@@ -162,7 +162,7 @@ Analyse Phase 1 and Phase 2 from the report files and `runs.jsonl`.
 6. **After any fix:**
    - run `npm run test:redesign-v8`;
    - run `npx tsc --noEmit -p tsconfig.json`, and report only new errors in the files you changed;
-   - repeat Phase 1 (with the same `--env-file` and `--runtime-env`) into `dev-3` and compare it with `dev-2`.
+   - repeat Phase 1 (with the same `--env-file` and `--runtime-env`) into `dev-5` and compare it with `dev-4`.
 
 ## Phase 5: materials for the human reference coding (no model calls)
 
@@ -182,12 +182,13 @@ Write `.data\interpretation-v8-evaluation\CODEX_REPORT.md`, in plain English wit
    - whether any checks are too strict.
 
    Give each answer as two or three sentences with numbers.
-2. **The criteria tables** from the Phase 2 report (pass, fail or not assessed), saying that "not assessed" items need the human coders.
-3. **The tables** from Phase 4, steps 1 to 3.
-4. **The changes made in Phase 4:** branch, commits, tests, and before/after numbers.
-5. **Proposed prompt changes** with the evidence, not applied.
-6. **Fixture doubts,** if any, with the evidence, not applied.
-7. **Calls and tokens used** (from the reports), and anything that did not run and why.
-8. **The full path of every file written.**
+2. **Results by appendix table:** the "Results by appendix table" section of the `stability-3` report (C1 the model's item ratings and claims, C2 the application's fixed rules, C3 the process indicators, C4 the opening feedback, C5 the formative conversation), with a column for the same measure in `stability-2`.
+3. **The criteria tables** from the Phase 2 report (pass, fail or not assessed), saying that "not assessed" items need the human coders.
+4. **The tables** from Phase 4, steps 1 to 3.
+5. **The changes made in Phase 4:** branch, commits, tests, and before/after numbers.
+6. **Proposed prompt changes** with the evidence, not applied.
+7. **Fixture doubts,** if any, with the evidence, not applied.
+8. **Calls and tokens used** (from the reports), and anything that did not run and why.
+9. **The full path of every file written.**
 
-Do not commit anything under `.data\`. Do not merge `eval/strictness-fixes` into any other branch; the researcher will review it.
+Do not commit anything under `.data\`. Do not merge `eval/strictness-fixes-2` into any other branch; the researcher will review it.
