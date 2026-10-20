@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-20T17:04:30.601038+00:00",
+  "updated_at": "2026-10-20T22:02:24.599133+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3213,6 +3213,129 @@
         "prisma/teacher-mcq-item-builder-smoke-test.ts",
         "prisma/student-script-review-smoke-test.ts",
         "prisma/migrations/20261020090000_item_review_decisions/migration.sql"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-02",
+      "date": "2026-10-20",
+      "title": "Research data recording and participant exports released",
+      "application_commit": "39e1500286439828fcdd88ae1536b7765cf2b308",
+      "push_status": "Application 39e1500286439828fcdd88ae1536b7765cf2b308 fast-forwarded origin/main from 764e3918a30a9f517e2de2bbb59a5d6e2ab0ec48; remote SHA verified at 2026-10-20T21:52:14.9454505Z. The later ledger and Word commit is documentation only and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbbu5dui0phs73e887b0",
+        "source_commit": "39e1500286439828fcdd88ae1536b7765cf2b308",
+        "verified_at": "2026-10-20T22:02:07.607Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dbbu5dui0phs73e887b0",
+        "evidence": [
+          "Manual exact-commit deployment began at 2026-10-20T21:52:55Z. Live at 2026-10-20T21:57:33Z, first observed at 2026-10-20T21:58:19.261Z. Previously Live: a1d8e220d9d636d28dec010f3c3f2240bdc73232, deployment dep-dbbppkbl550s73fqie00.",
+          "Read-only runtime check at 2026-10-20T21:58:42.200Z verified RENDER_GIT_COMMIT, HTTP 200 with schema ready, the applied 20261020100000_assessment_published_at migration, and one preparation worker. First-minutes logs were checked through 2026-10-20T22:02:07.607Z; no release-related startup or student-facing errors were observed and no rollback was needed.",
+          "Operational approval is valid, and the unchanged operational and two v8 prompt hashes match. Item preparation and instructor report approvals remain unset. Auto-Deploy remains Off. No Render environment variable was changed.",
+          "No production student sign-in, scripted attempt, generation request, load test or student-record edit was performed. Local verification used mock-mode synthetic records only."
+        ]
+      },
+      "summary": "Attempt context v2 now joins prior submissions across original and corrected mini-tests and records browser display receipt times. New profiles retain rapid selection, new publications retain their first publication time, and research exports include participation files and consenting-participant filters. The release passed local checks after one test-fixture correction; five older supplementary checks still fail identically on the previous release.",
+      "changes": [
+        {
+          "area": "Attempt context and stored process evidence",
+          "problem": "A later submission on a corrected mini-test could be labelled as a first diagnosis, while generated feedback did not establish browser exposure. Rapid selection was not stored on each v8 item.",
+          "fix": "Use attempt-context-v2 across the assessment family, with server receipt cutoffs for answer-review and feedback display. Persist rapid_selection on each v8 item.",
+          "impact": "Later profiles can distinguish initial diagnosis from after-feedback evidence. A missing or late display receipt stays missing; client clocks cannot move exposure before an attempt. Original source evidence remains unchanged."
+        },
+        {
+          "area": "Publication time and study codes",
+          "problem": "Release timing and a student-facing consent join code were missing.",
+          "fix": "Add the nullable assessments.published_at column through migration 20261020100000_assessment_published_at and retain first publication time. Display Study code in XXXX-XXXX format on the student mini-test list.",
+          "impact": "Newly published mini-tests record publication time; historical publication dates remain blank. The consent form and course-end questionnaire can use the existing pseudonymous study code."
+        },
+        {
+          "area": "Participation and restricted outcomes",
+          "problem": "An attempt-only export omitted students with no attempts and lacked the study-design tables required for participation analysis.",
+          "fix": "Export mini_test_catalog.csv, student_roster.csv and student_participation_summary.csv, plus restricted summative_outcomes.csv. Add the Include only these study codes filter in API and UI.",
+          "impact": "The roster includes zero-attempt students; each student-level file is limited to the listed participants, while the mini-test catalog remains complete. Instructor-report audit rows spanning the whole class are omitted when filtering participants."
+        },
+        {
+          "area": "Research evidence and dictionaries",
+          "problem": "Conversation opening and ending outcomes, generation provenance, item process evidence and reference notes were incomplete in exports; page-switch derivations differed.",
+          "fix": "Include generation records in interpretation_summaries, conversation outcomes and engagement fields, item process and first-answer timing, and target reasoning, essential elements and option rationales with v8 reference IDs. Align export page-switch counts to page exits. Reject undocumented new research columns.",
+          "impact": "Research columns have definitions and provenance. The sealed response package keeps its original page_switch_count definition. Metadata tables retain the pre-existing 119 self-dictionary gaps described under limitations."
+        },
+        {
+          "area": "Teacher dashboard",
+          "problem": "The overview needed to distinguish first and latest understanding while avoiding unsupported engagement summaries and internal item identifiers.",
+          "fix": "Show Initial understanding overview and Latest understanding overview; remove engagement overview/reasons and snapshot IDs/item versions from the item view.",
+          "impact": "Instructors see understanding evidence without the removed engagement interpretations or internal item identifiers."
+        },
+        {
+          "area": "Release validation correction",
+          "problem": "The new feedback-export assertion expected student_ended after the existing fixture had deliberately overwritten the lifecycle reason with platform_failure:synthetic. The previous release test passed because it lacked that new export assertion.",
+          "fix": "Commit 39e1500286439828fcdd88ae1536b7765cf2b308 restores student_ended_conversation after the platform-failure guard checks and before Finish/export assertions. The change adds three lines to prisma/feedback-display-completion-smoke-test.ts.",
+          "impact": "The test now exercises its stated student-stop scenario and retains all completion, ownership, idempotency and failed-receipt checks. No application logic, prompts, contracts or additional schema/migration were changed beyond bundle v10."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Migration and full local verification",
+          "result": "PASS",
+          "detail": "Loopback-only database validated without exposing its URL. Prisma generate, migrate deploy and migrate status passed; all 68 migrations are current. The complete standard script passed every step on the final run, including typecheck, lint (0 errors, 9 existing warnings), design checks, dictionary audits, database smoke checks, all 18 scripted scenarios and production build (114 seconds). One medium scripted-review issue remains from the prior release; zero high-severity issues."
+        },
+        {
+          "name": "Redesign and approval",
+          "result": "187 checks PASS; approval valid; hashes unchanged",
+          "detail": "50 design-alignment, 24 interpretation, 9 feedback, 22 item preparation, 20 item administration, 17 instructor-report, 25 research-export and 20 evaluation checks passed. A first invocation inheriting the local application environment caused a test configuration block on both candidate and 764e391; the intended clean test environment passed. Approval returned valid true with no issues. Both v8 hashes exactly match Render."
+        },
+        {
+          "name": "Twenty requested supplementary checks",
+          "result": "15 PASS; 5 pre-existing failures reproduced on 764e391",
+          "detail": "Passing checks cover analysis-ready, selected-session, integrity, feedback completion, attempt policy, teacher review/dashboard, service, detailed CSV, master export, process summaries, privacy, participation (11), conversation outcomes (9) and v8 export (25). The dedicated local audit database passed all 12 attempt-policy checks; the initial ordinary database was correctly rejected by that test's database-name guard."
+        },
+        {
+          "name": "Supplementary baseline failures",
+          "result": "Recorded and continued under the release instruction",
+          "detail": "Both candidate and baseline fail streaming cleanup at Windows symlink EPERM; v18r2 lifecycle cannot create its expected synthetic conversation; v18r2 pipeline returns synthetic_formative_conversation_execution_failed; the student conversation runtime expects host v5.3 but gets v5.4; the session-data audit expects obsolete process-data-summary-v1. These checks are not reported as passing. The two separately known old artifact-row/file-list checks were not run by the requested command lists."
+        },
+        {
+          "name": "Database attempt-context and profile check",
+          "result": "PASS using uncommitted local scratch script",
+          "detail": "A mock submission on the original mini-test followed by a published correction and a second submission records after_feedback and the first attempt in feedback_seen_before. Missing/late answer-review receipts remain null, while a receipt before the second start is included. Both persisted profiles have rapid_selection on all three items. The existing attempt_number remains per assessment version; exported family_attempt_number identifies the chronological family attempt."
+        },
+        {
+          "name": "Restricted analysis-ready export",
+          "result": "PASS research-data coverage and participant checks; metadata limitation preserved",
+          "detail": "A local synthetic ZIP has 49 CSV files and 1465 headers. Zero-attempt students appear in roster and participation summaries, restricted outcomes are present, newly published mini-tests have published_at, and the excluded student is absent from every CSV. All 1346 research-data headers have a dictionary row. The remaining 119 dictionary/codebook/coverage metadata headers lack self-dictionary rows, exactly matching 764e391."
+        },
+        {
+          "name": "Exact production verification",
+          "result": "Read-only PASS",
+          "detail": "Verified the exact deployed application SHA separately from push, HTTP health/schema, applied migration, one worker, valid operational approval and both prompt-hash matches. Human student/teacher acceptance testing remains for the researcher."
+        }
+      ],
+      "data_impact": [
+        "Profiles saved between CMCQ-20261020-01 and CMCQ-20261020-02 carry attempt-context-v1 and lack stored rapid_selection. Follow the dictionary version/missingness guidance; do not relabel or backfill them as newly collected v2 evidence.",
+        "published_at is nullable and remains blank for mini-tests first published before this migration. The researcher must record those earlier release dates manually from release evidence.",
+        "Research, master and detailed export page-switch counts now count page exits only. Sealed response packages retain their original page_switch_count definition and are not rewritten. Re-exported derived columns can differ from earlier downloaded exports.",
+        "Study-code filtering applies a supplied consent list; it does not infer consent. Zero-attempt accounts are included in participation denominators, and outcomes remain restricted. Code collisions are marked and include all accounts sharing an included code.",
+        "The additive production migration was applied by the existing Render pre-deploy command. All synthetic tests and cleanup writes were local; historical production responses, profiles and student records were left intact."
+      ],
+      "limitations": [
+        "Five supplementary legacy/platform-dependent checks remain failing as detailed above. Their identical results on 764e391 permit this release under the explicit release instruction; they are not evidence of a completely green repository.",
+        "Literal coverage of every CSV header is not complete: 119 metadata-table headers have no self-dictionary row, unchanged from 764e391. All actual research-data columns in the tested restricted export are documented.",
+        "No live model generation or production student attempt was performed. Local mocks establish persistence/export behavior, not feedback quality, classroom outcomes or learning gains.",
+        "Researcher acceptance checklist: confirm the student Study code; complete a short test with feedback and a reply; inspect Initial/Latest understanding and removal of engagement/snapshot identifiers; find the Include only these study codes box; open a small export containing student_roster.csv and mini_test_catalog.csv.",
+        "Historical publication dates and the version boundary for older profiles require explicit handling in analysis. Missing browser display records are unknown exposure, not proof that feedback was unseen."
+      ],
+      "references": [
+        "docs/AI_MODULE_REDESIGN_2026-10-19.md",
+        "docs/DATA_LOGGING_SPEC.md",
+        "src/lib/services/student-assessment/interpretation-v8/attempts.ts",
+        "src/lib/services/student-assessment/interpretation-v8/profile.ts",
+        "src/lib/services/teacher-research-data/analysis-ready-export.ts",
+        "src/lib/services/teacher-research-data/study-participation-export.ts",
+        "src/lib/services/teacher-research-data/dictionary.ts",
+        "prisma/feedback-display-completion-smoke-test.ts",
+        "prisma/migrations/20261020100000_assessment_published_at/migration.sql"
       ]
     }
   ],
