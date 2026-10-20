@@ -1,7 +1,7 @@
 import { stringify } from "csv-stringify/sync";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 
-export const MASTER_EXPORT_SCHEMA_VERSION = "1.2.0";
+export const MASTER_EXPORT_SCHEMA_VERSION = "1.3.0";
 
 export const MASTER_EXPORT_COLUMNS = [
   "export_generated_at",
@@ -128,6 +128,9 @@ export const MASTER_EXPORT_COLUMNS = [
   "profile_change_count",
   "profile_history_json",
   "integrated_profile_history_json",
+  "interpretation_profile_schema_latest",
+  "interpretation_summary_label_initial",
+  "interpretation_summary_label_latest",
   "initial_formative_value",
   "latest_formative_value",
   "latest_formative_decision_created_at",

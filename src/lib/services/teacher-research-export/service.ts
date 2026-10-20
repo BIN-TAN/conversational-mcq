@@ -6,6 +6,7 @@ import {
   type TeacherReadableTranscriptProjection
 } from "@/lib/services/teacher-review/readable-transcript";
 import { asArray, asRecord, stripInternalKeys } from "@/lib/services/teacher-review/serializers";
+import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { createStoreOnlyZip, type ZipEntryInput } from "./zip";
@@ -397,6 +398,9 @@ function dataDictionary() {
       evidence_sufficiency: "Evidence sufficiency category.",
       confidence_alignment: "Confidence alignment category.",
       independence_interpretability: "Independent-understanding interpretability category.",
+      interpretation_profile_schema: "Interpretation v8 profile schema; blank for earlier profiles. For v8 profiles the legacy label fields above are null.",
+      interpretation_summary_label: "Interpretation v8 summary label stored at submission (Mostly understood, Still developing, Need more work, Pending item review, Unavailable / insufficient evidence).",
+      interpretation_generation_mode: "Interpretation v8 generation mode: live_model, local_test, or fallback (no claims made).",
       ...PROFILE_FIELD_DEFINITIONS,
       process_caution_count: "Count of process interpretation cautions.",
       formative_value: "Teacher/research formative-purpose/value category.",
@@ -880,20 +884,28 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
 
   const profileRows = sessions.flatMap((session) =>
     session.concept_unit_sessions.flatMap((conceptUnitSession) =>
-      conceptUnitSession.student_profiles.map((profile) => ({
-        session_public_id: session.session_public_id,
-        concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
-        created_at: iso(profile.created_at),
-        profile_type: profile.profile_type,
-        ...profileRecordProvenance(profile),
-        ...profileEvidenceCounts(profile),
-        diagnostic_profile: profile.integrated_diagnostic_profile,
-        profile_confidence: profile.profile_confidence,
-        evidence_sufficiency: profile.evidence_sufficiency,
-        confidence_alignment: profile.confidence_alignment,
-        independence_interpretability: profile.independence_interpretability,
-        process_caution_count: asArray(profile.process_interpretation_cautions).length
-      }))
+      conceptUnitSession.student_profiles.map((profile) => {
+        // Interpretation v8 profiles keep fixed placeholders in the legacy label columns;
+        // those are left null here and the v8 summary label is given instead.
+        const v8 = readStoredInterpretationV8(profile.item_level_evidence);
+        return {
+          session_public_id: session.session_public_id,
+          concept_unit_public_id: conceptUnitSession.concept_unit.concept_unit_public_id,
+          created_at: iso(profile.created_at),
+          profile_type: profile.profile_type,
+          ...profileRecordProvenance(profile),
+          ...profileEvidenceCounts(profile),
+          diagnostic_profile: v8 ? null : profile.integrated_diagnostic_profile,
+          profile_confidence: v8 ? null : profile.profile_confidence,
+          evidence_sufficiency: v8 ? null : profile.evidence_sufficiency,
+          confidence_alignment: v8 ? null : profile.confidence_alignment,
+          independence_interpretability: v8 ? null : profile.independence_interpretability,
+          process_caution_count: asArray(profile.process_interpretation_cautions).length,
+          interpretation_profile_schema: v8?.profile_schema ?? null,
+          interpretation_summary_label: v8?.topic_summary.label ?? null,
+          interpretation_generation_mode: v8?.generation_mode ?? null
+        };
+      })
     )
   );
 

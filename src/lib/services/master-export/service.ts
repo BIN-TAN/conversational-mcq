@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
 import { sessionStatuses } from "@/lib/domain/enums";
 import { generatePublicId } from "@/lib/services/ids";
+import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { MasterExportServiceError } from "./errors";
 import {
@@ -229,28 +230,38 @@ function profileFields(input: {
   const latest =
     sorted.find((profile) => profile.id === input.latestProfileDbId) ?? sorted.at(-1) ?? null;
   const history = sorted.map(safeProfile);
+  // Interpretation v8 profiles (docs/AI_MODULE_REDESIGN_2026-10-19.md) store fixed placeholders
+  // in the legacy label columns; they are printed blank here, and the v8 summary label is
+  // printed in its own columns, so placeholders are never read as judgments.
+  const initialV8 = readStoredInterpretationV8(initial?.item_level_evidence);
+  const latestV8 = readStoredInterpretationV8(latest?.item_level_evidence);
+  const legacy = (profile: Record<string, unknown> | null, key: string) =>
+    profile && !readStoredInterpretationV8(profile.item_level_evidence) ? String(profile[key] ?? "") : "";
 
   return {
-    initial_ability_profile: String(initial?.ability_profile ?? ""),
-    latest_ability_profile: String(latest?.ability_profile ?? ""),
-    ability_pattern_flags_latest: latest ? stableJson(latest.ability_pattern_flags ?? []) : "[]",
-    initial_engagement_profile: String(initial?.engagement_profile ?? ""),
-    latest_engagement_profile: String(latest?.engagement_profile ?? ""),
-    engagement_pattern_flags_latest: latest ? stableJson(latest.engagement_pattern_flags ?? []) : "[]",
-    initial_integrated_diagnostic_profile: String(initial?.integrated_diagnostic_profile ?? ""),
-    latest_integrated_diagnostic_profile: String(latest?.integrated_diagnostic_profile ?? ""),
-    integrated_profile_confidence_latest: String(latest?.integrated_profile_confidence ?? ""),
-    integrated_profile_rationale_latest: String(latest?.integrated_profile_rationale ?? ""),
-    evidence_sufficiency_latest: String(latest?.evidence_sufficiency ?? ""),
-    confidence_alignment_latest: String(latest?.confidence_alignment ?? ""),
-    independence_interpretability_latest: String(latest?.independence_interpretability ?? ""),
+    interpretation_profile_schema_latest: latestV8?.profile_schema ?? "",
+    interpretation_summary_label_initial: initialV8?.topic_summary.label ?? "",
+    interpretation_summary_label_latest: latestV8?.topic_summary.label ?? "",
+    initial_ability_profile: legacy(initial, "ability_profile"),
+    latest_ability_profile: legacy(latest, "ability_profile"),
+    ability_pattern_flags_latest: latest && !latestV8 ? stableJson(latest.ability_pattern_flags ?? []) : latestV8 ? "" : "[]",
+    initial_engagement_profile: legacy(initial, "engagement_profile"),
+    latest_engagement_profile: legacy(latest, "engagement_profile"),
+    engagement_pattern_flags_latest: latest && !latestV8 ? stableJson(latest.engagement_pattern_flags ?? []) : latestV8 ? "" : "[]",
+    initial_integrated_diagnostic_profile: legacy(initial, "integrated_diagnostic_profile"),
+    latest_integrated_diagnostic_profile: legacy(latest, "integrated_diagnostic_profile"),
+    integrated_profile_confidence_latest: legacy(latest, "integrated_profile_confidence"),
+    integrated_profile_rationale_latest: legacy(latest, "integrated_profile_rationale"),
+    evidence_sufficiency_latest: legacy(latest, "evidence_sufficiency"),
+    confidence_alignment_latest: legacy(latest, "confidence_alignment"),
+    independence_interpretability_latest: legacy(latest, "independence_interpretability"),
     misconception_indicators_latest: latest ? stableJson(latest.misconception_indicators ?? []) : "[]",
     reasoning_quality_summary_latest: String(latest?.reasoning_quality_summary ?? ""),
-    engagement_summary_latest: String(latest?.engagement_summary ?? ""),
+    engagement_summary_latest: legacy(latest, "engagement_summary"),
     process_interpretation_cautions_latest: latest
       ? stableJson(latest.process_interpretation_cautions ?? [])
       : "[]",
-    profile_confidence_latest: String(latest?.profile_confidence ?? ""),
+    profile_confidence_latest: legacy(latest, "profile_confidence"),
     profile_rationale_latest: String(latest?.rationale ?? ""),
     recommended_next_evidence_latest: latest ? stableJson(latest.recommended_next_evidence ?? []) : "[]",
     initial_profile_created_at: isoValue(initial?.created_at),
