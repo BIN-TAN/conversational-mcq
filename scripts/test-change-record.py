@@ -69,6 +69,25 @@ class RecordTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "stale"):
                 record.check(first, self.data, "changed-source")
 
+    def test_evaluation_comparison_is_preserved_in_word(self):
+        data = copy.deepcopy(self.data)
+        data["releases"] = [data["releases"][-1]]
+        data["releases"][0]["evaluation_tables"] = [{
+            "title": "Recorded comparison", "headers": ["Measure", "Baseline", "Candidate"],
+            "widths": [3.9, 1.5, 1.5], "rows": [["Focus", "52/54", "48/54"]]
+        }]
+        record.validate(data)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "comparison.docx"
+            record.build(data, "comparison-test", output)
+            doc = record.Document(output)
+            rows = [[cell.text for cell in row.cells] for table in doc.tables for row in table.rows]
+            self.assertIn(["Measure", "Baseline", "Candidate"], rows)
+            self.assertIn(["Focus", "52/54", "48/54"], rows)
+        data["releases"][0]["evaluation_tables"][0]["rows"][0].pop()
+        with self.assertRaisesRegex(ValueError, "row width"):
+            record.validate(data)
+
     def test_fingerprint_sources_have_checkout_stable_line_endings(self):
         for source in (record.SOURCE, Path(record.__file__)):
             self.assertNotIn(b"\r\n", source.read_bytes(), str(source))

@@ -56,6 +56,12 @@ def validate(data):
         for test in release["tests"]:
             if not all(test.get(k) for k in ("name", "result", "detail")):
                 raise ValueError("Incomplete test evidence")
+        for comparison in release.get("evaluation_tables", []):
+            count = len(comparison["headers"])
+            if not comparison["title"] or count != len(comparison["widths"]) or not comparison["rows"]:
+                raise ValueError("Incomplete evaluation table")
+            if any(len(row) != count for row in comparison["rows"]):
+                raise ValueError("Evaluation table row width mismatch")
     if not seen:
         raise ValueError("At least one release required")
 
@@ -220,6 +226,9 @@ def build(data, identity, output):
         doc.add_heading("验证结果", 2)
         for test in release["tests"]:
             paragraph(doc, test["result"] + "。" + test["detail"], label=test["name"])
+        for comparison in release.get("evaluation_tables", []):
+            doc.add_heading(comparison["title"], 2)
+            table(doc, comparison["headers"], comparison["rows"], comparison["widths"])
         doc.add_heading("部署证据", 2)
         for text in dep["evidence"]:
             paragraph(doc, text, style="List Bullet")

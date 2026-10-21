@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21T06:12:14.332653+00:00",
+  "updated_at": "2026-10-21T16:23:52.134334+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3670,6 +3670,698 @@
         "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\teacher-content\\topic-preparation.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-mcq-review-ui-smoke-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-evidence-centered-item-design-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-06",
+      "date": "2026-10-21",
+      "title": "Student wording and two ways to begin item authoring",
+      "application_commit": "4f1673e4b359ac4eb38644f89f00ec0cceda5692",
+      "push_status": "Build A, application 4f1673e4b359ac4eb38644f89f00ec0cceda5692, fast-forwarded origin/main from 5ee82bf60ee05b59174d113367ddcf6521eacdc4; remote SHA verified at 2026-10-21T16:12:35.2419389Z. The later ledger, generator and Word commit uses [skip render] and is documentation only; it is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbce9bm1egvs73acu0dg",
+        "source_commit": "4f1673e4b359ac4eb38644f89f00ec0cceda5692",
+        "verified_at": "2026-10-21T16:23:46.968Z",
+        "url": "https://conversational-mcq.onrender.com",
+        "evidence": [
+          "Manual specific-commit deployment started at 2026-10-21T16:13:34.415Z; Live at 2026-10-21T16:19:29Z. Previous Live was ab11b31586f43335cad3bd5ab65257f1193c0d13 (dep-dbc5c161egvs739iokvg).",
+          "Read-only runtime verification at 2026-10-21T16:20:15.501Z confirmed the exact commit, HTTP 200, database/schema ready, one preparation worker and valid operational approval. Both v8 approval functions report approved. Feedback plan reports live_model; profiling's private plan was checked through its exact configuration predicates and provider/model construction without generation. First-minutes logs were reviewed through 2026-10-21T16:23:46.968Z. No release-related startup/student-facing error and no rollback.",
+          "The two v8 hashes changed with Save only at 2026-10-21T16:11:31.827Z; no other variable changed. Operational approval stayed unchanged.",
+          "Auto-Deploy stayed Off. Item preparation and instructor report approval variables remain unset. No schema or migration change. Production verification used no sign-in, scripted attempt, item-builder request, load test or student-record mutation."
+        ]
+      },
+      "summary": "Build A was deployed. Run 8 v8.3 passed every previously passing criterion, the stock-phrase limit, all specified overall regression comparisons and the 20-message reading. Focus and strategy were 54/54; F12/F13 focus was 6/6; question overruns, stock phrases and false corrected records were zero. Run 7 v8.2 failed focus and strategy comparison and was never deployed. Student pages now use complete plain sentences. The builder can adapt the instructor's existing items or write new items from course materials. JSON import now accepts design notes up to 4,000 characters and gives plain-language validation messages. The Word record retains both decision attempts and their comparison tables.",
+      "changes": [
+        {
+          "area": "Student pages and fixed tutor messages",
+          "problem": "Students saw inconsistent terms, clipped phrases, internal error codes and retry action names.",
+          "fix": "The active attempt and assessment pages use Tutor, Question 2 of 3, Your score and Try again. Sign-in, password, status, response-quality and unavailable messages state the problem and next step in complete sentences. Mini-test prompt generator v4 preserves variant IDs and asks for the same information.",
+          "impact": "Stored result strings, assessment transitions and recorded fields stay unchanged. Earlier transcripts retain their original wording and generator version."
+        },
+        {
+          "area": "Two starting points and existing items",
+          "problem": "The instructor needed a direct path from existing Word, text, spreadsheet or other common item files to a filled design and review batch.",
+          "fix": "Adapt my existing items and Write new items from course materials fill editable starting messages and preserve edits/attachments. Assistant v7 infers the design from finished items; existing-mcq-import-v1 copies stems/options and explicit keys, flags missing keys, proposes missing notes, skips incomplete or off-topic items and reuses a prior batch for replay. Other-topic preparation imports available items before generating new drafts.",
+          "impact": "Teacher review remains required. Source type existing_items_from_materials and authoring agent_calls preserve provenance. Spreadsheets are read as text without executing macros or formulas."
+        },
+        {
+          "area": "JSON import and validation wording",
+          "problem": "The five-item Lecture 4 file had 1,462 context-note characters and exceeded the former 1,200-character limit.",
+          "fix": "The design context-note limit is 4,000. Each validation problem is rendered as a plain sentence naming the affected item or field and what to change.",
+          "impact": "The exact supplied file parsed as 5 items and 1,462 note characters; JSON import smoke passed. No source item file or student record was edited."
+        },
+        {
+          "area": "Prompt decision across two attempts",
+          "problem": "Run 7 v8.2 lost the focus criterion and had a strategy regression; it was correctly stopped without push or deployment.",
+          "fix": "Run 8 v8.3 passed every previously passing criterion, the stock-phrase limit, all specified overall regression comparisons and the 20-message reading. Focus and strategy were 54/54; F12/F13 focus was 6/6; question overruns, stock phrases and false corrected records were zero. Run 7 v8.2 failed focus and strategy comparison and was never deployed. Run 8 retained fixed fixtures, expectations, thresholds and prompts. Only the explicitly listed overall gated shares were subject to the five-percentage-point rule; mode subsets and reported-only measures remained descriptive.",
+          "impact": "New profiles use student-profiling-v8.2; feedback uses formative-opening-v8.2 plus formative-conversation-v8.3."
+        },
+        {
+          "area": "Verification corrections retained from run 7",
+          "problem": "Two existing tests asserted wording intentionally replaced by release 06, and the browser test raced the next-frame focus update.",
+          "fix": "The two authorized run 7 test fixes were cherry-picked onto both candidate branches without conflicts. The bundle already adds a two-second browser focus wait.",
+          "impact": "No prompt, fixture, validation/repair/rules implementation, schema or migration was changed to obtain a passing decision."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Branch and dependency preflight",
+          "result": "PASS",
+          "detail": "Both bundle tips matched the prompt and descend from remote 5ee82bf. Tracked state was clean; package manifests, Prisma schema and migrations were unchanged. Prisma generation and migration status passed; no migration was executed."
+        },
+        {
+          "name": "Build A changed scripts",
+          "result": "15 PASS; 4 known baseline failures",
+          "detail": "Instructor report in the inherited environment reports configuration_credential_source_conflict instead of prompt_not_approved; it passes in the clean redesign suite. Legacy conversation-host expectation is v5.3 versus current v5.4. Legacy activity and transfer fixtures report assessment_not_available. These match the run 7 baseline failures explicitly allowed by 06B."
+        },
+        {
+          "name": "Build A standard and redesign",
+          "result": "18 steps and 189 checks PASS",
+          "detail": "Typecheck, lint, design alignment, dictionaries, database smoke and production build passed. Existing warnings and the scripted review non-high issue remain. The nine additional database scripts passed, including JSON import."
+        },
+        {
+          "name": "Local browser and exact Lecture 4 file",
+          "result": "PASS",
+          "detail": "All five prescribed UI scenarios passed at 320, 390, 768 and 1440 px. Every screenshot was opened: readable starting points, selected card marked, no horizontal overflow. No provider calls or production writes. Exact Lecture 4 parse printed 5 1462."
+        },
+        {
+          "name": "Approved configuration and prompt hashes",
+          "result": "PASS",
+          "detail": "Approved operational configuration valid true, with no issue. Build A hashes exactly matched the 06B request. The selected deployed build hashes and runtime approvals were verified separately."
+        },
+        {
+          "name": "Run 7 decision v8.2",
+          "result": "FAIL; no push or deployment",
+          "detail": "147 outputs; focus 48/54 (0.889) versus v8.1 52/54 (0.963); strategy 51/54 (0.944) versus 1.000. Zero stock phrases; 20-message reading found no misstatement. Complete criteria and shares appear below."
+        },
+        {
+          "name": "Run 8 decision v8.3",
+          "result": "PASS",
+          "detail": "Run 8 v8.3 passed every previously passing criterion, the stock-phrase limit, all specified overall regression comparisons and the 20-message reading. Focus and strategy were 54/54; F12/F13 focus was 6/6; question overruns, stock phrases and false corrected records were zero. Run 7 v8.2 failed focus and strategy comparison and was never deployed. One three-run evaluation only, with 93 profiling submissions and 54 feedback runs, no database/live-site requests. Reading covered run 1 F01-F18 and run 2 F11-F12. Human-coder agreement remains not assessed; model results use fixed synthetic design expectations."
+        },
+        {
+          "name": "F12 and F13 focus",
+          "result": "6/6 in expected set",
+          "detail": "F12 run 1: possible_misconception, strategy explain; F13 run 1: possible_misconception, strategy extend; F13 run 2: possible_misconception, strategy extend; F12 run 2: possible_misconception, strategy explain; F12 run 3: possible_misconception, strategy extend; F13 run 3: possible_misconception, strategy extend"
+        }
+      ],
+      "evaluation_tables": [
+        {
+          "title": "Decision criteria for both attempts",
+          "headers": [
+            "Criterion and threshold",
+            "v8.1",
+            "Run 7 v8.2",
+            "Run 8 v8.3"
+          ],
+          "widths": [
+            3.6,
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rows": [
+            [
+              "Coder agreement on explanation quality (AC1) (>= 0.7)",
+              "Not assessed",
+              "Not assessed",
+              "Not assessed"
+            ],
+            [
+              "Model against the standard on explanation quality (AC1) (>= 0.7)",
+              "0.987 PASS",
+              "0.983 PASS",
+              "0.99 PASS"
+            ],
+            [
+              "Adequate-versus-incorrect disagreements (share of items) (<= 0.05)",
+              "0.003 PASS",
+              "0.003 PASS",
+              "0.003 PASS"
+            ],
+            [
+              "Misconception precision (>= 0.9)",
+              "0.985 PASS",
+              "1 PASS",
+              "1 PASS"
+            ],
+            [
+              "Misconception recall (>= 0.7)",
+              "0.971 PASS",
+              "0.986 PASS",
+              "0.957 PASS"
+            ],
+            [
+              "Misconceptions claimed from a choice, a rejected idea, a question or process data alone (<= 0)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Same summary label in every run (share of students) (>= 0.9)",
+              "0.968 PASS",
+              "1 PASS",
+              "1 PASS"
+            ],
+            [
+              "Outputs rejected twice, fallback profile saved (share of submissions) (<= 0.05)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Items left without a rating in salvaged outputs (share of item responses) (<= 0.05)",
+              "0.008 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Feedback outputs rejected twice (share of runs) (<= 0.05)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Delivered messages with an audience violation (<= 0)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Focus type follows the priority (share) (>= 0.9)",
+              "0.963 PASS",
+              "0.889 FAIL",
+              "1 PASS"
+            ],
+            [
+              "Strategy fits the evidence (share) (>= 0.9)",
+              "1 PASS",
+              "0.944 PASS",
+              "1 PASS"
+            ],
+            [
+              "Expected instructor flag raised (share) (>= 0.9)",
+              "1 PASS",
+              "1 PASS",
+              "1 PASS"
+            ],
+            [
+              "Messages over the question limit (<= 0)",
+              "1 FAIL",
+              "2 FAIL",
+              "0 PASS"
+            ],
+            [
+              "Echo or bare answer recorded as corrected reasoning (<= 0)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ],
+            [
+              "Messages with a stock phrase (share) (<= 0.25)",
+              "0 PASS",
+              "0 PASS",
+              "0 PASS"
+            ]
+          ]
+        },
+        {
+          "title": "Overall gated success shares",
+          "headers": [
+            "Measure",
+            "v8.1",
+            "Run 7 v8.2",
+            "Run 8 v8.3"
+          ],
+          "widths": [
+            3.6,
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rows": [
+            [
+              "Model AC1",
+              "0.987",
+              "0.983",
+              "0.99"
+            ],
+            [
+              "No adequate-versus-incorrect disagreement",
+              "0.997",
+              "0.997",
+              "0.997"
+            ],
+            [
+              "Misconception precision",
+              "0.985",
+              "1",
+              "1"
+            ],
+            [
+              "Misconception recall",
+              "0.971",
+              "0.986",
+              "0.957"
+            ],
+            [
+              "Summary-label stability",
+              "0.968",
+              "1",
+              "1"
+            ],
+            [
+              "Non-fallback profiles",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "Rated items",
+              "0.992",
+              "1",
+              "1"
+            ],
+            [
+              "Feedback focus_type",
+              "0.963",
+              "0.889",
+              "1"
+            ],
+            [
+              "Feedback strategy",
+              "1",
+              "0.944",
+              "1"
+            ],
+            [
+              "Feedback review_flag",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "Feedback question_limit",
+              "0.981",
+              "0.963",
+              "1"
+            ],
+            [
+              "Feedback no_false_corrected",
+              "1",
+              "1",
+              "1"
+            ]
+          ]
+        },
+        {
+          "title": "Reported measures without a regression gate",
+          "headers": [
+            "Measure",
+            "v8.1",
+            "Run 7 v8.2",
+            "Run 8 v8.3"
+          ],
+          "widths": [
+            3.6,
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rows": [
+            [
+              "First-attempt validity",
+              "0.968",
+              "0.968",
+              "0.957"
+            ],
+            [
+              "Exact design agreement",
+              "0.973",
+              "0.962",
+              "0.976"
+            ],
+            [
+              "Acceptable design agreement",
+              "0.989",
+              "0.987",
+              "0.992"
+            ],
+            [
+              "Beyond-option-text agreement",
+              "0.874",
+              "0.875",
+              "0.872"
+            ],
+            [
+              "Error-source agreement",
+              "0.986",
+              "0.986",
+              "0.98"
+            ],
+            [
+              "Item-issue recall",
+              "1",
+              "0.833",
+              "0.667"
+            ],
+            [
+              "Side-remark recall",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "Item-status agreement",
+              "0.987",
+              "0.981",
+              "0.992"
+            ],
+            [
+              "Summary-label agreement",
+              "0.989",
+              "1",
+              "1"
+            ],
+            [
+              "Rating stability",
+              "0.944",
+              "0.952",
+              "0.96"
+            ],
+            [
+              "Endorsement agreement",
+              "0.94",
+              "0.926",
+              "0.939"
+            ],
+            [
+              "Considered-idea precision",
+              "0.895",
+              "0.842",
+              "0.846"
+            ],
+            [
+              "Considered-idea recall",
+              "0.708",
+              "0.667",
+              "0.458"
+            ],
+            [
+              "Feedback focus items",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "Feedback focus status",
+              "0.944",
+              "0.963",
+              "0.981"
+            ]
+          ]
+        },
+        {
+          "title": "Opening and reply measures reported without a group gate",
+          "headers": [
+            "Mode and measure",
+            "v8.1",
+            "Run 7 v8.2",
+            "Run 8 v8.3"
+          ],
+          "widths": [
+            3.6,
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rows": [
+            [
+              "opening focus_type",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening strategy",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening focus_items",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening focus_status",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening review_flag",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening question_limit",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "opening audience_violations",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "opening stock_phrase_messages",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "opening false_corrected",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "reply focus_type",
+              "0.917",
+              "0.75",
+              "1"
+            ],
+            [
+              "reply strategy",
+              "1",
+              "0.875",
+              "1"
+            ],
+            [
+              "reply focus_items",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "reply focus_status",
+              "0.875",
+              "0.917",
+              "0.958"
+            ],
+            [
+              "reply review_flag",
+              "1",
+              "1",
+              "1"
+            ],
+            [
+              "reply question_limit",
+              "0.958",
+              "0.917",
+              "1"
+            ],
+            [
+              "reply audience_violations",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "reply stock_phrase_messages",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "reply false_corrected",
+              "0",
+              "0",
+              "0"
+            ]
+          ]
+        },
+        {
+          "title": "Reported counts without a regression gate",
+          "headers": [
+            "Measure",
+            "v8.1",
+            "Run 7 v8.2",
+            "Run 8 v8.3"
+          ],
+          "widths": [
+            3.6,
+            1.1,
+            1.1,
+            1.1
+          ],
+          "rows": [
+            [
+              "Possible item issue false flags",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "Unexpected error sources",
+              "1",
+              "0",
+              "4"
+            ],
+            [
+              "Side remarks recorded when not expected",
+              "56",
+              "26",
+              "37"
+            ],
+            [
+              "Salvaged profiles",
+              "1",
+              "0",
+              "1"
+            ],
+            [
+              "Unrated items",
+              "3",
+              "0",
+              "0"
+            ],
+            [
+              "Dropped claims",
+              "0",
+              "0",
+              "0"
+            ],
+            [
+              "Profiling input tokens",
+              "733614",
+              "753226",
+              "745277"
+            ],
+            [
+              "Profiling output tokens",
+              "122879",
+              "138284",
+              "129553"
+            ],
+            [
+              "Profiling attempts",
+              "96",
+              "99",
+              "97"
+            ],
+            [
+              "Rejection missing_item",
+              "6",
+              "3",
+              "0"
+            ],
+            [
+              "Rejection forbidden_wording",
+              "1",
+              "3",
+              "1"
+            ],
+            [
+              "Rejection adequate_with_conceptual_error",
+              "1",
+              "0",
+              "4"
+            ],
+            [
+              "Repair placeholder_text_cleared",
+              "1097",
+              "1225",
+              "1202"
+            ],
+            [
+              "Repair option_text_flag_cleared",
+              "89",
+              "89",
+              "89"
+            ],
+            [
+              "Repair quote_cleared_for_no_usable",
+              "89",
+              "89",
+              "89"
+            ],
+            [
+              "Repair unknown_reference_cleared",
+              "32",
+              "0",
+              "16"
+            ],
+            [
+              "Repair error_source_unclear",
+              "5",
+              "3",
+              "7"
+            ],
+            [
+              "Rejection process_reference_outside_process_interpretation",
+              "0",
+              "1",
+              "0"
+            ]
+          ]
+        }
+      ],
+      "data_impact": [
+        "New profiling calls record student-profiling-v8.2; feedback calls record formative-opening-v8.2+formative-conversation-v8.3. Earlier v8.1 records are preserved.",
+        "Mini-test prompt generator moves to initial-admin-prompt-generator-v4; five prompts ask for the same information with clearer wording. Earlier transcripts retain v3. The displayed score sentence changes; the stored result string does not.",
+        "Item preparation uses item-preparation-v8.2 with output item-preparation-output-v8.1 and remains unapproved for the pre-publish check. Import suggestions and layout repair now make live teacher-authoring calls without that approval, recorded in agent_calls; these are not student observations.",
+        "Teacher authoring adds existing-mcq-import-v1, existing-mcq-import-output-v1 and evidence-centered-item-design-assistant-v7. Imported review batches use source type existing_items_from_materials and distinguish copied wording/stated keys from suggestions.",
+        "JSON import accepts up to 4,000 context-note characters. No export columns, schema, migrations, historical student rows, raw responses or derivations change. No backfill or retrospective relabelling."
+      ],
+      "limitations": [
+        "Run 8 descriptive declines: item-issue recall 6/6 (100%) to 4/6 (66.7%); considered-idea recall 0.708 to 0.458. These were explicitly not gated by 06B. F12 run 3 focus_status was not_discussed_further rather than corrected_reasoning_expressed; its focus type and strategy passed. These limitations remain for research review.",
+        "Four pre-existing changed-test failures are retained with their baseline evidence. Human-coded agreement and a resolved human reference remain not assessed. The fixed synthetic evaluation cannot establish learning gains or psychometric validity.",
+        "User 06B explicitly gates overall shares only; the older plan sentence also mentioning within-mode regression was not applied. Lower-is-better error shares are compared as success complements. Baseline v8.1 already failed the zero question-overrun criterion; its success share is still subject to the five-point rule.",
+        "JSON import: In Import items > JSON, import E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\Lecture_4_Ability_Invariance_5_Additional_Items.json. Check that the five items reach item review.",
+        "Item builder: On a new draft mini test, choose Adapt my existing items, attach your Word file and send. Check that the design panel fills in, the items open in review with their wording and stated keys kept, and missing notes appear as suggestions. This makes live model calls under your instructor account.",
+        "Test attempt: Read the opening message and send two replies. Check that the tutor uses complete, natural sentences without a stock opener. Check Question 2 of 3, Your score and Try again on the student pages, with no raw error codes.",
+        "Instructor view: Open the session page and check that the profile notes are complete, plain sentences."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\student-assessment\\assessment-session-client.tsx",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\teacher-content\\item-design-paths.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design-contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mini-test-json-contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\student-assessment\\interpretation-v8\\contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\student-assessment\\feedback-v8\\contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\student-plain-language-unit-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\item-preparation-v8-unit-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\docs\\INTERPRETATION_V8_EVALUATION_PLAN.md"
       ]
     }
   ],
