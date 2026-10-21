@@ -101,9 +101,52 @@ export function parseMiniTestJson(text: string): MiniTestJson {
   catch { throw new Error("Invalid JSON. Check commas, quotation marks, and brackets."); }
   const parsed = MiniTestJsonSchema.safeParse(value);
   if (!parsed.success) {
-    throw new Error(parsed.error.issues.slice(0, 8).map(issue =>
-      `${issue.path.join(".") || "JSON"}: ${issue.message}`
-    ).join("\n"));
+    throw new Error(parsed.error.issues.slice(0, 8).map(miniTestJsonIssueText).join("\n"));
   }
   return parsed.data;
+}
+
+const count = (value: number | bigint) => Number(value).toLocaleString("en-US");
+
+/** Where a problem is, in words an instructor can find in the file: "Item 2, options" or "design.generation_settings.context_notes". */
+function issueLocation(path: Array<string | number>) {
+  if (path.length === 0) return "The file";
+  if (path[0] === "items" && typeof path[1] === "number") {
+    const rest = path.slice(2).join(".");
+    return `Item ${path[1] + 1}${rest ? `, ${rest}` : ""}`;
+  }
+  return path.join(".");
+}
+
+/** One plain sentence per validation problem, naming where it is and what to change. */
+export function miniTestJsonIssueText(issue: z.ZodIssue): string {
+  const where = issueLocation(issue.path);
+  switch (issue.code) {
+    case "too_big":
+      return issue.type === "string"
+        ? `${where}: this text is longer than the ${count(issue.maximum)}-character limit. Shorten it and try again.`
+        : issue.type === "array"
+          ? `${where}: this list has more than ${count(issue.maximum)} entries. Remove some and try again.`
+          : `${where}: the value must be at most ${count(issue.maximum)}.`;
+    case "too_small":
+      return issue.type === "string"
+        ? `${where}: this text is empty. Fill it in, or remove the field if it is optional.`
+        : issue.type === "array"
+          ? `${where}: this list needs at least ${count(issue.minimum)} ${Number(issue.minimum) === 1 ? "entry" : "entries"}.`
+          : `${where}: the value must be at least ${count(issue.minimum)}.`;
+    case "invalid_type":
+      return issue.received === "undefined"
+        ? `${where}: this field is required.`
+        : `${where}: expected ${issue.expected === "string" ? "text" : issue.expected}, but found ${issue.received}.`;
+    case "invalid_enum_value":
+      return `${where}: "${String(issue.received)}" is not allowed. Use one of: ${issue.options.join(", ")}.`;
+    case "invalid_literal":
+      return `${where}: this must be "${String(issue.expected)}".`;
+    case "unrecognized_keys":
+      return `${where}: ${issue.keys.length === 1 ? `the field "${issue.keys[0]}" is` : `the fields ${issue.keys.map(key => `"${key}"`).join(", ")} are`} not part of the format. Check the spelling or remove ${issue.keys.length === 1 ? "it" : "them"}.`;
+    case "invalid_string":
+      return `${where}: ${issue.validation === "url" ? "this must be a full web address starting with https://." : "this value is not in the expected format (an option label is a single capital letter, A to F)."}`;
+    default:
+      return `${where}: ${issue.message}`;
+  }
 }

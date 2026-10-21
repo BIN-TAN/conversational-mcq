@@ -47,7 +47,9 @@ export const ItemDesignGenerationSettingsSchema = z.object({
   target_item_count: z.number().int().min(3).max(12).default(4),
   option_count: z.number().int().min(3).max(5).default(4),
   difficulty_mix: z.array(ItemDesignCognitiveDemandBandSchema).min(1).max(4),
-  context_notes: z.string().trim().max(1200).nullable().default(null)
+  // Notes for drafting (reading level, contexts to use or avoid, source pages). Long enough for a
+  // mini test's design notes; the same limit as the other notes in the mini-test JSON.
+  context_notes: z.string().trim().max(4000).nullable().default(null)
 }).strict();
 
 export const ItemDesignBlueprintSchema = z.object({

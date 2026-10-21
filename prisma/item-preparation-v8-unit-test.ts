@@ -243,6 +243,19 @@ async function main() {
     rejects({ idea_labels: { A: "x".repeat(61) } }, /idea_labels/);
   });
 
+  await check("JSON import: design notes up to 4,000 characters, and problems named in plain sentences", () => {
+    const withNotes = (length: number) => JSON.stringify({ ...sample, design: { ...sample.design,
+      generation_settings: { ...sample.design.generation_settings, context_notes: "x".repeat(length) } } });
+    assert.equal(contract.parseMiniTestJson(withNotes(1462)).design?.generation_settings.context_notes?.length, 1462,
+      "A Lecture 4 design with 1,462 characters of notes imports");
+    assert.throws(() => contract.parseMiniTestJson(withNotes(4001)),
+      /design\.generation_settings\.context_notes: this text is longer than the 4,000-character limit\. Shorten it and try again\.$/);
+    rejects({ extra_field: 1 }, /Item 1: the field "extra_field" is not part of the format\. Check the spelling or remove it\.$/);
+    rejects({ options: [{ label: "A", text: "Only one" }] }, /Item 1, options: this list needs at least 2 entries\./);
+    assert.throws(() => contract.parseMiniTestJson(JSON.stringify({ ...sample, assessment: { ...sample.assessment, title: undefined } })),
+      /assessment\.title: this field is required\.$/);
+  });
+
   await check("Workbook and spreadsheet columns: rationale_x, idea_label_x and essential_elements", () => {
     const fields = notes.workbookItemNoteFields({
       essential_elements: "First; Second",
