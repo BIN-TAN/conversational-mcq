@@ -90,7 +90,11 @@ assert.deepEqual(closedIndex.data.candidates.map((entry) => entry.misconception_
   validOutput.candidates.map((entry) => entry.misconception_hypothesis_ids));
 assert.equal(JSON.stringify(missingIndex), originalMissingIndex, "Original provider output must not be mutated.");
 assert.deepEqual(closedIndex.data.candidates.map((entry) => [entry.stem, entry.options, entry.proposed_correct_option]),
-  validOutput.candidates.map((entry) => [entry.stem, entry.options, entry.proposed_correct_option]));
+  validOutput.candidates.map((entry) => [
+    entry.stem,
+    entry.options.map((option) => ({ ...option, idea_label: null })),
+    entry.proposed_correct_option
+  ]), "Legacy options must retain their content while missing idea labels default to null.");
 const unknownLink = structuredClone(missingIndex);
 unknownLink.candidates[0].options[0].linked_misconception_ids = ["unknown_hypothesis"];
 assert.equal(validateGeneratedItemSet({ blueprint, output: unknownLink }).success, false, "Unknown references must remain blocked.");
