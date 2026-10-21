@@ -5,9 +5,15 @@ export default async function AssessmentItemDesignPage({
   searchParams
 }: {
   params: Promise<{ assessmentPublicId: string }>;
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; prepare?: string }>;
 }) {
   const { assessmentPublicId } = await params;
-  const { view } = await searchParams;
-  return <ItemDesignClient assessmentPublicId={assessmentPublicId} initialView={view === "review" ? "review" : "assistant"} />;
+  const { view, prepare } = await searchParams;
+  return (
+    <ItemDesignClient
+      assessmentPublicId={assessmentPublicId}
+      autoPrepareTopic={prepare === "topic"}
+      initialView={view === "review" ? "review" : "assistant"}
+    />
+  );
 }

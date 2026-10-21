@@ -15,7 +15,7 @@ import { providerAuditMetadata } from "@/lib/llm/providers/audit-metadata";
 import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
-import { ensureMiniTestPrimaryConceptUnit } from "./assessments";
+import { createAssessment, ensureMiniTestPrimaryConceptUnit } from "./assessments";
 import { ContentServiceError } from "./errors";
 import { assertAssessmentEditable } from "./governance";
 import {
@@ -41,7 +41,9 @@ import {
   type ItemDesignSourceMaterial,
   type ItemDesignTopicMap,
   type ItemGenerationOutput,
-  consistentTopicMap
+  consistentTopicMap,
+  mergeTopicMap,
+  topicMapForAssistant
 } from "./item-design-contract";
 import {
   materialProviderContext,
@@ -56,10 +58,10 @@ const ITEM_GENERATION_AGENT_NAME = "mcq_diagnostic_authoring_assistant_agent" as
 const ITEM_DESIGN_ASSISTANT_AGENT_VERSION = "evidence-centered-blueprint-authoring-v3" as const;
 const ITEM_DESIGN_ASSISTANT_CONTEXT_VERSION = "evidence-centered-blueprint-conversation-context-v3" as const;
 /** The first call has room to fill the whole design panel and the topic map. */
-const ITEM_DESIGN_ASSISTANT_MIN_OUTPUT_TOKENS = 8000;
-const ITEM_DESIGN_ASSISTANT_TIMEOUT_MS = 240_000;
+const ITEM_DESIGN_ASSISTANT_MIN_OUTPUT_TOKENS = 16000;
+const ITEM_DESIGN_ASSISTANT_TIMEOUT_MS = 360_000;
 const ITEM_GENERATION_AGENT_VERSION = "evidence-centered-item-authoring-v3" as const;
-const ITEM_GENERATION_CONTEXT_VERSION = "evidence-centered-item-generation-context-v3" as const;
+const ITEM_GENERATION_CONTEXT_VERSION = "evidence-centered-item-generation-context-v4" as const;
 const ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_VERSION =
   "evidence-centered-item-design-assistant-recovery-v1" as const;
 export const ITEM_DESIGN_ASSISTANT_MAX_RECOVERY_ATTEMPTS = 1 as const;
@@ -80,7 +82,7 @@ async function closeAbandonedCalls<T extends CallTiming>(calls: T[], staleAfterM
   const abandonedIds = new Set(abandoned.map((call) => call.id));
   return calls.map((call) => abandonedIds.has(call.id) ? { ...call, call_status: "failed" } : call);
 }
-export const ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS = 12000 as const;
+export const ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS = 20000 as const;
 export const ITEM_GENERATION_MAX_CANDIDATES_PER_CALL = 2 as const;
 export const ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS = 1 as const;
 
@@ -89,18 +91,24 @@ You are a teacher-facing evidence-centered assessment design partner. You do the
 
 ${ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS}
 
-COURSE MATERIALS AND TOPICS
-Read the course materials for their core knowledge points: the concepts, relationships, procedures and interpretations they teach. Group the knowledge points into topic clusters, each a coherent topic that one mini test could assess, and record each topic with its knowledge points and the materials it comes from. Return the complete topic map every time. current_topic_map holds the map from earlier turns, because materials uploaded earlier are available only as summaries; keep it, and revise it when new materials or the teacher change it. Return an empty topic list only when no course materials have been provided.
+COURSE MATERIALS AND THE TOPIC BANK
+Read the course materials (lecture slides, quizzes, sample items and other files) for their core knowledge points: the concepts, relationships, procedures and interpretations they teach. Group the knowledge points into topic clusters, each a coherent topic that one mini test could assess. For each topic record:
+- a short summary and its knowledge points;
+- content notes: the definitions, formulas, notation, worked examples and common confusions the materials give for that topic, in the materials' own terms, complete enough to write good items from;
+- the quiz or sample items in the materials that assess the topic, copied with their options and any stated key;
+- the materials it comes from.
+Record item templates that the teacher gives for all mini tests in item_templates.
+This topic map is the course's topic bank. Uploaded files are read only once, so the mini tests for the other topics are prepared later from this bank without the materials being uploaded again. Return the topic map when you build or revise it: after new materials arrive, or when the teacher asks to change the topics. A returned map lists every topic; an empty content_notes or source_items for a topic keeps what is stored for it. When the bank does not change, return an empty topic list and an empty template list, and the stored bank is kept. current_topic_map shows the selected topic in full and the other topics briefly.
 
 ONE TOPIC PER MINI TEST
-A mini test assesses one topic. Use the topic the teacher names. When the teacher has not named one, select the topic that best matches the mini-test title, or the first topic of the materials, and name the other topics the teacher can switch to. Set selected_topic_id to the topic in use.
+A mini test assesses one topic. Use the topic the teacher names. When the teacher has not named one, select the topic that best matches the mini-test title, or the first topic of the materials. Set selected_topic_id to the topic in use in every reply. The teacher creates the mini tests for the other topics from the builder, one at a time, each from the same bank; never combine topics in one mini test, and say which other topics are ready for their own mini tests.
 
 FILL THE DESIGN PANEL
 For the selected topic, fill every part of the design panel yourself; do not ask the teacher to write any of it:
 - the section topic, and a short summary of what the topic covers;
 - one learning objective for each core knowledge point of the topic, each with one to three observable evidence requirements;
 - misconception hypotheses that the materials or common learning difficulties of the topic suggest, each linked to the objectives it concerns;
-- every item template or example item the teacher provides, in the materials or in the conversation, as an exemplar item with its complete text and any difficulty note;
+- the selected topic's source items, the item templates, and any example item the teacher gives in the conversation, as exemplar items with their complete text and any key or difficulty note;
 - generation settings: keep the item count, option count and cognitive-demand mix unless the teacher asks for others, and put the format of the teacher's templates and the reading-load rule below in context_notes.
 Replace the default starting objective and any entries that belong to another topic. Keep entries the teacher wrote for this topic and their IDs unless the teacher asks to change them. Ask a question only when an essential choice cannot be inferred from the materials or the conversation, and fill everything else in the same response.
 
@@ -140,7 +148,17 @@ ${ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS}
 Make all assumptions needed for a uniquely defensible answer explicit in the item. Do not create
 distractors that are defensible under an unstated alternative definition.
 
-Generate draft MCQ candidates from the teacher's saved section blueprint. The blueprint defines claims, evidence requirements, misconception hypotheses, optional exemplar material, and task constraints. Every item must elicit interpretable evidence for at least one listed objective. Distractors should be plausible reasoning paths, not tricks, and may link only to misconception IDs supplied by the teacher.
+Generate draft MCQ candidates from the teacher's saved section blueprint. The blueprint defines claims, evidence requirements, misconception hypotheses, optional exemplar material, and task constraints. course_topic, when present, gives the topic's knowledge points and the content notes from the course materials: use the course's terms, notation and examples, and stay within the topic. Every item must elicit interpretable evidence for at least one listed objective. Distractors may link only to misconception IDs supplied by the teacher.
+
+WRITING GOOD ITEMS
+- Each item assesses one idea. The stem poses one clear problem, usually as a direct question, that a prepared student could answer before reading the options.
+- Prefer a short new case that asks students to apply, interpret or evaluate the idea over recall of wording from the course materials.
+- Put the shared wording in the stem. Keep the options short, parallel in grammar, similar in length and detail, and in a logical order.
+- Exactly one option is correct under the stated assumptions, and it is fully correct, not merely the most complete.
+- Each distractor follows a specific, plausible line of reasoning, preferably a listed misconception hypothesis, and is wrong for a reason a teacher could explain. Do not use trick distractors, "all of the above", "none of the above", combined options such as "A and B", or absolute words that give the answer away.
+- Avoid negative stems; when one is necessary, write NOT in capitals.
+- Avoid cues: the key does not repeat the stem's wording, is not the longest or most qualified option, and its position varies across the set.
+- Items are independent: no item gives away the answer to another.
 
 Keep the reading load low: short stems and options, plain everyday wording, one idea per sentence, no context beyond what the question needs, and no technical vocabulary the objective does not assess. The difficulty of an item comes from the reasoning it assesses, not from reading. Treat the teacher's exemplar items as templates: follow their format, structure and level, and write new content.
 
@@ -289,6 +307,7 @@ function assistantStateFromRules(rules: unknown) {
   return {
     ready_for_item_generation: value.ready_for_item_generation === true,
     topic_map: consistentTopicMap(value.topic_map),
+    topic_bank_id: typeof value.topic_bank_id === "string" ? value.topic_bank_id : null,
     change_summary: Array.isArray(value.change_summary)
       ? value.change_summary.filter((entry): entry is string => typeof entry === "string").slice(0, 10)
       : [],
@@ -357,6 +376,38 @@ async function ownedAssessmentWithPrimaryTopic(input: {
   return assessment;
 }
 
+/**
+ * The mini tests prepared from one course topic bank, with the topic each one assesses (its
+ * selected topic). The mini test where the bank was built and those created from it share the
+ * bank ID.
+ */
+async function topicBankMiniTests(input: { teacher_user_db_id: string; topic_bank_id: string | null }) {
+  if (!input.topic_bank_id) return [];
+  const units = await prisma.conceptUnit.findMany({
+    where: {
+      status: { not: "archived" },
+      assessment: { created_by_user_db_id: input.teacher_user_db_id, status: { not: "archived" } },
+      administration_rules: { path: ["item_design_assistant_state", "topic_bank_id"], equals: input.topic_bank_id }
+    },
+    orderBy: { created_at: "asc" },
+    select: {
+      administration_rules: true,
+      assessment: { select: { assessment_public_id: true, title: true, status: true } }
+    }
+  });
+  return units.flatMap((unit) => {
+    const topicId = assistantStateFromRules(unit.administration_rules).topic_map.selected_topic_id;
+    return topicId
+      ? [{
+          topic_id: topicId,
+          assessment_public_id: unit.assessment.assessment_public_id,
+          title: unit.assessment.title,
+          status: unit.assessment.status
+        }]
+      : [];
+  });
+}
+
 export async function getAssessmentItemDesign(input: {
   teacher_user_db_id: string;
   assessment_public_id: string;
@@ -394,7 +445,101 @@ export async function getAssessmentItemDesign(input: {
     blueprint_hash: itemDesignBlueprintHash(blueprint),
     assistant_thread: assistantThread,
     assistant_state: assistantState,
+    topic_mini_tests: await topicBankMiniTests({
+      teacher_user_db_id: input.teacher_user_db_id,
+      topic_bank_id: assistantState.topic_bank_id
+    }),
     source_materials: sourceMaterials.materials.map(sourceMaterialProjection)
+  };
+}
+
+const TopicMiniTestInputSchema = z.object({
+  topic_id: z.string().trim().min(1).max(80)
+}).strict();
+
+const itemBuilderUrl = (assessmentPublicId: string, prepare: boolean) =>
+  `/teacher/content/assessments/${assessmentPublicId}/item-design${prepare ? "?prepare=topic" : ""}`;
+
+/**
+ * Creates the draft mini test for another topic of the course topic bank, one at a time. It
+ * carries the bank and the course-material records (summaries and Word text), so the teacher
+ * does not upload the materials again; the builder then asks the assistant to fill the design
+ * panel for that topic. A topic that already has a mini test from this bank returns it.
+ */
+export async function createTopicMiniTestFromBank(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+  data: unknown;
+}) {
+  const data = TopicMiniTestInputSchema.parse(input.data);
+  const source = await ownedAssessmentWithPrimaryTopic(input);
+  const sourceUnit = source.concept_units[0];
+  if (!sourceUnit) throw new ContentServiceError("not_found", "Assessment topic was not found.", 404);
+  const rules = record(sourceUnit.administration_rules);
+  const state = assistantStateFromRules(rules);
+  const topic = state.topic_map.topics.find((entry) => entry.topic_id === data.topic_id);
+  if (!topic || !state.topic_bank_id) {
+    throw new ContentServiceError("not_found", "This topic is not in the course topic bank of this mini test.", 404);
+  }
+
+  const existing = (await topicBankMiniTests({
+    teacher_user_db_id: input.teacher_user_db_id,
+    topic_bank_id: state.topic_bank_id
+  })).find((entry) => entry.topic_id === topic.topic_id);
+  if (existing) {
+    return {
+      assessment_public_id: existing.assessment_public_id,
+      builder_url: itemBuilderUrl(existing.assessment_public_id, false),
+      created: false
+    };
+  }
+
+  const created = await createAssessment({
+    teacher_user_db_id: input.teacher_user_db_id,
+    data: {
+      title: topic.title,
+      folder_label: source.folder_label,
+      folder_order_index: source.folder_order_index,
+      assessment_order_index: source.assessment_order_index,
+      workflow_mode: source.workflow_mode,
+      response_collection_mode: source.response_collection_mode,
+      auto_create_primary_topic: true
+    }
+  });
+  const unit = await prisma.conceptUnit.findFirstOrThrow({
+    where: { assessment: { assessment_public_id: created.assessment_public_id } },
+    orderBy: [{ order_index: "asc" }, { created_at: "asc" }]
+  });
+  const now = new Date().toISOString();
+  await prisma.conceptUnit.update({
+    where: { id: unit.id },
+    data: {
+      administration_rules: toPrismaJson({
+        ...record(unit.administration_rules),
+        item_design_source_materials: sourceMaterialCollectionFromRules(rules),
+        item_design_assistant_state: {
+          schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
+          ready_for_item_generation: false,
+          topic_map: { ...state.topic_map, selected_topic_id: topic.topic_id },
+          topic_bank_id: state.topic_bank_id,
+          change_summary: [],
+          remaining_questions: [],
+          updated_at: now
+        },
+        item_design_origin: {
+          source_assessment_public_id: source.assessment_public_id,
+          topic_id: topic.topic_id,
+          created_at: now
+        }
+      }),
+      version: { increment: 1 }
+    }
+  });
+
+  return {
+    assessment_public_id: created.assessment_public_id,
+    builder_url: itemBuilderUrl(created.assessment_public_id, true),
+    created: true
   };
 }
 
@@ -522,7 +667,7 @@ function itemDesignAssistantContext(input: {
     context_version: ITEM_DESIGN_ASSISTANT_CONTEXT_VERSION,
     assessment_title: input.assessment_title,
     current_blueprint: input.blueprint,
-    current_topic_map: input.topic_map,
+    current_topic_map: topicMapForAssistant(input.topic_map),
     recent_authoring_conversation: boundedAssistantTranscript(input.thread),
     prior_source_materials: boundedPriorSourceMaterials(input.prior_source_materials),
     current_source_materials: input.current_source_materials.map(materialProviderContext),
@@ -727,6 +872,7 @@ async function persistItemDesignAssistantExchange(input: {
     ]
   });
   const nextBlueprintHash = itemDesignBlueprintHash(nextBlueprint);
+  const nextTopicMap = mergeTopicMap(design.assistant_state.topic_map, input.output.topic_map);
   const updated = await prisma.conceptUnit.updateMany({
     where: {
       id: conceptUnit.id,
@@ -749,10 +895,11 @@ async function persistItemDesignAssistantExchange(input: {
         item_design_assistant_state: {
           schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
           ready_for_item_generation: input.output.ready_for_item_generation,
-          // An empty map in a reply keeps the map from earlier turns.
-          topic_map: input.output.topic_map.topics.length > 0
-            ? consistentTopicMap(input.output.topic_map)
-            : design.assistant_state.topic_map,
+          topic_map: nextTopicMap,
+          // Mini tests prepared from the same bank share its ID.
+          topic_bank_id: nextTopicMap.topics.length > 0
+            ? design.assistant_state.topic_bank_id ?? `topic_bank_${input.assessment_public_id}`
+            : design.assistant_state.topic_bank_id,
           change_summary: input.output.change_summary,
           remaining_questions: input.output.remaining_questions,
           last_agent_call_public_id: input.agent_call_public_id,
@@ -1194,8 +1341,10 @@ export function createItemGenerationPlan(
 function generationContext(input: {
   blueprint: ItemDesignBlueprint;
   source_materials: ItemDesignSourceMaterial[];
+  topic_map: ItemDesignTopicMap;
   chunk: ItemGenerationChunk;
 }) {
+  const topic = input.topic_map.topics.find((entry) => entry.topic_id === input.topic_map.selected_topic_id) ?? null;
   const payload = {
     context_version: ITEM_GENERATION_CONTEXT_VERSION,
     blueprint: {
@@ -1208,6 +1357,9 @@ function generationContext(input: {
     full_design_target_item_count:
       input.blueprint.generation_settings.target_item_count,
     generation_chunk: input.chunk,
+    course_topic: topic
+      ? { title: topic.title, summary: topic.summary, knowledge_points: topic.knowledge_points, content_notes: topic.content_notes }
+      : null,
     teacher_source_materials: boundedPriorSourceMaterials(input.source_materials),
     generation_policy: {
       drafts_only: true,
@@ -1468,6 +1620,7 @@ export async function generateAssessmentItemDrafts(input: {
     const context = generationContext({
       blueprint: design.blueprint,
       source_materials: sourceMaterials,
+      topic_map: design.assistant_state.topic_map,
       chunk
     });
     let acceptedChunk: ItemGenerationOutput | null = null;

@@ -128,24 +128,41 @@ export const ItemDesignAssistantBlueprintUpdateSchema = z.discriminatedUnion("up
 ]);
 
 /**
- * The topics the course materials teach, each with its core knowledge points (v3). The design
- * panel is filled for the selected topic; one mini test assesses one topic.
+ * The course's topic bank (v3): the topics the course materials teach, each with its core
+ * knowledge points, content notes and the quiz or sample items that assess it, plus item
+ * templates the teacher gives for all mini tests. One mini test assesses one topic; the
+ * mini tests for the other topics are prepared from the same bank without new uploads.
  */
+export const ItemDesignSourceItemSchema = z.object({
+  text: z.string().trim().min(1).max(2000),
+  answer_note: z.string().trim().max(300).nullable()
+}).strict();
+
 export const ItemDesignTopicSchema = z.object({
   topic_id: z.string().trim().min(1).max(80),
   title: z.string().trim().min(1).max(240),
+  summary: z.string().trim().min(1).max(600),
   knowledge_points: z.array(z.string().trim().min(1).max(300)).min(1).max(12),
+  content_notes: z.string().trim().max(2000),
+  source_items: z.array(ItemDesignSourceItemSchema).max(8),
   source_material_ids: z.array(z.string().trim().min(1).max(100)).max(40)
+}).strict();
+
+export const ItemDesignTemplateSchema = z.object({
+  template_id: z.string().trim().min(1).max(80),
+  text: z.string().trim().min(1).max(2000)
 }).strict();
 
 export const ItemDesignTopicMapSchema = z.object({
   topics: z.array(ItemDesignTopicSchema).max(12),
+  item_templates: z.array(ItemDesignTemplateSchema).max(6),
   selected_topic_id: z.string().trim().min(1).max(80).nullable()
 }).strict();
 
+export type ItemDesignTopic = z.infer<typeof ItemDesignTopicSchema>;
 export type ItemDesignTopicMap = z.infer<typeof ItemDesignTopicMapSchema>;
 
-export const EMPTY_ITEM_DESIGN_TOPIC_MAP: ItemDesignTopicMap = { topics: [], selected_topic_id: null };
+export const EMPTY_ITEM_DESIGN_TOPIC_MAP: ItemDesignTopicMap = { topics: [], item_templates: [], selected_topic_id: null };
 
 /** A topic map whose selected topic is one of its topics (otherwise none is selected). */
 export function consistentTopicMap(value: unknown): ItemDesignTopicMap {
@@ -155,6 +172,51 @@ export function consistentTopicMap(value: unknown): ItemDesignTopicMap {
   return map.selected_topic_id && map.topics.some((topic) => topic.topic_id === map.selected_topic_id)
     ? map
     : { ...map, selected_topic_id: null };
+}
+
+/**
+ * The stored topic bank after a reply. A reply that lists topics replaces the list (topics it
+ * leaves out are removed), but a topic's empty content notes or empty source items keep what is
+ * stored for that topic. A reply with no topics keeps the stored topics, and no templates keeps
+ * the stored templates. The selection follows the reply when it names a topic.
+ */
+export function mergeTopicMap(stored: ItemDesignTopicMap, reply: ItemDesignTopicMap): ItemDesignTopicMap {
+  const storedById = new Map(stored.topics.map((topic) => [topic.topic_id, topic]));
+  const topics = reply.topics.length === 0
+    ? stored.topics
+    : reply.topics.map((topic) => {
+        const previous = storedById.get(topic.topic_id);
+        return {
+          ...topic,
+          content_notes: topic.content_notes || previous?.content_notes || "",
+          source_items: topic.source_items.length > 0 ? topic.source_items : previous?.source_items ?? []
+        };
+      });
+  return consistentTopicMap({
+    topics,
+    item_templates: reply.item_templates.length > 0 ? reply.item_templates : stored.item_templates,
+    selected_topic_id: reply.selected_topic_id ?? stored.selected_topic_id
+  });
+}
+
+/** The bank as the assistant reads it: the selected topic in full, the others briefly. */
+export function topicMapForAssistant(map: ItemDesignTopicMap) {
+  const selected = map.topics.find((topic) => topic.topic_id === map.selected_topic_id) ?? null;
+  return {
+    selected_topic: selected,
+    other_topics: map.topics
+      .filter((topic) => topic.topic_id !== selected?.topic_id)
+      .map((topic) => ({
+        topic_id: topic.topic_id,
+        title: topic.title,
+        summary: topic.summary,
+        knowledge_points: topic.knowledge_points,
+        source_material_ids: topic.source_material_ids,
+        content_notes_stored: topic.content_notes.length > 0,
+        source_item_count: topic.source_items.length
+      })),
+    item_templates: map.item_templates
+  };
 }
 
 export const ItemDesignAssistantOutputSchema = z.object({

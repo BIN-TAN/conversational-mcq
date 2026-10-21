@@ -1,7 +1,7 @@
 /**
  * Item-builder calls (authoring assistant, draft generation) still marked started after these
  * windows had their request cut off by an application restart or a deployment: an assistant
- * message makes at most two provider calls of up to 240 seconds, and each draft-generation
+ * message makes at most two provider calls of up to 360 seconds, and each draft-generation
  * call times out after 120 seconds. They are closed as abandoned so the same message or draft
  * generation can run again.
  */

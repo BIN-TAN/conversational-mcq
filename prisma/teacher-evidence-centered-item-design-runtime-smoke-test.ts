@@ -338,8 +338,8 @@ async function main() {
     assert(
       provider.assistantRequests[2]?.recoveryAttempt === "1" &&
         provider.assistantRequests[2]?.instructions.includes("fresh, concise response") &&
-        provider.assistantRequests[1]?.maxOutputTokens === 8000 &&
-        provider.assistantRequests[2]?.maxOutputTokens === 12000,
+        provider.assistantRequests[1]?.maxOutputTokens === 16000 &&
+        provider.assistantRequests[2]?.maxOutputTokens === 20000,
       "The first request has room to fill the design panel, and the recovery request a larger budget."
     );
     assert(recoveredAssistant.assistant_thread.messages.length === 4, "Recovery must persist exactly one additional teacher-assistant exchange.");

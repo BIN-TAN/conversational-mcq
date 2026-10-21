@@ -106,13 +106,19 @@ type SourceMaterial = {
 type CourseTopic = {
   topic_id: string;
   title: string;
+  summary: string;
   knowledge_points: string[];
+  content_notes: string;
+  source_items: Array<{ text: string; answer_note: string | null }>;
   source_material_ids: string[];
 };
 
+type TopicMiniTest = { topic_id: string; assessment_public_id: string; title: string; status: string };
+
 type AssistantState = {
   ready_for_item_generation: boolean;
-  topic_map: { topics: CourseTopic[]; selected_topic_id: string | null };
+  topic_map?: { topics: CourseTopic[]; item_templates: Array<{ template_id: string; text: string }>; selected_topic_id: string | null };
+  topic_bank_id?: string | null;
   change_summary: string[];
   remaining_questions: string[];
 };
@@ -128,6 +134,7 @@ type DesignResponse = {
     messages: AssistantMessage[];
   };
   assistant_state: AssistantState;
+  topic_mini_tests?: TopicMiniTest[];
   source_materials: SourceMaterial[];
 };
 
@@ -193,6 +200,8 @@ function ItemDesignAssistantWorkspace({
   onFileRemove,
   onOpenReview,
   onSend,
+  onCreateTopicMiniTest,
+  creatingTopicId,
   readOnly,
   transcriptEndRef
 }: {
@@ -208,9 +217,13 @@ function ItemDesignAssistantWorkspace({
   onFileRemove: (index: number) => void;
   onOpenReview: () => void;
   onSend: (event: FormEvent<HTMLFormElement>) => void;
+  onCreateTopicMiniTest: (topicId: string) => void;
+  creatingTopicId: string | null;
   readOnly: boolean;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
 }) {
+  const topicMap = design.assistant_state.topic_map ?? { topics: [], item_templates: [], selected_topic_id: null };
+  const topicMiniTests = design.topic_mini_tests ?? [];
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const evidenceCount = blueprint.objectives.reduce(
@@ -218,12 +231,12 @@ function ItemDesignAssistantWorkspace({
     0
   );
   const messages = design.assistant_thread.messages;
-  const reviewRequest = `Plan for ${blueprint.generation_settings.target_item_count} items with ${blueprint.generation_settings.option_count} options each unless we agree otherwise. Ask only essential questions, one at a time. Prepare the design for my review; do not generate items yet.`;
+  const reviewRequest = `Plan for ${blueprint.generation_settings.target_item_count} items with ${blueprint.generation_settings.option_count} options each unless we agree otherwise. Fill in the design panel yourself and ask only essential questions, one at a time. Prepare the design for my review; do not generate items yet.`;
   const suggestions = [
     {
       label: "Build from course materials",
       icon: BookOpenCheck,
-      prompt: "Use the course material I attach or paste to propose a focused section or topic, learning objectives, the reasoning that would demonstrate understanding, and plausible misconception hypotheses. Link these proposals to the material and flag gaps instead of inventing source content. If no material is available, ask me for it first."
+      prompt: "Read the course materials I attach or paste: lecture slides, quizzes, sample items and item templates. Build the course topic bank, with each topic's knowledge points, content notes and the quiz or sample items that assess it. Then fill the whole design panel for the topic that fits this mini test; the other topics get their own mini tests later. Link the design to the material and flag gaps instead of inventing source content. If no material is available, ask me for it first."
     },
     {
       label: "Plan a topic-based test",
@@ -487,14 +500,19 @@ function ItemDesignAssistantWorkspace({
               </div>
             ) : null}
 
-            {design.assistant_state.topic_map.topics.length > 0 ? (
+            {topicMap.topics.length > 0 ? (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Topics in the course materials ({design.assistant_state.topic_map.topics.length})
+                  Course topic bank ({topicMap.topics.length} topics)
+                </p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  One mini test per topic. The materials are kept, so the other topics need no new upload.
                 </p>
                 <ul className="mt-2 space-y-2">
-                  {design.assistant_state.topic_map.topics.map((topic) => {
-                    const selected = topic.topic_id === design.assistant_state.topic_map.selected_topic_id;
+                  {topicMap.topics.map((topic) => {
+                    const selected = topic.topic_id === topicMap.selected_topic_id;
+                    const other = topicMiniTests.find((entry) =>
+                      entry.topic_id === topic.topic_id && entry.assessment_public_id !== design.assessment.assessment_public_id);
                     return (
                       <li key={topic.topic_id}>
                         <details className="rounded-md border border-line" open={selected}>
@@ -502,9 +520,29 @@ function ItemDesignAssistantWorkspace({
                             {topic.title}
                             {selected ? <span className="ml-2 text-xs font-semibold text-accent">This mini test</span> : null}
                           </summary>
-                          <ul className="list-disc space-y-1 border-t border-line px-3 py-2 pl-7 text-sm leading-5 text-muted">
-                            {topic.knowledge_points.map((point) => <li key={point}>{point}</li>)}
-                          </ul>
+                          <div className="border-t border-line px-3 py-2">
+                            <ul className="list-disc space-y-1 pl-4 text-sm leading-5 text-muted">
+                              {topic.knowledge_points.map((point) => <li key={point}>{point}</li>)}
+                            </ul>
+                            {selected ? null : other ? (
+                              <a
+                                className="mt-2 inline-block text-sm font-semibold text-accent underline"
+                                href={`/teacher/content/assessments/${other.assessment_public_id}/item-design`}
+                              >
+                                Open its mini test: {other.title}
+                              </a>
+                            ) : (
+                              <Button
+                                className="mt-2 w-full"
+                                disabled={creatingTopicId !== null || busy !== null}
+                                onClick={() => onCreateTopicMiniTest(topic.topic_id)}
+                                type="button"
+                                variant="secondary"
+                              >
+                                {creatingTopicId === topic.topic_id ? "Creating…" : "Create a mini test for this topic"}
+                              </Button>
+                            )}
+                          </div>
                         </details>
                       </li>
                     );
@@ -547,7 +585,16 @@ function ItemDesignAssistantWorkspace({
   );
 }
 
-export function ItemDesignClient({ assessmentPublicId, initialView = "assistant" }: { assessmentPublicId: string; initialView?: "assistant" | "review" }) {
+export function ItemDesignClient({
+  assessmentPublicId,
+  initialView = "assistant",
+  autoPrepareTopic = false
+}: {
+  assessmentPublicId: string;
+  initialView?: "assistant" | "review";
+  /** A mini test just created from the course topic bank: ask the assistant to fill its design panel. */
+  autoPrepareTopic?: boolean;
+}) {
   const router = useRouter();
   const [design, setDesign] = useState<DesignResponse | null>(null);
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
@@ -558,6 +605,8 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
+  const [creatingTopicId, setCreatingTopicId] = useState<string | null>(null);
+  const autoPrepareStarted = useRef(false);
   const starterPrefixRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const isDirty = Boolean(blueprint && design && JSON.stringify(blueprint) !== JSON.stringify(design.blueprint));
@@ -580,6 +629,21 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
   }, [assessmentPublicId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  // A mini test created from the course topic bank: the assistant fills its design panel once.
+  useEffect(() => {
+    if (!autoPrepareTopic || autoPrepareStarted.current || !design || !blueprint || busy !== null) return;
+    const topicMap = design.assistant_state.topic_map;
+    const topic = topicMap?.topics.find((entry) => entry.topic_id === topicMap.selected_topic_id);
+    if (!topic || design.assistant_thread.messages.length > 0 || !design.assessment.is_editable) return;
+    autoPrepareStarted.current = true;
+    router.replace(`/teacher/content/assessments/${assessmentPublicId}/item-design`);
+    void sendAssistantMessage(
+      `Prepare this mini test for the topic "${topic.title}" from the course topic bank, and fill in the whole design panel.`
+    );
+    // sendAssistantMessage reads the current design; the guard above runs it once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoPrepareTopic, design, blueprint, busy, assessmentPublicId, router]);
 
   useEffect(() => {
     if (view !== "assistant") return;
@@ -712,6 +776,27 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
         ? "Please use the attached course materials to help refine this mini test."
         : ""
     );
+    await sendAssistantMessage(message);
+  }
+
+  async function handleCreateTopicMiniTest(topicId: string) {
+    setCreatingTopicId(topicId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const created = await apiRequest<{ assessment_public_id: string; builder_url: string; created: boolean }>(
+        `/api/teacher/assessments/${assessmentPublicId}/item-design/topic-mini-test`,
+        { method: "POST", body: JSON.stringify({ topic_id: topicId }) }
+      );
+      allowNavigation();
+      router.push(created.builder_url);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+      setCreatingTopicId(null);
+    }
+  }
+
+  async function sendAssistantMessage(message: string) {
     if (!message || !design || !blueprint) return;
 
     setBusy("assistant");
@@ -809,6 +894,8 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
               onFileRemove={handleAssistantFileRemove}
               onOpenReview={() => setView("review")}
               onSend={handleAssistantSend}
+              onCreateTopicMiniTest={(topicId) => void handleCreateTopicMiniTest(topicId)}
+              creatingTopicId={creatingTopicId}
               readOnly={readOnly}
               transcriptEndRef={transcriptEndRef}
             />

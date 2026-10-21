@@ -136,7 +136,7 @@ async function main() {
     ];
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, now).map((call) => call.id), ["stale", "no_start"]);
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_GENERATION_STALE_CALL_MS, now).map((call) => call.id), []);
-    assert(ITEM_DESIGN_ASSISTANT_STALE_CALL_MS > 2 * 240_000, "Longer than two assistant provider calls of 240 seconds");
+    assert(ITEM_DESIGN_ASSISTANT_STALE_CALL_MS > 2 * 360_000, "Longer than two assistant provider calls of 360 seconds");
   });
 
   console.log(`\n${passed} teacher tools resilience checks passed; no database or provider calls.`);

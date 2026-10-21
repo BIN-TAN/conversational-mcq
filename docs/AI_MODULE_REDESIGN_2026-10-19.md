@@ -333,7 +333,7 @@ OUTPUT
 Items with target reasoning and distractor rationales, and a list of problems, each tied to an item and a field.
 ```
 
-Until this prompt is approved, the live item builder uses the evidence-centred authoring assistant (`src/lib/services/content/item-design.ts`). Its prompt (v5, 20 Oct 2026) follows the same division of work: the assistant reads the course materials for their core knowledge points, groups them into topic clusters with their knowledge points, keeps that topic map across the conversation, and fills the whole design panel for the mini test's one topic, including the instructor's item templates and examples as exemplars. Item generation (v4) keeps the reading load low and treats the exemplars as templates.
+Until this prompt is approved, the live item builder uses the evidence-centred authoring assistant (`src/lib/services/content/item-design.ts`). Its prompt (v5, 20 Oct 2026) follows the same division of work. The assistant reads the course materials (slides, quizzes, sample items, templates) once and keeps a course topic bank: topics with their knowledge points, content notes and the quiz or sample items that assess them. It fills the whole design panel for the mini test's one topic, including those items and the instructor's templates as exemplars. The mini tests for the other topics are created from the same bank, one at a time, without a new upload. Item generation (v4) adds item-writing rules (one idea per item, a stem answerable before the options, plausible distractors from misconception hypotheses, no cues, independent items), keeps the reading load low, uses the topic's knowledge points and content notes, and treats the exemplars as templates.
 
 ### 9.3 Item administration
 
