@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyNoteSuggestion, blankNoteSuggestions, isImported, needsNotes } from "../src/components/teacher-content/mcq-review";
+import { applyNoteSuggestion, assistantCheckOf, blankNoteSuggestions, isImported, keysTheCheckAgreedWith, needsNotes } from "../src/components/teacher-content/mcq-review";
 import type { McqImportCandidate } from "../src/components/teacher-content/types";
 
 const candidate = {
@@ -25,3 +25,40 @@ assert(isImported(imported));
 assert.equal(blankNoteSuggestions(imported).length, 0);
 assert.equal(applyNoteSuggestion(imported, "suggested_target_reasoning_note", "changed"), imported);
 console.log("MCQ review UI: immediate application, preserved notes/keys, rejected and imported exclusions passed. Provider calls: 0.");
+
+// PostgreSQL JSONB can return object fields in a different order from the input.
+const checkedDraft = {
+  ...candidate, status: "needs_key", stem: "Which explanation fits?", llm_suggested_key: "A",
+  options: [{ label: "A", text: "First explanation." }, { label: "B", text: "Second explanation." }],
+  suggestion: { assistant_check: {
+    status: "checked", independent_answer: "A", agrees_with_key: true, revised: false,
+    remaining_problems: [], checked_stem: "Which explanation fits?",
+    checked_options: [{ text: "First explanation.", label: "A" }, { text: "Second explanation.", label: "B" }]
+  } }
+} as unknown as McqImportCandidate;
+assert.equal(assistantCheckOf(checkedDraft)?.current, true, "JSONB object field order is not an edit");
+assert.deepEqual(keysTheCheckAgreedWith([checkedDraft]), [checkedDraft]);
+const changedDrafts = [
+  { ...checkedDraft, stem: "An edited question?" },
+  { ...checkedDraft, options: [{ label: "A", text: "Edited explanation." }, checkedDraft.options[1]] },
+  { ...checkedDraft, options: [{ label: "C", text: "First explanation." }, checkedDraft.options[1]] },
+  { ...checkedDraft, options: [...checkedDraft.options].reverse() },
+  { ...checkedDraft, options: checkedDraft.options.slice(0, 1) }
+];
+for (const changed of changedDrafts) {
+  assert.equal(assistantCheckOf(changed)?.current, false, "Real wording, label, order or count changes invalidate the check");
+  assert.equal(keysTheCheckAgreedWith([changed]).length, 0);
+}
+const checkedSuggestion = checkedDraft.suggestion as Record<string, unknown>;
+const checkedResult = checkedSuggestion.assistant_check as Record<string, unknown>;
+for (const patch of [
+  { status: "unavailable" }, { remaining_problems: ["Another answer is defensible."] },
+  { agrees_with_key: false }, { independent_answer: "B" }
+]) {
+  assert.equal(keysTheCheckAgreedWith([{ ...checkedDraft, suggestion: {
+    ...checkedSuggestion, assistant_check: { ...checkedResult, ...patch }
+  } }]).length, 0);
+}
+assert.equal(keysTheCheckAgreedWith([{ ...checkedDraft, teacher_confirmed_key: "A" }]).length, 0);
+assert.equal(keysTheCheckAgreedWith([{ ...checkedDraft, imported_item_public_id: "already-added" }]).length, 0);
+console.log("MCQ checked-draft review: stored field order, real edits and key-confirmation exclusions passed. Provider calls: 0.");

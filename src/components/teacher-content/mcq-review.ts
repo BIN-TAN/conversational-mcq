@@ -206,8 +206,14 @@ export type AssistantCheckView = {
 
 function checkedWordingIsCurrent(check: Record<string, unknown>, candidate: McqImportCandidate) {
   if (typeof check.checked_stem !== "string" || !Array.isArray(check.checked_options)) return true;
-  const options = (candidate.options ?? []).map(({ label, text }) => ({ label, text }));
-  return check.checked_stem === candidate.stem && JSON.stringify(check.checked_options) === JSON.stringify(options);
+  const options = candidate.options ?? [];
+  // JSONB may reorder object fields; compare the checked values, preserving option order.
+  return check.checked_stem === candidate.stem && check.checked_options.length === options.length &&
+    check.checked_options.every((value: unknown, index: number) => {
+      if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+      const checkedOption = value as Record<string, unknown>;
+      return checkedOption.label === options[index].label && checkedOption.text === options[index].text;
+    });
 }
 
 /** The check of a generated draft (answered without its key), when the batch has one. */
