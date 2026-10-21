@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21T04:12:14.821489+00:00",
+  "updated_at": "2026-10-21T06:12:14.332653+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3554,6 +3554,122 @@
         "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\agent-call-staleness.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-evidence-centered-item-design-smoke-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\public\\samples\\mini-test-import.json"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-05",
+      "date": "2026-10-20",
+      "title": "Checked item drafts and simpler teacher preparation",
+      "application_commit": "ab11b31586f43335cad3bd5ab65257f1193c0d13",
+      "push_status": "Application ab11b31586f43335cad3bd5ab65257f1193c0d13 fast-forwarded origin/main from b2df049a83924b47acd5b2ab557c4c026bde3f98; remote SHA verified at 2026-10-21T06:04:05.6791237Z. The subsequent ledger and Word commit uses [skip render], is documentation only and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbc5c161egvs739iokvg",
+        "source_commit": "ab11b31586f43335cad3bd5ab65257f1193c0d13",
+        "verified_at": "2026-10-21T06:12:04.828Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dbc5c161egvs739iokvg",
+        "evidence": [
+          "Manual specific-commit deployment started at 2026-10-21T06:04:52Z; Live at 2026-10-21T06:09:31Z. Previous Live application bfb3fbc2dab403600c9e2a36b77fdd32dac300ed, deployment dep-dbc3jo0n74is73f8makg.",
+          "Read-only runtime verification at 2026-10-21T06:10:28.962Z confirmed exact RENDER_GIT_COMMIT, HTTP 200, database/schema ready, exactly one preparation worker, valid operational approval and unchanged v8 hashes. Public health also returned 200. First-minutes logs reviewed through 2026-10-21T06:12:04.828Z showed no release-related startup or student-facing error; no rollback was needed.",
+          "Auto-Deploy stayed Off; no Render setting or environment variable changed. Operational approval and both v8 hashes are unchanged. No schema or migration change, no pending migration. Item preparation and instructor report approval variables remain unset.",
+          "Production checks were read-only: no sign-in, scripted attempt, item-builder request, draft generation, load test or student-record change. Local UI checks used synthetic accounts, mock mode and the dedicated audit database."
+        ]
+      },
+      "summary": "Generated drafts receive a separate blind answer check, one constrained revision when needed and a second check. Teachers see plain-language results and can confirm only unchanged passing keys together. The builder prepares other course-bank topics in sequence. Connection failures now have an actionable message. Release verification corrected one legacy-output expectation and a new JSONB field-order defect before push.",
+      "changes": [
+        {
+          "area": "Independent draft check and one revision",
+          "problem": "Generated drafts needed a second look without exposing their proposed keys or rationales to the checker.",
+          "fix": "The audited evidence-centered-mcq-item-check-v1 call answers position-labelled drafts and identifies all defensible options, ambiguity, answer cues, weak distractors, language/reading load, topic/objective mismatch and inter-item clues. Problem drafts receive one evidence-centered-mcq-revision-v1 revision, two drafts per parallel call, followed by another check. Revisions preserve labels, objectives, misconception links, demand, difficulty and option count and must satisfy the whole saved design contract.",
+          "impact": "The check has a 240-second timeout. Unavailable checks never block draft delivery; each affected draft says the check could not run. Generation takes a few minutes longer. Teachers remain responsible for every key."
+        },
+        {
+          "area": "Plain language and idea labels",
+          "problem": "Teacher messages and drafting output needed natural complete sentences, shorter explanations and concise distractor ideas.",
+          "fix": "Assistant prompt v6 and generation v5 request natural plain language without stock phrases or fragments. Incorrect options carry additive idea_label values into their rationales; key labels and legacy missing labels are null. Statuses and flags are readable sentences, with Proposed key and Automatic check on review.",
+          "impact": "The output schema version is unchanged. Teacher authoring versions/hashes are auditable; interpretation and feedback prompts and approvals are untouched."
+        },
+        {
+          "area": "Preparing other topics and confirming keys",
+          "problem": "Teachers had to repeat preparation for each stored course-bank topic and confirm every suggested key separately.",
+          "fix": "The sidebar offers Generate drafts when ready. Prepare the other topics processes topics serially: create/reuse a mini test, prepare its design, then generate checked drafts. It skips previously drafted topics, supports stopping/restarting, and links to drafts or questions needing an answer. Bulk confirmation selects only unedited, unchecked-by-teacher drafts whose independent answer matches the proposed key and has no remaining problem.",
+          "impact": "Each topic has a latest draft_review_url. Local mock mode creates the other topic and stops as Not finished because the assistant is live-only. The teacher still reads every item."
+        },
+        {
+          "area": "Connection and error messages",
+          "problem": "Run 5 reproduced raw Failed to fetch on stopped-server saves. Some authoring errors named internal checks.",
+          "fix": "A request that cannot reach the server becomes network_error with status 0 and the message The server could not be reached. Check your internet connection, wait a minute, then try again. Nothing on this page has changed. The wording covers teacher content, instructor reports, attempt comparison, chance restoration and sign-in. Builder/import errors explain the problem and next action.",
+          "impact": "The stopped-server local browser check now passes. All new application wording is English; production sign-in acceptance remains with the user."
+        },
+        {
+          "area": "Legacy-output test correction",
+          "problem": "The design smoke test expected legacy options without the intentionally additive idea_label field; it failed on the candidate and passed on bfb3fbc.",
+          "fix": "Commit e61ef6d7d823d44a9083cbc99b86a5f9830dbbcf expects idea_label: null for each replayed legacy option. Original provider immutability, keys and reference assertions remain intact.",
+          "impact": "Test-only correction; the seven builder checks and all required suites were rerun successfully."
+        },
+        {
+          "area": "Stored draft wording comparison",
+          "problem": "The first local review of a real stored batch marked unchanged drafts as edited and hid bulk confirmation. JSONB returned object fields as text then label; JSON.stringify compared that order with newly constructed label then text.",
+          "fix": "Commit ab11b31586f43335cad3bd5ab65257f1193c0d13 compares the stem and each ordered option label/text value, including option count and valid object checks. A failing-then-passing regression covers database field order, real edits and confirmation exclusions.",
+          "impact": "The baseline review smoke passed and the new check/confirmation functions are absent there, locating the defect in this release. The stored-batch reproducer changed from current=false/eligible=0 to current=true/eligible=1. Real stem, text, label, order and count edits still invalidate the check. All required suites were rerun after this application fix."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Bundle and database preconditions",
+          "result": "PASS",
+          "detail": "Verified d507c13 bundle, clean tracked state, b2df049 remote baseline and fast-forward ancestry. Package manifests, schema and migrations unchanged. Prisma generate and status passed; all 68 existing migrations applied, none run locally. Database address checked silently as loopback."
+        },
+        {
+          "name": "Seven item-builder scripts",
+          "result": "7 PASS after corrections",
+          "detail": "Draft-check unit 9 checks; topic map 12; resilience 7; review UI including new regression; design smoke; runtime smoke; material upload. Stub runtime verified the checker saw no key/rationale, one check/revision/recheck, revised wording in review and unavailable fallback. No paid provider calls."
+        },
+        {
+          "name": "Standard and clean redesign suites",
+          "result": "18 steps and 187 checks PASS",
+          "detail": "Final candidate passed typecheck, lint, design alignment, data dictionaries, database checks and production build. Lint retained 10 warnings with no errors. Scripted student review passed 18 scenarios with one existing non-high issue and no high-severity issue. Redesign ran in the clean test environment."
+        },
+        {
+          "name": "Nine further database scripts",
+          "result": "9 PASS",
+          "detail": "JSON import (7 grouped checks), batch cleanup, classroom integrity (14), teacher dashboard/review, attempt policy (12), service, feedback completion and analysis-ready export passed. Import, integrity and attempt policy used the dedicated local audit database. The five excluded legacy checks stayed excluded."
+        },
+        {
+          "name": "Local browser screens in mock mode",
+          "result": "All required scenarios PASS after JSONB correction",
+          "detail": "Stopped-server Save showed the specified connection message and server was restarted. A three-candidate batch made through createGeneratedMcqReviewBatch showed Key to confirm, sentence flags and all Automatic check results. Bulk confirmation filled only the passing key. A fresh unsaved edit made that check stale and removed the button. Prepare the other topics (1) created the other mini test and stopped as Not finished with expected mock assistant-unavailable text. Evidence and screenshots are under the release-05 evidence directory."
+        },
+        {
+          "name": "Approval and production verification",
+          "result": "Read-only PASS",
+          "detail": "Local approval valid true with no issues; both v8 hashes unchanged. Render preflight checked prior Live, Auto-Deploy Off and all three approval hashes. Post-deploy exact commit, health/schema, one worker and approval independently verified; first-minutes logs checked. No live sign-in or student attempt."
+        }
+      ],
+      "data_impact": [
+        "No student-data, export-column or dictionary-column change. No schema, migration, student-record change, backfill or reinterpretation. Historical records retain their original collection/version context.",
+        "Item-builder agent calls now record assistant prompt v6, generation prompt v5, check prompt evidence-centered-mcq-item-check-v1 and revision prompt evidence-centered-mcq-revision-v1 with their hashes. These are teacher authoring audit rows, not student observations.",
+        "Each generated review candidate stores assistant_check in its suggestion, including the check result, remaining problems and checked wording; generation_metadata.item_check records check/revision prompt versions and hashes. Missing or unavailable checks remain distinguishable from passing checks.",
+        "Incorrect options may record a short idea_label in teacher authoring rationales; legacy missing values replay as null. The teacher confirms every key. Both approved interpretation/feedback hashes remain unchanged."
+      ],
+      "limitations": [
+        "Ten lint warnings, one existing non-high scripted-review issue and five expressly excluded legacy checks remain. Mock/stub verification does not establish live model quality, learning gain or psychometric validity. The following live acceptance checks belong to the researcher.",
+        "Checked drafts: In a mini test whose design is ready, click Generate drafts in the sidebar and allow a few minutes. Confirm that every draft shows an Automatic check result, any problems appear in plain sentences, and Confirm the keys the check agreed with (N) fills only those keys. Read every item yourself.",
+        "Other topics: In a mini test with a course topic bank, click Prepare the other topics and keep the page open. Each topic should end as Drafts ready to review with a link, or The assistant needs your answer with a link to its mini test.",
+        "Plain language: Confirm that the assistant's messages read naturally, stems and options are short and plain, and each incorrect option has a short idea label.",
+        "Sign-in: Confirm that a teacher account and a student test account can sign in.",
+        "Student attempt: Complete a short test attempt and confirm that feedback and a reply still work."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design-contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mcq-import.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\teacher-content\\mcq-review.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\teacher-content\\topic-preparation.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-mcq-review-ui-smoke-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-evidence-centered-item-design-smoke-test.ts"
       ]
     }
   ],
