@@ -157,6 +157,22 @@ async function main() {
     assert(revisionPrompt.includes("exactly one option is defensible") && revisionPrompt.includes("in the same order"));
   });
 
+  await check("Item preparation v8.2 (import suggestions, layout repair, pre-publish check) follows the same writing rules", async () => {
+    const prep = await import("../src/lib/services/content/item-preparation/contract");
+    assert.equal(prep.ITEM_PREPARATION_PROMPT_VERSION, "item-preparation-v8.2");
+    assert.equal(prep.ITEM_PREPARATION_SCHEMA_VERSION, "item-preparation-output-v8.1");
+    for (const part of ["WRITING GOOD ITEMS", "answer the stem before reading the options", "exactly one is fully correct",
+      "Keep the reading load low", "keep the instructor's wording even where it breaks these rules", "write it to the student as a clear explanation",
+      "idea label of two to six plain words", "First answer each item yourself without relying on its key", "not_plain_language",
+      "item_dependency", "does_not_assess_objective", "without stock phrases"]) {
+      assert(prep.ITEM_PREPARATION_INSTRUCTIONS.includes(part), part);
+    }
+    for (const code of ["does_not_assess_objective", "not_plain_language", "item_dependency"] as const) {
+      assert((prep.MODEL_PROBLEM_CODES as readonly string[]).includes(code));
+      assert.match(prep.PROBLEM_CODE_LABELS[code], /^[A-Z][a-z]/);
+    }
+  });
+
   await check("Statuses and flags are named in plain words, without codes", () => {
     assert.equal(candidateStatusLabel("needs_key"), "Key to confirm");
     assert.equal(candidateStatusLabel("ready_as_draft"), "Ready to add");

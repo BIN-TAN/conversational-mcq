@@ -100,6 +100,9 @@ const ISSUE_BY_CODE: Record<ItemPreparationProblem["code"], ItemVerificationIssu
   implausible_option: "weak_or_implausible_distractor",
   outside_topic: "possible_concept_misalignment",
   unrelated_reading_demand: "possible_learning_objective_misalignment",
+  does_not_assess_objective: "possible_learning_objective_misalignment",
+  not_plain_language: "possible_ambiguity",
+  item_dependency: "possible_answer_cue",
   other: "possible_ambiguity",
   // A key change the check proposed is reported as a doubtful key, never applied.
   key_change_not_applied: "possible_answer_key_inconsistency",
