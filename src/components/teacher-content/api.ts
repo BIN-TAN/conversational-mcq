@@ -6,7 +6,7 @@ import type {
   ArchivedAssessmentBatchDeletionSummary,
   StructuredApiError
 } from "./types";
-import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
+import { isNetworkFailure, SERVER_UNAVAILABLE_MESSAGE, SERVER_UNREACHABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 export class ClientApiError extends Error {
   code: string;
@@ -33,15 +33,24 @@ function isApiErrorResponse(value: unknown): value is ApiErrorResponse {
 
 export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const isFormData = typeof FormData !== "undefined" && init?.body instanceof FormData;
-  const response = await fetch(path, {
-    ...init,
-    headers: isFormData
-      ? init?.headers
-      : {
-          "Content-Type": "application/json",
-          ...(init?.headers ?? {})
-        }
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      ...init,
+      headers: isFormData
+        ? init?.headers
+        : {
+            "Content-Type": "application/json",
+            ...(init?.headers ?? {})
+          }
+    });
+  } catch (caught) {
+    // The request never reached the server: no connection, or the server was restarting.
+    if (isNetworkFailure(caught)) {
+      throw new ClientApiError({ code: "network_error", message: SERVER_UNREACHABLE_MESSAGE }, 0);
+    }
+    throw caught;
+  }
   const text = await response.text();
   let payload: unknown = null;
   if (text) {
@@ -69,7 +78,7 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     throw new ClientApiError(
       {
         code: "request_failed",
-        message: "The request could not be completed.",
+        message: "Something went wrong and the request was not completed. Try again in a moment.",
         details: payload
       },
       response.status

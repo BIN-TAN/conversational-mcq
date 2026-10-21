@@ -1,5 +1,5 @@
 /**
- * Item builder, 21 Oct 2026: drafts are checked before the teacher sees them, the language is
+ * Item builder, release CMCQ-20261020-05: drafts are checked before the teacher sees them, the language is
  * plain and natural, and the other topics of a course topic bank can be prepared in one run.
  * - The check answers each draft without its proposed key; drafts with another answer or a
  *   reported problem are revised once and checked again (item-design.ts checkGeneratedItems).

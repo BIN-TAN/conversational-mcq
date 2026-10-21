@@ -1,5 +1,5 @@
 /**
- * Item builder authoring assistant v5 (20 Oct 2026; v6 on 21 Oct adds the plain-language rule). The assistant reads the course materials
+ * Item builder authoring assistant v5 (20 Oct 2026; v6 in release CMCQ-20261020-05 adds the plain-language rule). The assistant reads the course materials
  * (slides, quizzes, sample items, templates) once and keeps a course topic bank: each topic
  * with its knowledge points, content notes and the quiz or sample items that assess it. It
  * fills the whole design panel for the mini test's one topic, and the mini tests for the other

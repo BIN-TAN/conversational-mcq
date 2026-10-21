@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { LogIn } from "lucide-react";
-import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
+import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 type LoginResponse = {
   user?: {
@@ -44,7 +44,7 @@ export function LoginForm({ audience = "student" }: { audience?: "student" | "te
       }
 
       if (!response.ok || !data.user) {
-        setError(data.error ?? "Login failed.");
+        setError(data.error ?? "Sign-in did not work. Check your user ID and password, then try again.");
         return;
       }
 
@@ -56,8 +56,8 @@ export function LoginForm({ audience = "student" }: { audience?: "student" | "te
             ? "/student/account/password"
             : "/student/assessment"
       );
-    } catch {
-      setError("The login request could not be completed.");
+    } catch (caught) {
+      setError(requestErrorMessage(caught, "Sign-in could not be completed. Try again in a moment."));
     } finally {
       setIsSubmitting(false);
     }

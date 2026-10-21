@@ -767,7 +767,7 @@ function validateCurrentMaterialSummaries(input: {
   ) {
     throw new ContentServiceError(
       "validation_failed",
-      "The authoring assistant did not return a complete summary for every uploaded material.",
+      "The assistant did not finish describing every uploaded file. Your saved design is unchanged. Send the message again, or attach fewer files at once.",
       422,
       { expected_material_ids: expectedIds, returned_material_ids: actualIds }
     );
@@ -845,7 +845,7 @@ async function persistItemDesignAssistantExchange(input: {
   if (design.assistant_thread.messages.length > 98) {
     throw new ContentServiceError(
       "validation_failed",
-      "This authoring conversation has reached its message limit. Save the design and continue with manual review.",
+      "This conversation has reached its message limit. Save the design and continue editing it yourself under Review design.",
       400
     );
   }
@@ -885,7 +885,7 @@ async function persistItemDesignAssistantExchange(input: {
       if (!summary) {
         throw new ContentServiceError(
           "validation_failed",
-          "An uploaded course material is missing its validated summary.",
+          "The assistant could not finish reading one of the uploaded files. Your saved design is unchanged. Send the message again, or attach fewer pages at once.",
           422
         );
       }
@@ -1278,7 +1278,7 @@ export async function respondToAssessmentItemDesignAssistant(input: {
       });
       throw new ContentServiceError(
         "validation_failed",
-        "The authoring assistant returned an invalid design update. Your saved design is unchanged; try again or continue editing manually.",
+        "The assistant's changes to the design could not be applied. Your saved design is unchanged; try again, or continue editing the design yourself.",
         422,
         { agent_call_public_id: agentCall.agent_call_public_id }
       );
@@ -1447,7 +1447,7 @@ function generationContext(input: {
 function validateOutput(blueprint: ItemDesignBlueprint, output: unknown): ItemGenerationOutput {
   const validated = validateGeneratedItemSet({ blueprint, output });
   if (!validated.success) {
-    throw new ContentServiceError("validation_failed", "Generated items did not satisfy the saved design contract.", 422, {
+    throw new ContentServiceError("validation_failed", "The drafts did not match the saved design, for example in the number of items or options or the objectives they cover. Your saved design is unchanged; generate the drafts again.", 422, {
       issues: validated.error.issues
     });
   }
@@ -1471,7 +1471,7 @@ function validateChunkOutput(input: {
   if (!validated.success) {
     throw new ContentServiceError(
       "validation_failed",
-      "Generated items did not satisfy the saved design contract.",
+      "The drafts did not match the saved design, for example in the number of items or options or the objectives they cover. Your saved design is unchanged; generate the drafts again.",
       422,
       { issues: validated.error.issues }
     );
@@ -2146,7 +2146,7 @@ export async function generateAssessmentItemDrafts(input: {
   if (!primaryAgentCallPublicId) {
     throw new ContentServiceError(
       "validation_failed",
-      "Draft generation did not produce an auditable result.",
+      "Draft generation did not finish properly. Your saved design is unchanged; generate the drafts again.",
       500
     );
   }

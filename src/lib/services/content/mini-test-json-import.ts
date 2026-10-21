@@ -39,7 +39,7 @@ export async function withImportTransaction<T>(operation: (tx: Prisma.Transactio
 export async function stageMiniTestDocument(tx: Prisma.TransactionClient, input: StageInput) {
   let document;
   try { document = parseMiniTestJson(input.source_text); }
-  catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "Invalid mini-test JSON.", 400); }
+  catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "This is not a valid mini-test JSON file. Compare it with the sample file.", 400); }
   const documentHash = hash(stableJson(input.source_context ? { document, source: input.source_context } : document));
   // Content-addressed, teacher-scoped identity makes retries and double clicks reuse one review.
   const assessmentPublicId = `asmt_json_${hash(`${input.teacher_user_db_id}\0${documentHash}`).slice(0, 32)}`;

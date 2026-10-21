@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
-import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
+import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: string }) {
   const [open, setOpen] = useState(false);
@@ -22,7 +22,7 @@ export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: str
       setRestored(true); setOpen(false); setReason("");
       const remaining = body.result.remaining_attempts;
       setMessage(`${body.result.status === "chance_already_restored" ? "This chance was already restored." : "One chance restored."} ${remaining} ${remaining === 1 ? "chance" : "chances"} remaining. The original attempt is preserved.`);
-    } catch (error) { setMessage(error instanceof Error ? error.message : "Please retry."); }
+    } catch (error) { setMessage(requestErrorMessage(error, "The chance could not be restored. Try again in a moment.")); }
     finally { setBusy(false); }
   }
   return <div className="mt-4 border-t border-line pt-4">

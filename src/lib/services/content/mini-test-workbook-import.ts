@@ -15,7 +15,7 @@ type ParsedSheet = { sheet_name: string; document: MiniTestJson; rows: SourceRow
 export async function parseMiniTestWorkbook(bytes: Buffer) {
   if (!bytes.length || bytes.length > WORKBOOK_MAX_BYTES) reject("Choose an XLSX workbook up to 2 MB.");
   const archive = await readBoundedOfficeArchive(bytes);
-  if (!archive.file("xl/workbook.xml")) reject("A standard XLSX workbook is required.");
+  if (!archive.file("xl/workbook.xml")) reject("Choose a standard Excel workbook saved as .xlsx.");
   if (Object.keys(archive.files).some(name => /^xl\/(media|embeddings)\//i.test(name))) {
     reject("This workbook contains embedded images or objects. Import its text items separately and add the media during item review.");
   }

@@ -4,7 +4,9 @@
  *   named in the panel's words;
  * - a web page in place of data (the hosting platform answering during a restart) becomes a
  *   plain message in the teacher and student pages;
- * - an item-builder call cut off by a restart no longer blocks the same request.
+ * - an item-builder call cut off by a restart no longer blocks the same request;
+ * - a request that never reaches the server (the browser's "Failed to fetch") shows a plain
+ *   message on teacher pages and sign-in (release CMCQ-20261020-05).
  * Run with: npx tsx prisma/teacher-tools-resilience-unit-test.ts
  */
 import assert from "node:assert/strict";
@@ -29,6 +31,7 @@ async function main() {
   const { fetchSessionState } = await import("../src/components/student-assessment/api");
   const { abandonedStartedCalls, ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, ITEM_GENERATION_STALE_CALL_MS } =
     await import("../src/lib/services/content/agent-call-staleness");
+  const { requestErrorMessage, SERVER_UNREACHABLE_MESSAGE } = await import("../src/components/server-unavailable-message");
 
   const blueprint = {
     section_topic: "Measurement logic and IRT assumptions",
@@ -137,6 +140,35 @@ async function main() {
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, now).map((call) => call.id), ["stale", "no_start"]);
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_GENERATION_STALE_CALL_MS, now).map((call) => call.id), []);
     assert(ITEM_DESIGN_ASSISTANT_STALE_CALL_MS > 2 * 360_000, "Longer than two assistant provider calls of 360 seconds");
+  });
+
+  await check("A request that never reaches the server reads as a plain message", async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => { throw new TypeError("Failed to fetch"); }) as typeof fetch;
+    try {
+      await assert.rejects(apiRequest("/api/teacher/anything"), (error: unknown) => {
+        assert(error instanceof ClientApiError);
+        assert.equal(error.code, "network_error");
+        assert.equal(error.status, 0);
+        assert.equal(error.message, SERVER_UNREACHABLE_MESSAGE);
+        return true;
+      });
+      const abort = new DOMException("The operation was aborted.", "AbortError");
+      globalThis.fetch = (async () => { throw abort; }) as typeof fetch;
+      await assert.rejects(apiRequest("/api/teacher/anything"), (error: unknown) => error === abort, "An abort stays an abort");
+    } finally {
+      globalThis.fetch = original;
+    }
+    for (const browserMessage of ["Failed to fetch", "NetworkError when attempting to fetch resource.", "Load failed"]) {
+      assert.equal(requestErrorMessage(new TypeError(browserMessage), "fallback"), SERVER_UNREACHABLE_MESSAGE);
+    }
+    assert.equal(requestErrorMessage(new Error("The report is not ready yet."), "fallback"), "The report is not ready yet.");
+    assert.equal(requestErrorMessage("odd", "The report could not be loaded."), "The report could not be loaded.");
+    const fs = await import("node:fs");
+    for (const file of ["src/components/login-form.tsx", "src/components/teacher-dashboard/instructor-report-panel.tsx",
+      "src/components/teacher-dashboard/attempt-comparison-panel.tsx", "src/components/teacher-review/restore-attempt-chance.tsx"]) {
+      assert(fs.readFileSync(file, "utf8").includes("requestErrorMessage("), file);
+    }
   });
 
   console.log(`\n${passed} teacher tools resilience checks passed; no database or provider calls.`);

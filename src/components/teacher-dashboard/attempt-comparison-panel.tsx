@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ChevronDown, Loader2, RefreshCcw } from "lucide-react";
 import type { AttemptComparison, AttemptPair } from "@/lib/services/teacher-dashboard/attempt-comparison";
-import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
+import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 const headings = ["Attempt 1", "Attempt 2", "Attempt 3", "Latest submitted"];
 const pairs: Array<[AttemptPair, string]> = [["1-2", "Attempt 1 to 2"], ["2-3", "Attempt 2 to 3"],
@@ -46,7 +46,7 @@ export function AttemptComparisonPanel({ assessmentPublicId }: { assessmentPubli
           setData(body.comparison);
           setObjectives(body.comparison.objectives);
         }
-      }).catch(error => { if (!controller.signal.aborted) setError(error.message); })
+      }).catch(error => { if (!controller.signal.aborted) setError(requestErrorMessage(error, "The attempts could not be loaded.")); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [assessmentPublicId, mode, pair, allThree, objective, reload]);

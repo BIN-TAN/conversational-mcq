@@ -698,7 +698,7 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
   if (sourceFileName && /\.xlsm$/i.test(sourceFileName)) {
     throw new ContentServiceError(
       "validation_failed",
-      "Macro-enabled workbooks are not supported for MCQ import.",
+      "Workbooks with macros (.xlsm) cannot be imported. Save the workbook as .xlsx and try again.",
       400,
       { unsupported_file_type: "xlsm" }
     );
@@ -706,7 +706,7 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
 
   const archive = await readBoundedOfficeArchive(bytes);
   if (!archive.file("xl/workbook.xml")) {
-    throw new ContentServiceError("validation_failed", "A standard XLSX workbook is required.", 400);
+    throw new ContentServiceError("validation_failed", "Choose a standard Excel workbook saved as .xlsx.", 400);
   }
   const checkedBytes = await archive.generateAsync({ type: "nodebuffer" });
   let workbook: XLSX.WorkBook;
@@ -715,7 +715,7 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
   } catch {
     throw new ContentServiceError(
       "validation_failed",
-      "XLSX workbook could not be parsed. No import batch was created.",
+      "The Excel file could not be read, so nothing was imported. Check that it opens in Excel and is saved as .xlsx.",
       400
     );
   }
@@ -723,7 +723,7 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
   if (workbook.vbaraw) {
     throw new ContentServiceError(
       "validation_failed",
-      "Macro-enabled workbooks are not supported for MCQ import.",
+      "Workbooks with macros (.xlsm) cannot be imported. Save the workbook as .xlsx and try again.",
       400,
       { unsupported_file_type: "macro_workbook" }
     );
@@ -746,7 +746,7 @@ async function parseXlsxRows(bytes: Buffer, sourceFileName?: string | null): Pro
   const sheet = workbook.Sheets[sheetName];
   const range = XLSX.utils.decode_range(sheet["!fullref"] ?? sheet["!ref"] ?? "A1");
   if (range.e.r - range.s.r > MCQ_IMPORT_MAX_ROWS || range.e.c > 100) {
-    throw new ContentServiceError("validation_failed", "XLSX worksheet exceeds the safe row or column limit.", 400);
+    throw new ContentServiceError("validation_failed", "This worksheet has too many rows or columns to import safely. Split it into smaller sheets.", 400);
   }
 
   const rows = XLSX.utils.sheet_to_json<RowRecord>(sheet, {
@@ -1002,7 +1002,7 @@ function parseProjectJsonItems(text: string): CandidateDraft[] {
   if ("schema_version" in root) {
     let document;
     try { document = parseMiniTestJson(text); }
-    catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "Invalid mini-test JSON.", 400); }
+    catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "This is not a valid mini-test JSON file. Compare it with the sample file.", 400); }
     const blueprintHash = document.design ? sha256(stableJson(document.design)) : null;
     return document.items.map((item, index) => {
       // Apply the same URL and media boundaries as manually authored items, without fetching URLs.
@@ -1260,13 +1260,13 @@ async function parseCandidates(input: z.infer<typeof McqImportPreviewInputSchema
 
   if (input.source_type === "xlsx") {
     if (!input.file_base64) {
-      throw new ContentServiceError("validation_failed", "XLSX import requires a file.", 400);
+      throw new ContentServiceError("validation_failed", "Choose an Excel file to import.", 400);
     }
     const bytes = decodeBase64(input.file_base64);
     if (bytes.length > MCQ_IMPORT_MAX_FILE_BYTES) {
       throw new ContentServiceError(
         "validation_failed",
-        "XLSX import file is too large.",
+        "This Excel file is too large to import. Split it into smaller files.",
         400,
         { max_file_bytes: MCQ_IMPORT_MAX_FILE_BYTES }
       );
@@ -1281,13 +1281,13 @@ async function parseCandidates(input: z.infer<typeof McqImportPreviewInputSchema
 
   if (input.source_type === "docx") {
     if (!input.file_base64) {
-      throw new ContentServiceError("validation_failed", "DOCX import requires a .docx file.", 400);
+      throw new ContentServiceError("validation_failed", "Choose a Word file saved as .docx.", 400);
     }
     const bytes = decodeBase64(input.file_base64);
     if (bytes.length > MCQ_IMPORT_MAX_FILE_BYTES) {
       throw new ContentServiceError(
         "validation_failed",
-        "DOCX import file is too large.",
+        "This Word file is too large to import. Split it into smaller files.",
         400,
         { max_file_bytes: MCQ_IMPORT_MAX_FILE_BYTES }
       );
@@ -1310,12 +1310,12 @@ async function parseCandidates(input: z.infer<typeof McqImportPreviewInputSchema
 
   const text = sourceText(input);
   if (!text.trim()) {
-    throw new ContentServiceError("validation_failed", "Import source is empty.", 400);
+    throw new ContentServiceError("validation_failed", "There is nothing to import yet. Paste the items or choose a file.", 400);
   }
   if (Buffer.byteLength(text, "utf8") > MCQ_IMPORT_MAX_FILE_BYTES) {
     throw new ContentServiceError(
       "validation_failed",
-      "Import source is too large.",
+      "This is too much to import at once. Split it into smaller parts.",
       400,
       { max_file_bytes: MCQ_IMPORT_MAX_FILE_BYTES }
     );
@@ -1452,7 +1452,7 @@ export async function createMcqImportReviewBatch(input: {
   const data = McqImportPreviewInputSchema.parse(input.data);
   const parsed = await parseCandidates(data);
   if (input.candidate_contexts && input.candidate_contexts.length !== parsed.drafts.length) {
-    throw new ContentServiceError("validation_failed", "Workbook source mapping does not match the imported items.", 400);
+    throw new ContentServiceError("validation_failed", "The workbook guide no longer matches the imported items. Import the workbook again.", 400);
   }
   const candidates = parsed.drafts.map((draft, index) => candidateFromDraft({ ...draft,
     ...(input.candidate_contexts?.[index] ?? {}),
@@ -1498,7 +1498,7 @@ async function getTeacherOwnedBatch(input: {
   });
 
   if (!batch) {
-    throw new ContentServiceError("not_found", "MCQ import batch was not found.", 404);
+    throw new ContentServiceError("not_found", "This item review was not found. It may have been removed.", 404);
   }
 
   return batch;
