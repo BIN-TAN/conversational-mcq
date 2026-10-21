@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { LogIn } from "lucide-react";
+import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 type LoginResponse = {
   user?: {
@@ -35,7 +36,12 @@ export function LoginForm({ audience = "student" }: { audience?: "student" | "te
             : { user_id: userId.trim(), password: credential, access_code: credential }
         )
       });
-      const data = (await response.json()) as LoginResponse;
+      const data = (await response.json().catch(() => null)) as LoginResponse | null;
+
+      if (!data) {
+        setError(SERVER_UNAVAILABLE_MESSAGE);
+        return;
+      }
 
       if (!response.ok || !data.user) {
         setError(data.error ?? "Login failed.");

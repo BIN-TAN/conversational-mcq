@@ -6,6 +6,7 @@ import type {
   ArchivedAssessmentBatchDeletionSummary,
   StructuredApiError
 } from "./types";
+import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 export class ClientApiError extends Error {
   code: string;
@@ -42,7 +43,23 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
         }
   });
   const text = await response.text();
-  const payload = text ? (JSON.parse(text) as unknown) : null;
+  let payload: unknown = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      // A web page in place of data: the hosting platform answered while the application
+      // was restarting or unreachable.
+      throw new ClientApiError(
+        {
+          code: "unexpected_response",
+          message: SERVER_UNAVAILABLE_MESSAGE,
+          details: { status: response.status }
+        },
+        response.status
+      );
+    }
+  }
 
   if (!response.ok) {
     if (isApiErrorResponse(payload)) {

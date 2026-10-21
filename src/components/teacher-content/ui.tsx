@@ -170,7 +170,7 @@ function ValidationDetails({ details }: { details: unknown }) {
   );
 }
 
-function collectIssues(details: unknown): Array<{ path: string; message: string }> {
+export function collectIssues(details: unknown): Array<{ path: string; message: string }> {
   const issues: Array<{ path: string; message: string }> = [];
 
   function walk(value: unknown) {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: string }) {
   const [open, setOpen] = useState(false);
@@ -15,7 +16,8 @@ export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: str
       const response = await fetch(`/api/teacher/sessions/${sessionPublicId}/attempt/restore-chance`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reason })
       });
-      const body = await response.json();
+      const body = await response.json().catch(() => null);
+      if (!body) throw new Error(SERVER_UNAVAILABLE_MESSAGE);
       if (!response.ok) throw new Error(body.error?.message ?? "The chance could not be restored.");
       setRestored(true); setOpen(false); setReason("");
       const remaining = body.result.remaining_attempts;

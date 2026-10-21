@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { abandonedStartedCalls, ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, ITEM_GENERATION_STALE_CALL_MS, type CallTiming } from "./agent-call-staleness";
 import { ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS } from "@/lib/assessment-content-policy";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
@@ -57,6 +58,23 @@ const ITEM_GENERATION_CONTEXT_VERSION = "evidence-centered-item-generation-conte
 const ITEM_DESIGN_ASSISTANT_RECOVERY_PROMPT_VERSION =
   "evidence-centered-item-design-assistant-recovery-v1" as const;
 export const ITEM_DESIGN_ASSISTANT_MAX_RECOVERY_ATTEMPTS = 1 as const;
+export { ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, ITEM_GENERATION_STALE_CALL_MS } from "./agent-call-staleness";
+
+async function closeAbandonedCalls<T extends CallTiming>(calls: T[], staleAfterMs: number, now = new Date()): Promise<T[]> {
+  const abandoned = abandonedStartedCalls(calls, staleAfterMs, now);
+  if (abandoned.length === 0) return calls;
+  await prisma.agentCall.updateMany({
+    where: { id: { in: abandoned.map((call) => call.id) }, call_status: "started" },
+    data: {
+      call_status: "failed",
+      error_category: "abandoned_without_response",
+      blocked_reason: "abandoned_without_response",
+      completed_at: now
+    }
+  });
+  const abandonedIds = new Set(abandoned.map((call) => call.id));
+  return calls.map((call) => abandonedIds.has(call.id) ? { ...call, call_status: "failed" } : call);
+}
 export const ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS = 7000 as const;
 export const ITEM_GENERATION_MAX_CANDIDATES_PER_CALL = 2 as const;
 export const ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS = 1 as const;
@@ -773,10 +791,10 @@ export async function respondToAssessmentItemDesignAssistant(input: {
 
   const invocationPrefix =
     `evidence_item_design_assistant:${input.assessment_public_id}:${data.client_message_id}`;
-  const previousCalls = await prisma.agentCall.findMany({
+  const previousCalls = await closeAbandonedCalls(await prisma.agentCall.findMany({
     where: { agent_invocation_key: { startsWith: invocationPrefix } },
     orderBy: { created_at: "desc" }
-  });
+  }), ITEM_DESIGN_ASSISTANT_STALE_CALL_MS);
   const replayableCall = previousCalls.find(
     (call) => call.call_status === "succeeded" && call.output_payload
   );
@@ -810,7 +828,7 @@ export async function respondToAssessmentItemDesignAssistant(input: {
   if (previousCalls.some((call) => call.call_status === "started")) {
     throw new ContentServiceError(
       "conflict",
-      "The authoring assistant is already responding to this message.",
+      "The authoring assistant is already responding to this message. Wait for the reply; if none appears within 10 minutes, send the message again.",
       409
     );
   }
@@ -1356,10 +1374,10 @@ export async function generateAssessmentItemDrafts(input: {
   }
 
   const invocationPrefix = `evidence_item_generation:${input.assessment_public_id}:${generationSourceHash}`;
-  const previousCalls = await prisma.agentCall.findMany({
+  const previousCalls = await closeAbandonedCalls(await prisma.agentCall.findMany({
     where: { agent_invocation_key: { startsWith: invocationPrefix } },
     orderBy: { created_at: "desc" }
-  });
+  }), ITEM_GENERATION_STALE_CALL_MS);
   for (const call of previousCalls) {
     if (
       call.call_status !== "succeeded" ||
@@ -1390,7 +1408,7 @@ export async function generateAssessmentItemDrafts(input: {
   if (previousCalls.some((call) => call.call_status === "started")) {
     throw new ContentServiceError(
       "conflict",
-      "Draft generation is already in progress. Wait for it to finish before trying again.",
+      "Draft generation is already in progress. Wait for it to finish; if no drafts appear within 20 minutes, generate again.",
       409
     );
   }

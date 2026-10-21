@@ -21,9 +21,10 @@ import {
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
 import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
-import { apiRequest, errorFromUnknown } from "./api";
+import { apiRequest, ClientApiError, errorFromUnknown } from "./api";
+import { blueprintIssueLabels, normalizeBlueprint } from "./item-design-blueprint";
 import type { StructuredApiError } from "./types";
-import { Button, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
+import { Button, collectIssues, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
 
 type Objective = {
   objective_id: string;
@@ -140,18 +141,19 @@ function lines(value: string) {
   return value.split("\n");
 }
 
-function normalizeBlueprint(blueprint: Blueprint): Blueprint {
-  return {
-    ...blueprint,
-    objectives: blueprint.objectives.map((objective) => ({
-      ...objective,
-      evidence_requirements: objective.evidence_requirements.map((entry) => entry.trim()).filter(Boolean)
-    })),
-    misconception_hypotheses: blueprint.misconception_hypotheses.map((misconception) => ({
-      ...misconception,
-      student_language_examples: misconception.student_language_examples.map((entry) => entry.trim()).filter(Boolean)
-    }))
-  };
+/** Names the design-panel entries a failed save needs, in the panel's own words. */
+function describeBlueprintIssues(error: ClientApiError): ClientApiError {
+  if (error.code !== "validation_failed") return error;
+  const entries = blueprintIssueLabels(collectIssues(error.details).map((issue) => issue.path));
+  if (entries.length === 0) return error;
+  return new ClientApiError(
+    {
+      code: error.code,
+      message: `The design panel has incomplete entries. Complete or remove them in Review design, then try again: ${entries.join("; ")}.`,
+      details: error.details
+    },
+    error.status
+  );
 }
 
 function DesignEntry({ title, summary, children }: { title: string; summary: string; children: ReactNode }) {
@@ -570,7 +572,9 @@ export function ItemDesignClient({ assessmentPublicId, initialView = "assistant"
           blueprint: normalizeBlueprint(blueprint)
         })
       }
-    );
+    ).catch((caught: unknown) => {
+      throw caught instanceof ClientApiError ? describeBlueprintIssues(caught) : caught;
+    });
     setDesign(response);
     setBlueprint(response.blueprint);
     if (showMessage) setSuccess("Assessment design saved.");

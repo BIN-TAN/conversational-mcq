@@ -226,7 +226,21 @@ async function parseResponse<T>(
   parse: (value: unknown) => T
 ): Promise<T> {
   const text = await response.text();
-  const json = text ? JSON.parse(text) : null;
+  let json: unknown = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      // A web page in place of data: the hosting platform answered while the application
+      // was restarting or unreachable.
+      const unavailable: StructuredStudentApiError = {
+        code: "service_unavailable",
+        message: "The connection was interrupted for a moment. Please wait a minute, then try again.",
+        status: response.ok ? 503 : response.status
+      };
+      throw unavailable;
+    }
+  }
 
   if (!response.ok) {
     throw normalizeStudentApiError(json, response.status);

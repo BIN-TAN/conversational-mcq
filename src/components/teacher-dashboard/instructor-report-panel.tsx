@@ -13,6 +13,7 @@ import type {
   StoredInstructorReportLegacy,
   StoredInstructorReportV8
 } from "@/lib/services/instructor-report/service";
+import { SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
 // Instructor reporting module (D8, docs/DESIGN_ALIGNMENT_2026-10-17.md; section 9.7 of
 // docs/AI_MODULE_REDESIGN_2026-10-19.md). Every count is computed by the application, with
@@ -75,7 +76,8 @@ export function InstructorReportPanel({ assessmentPublicId }: { assessmentPublic
         cache: "no-store",
         signal
       });
-      const body = await response.json();
+      const body = await response.json().catch(() => null);
+      if (!body) throw new Error(SERVER_UNAVAILABLE_MESSAGE);
       if (!response.ok) throw new Error(body.error?.message ?? "The instructor report could not be loaded.");
       setStatus(body.instructor_report);
     } catch (caught) {
@@ -99,7 +101,8 @@ export function InstructorReportPanel({ assessmentPublicId }: { assessmentPublic
         method: "POST",
         cache: "no-store"
       });
-      const body = await response.json();
+      const body = await response.json().catch(() => null);
+      if (!body) throw new Error(SERVER_UNAVAILABLE_MESSAGE);
       if (!response.ok) throw new Error(body.error?.message ?? "The instructor report could not be generated.");
       setStatus(body.instructor_report);
     } catch (caught) {
