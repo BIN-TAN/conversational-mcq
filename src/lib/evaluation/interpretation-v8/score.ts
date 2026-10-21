@@ -49,8 +49,12 @@ export const GO_LIVE_THRESHOLDS = {
   feedback_focus_acceptable: 0.9,
   feedback_strategy_acceptable: 0.9,
   feedback_review_flag_acceptable: 0.9,
-  /** Feedback v8.2 language rule: share of delivered messages with a stock phrase. */
-  feedback_stock_phrase_max: 0.05
+  /**
+   * Feedback v8.2 language rule: share of delivered messages with a stock phrase. The
+   * researcher set 25%: the prompt forbids stock phrases, the report lists every one, and the
+   * gate stops only a prompt that uses them routinely.
+   */
+  feedback_stock_phrase_max: 0.25
 } as const;
 
 /** What one response is expected to lead to (from the fixtures or the human reference). */

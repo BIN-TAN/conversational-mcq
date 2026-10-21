@@ -412,7 +412,7 @@ async function main() {
     assert.deepEqual(stockPhrases("Great question! Let\u2019s dive in. I hope this helps."), ["great question", "let\u2019s dive in", "i hope this helps"]);
     assert.deepEqual(stockPhrases("Your explanation for Question 2 treats the mean as a measure of spread. You can ask about this or anything else, or stop here."), []);
     assert.deepEqual(stockPhrases("A good question to ask yourself is which value changes."), [], "Only the stock opener, not the words in a sentence");
-    assert.ok(GO_LIVE_THRESHOLDS.feedback_stock_phrase_max <= 0.05);
+    assert.equal(GO_LIVE_THRESHOLDS.feedback_stock_phrase_max, 0.25, "The researcher's threshold for messages with a stock phrase");
   });
 
   console.log(`interpretation-v8-evaluation-unit-test: ${checks} checks passed`);
