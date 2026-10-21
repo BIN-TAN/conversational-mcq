@@ -64,7 +64,11 @@ workflow, or a new import with a distinct assessment title/content.
 
 ## Format
 
-`schema_version` is `mini-test-import-v1`. One file represents one related mini test:
+`schema_version` is `mini-test-import-v1`. One file represents one mini test on one topic.
+The sample items follow the item builder's item-writing rules: one idea per item, a stem
+answerable before the options, a short new case, parallel options of similar length with
+one fully correct key, distractors from plausible reasoning, no absolute giveaway words, and a
+low reading load. The file contains:
 
 - `assessment`: title, optional diagnostic focus and folder label.
 - `design` (optional): the existing `evidence-centered-item-design-v1` blueprint,

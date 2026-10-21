@@ -24,8 +24,12 @@
       {
         "misconception_id": "reliability_proves_validity",
         "statement": "High reliability is sufficient to establish validity for any use.",
-        "linked_objective_ids": ["interpret_evidence"],
-        "student_language_examples": ["A reliable test must be valid."],
+        "linked_objective_ids": [
+          "interpret_evidence"
+        ],
+        "student_language_examples": [
+          "A reliable test must be valid."
+        ],
         "why_plausible": "Students may conflate consistency with the meaning or appropriateness of a score interpretation."
       }
     ],
@@ -33,88 +37,134 @@
     "generation_settings": {
       "target_item_count": 3,
       "option_count": 4,
-      "difficulty_mix": ["foundational", "analyzing", "evaluating"],
-      "context_notes": "Treat distractor choices as hypotheses requiring reasoning evidence, not diagnoses."
+      "difficulty_mix": [
+        "foundational",
+        "analyzing",
+        "evaluating"
+      ],
+      "context_notes": "Treat distractor choices as hypotheses requiring reasoning evidence, not diagnoses. Keep the reading load low: short stems, plain wording and only the context each question needs."
     }
   },
   "items": [
     {
       "item_label": "Internal consistency",
-      "stem": "A scale has high internal consistency in a sample. Which conclusion is best supported by that result alone?",
+      "stem": "A class quiz shows high internal consistency (alpha = .90) in this year's class. What does this result alone tell the teacher?",
       "options": [
-        { "label": "A", "text": "The scale is valid for every intended use." },
-        { "label": "B", "text": "The item scores show consistency, but validity requires further evidence." },
-        { "label": "C", "text": "Every student's observed score is exact." },
-        { "label": "D", "text": "The scale must have the same reliability in every population." }
+        {
+          "label": "A",
+          "text": "The quiz scores support every planned use."
+        },
+        {
+          "label": "B",
+          "text": "The items gave consistent results in this class."
+        },
+        {
+          "label": "C",
+          "text": "Each student's score has no measurement error."
+        },
+        {
+          "label": "D",
+          "text": "The quiz will be just as consistent in any class."
+        }
       ],
       "key": "B",
-      "target_reasoning_note": "Distinguish score consistency from validity of an interpretation.",
+      "target_reasoning_note": "Distinguish score consistency from the validity of a score interpretation.",
       "essential_elements": [
-        "Internal consistency describes how consistently the items work together in this sample.",
+        "Internal consistency describes how consistently the items worked together in this class.",
         "Consistency alone does not establish what the scores mean or whether a use is justified."
       ],
       "distractor_rationales": {
-        "A": "Treats high reliability as evidence that the scores are valid for any use.",
-        "C": "Treats a reliable scale as giving exact individual scores, overlooking measurement error.",
-        "D": "Treats reliability as a fixed property of the scale rather than of scores from a particular population."
+        "A": "Treats high reliability as evidence that the scores support any use.",
+        "C": "Treats a reliable quiz as giving exact individual scores, overlooking measurement error.",
+        "D": "Treats reliability as a fixed property of the quiz rather than of scores from a particular group."
       },
       "idea_labels": {
         "A": "reliability = validity",
         "C": "scores are exact",
         "D": "reliability is fixed"
       },
-      "objective_ids": ["interpret_evidence"],
-      "misconception_hypothesis_ids": ["reliability_proves_validity"],
+      "objective_ids": [
+        "interpret_evidence"
+      ],
+      "misconception_hypothesis_ids": [
+        "reliability_proves_validity"
+      ],
       "cognitive_demand": "analyze",
       "source_reference": "Teacher-editable sample, item 1"
     },
     {
       "item_label": "Score uncertainty",
-      "stem": "What does the standard error of measurement help describe?",
+      "stem": "Maya scores 72 on a test with a standard error of measurement (SEM) of 4. What does the 4 describe?",
       "options": [
-        { "label": "A", "text": "Whether every item measures the intended construct." },
-        { "label": "B", "text": "The exact true score of each student." },
-        { "label": "C", "text": "Measurement uncertainty associated with a score." },
-        { "label": "D", "text": "Whether a test is appropriate for any population." }
+        {
+          "label": "A",
+          "text": "How well the items measure the intended skill"
+        },
+        {
+          "label": "B",
+          "text": "How far Maya's score is from the class mean"
+        },
+        {
+          "label": "C",
+          "text": "How much error Maya's score of 72 may contain"
+        },
+        {
+          "label": "D",
+          "text": "How suitable the test is for other groups"
+        }
       ],
       "key": "C",
-      "target_reasoning_note": "Recognize that observed scores involve measurement uncertainty.",
+      "target_reasoning_note": "Recognize that an observed score carries measurement error, which the SEM describes.",
       "essential_elements": [
-        "The SEM describes the uncertainty around an observed score.",
-        "An observed score does not reveal a student's exact true score."
+        "The SEM describes how much an observed score may differ from the true score.",
+        "Maya's true score is likely near 72, but it is not known exactly."
       ],
       "distractor_rationales": {
-        "A": "Confuses evidence about score precision with evidence about what the items measure.",
-        "B": "Treats the observed score as the exact true score.",
-        "D": "Treats a precision statistic as evidence that the test suits any population."
+        "A": "Confuses score precision with evidence about what the items measure.",
+        "B": "Confuses the standard error of measurement with the spread of scores across students.",
+        "D": "Treats a precision statistic as evidence that the test suits other groups."
       },
       "idea_labels": {
         "A": "reliability = validity",
-        "B": "scores are exact",
+        "B": "SEM = spread of scores",
         "D": "evidence transfers to any use"
       },
-      "objective_ids": ["interpret_evidence"],
+      "objective_ids": [
+        "interpret_evidence"
+      ],
       "misconception_hypothesis_ids": [],
-      "cognitive_demand": "understand",
+      "cognitive_demand": "apply",
       "source_reference": "Teacher-editable sample, item 2"
     },
     {
       "item_label": "New test use",
-      "stem": "A test developed for course placement is proposed for professional certification. What is the most defensible next step?",
+      "stem": "A test built for course placement is proposed for licensing nurses. What should happen first?",
       "options": [
-        { "label": "A", "text": "Evaluate evidence supporting the proposed certification interpretation and use." },
-        { "label": "B", "text": "Approve the new use if internal consistency is high." },
-        { "label": "C", "text": "Assume placement evidence automatically supports certification." },
-        { "label": "D", "text": "Reject every test originally developed for a different purpose." }
+        {
+          "label": "A",
+          "text": "Collect evidence for the licensing use"
+        },
+        {
+          "label": "B",
+          "text": "Use it if its reliability is high"
+        },
+        {
+          "label": "C",
+          "text": "Use it because placement worked well"
+        },
+        {
+          "label": "D",
+          "text": "Reject it because of its original purpose"
+        }
       ],
       "key": "A",
-      "target_reasoning_note": "Evaluate whether evidence is sufficient for a proposed new use.",
+      "target_reasoning_note": "Evaluate whether there is evidence for a proposed new use of test scores.",
       "essential_elements": [
         "A new use needs evidence for that interpretation, population and use.",
         "Existing evidence neither transfers automatically nor rules the new use out."
       ],
       "distractor_rationales": {
-        "B": "Treats high internal consistency as enough evidence for a new use.",
+        "B": "Treats high reliability as enough evidence for a new use.",
         "C": "Assumes validity evidence for one use carries over to another.",
         "D": "Rejects a new use outright instead of weighing the evidence for it."
       },
@@ -123,8 +173,12 @@
         "C": "evidence transfers to any use",
         "D": "new use always invalid"
       },
-      "objective_ids": ["interpret_evidence"],
-      "misconception_hypothesis_ids": ["reliability_proves_validity"],
+      "objective_ids": [
+        "interpret_evidence"
+      ],
+      "misconception_hypothesis_ids": [
+        "reliability_proves_validity"
+      ],
       "cognitive_demand": "evaluate",
       "source_reference": "Teacher-editable sample, item 3"
     }
