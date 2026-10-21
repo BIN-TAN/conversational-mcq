@@ -10,7 +10,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { MiniTestJsonError, parseMiniTestJsonWithChanges } from "../src/lib/services/content/mini-test-json-contract";
+import { MiniTestJsonError, parseMiniTestJsonWithChanges, type MiniTestJson } from "../src/lib/services/content/mini-test-json-contract";
 import { normalizeMiniTestJson, optionLetter, relaxedJsonText } from "../src/lib/services/content/mini-test-json-normalize";
 import {
   MINI_TEST_JSON_FORMAT_INSTRUCTIONS,
@@ -56,7 +56,7 @@ check("Another structure with other field names is read, and each change is one 
   const messy = {
     title: "Reliability and validity",
     status: "published",
-    questions: sample.items.map((item: Record<string, any>, index: number) => ({
+    questions: sample.items.map((item: MiniTestJson["items"][number], index: number) => ({
       question: item.stem,
       choices: Object.fromEntries(item.options.map((option: { label: string; text: string }) => [option.label.toLowerCase(), option.text])),
       answer: index === 0 ? "b" : index === 1 ? `Option ${item.key}` : "7",
