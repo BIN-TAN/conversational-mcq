@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21T16:23:52.134334+00:00",
+  "updated_at": "2026-10-21T18:20:04.630198+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -4362,6 +4362,102 @@
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\student-plain-language-unit-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\item-preparation-v8-unit-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\docs\\INTERPRETATION_V8_EVALUATION_PLAN.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261021-07",
+      "date": "2026-10-21",
+      "title": "Lenient JSON import with explicit changes and optional assistant formatting",
+      "application_commit": "d64d0b9b4a1c00fa158c27e5225dba8dc116340e",
+      "push_status": "Fast-forwarded origin/main from 1523d1573300883e09a8161bf24de6a45f35914f to d64d0b9b4a1c00fa158c27e5225dba8dc116340e; remote verified at 2026-10-21T18:12:59.9987891Z. Later ledger/Word commit uses [skip render] and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbcg1juktt5c73fbtp9g",
+        "source_commit": "d64d0b9b4a1c00fa158c27e5225dba8dc116340e",
+        "verified_at": "2026-10-21T18:19:56.639Z",
+        "url": "https://conversational-mcq.onrender.com",
+        "evidence": [
+          "Manual specific-commit deployment started 2026-10-21T18:13:35.041Z; Live observed 2026-10-21T18:18:27Z. Prior Live 4f1673e4b359ac4eb38644f89f00ec0cceda5692 remains the rollback target. No rollback required.",
+          "Read-only runtime check 2026-10-21T18:19:33.800Z: exact commit, HTTP 200, schema ready, one preparation worker, operational approval valid, unchanged approved interpretation and feedback paths. No model generation or student-record write.",
+          "Auto-Deploy remained Off. No Render variable changed. Item preparation and instructor report approval variables remain unset. First-minutes logs show no release-related error."
+        ]
+      },
+      "summary": "Teacher JSON import now accepts safe alternate layouts and lists every adjustment. Ambiguous or invalid files can be formatted by an audited, replayable teacher-authoring call before review. Wording and stated-key provenance remain protected. No student-facing, prompt-hash, schema or migration change.",
+      "changes": [
+        {
+          "area": "Safe JSON normalization",
+          "problem": "A safely interpretable alternate field layout previously stopped import.",
+          "fix": "Normalize trailing commas/comments, field aliases, bare lists, option layouts/case, stated key syntax, notes, design links and bounds; report all changes. Ignore named unknown/protected fields. Leave a nonmatching key blank. Reject repeated option letters, missing stems, too few options and overlong text.",
+          "impact": "Valid files retain byte identity. Adjusted batches retain format_changes and the adjusted source; no student data changes."
+        },
+        {
+          "area": "Assistant formatting and import page",
+          "problem": "Files beyond deterministic normalization need a reviewable conversion.",
+          "fix": "Teacher route accepts JSON/text, calls mini-test-json-format-v1 with mini-test-json-format-output-v1, preserves wording, never invents a key, and lists changes/unreadable entries. Audit and replay the same file, without creating items until the instructor continues and confirms later.",
+          "impact": "Nothing saved refers to no item storage at formatting time; agent_calls audit rows are saved. Teacher authoring is not gated by the item-preparation approval hash. Files over 400,000 characters are refused."
+        },
+        {
+          "area": "Verification-only correction",
+          "problem": "New lenient JSON unit test used explicit any and caused one lint error; baseline lint passed.",
+          "fix": "Use MiniTestJson[\"items\"][number] in the fixture callback. Assertions and behavior are unchanged.",
+          "impact": "Initial failure and correction are preserved. All required checks repeated after the fix."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Branch, bundle and dependencies",
+          "result": "PASS",
+          "detail": "Build A selected from run 8 Live. Bundle verified; clean cherry-pick 4dc3b8ab2823aa68a195ac50f5753eab839dc629. No conflict. Package manifests, Prisma schema and migrations unchanged."
+        },
+        {
+          "name": "Initial standard checks",
+          "result": "17 PASS; lint FAIL",
+          "detail": "One new explicit-any error in prisma/mini-test-json-lenient-unit-test.ts. Baseline lint had zero errors and 10 warnings. Minimal test-only fix d64d0b9 followed; no application behavior changed."
+        },
+        {
+          "name": "Repeated standard and redesign",
+          "result": "18 steps and 189 checks PASS",
+          "detail": "Typecheck, lint, database smoke checks, dictionaries, design alignment and production build passed. Lint retains 11 nonblocking warnings; scripted review retains one non-high issue and no high issue."
+        },
+        {
+          "name": "Focused and further database checks",
+          "result": "PASS",
+          "detail": "Lenient parser 10 checks; item-preparation 23 checks; format smoke verifies stub-provider audit/replay and staging without item creation; JSON import smoke and all nine run-8 further scripts pass. Local synthetic databases only."
+        },
+        {
+          "name": "Exact Lecture 4 file and hashes",
+          "result": "PASS",
+          "detail": "Five items; 1,462 context-note characters; zero adjustments; byte-identical normalized source. Interpretation and feedback hashes match run 8, as does operational approval. No live evaluation or formatting call in this release phase."
+        },
+        {
+          "name": "Local built-app browser",
+          "result": "PASS after local harness correction",
+          "detail": "Mock provider with outbound network guard: alternate questions/choices/answer file shows eight adjustments; invalid JSON shows assistant-format button, which was not clicked. No console warning/error. Initial local login returned 503 because the temporary harness session secret was too short; corrected only the ignored harness, restarted, and removed both synthetic accounts after checks. Screenshots saved. One screenshot API timed out; documented full-page capture succeeded."
+        }
+      ],
+      "data_impact": [
+        "No student data, student flow, response text, historical records, export columns, schema, migration or derivation changes. No backfill or retrospective relabelling.",
+        "Teacher formatting adds mini-test-json-format-v1 calls and mini-test-json-format-output-v1 outputs to agent_calls with same-file replay. These are authoring records, not student observations.",
+        "JSON batches record validation_summary.source_context.format_changes. Adjusted files are stored in adjusted form, so original_source_text holds the adjusted item. Valid unchanged input retains prior identity.",
+        "No Render variable or existing prompt approval hash changed. Production verification is read-only and invokes no model."
+      ],
+      "limitations": [
+        "Assistant formatting was tested with a stub locally, not a live model during the release phase. The separately authorized browser acceptance test follows this release and must report its own results.",
+        "Instructor checklist: upload the exact Lecture 4 JSON through Import items / JSON and continue to item review. For an alternate layout inspect Adjusted to the import format; if assistant formatting is offered, verify wording and explicitly stated keys before continuing.",
+        "Existing nonblocking lint warnings and one non-high scripted-review issue remain. Run 8 evaluation limitations remain applicable; this release does not reevaluate student prompts."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mini-test-json-normalize.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mini-test-json-contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mini-test-json-import.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\mini-test-json-format.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\app\\api\\teacher\\content\\import-json\\format\\route.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\mini-test-json-lenient-unit-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\mini-test-json-format-smoke-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\docs\\MINI_TEST_JSON_IMPORT.md"
       ]
     }
   ],
