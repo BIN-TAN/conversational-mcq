@@ -125,7 +125,10 @@ function assertInitialPromptVariation() {
     itemRole: "initial",
     selectedOption: "E"
   }).prompt_text;
-  assert(/A-D option/.test(selectedETemptingPrompt), "E-selected tempting prompt should ask only about A-D options.");
+  assert(
+    /answer options/.test(selectedETemptingPrompt) && /which one/.test(selectedETemptingPrompt) && /say No/.test(selectedETemptingPrompt),
+    "E-selected tempting prompt should ask about a possible answer option and allow No in plain language."
+  );
 }
 
 function assertMultilingualResponseQuality() {
