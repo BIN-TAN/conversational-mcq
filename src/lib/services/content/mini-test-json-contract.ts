@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ItemDesignBlueprintSchema } from "./item-design-contract";
+import { normalizeMiniTestJson, relaxedJsonText } from "./mini-test-json-normalize";
 
 export const MINI_TEST_JSON_VERSION = "mini-test-import-v1" as const;
 export const MINI_TEST_JSON_MAX_BYTES = 2_000_000;
@@ -93,17 +94,50 @@ export const MiniTestJsonSchema = z.object({
 export type MiniTestJson = z.infer<typeof MiniTestJsonSchema>;
 
 export function parseMiniTestJson(text: string): MiniTestJson {
+  return parseMiniTestJsonWithChanges(text).document;
+}
+
+/** Thrown when a file cannot be imported as it is; `syntax` is true when it is not valid JSON at all. */
+export class MiniTestJsonError extends Error {
+  constructor(message: string, readonly syntax: boolean, readonly changes: string[] = []) {
+    super(message);
+    this.name = "MiniTestJsonError";
+  }
+}
+
+/**
+ * Reads a mini-test file leniently: small syntax slips (trailing commas, comments) and format
+ * differences with one safe reading are fixed (mini-test-json-normalize.ts), and each fix is
+ * returned as a sentence for the instructor. What remains is reported in plain sentences.
+ */
+export function parseMiniTestJsonWithChanges(text: string): { document: MiniTestJson; changes: string[]; normalized_text: string } {
   if (new TextEncoder().encode(text).byteLength > MINI_TEST_JSON_MAX_BYTES) {
-    throw new Error("The JSON file must be 2 MB or smaller.");
+    throw new MiniTestJsonError("The JSON file must be 2 MB or smaller.", false);
   }
+  const source = text.replace(/^\uFEFF/, "");
+  const changes: string[] = [];
   let value: unknown;
-  try { value = JSON.parse(text.replace(/^\uFEFF/, "")); }
-  catch { throw new Error("Invalid JSON. Check commas, quotation marks, and brackets."); }
-  const parsed = MiniTestJsonSchema.safeParse(value);
-  if (!parsed.success) {
-    throw new Error(parsed.error.issues.slice(0, 8).map(miniTestJsonIssueText).join("\n"));
+  try {
+    value = JSON.parse(source);
+  } catch {
+    const relaxed = relaxedJsonText(source);
+    try {
+      if (!relaxed.changed) throw new Error("unchanged");
+      value = JSON.parse(relaxed.text);
+      changes.push("Removed trailing commas or comments, which JSON does not allow.");
+    } catch (error) {
+      const detail = error instanceof SyntaxError ? ` (${error.message.replace(/^JSON\.parse: /, "")})` : "";
+      throw new MiniTestJsonError(`This is not valid JSON${detail}. Check commas, quotation marks and brackets, or let the assistant format the file.`, true);
+    }
   }
-  return parsed.data;
+  const normalized = normalizeMiniTestJson(value);
+  changes.push(...normalized.changes);
+  const parsed = MiniTestJsonSchema.safeParse(normalized.value);
+  if (!parsed.success) {
+    throw new MiniTestJsonError(parsed.error.issues.slice(0, 8).map(miniTestJsonIssueText).join("\n"), false, changes);
+  }
+  // The file as read, in the import format: used downstream instead of the original when anything changed.
+  return { document: parsed.data, changes, normalized_text: changes.length ? JSON.stringify(normalized.value) : source };
 }
 
 const count = (value: number | bigint) => Number(value).toLocaleString("en-US");

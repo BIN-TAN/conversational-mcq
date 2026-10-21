@@ -236,9 +236,17 @@ async function main() {
     const olderDocument = contract.parseMiniTestJson(JSON.stringify({ ...sample, items: [older] }));
     assert.equal(olderDocument.items[0].strong_reasoning_should_mention, "Older text");
     assert.deepEqual(notes.optionRationalesFromRecords(olderDocument.items[0]), []);
-    rejects({ strong_reasoning_should_mention: "Both" }, /essential_elements or strong_reasoning_should_mention, not both/);
-    rejects({ distractor_rationales: { B: "The key" } }, /The key needs no distractor rationale/);
-    rejects({ distractor_rationales: { F: "Missing option" } }, /Option F does not exist/);
+    // Differences with one safe reading are adjusted and reported, not rejected (release 07).
+    const adjusted = (item: Record<string, unknown>) => contract.parseMiniTestJsonWithChanges(jsonDocument(item));
+    const both = adjusted({ strong_reasoning_should_mention: "Both" });
+    assert.equal(both.document.items[0].strong_reasoning_should_mention, undefined);
+    assert.match(both.changes.join(" "), /kept essential_elements and ignored strong_reasoning_should_mention/);
+    const keyNote = adjusted({ distractor_rationales: { ...sample.items[0].distractor_rationales, B: "The key" } });
+    assert.equal(keyNote.document.items[0].distractor_rationales?.B, undefined);
+    assert.match(keyNote.changes.join(" "), /ignored the note for the key \(B\)/);
+    const missing = adjusted({ distractor_rationales: { ...sample.items[0].distractor_rationales, F: "Missing option" } });
+    assert.equal(missing.document.items[0].distractor_rationales?.F, undefined);
+    assert.match(missing.changes.join(" "), /ignored the note for option F, which the item does not have/);
     rejects({ essential_elements: ["1", "2", "3", "4"] }, /essential_elements/);
     rejects({ idea_labels: { A: "x".repeat(61) } }, /idea_labels/);
   });
@@ -250,10 +258,12 @@ async function main() {
       "A Lecture 4 design with 1,462 characters of notes imports");
     assert.throws(() => contract.parseMiniTestJson(withNotes(4001)),
       /design\.generation_settings\.context_notes: this text is longer than the 4,000-character limit\. Shorten it and try again\.$/);
-    rejects({ extra_field: 1 }, /Item 1: the field "extra_field" is not part of the format\. Check the spelling or remove it\.$/);
+    assert.deepEqual(contract.parseMiniTestJsonWithChanges(jsonDocument({ extra_field: 1 })).changes,
+      ['Ignored the field "extra_field" (item 1); the import format does not use it.']);
     rejects({ options: [{ label: "A", text: "Only one" }] }, /Item 1, options: this list needs at least 2 entries\./);
-    assert.throws(() => contract.parseMiniTestJson(JSON.stringify({ ...sample, assessment: { ...sample.assessment, title: undefined } })),
-      /assessment\.title: this field is required\.$/);
+    const untitled = contract.parseMiniTestJsonWithChanges(JSON.stringify({ ...sample, assessment: { ...sample.assessment, title: undefined } }));
+    assert.equal(untitled.document.assessment.title, sample.design.section_topic, "A missing title takes the design topic");
+    rejects({ stem: undefined }, /Item 1, stem: this field is required\./);
   });
 
   await check("Workbook and spreadsheet columns: rationale_x, idea_label_x and essential_elements", () => {

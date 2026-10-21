@@ -46,6 +46,52 @@ publication validation still blocks incomplete content.
 The older per-assessment XLSX importer now rejects multiple visible worksheets
 and points teachers to this workbook workflow instead of reading only one sheet.
 
+## Files that do not match the format exactly (release CMCQ-20261021-07)
+
+JSON files written by hand or by other tools rarely match the format exactly. The import reads
+them leniently (`src/lib/services/content/mini-test-json-normalize.ts`) and lists every adjustment
+in the summary panel under "Adjusted to the import format". It adjusts only what has one safe
+reading:
+
+- trailing commas and comments outside strings;
+- other names for fields: `question` or `prompt` for `stem`, `choices` or `answers` for `options`,
+  `answer` or `correct_answer` for `key`, `explanation` for `target_reasoning_note`, `questions` for
+  `items`, and a title at the top level;
+- a file that is only a list of items;
+- options given as letter and text pairs, as plain strings, with lower-case or bracketed letters, or
+  numbered 1, 2, 3 (lettered A, B, C in order);
+- keys such as `b`, `(B)`, `Option B` or the option's exact text;
+- essential elements given as text, and notes given as lists;
+- a note for the key, which becomes the target reasoning note when that is empty;
+- notes for options the item does not have;
+- links to objectives or misconceptions that are not in the file's design;
+- cognitive demand words such as `Analysis`;
+- draft settings outside their range.
+
+Fields the format does not use are ignored and named. This includes fields the application sets
+itself, such as a status or a confirmed key, so they are never applied. Wording is never changed
+or shortened. A key that does not match an option is left blank for the instructor to confirm.
+The adjusted file, not the original, is passed to item review. The adjustments are kept with the
+review batch (`validation_summary.source_context.format_changes`).
+
+What has no safe reading still stops the import, with one plain sentence per problem naming the
+item or field. Examples are repeated option letters, a missing stem, fewer than two options,
+over-long text and invalid JSON beyond trailing commas.
+
+For those files, **Let the assistant format this file** sends the text to the item-preparation
+model (`mini-test-json-format-v1`, `formatMiniTestJsonWithAssistant` in `item-design.ts`, route
+`POST /api/teacher/content/import-json/format`).
+
+- The model copies every title, stem, option, note and design entry word for word.
+- It sets a key only where the file states one.
+- It lists what it changed, and the entries it could not read.
+- Nothing is saved: the formatted JSON replaces the text on the page, with the list of changes,
+  and the instructor checks it before continuing.
+- The call is audited in `agent_calls`, and the same file returns the same result without a new
+  call.
+- Files over 400,000 characters are split by the instructor.
+- This is teacher authoring and is not hash-gated.
+
 ## Current workflow
 
 1. Load or paste a file. Local validation and a readable summary do not create records.

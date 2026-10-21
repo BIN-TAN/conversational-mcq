@@ -70,6 +70,18 @@ import {
 } from "./item-design-materials";
 import { executeItemDesignMultimodalStructured } from "./item-design-multimodal-provider";
 import { createExistingItemsReviewBatch, createGeneratedMcqReviewBatch } from "./mcq-import";
+import { MiniTestJsonError, parseMiniTestJsonWithChanges } from "./mini-test-json-contract";
+import {
+  MINI_TEST_JSON_FORMAT_INSTRUCTIONS,
+  MINI_TEST_JSON_FORMAT_MAX_CHARACTERS,
+  MINI_TEST_JSON_FORMAT_MAX_ITEMS,
+  MINI_TEST_JSON_FORMAT_PROMPT_HASH,
+  MINI_TEST_JSON_FORMAT_PROMPT_VERSION,
+  MINI_TEST_JSON_FORMAT_SCHEMA_VERSION,
+  MiniTestJsonFormatOutputSchema,
+  miniTestJsonFromFormatOutput,
+  type MiniTestJsonFormatOutput
+} from "./mini-test-json-format";
 
 const ITEM_GENERATION_AGENT_NAME = "mcq_diagnostic_authoring_assistant_agent" as const;
 const ITEM_DESIGN_ASSISTANT_AGENT_VERSION = "evidence-centered-blueprint-authoring-v3" as const;
@@ -2429,5 +2441,133 @@ export async function importExistingItemsFromMaterials(input: {
     skipped_count: output.skipped.length,
     other_topic_count: otherTopicCount,
     replayed: batch.replayed
+  };
+}
+
+/**
+ * The assistant puts an instructor's mini-test file into the import format when the lenient reading
+ * cannot import it. Nothing is saved: the result goes back to the import page, where the instructor
+ * reviews it and continues as with any file. The same file returns the same result without a new call.
+ */
+export async function formatMiniTestJsonWithAssistant(input: {
+  teacher_user_db_id: string;
+  source_text: string;
+  file_name: string | null;
+}) {
+  const sourceText = input.source_text.replace(/^\uFEFF/, "");
+  if (!sourceText.trim()) {
+    throw new ContentServiceError("validation_failed", "The file is empty. Choose the file with your items.", 400);
+  }
+  if (sourceText.length > MINI_TEST_JSON_FORMAT_MAX_CHARACTERS) {
+    throw new ContentServiceError(
+      "validation_failed",
+      `This file is too long for the assistant to format at once. Split it into files of about ${MINI_TEST_JSON_FORMAT_MAX_ITEMS / 2} items each.`,
+      413
+    );
+  }
+
+  let provider: LlmProvider;
+  let providerLabel: "mock" | "openai";
+  let modelConfig: AgentModelConfig;
+  let liveCallAllowed: boolean;
+  if (providerOverrideForTest) {
+    provider = providerOverrideForTest.provider;
+    providerLabel = providerOverrideForTest.provider_label ?? "mock";
+    modelConfig = providerOverrideForTest.model_config ?? { model_name: "injected-item-generation-model", max_output_tokens: 7000 };
+    liveCallAllowed = false;
+  } else {
+    try {
+      const runtime = getLlmRuntimeConfig();
+      if (runtime.provider !== "openai" || !runtime.live_calls_enabled) {
+        throw new LlmConfigurationError("mini_test_json_format_live_disabled", "Live formatting is not configured.");
+      }
+      provider = createLlmProvider();
+      providerLabel = "openai";
+      modelConfig = resolveOpenAIModelConfigForRole(ITEM_GENERATION_AGENT_NAME);
+      liveCallAllowed = true;
+    } catch (error) {
+      throw new ContentServiceError(
+        "validation_failed",
+        "The assistant cannot format files right now. Fix the problems listed above, or try the Excel workbook import.",
+        503,
+        { reason_code: error instanceof LlmConfigurationError ? error.code : "mini_test_json_format_unavailable" }
+      );
+    }
+  }
+
+  const teacherHash = createHash("sha256").update(input.teacher_user_db_id).digest("hex").slice(0, 12);
+  const sourceHash = createHash("sha256")
+    .update(`${MINI_TEST_JSON_FORMAT_PROMPT_HASH}\n${sourceText}`)
+    .digest("hex");
+  const invocationKey = `mini_test_json_format:${teacherHash}:${sourceHash.slice(0, 32)}`;
+  const previousCalls = await closeAbandonedCalls(await prisma.agentCall.findMany({
+    where: { agent_invocation_key: { startsWith: invocationKey } },
+    orderBy: { created_at: "desc" }
+  }), ITEM_GENERATION_STALE_CALL_MS);
+  if (previousCalls.some((call) => call.call_status === "started")) {
+    throw new ContentServiceError(
+      "conflict",
+      "The assistant is already formatting this file. Wait for it to finish; if nothing appears within 20 minutes, try again.",
+      409
+    );
+  }
+  const context = {
+    context_version: "mini-test-json-format-context-v1",
+    file_name: input.file_name,
+    file_text: sourceText,
+    required_output: { schema_version: MINI_TEST_JSON_FORMAT_SCHEMA_VERSION, max_items: MINI_TEST_JSON_FORMAT_MAX_ITEMS }
+  };
+  assertNoProhibitedProviderInput(context);
+  const output = await auditedCheckCall<MiniTestJsonFormatOutput>({
+    provider,
+    provider_label: providerLabel,
+    model_config: modelConfig,
+    live_call_allowed: liveCallAllowed,
+    previous_calls: previousCalls,
+    invocation_key: invocationKey,
+    prompt_version: MINI_TEST_JSON_FORMAT_PROMPT_VERSION,
+    prompt_hash: MINI_TEST_JSON_FORMAT_PROMPT_HASH,
+    schema_version: MINI_TEST_JSON_FORMAT_SCHEMA_VERSION,
+    output_schema: MiniTestJsonFormatOutputSchema,
+    instructions: MINI_TEST_JSON_FORMAT_INSTRUCTIONS,
+    context,
+    parse: (value: unknown) => MiniTestJsonFormatOutputSchema.parse(value),
+    purpose: "teacher_mini_test_json_format",
+    timeout_ms: 360_000,
+    min_output_tokens: 32_000
+  });
+  if (!output) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "The assistant could not format this file. Nothing has changed; try again in a minute. If the file has many items, split it into smaller files.",
+      503,
+      { reason_code: "mini_test_json_format_failed" }
+    );
+  }
+  if (output.items.length === 0) {
+    throw new ContentServiceError(
+      "validation_failed",
+      "The assistant found no complete multiple-choice items in this file. An item needs a question and at least two options.",
+      422,
+      { could_not_read: output.could_not_read }
+    );
+  }
+
+  const jsonText = `${JSON.stringify(miniTestJsonFromFormatOutput(output), null, 2)}\n`;
+  let applicationChanges: string[] = [];
+  let remainingProblems: string[] = [];
+  try {
+    applicationChanges = parseMiniTestJsonWithChanges(jsonText).changes;
+  } catch (error) {
+    remainingProblems = error instanceof MiniTestJsonError ? error.message.split("\n") : ["The formatted file could not be checked."];
+    applicationChanges = error instanceof MiniTestJsonError ? error.changes : [];
+  }
+  return {
+    json_text: jsonText,
+    item_count: output.items.length,
+    changes: [...output.changes, ...applicationChanges],
+    could_not_read: output.could_not_read.map((entry) => `${entry.where}: ${entry.reason}`),
+    remaining_problems: remainingProblems,
+    replayed: previousCalls.some((call) => call.call_status === "succeeded" && call.agent_invocation_key === invocationKey)
   };
 }

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { prisma } from "../src/lib/db";
-import { parseMiniTestJson, MINI_TEST_JSON_MAX_BYTES } from "../src/lib/services/content/mini-test-json-contract";
+import { parseMiniTestJson, parseMiniTestJsonWithChanges, MINI_TEST_JSON_MAX_BYTES } from "../src/lib/services/content/mini-test-json-contract";
 import { stageMiniTestJsonImport } from "../src/lib/services/content/mini-test-json-import";
 import { commitMcqItemImport, getMcqItemImportBatch, previewMcqItemImport } from "../src/lib/services/content/mcq-import";
 import { getAssessmentItemDesign, itemDesignBlueprintHash } from "../src/lib/services/content/item-design";
@@ -22,14 +22,20 @@ async function evidenceCounts() {
 async function main() {
   assert.equal(sample.items.length, 3);
   assert.deepEqual(parseMiniTestJson(`\uFEFF${source}`), sample);
-  expectError({ ...sample, status: "published" });
-  expectError({ ...sample, items: [{ ...sample.items[0], teacher_confirmed_key: "B" }] });
-  expectError({ ...sample, items: [{ ...sample.items[0], key: "F" }] });
-  expectError({ ...sample, items: [{ ...sample.items[0], objective_ids: ["unknown"] }] });
+  // Protected or unknown fields are never applied: the lenient reading ignores them and says so.
+  const adjusted = (value: unknown) => parseMiniTestJsonWithChanges(JSON.stringify(value));
+  const published = adjusted({ ...sample, status: "published" });
+  assert(!("status" in published.document) && published.changes.some(change => change.includes('"status"')));
+  const confirmed = adjusted({ ...sample, items: [{ ...sample.items[0], teacher_confirmed_key: "B" }] });
+  assert(!("teacher_confirmed_key" in confirmed.document.items[0]) && confirmed.changes.some(change => change.includes('"teacher_confirmed_key"')));
+  const badKey = adjusted({ ...sample, items: [{ ...sample.items[0], key: "F" }] });
+  assert.equal(badKey.document.items[0].key, null, "A key that is not an option is left for the teacher to confirm");
+  const badLink = adjusted({ ...sample, items: [{ ...sample.items[0], objective_ids: ["unknown"] }] });
+  assert.deepEqual(badLink.document.items[0].objective_ids, []);
   expectError({ ...sample, items: [{ ...sample.items[0], options: [sample.items[0].options[0], sample.items[0].options[0]] }] });
   assert.throws(() => parseMiniTestJson("x".repeat(MINI_TEST_JSON_MAX_BYTES + 1)));
   assert.throws(() => parseMiniTestJson("{broken"));
-  checks.push("sample, BOM, invalid JSON, size, keys, labels, references, and protected fields");
+  checks.push("sample, BOM, invalid JSON, size, repeated labels; protected fields, unknown keys and links ignored and reported");
   const before = await evidenceCounts();
   for (let i = 0; i < 3; i++) {
     const id = `json_import_${randomUUID()}`;

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ContentServiceError } from "./errors";
-import { parseMiniTestJson } from "./mini-test-json-contract";
+import { parseMiniTestJsonWithChanges } from "./mini-test-json-contract";
 import { createMcqImportReviewBatch } from "./mcq-import";
 import { mergeTopicDiagnosticNoteIntoRules } from "./teacher-diagnostic-context";
 
@@ -37,9 +37,10 @@ export async function withImportTransaction<T>(operation: (tx: Prisma.Transactio
 }
 
 export async function stageMiniTestDocument(tx: Prisma.TransactionClient, input: StageInput) {
-  let document;
-  try { document = parseMiniTestJson(input.source_text); }
+  let read;
+  try { read = parseMiniTestJsonWithChanges(input.source_text); }
   catch (error) { throw new ContentServiceError("validation_failed", error instanceof Error ? error.message : "This is not a valid mini-test JSON file. Compare it with the sample file.", 400); }
+  const document = read.document;
   const documentHash = hash(stableJson(input.source_context ? { document, source: input.source_context } : document));
   // Content-addressed, teacher-scoped identity makes retries and double clicks reuse one review.
   const assessmentPublicId = `asmt_json_${hash(`${input.teacher_user_db_id}\0${documentHash}`).slice(0, 32)}`;
@@ -85,10 +86,10 @@ export async function stageMiniTestDocument(tx: Prisma.TransactionClient, input:
   } });
   const batch = await createMcqImportReviewBatch({
     teacher_user_db_id: input.teacher_user_db_id, assessment_db_id: assessment.id,
-    data: { source_type: "project_json", source_text: input.source_text,
+    data: { source_type: "project_json", source_text: read.normalized_text,
       source_file_name: input.source_file_name, assisted_parsing_requested: false },
     source_context: { schema_version: document.schema_version, canonical_document_hash: documentHash,
-      require_confirmed_keys: true,
+      require_confirmed_keys: true, format_changes: read.changes,
       assessment: document.assessment, design: design ?? null, blueprint_hash: blueprintHash, ...input.source_context },
     candidate_contexts: input.candidate_contexts
   }, tx);

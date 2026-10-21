@@ -2,9 +2,9 @@
 
 import { FormEvent, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight, FileDown, FileJson, Upload } from "lucide-react";
+import { ArrowRight, FileDown, FileJson, Sparkles, Upload } from "lucide-react";
 import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
-import { MINI_TEST_JSON_MAX_BYTES, MINI_TEST_JSON_SAMPLE_URL, parseMiniTestJson } from "@/lib/services/content/mini-test-json-contract";
+import { MINI_TEST_JSON_MAX_BYTES, MINI_TEST_JSON_SAMPLE_URL, parseMiniTestJsonWithChanges } from "@/lib/services/content/mini-test-json-contract";
 import { apiRequest, errorFromUnknown } from "./api";
 import type { StructuredApiError } from "./types";
 import { Button, ErrorPanel, PageHeader } from "./ui";
@@ -19,11 +19,17 @@ export function ImportJsonClient() {
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [formatting, setFormatting] = useState(false);
+  const [assistantResult, setAssistantResult] = useState<{ changes: string[]; could_not_read: string[]; remaining_problems: string[] } | null>(null);
   const { allowNavigation } = useUnsavedChanges(Boolean(jsonText) && !submitted);
   const parsed = useMemo(() => {
-    if (!jsonText.trim()) return { document: null, message: null };
-    try { return { document: parseMiniTestJson(jsonText), message: null }; }
-    catch (caught) { return { document: null, message: caught instanceof Error ? caught.message : "Invalid JSON." }; }
+    if (!jsonText.trim()) return { document: null, changes: [] as string[], message: null };
+    try {
+      const read = parseMiniTestJsonWithChanges(jsonText);
+      return { document: read.document, changes: read.changes, message: null };
+    } catch (caught) {
+      return { document: null, changes: [] as string[], message: caught instanceof Error ? caught.message : "This file could not be read." };
+    }
   }, [jsonText]);
   const document = parsed.document;
 
@@ -37,7 +43,7 @@ export function ImportJsonClient() {
     try {
       const response = await fetch(MINI_TEST_JSON_SAMPLE_URL);
       if (!response.ok) throw new Error("The sample could not be loaded. Please try again.");
-      setJsonText(await response.text()); setFileName("mini-test-import.json");
+      setJsonText(await response.text()); setFileName("mini-test-import.json"); setAssistantResult(null);
     } catch (caught) { setError(errorFromUnknown(caught)); }
     finally { setBusy(false); }
   }
@@ -47,11 +53,25 @@ export function ImportJsonClient() {
     if (!canReplace()) return;
     setBusy(true); setError(null);
     try {
-      if (!file.name.toLowerCase().endsWith(".json")) throw new Error("Choose a .json file.");
-      if (file.size > MINI_TEST_JSON_MAX_BYTES) throw new Error("The JSON file must be 2 MB or smaller.");
-      setJsonText(await file.text()); setFileName(file.name);
+      if (!/\.(json|txt)$/i.test(file.name)) throw new Error("Choose a .json file (or a .txt file that holds JSON).");
+      if (file.size > MINI_TEST_JSON_MAX_BYTES) throw new Error("The file must be 2 MB or smaller.");
+      setJsonText(await file.text()); setFileName(file.name); setAssistantResult(null);
     } catch (caught) { setError(errorFromUnknown(caught)); }
     finally { setBusy(false); }
+  }
+
+  async function formatWithAssistant() {
+    if (!jsonText.trim() || busy) return;
+    setError(null); setBusy(true); setFormatting(true);
+    try {
+      const result = await apiRequest<{ json_text: string; changes: string[]; could_not_read: string[]; remaining_problems: string[] }>(
+        `/api/teacher/content/import-json/format${fileName ? `?filename=${encodeURIComponent(fileName)}` : ""}`,
+        { method: "POST", body: jsonText }
+      );
+      setJsonText(result.json_text);
+      setAssistantResult({ changes: result.changes, could_not_read: result.could_not_read, remaining_problems: result.remaining_problems });
+    } catch (caught) { setError(errorFromUnknown(caught)); }
+    finally { setBusy(false); setFormatting(false); }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -83,7 +103,7 @@ export function ImportJsonClient() {
       <ErrorPanel error={error} />
       <form className="space-y-6" onSubmit={onSubmit}>
         <div className="flex flex-wrap items-center gap-3">
-          <input ref={fileInput} type="file" accept=".json,application/json" className="hidden" disabled={busy} aria-label="JSON file"
+          <input ref={fileInput} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" disabled={busy} aria-label="JSON file"
             onChange={event => { void loadFile(event.target.files?.[0]); event.target.value = ""; }} />
           <Button type="button" variant="secondary" disabled={busy} onClick={() => fileInput.current?.click()}>
             <Upload className="h-4 w-4" aria-hidden="true" />Upload JSON
@@ -91,7 +111,7 @@ export function ImportJsonClient() {
           <Button type="button" variant="secondary" disabled={busy} onClick={() => void loadSample()}>
             <FileJson className="h-4 w-4" aria-hidden="true" />Use sample
           </Button>
-          <span className="min-w-0 break-all text-sm text-muted">{fileName ?? "JSON files up to 2 MB"}</span>
+          <span className="min-w-0 break-all text-sm text-muted">{fileName ?? "JSON files up to 2 MB, in the sample's format or any similar structure"}</span>
         </div>
         <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)]">
           <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-ink">
@@ -115,12 +135,45 @@ export function ImportJsonClient() {
               {document.design ? <div className="space-y-2 border-t border-line pt-4 text-sm"><h3 className="font-semibold">{document.design.section_topic}</h3>
                 <ul className="list-disc space-y-2 pl-5">{document.design.objectives.map(objective => <li key={objective.objective_id}>{objective.statement}</li>)}</ul>
               </div> : <p className="text-sm text-muted">No assessment design supplied.</p>}
+              {parsed.changes.length > 0 ? (
+                <details className="border-t border-line pt-4 text-sm" open={parsed.changes.length <= 4}>
+                  <summary className="cursor-pointer font-semibold text-ink">Adjusted to the import format ({parsed.changes.length})</summary>
+                  <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">{parsed.changes.map(change => <li key={change}>{change}</li>)}</ul>
+                </details>
+              ) : null}
               <p className="text-sm text-muted">Draft only. Answer keys require your confirmation before items are added.</p>
               {document.items.length > 12 ? <p className="text-sm text-amber-800">Select 3-12 items for this mini test during review.</p> : null}
-            </> : <p className="text-sm text-muted">{jsonText.trim() ? "Fix the JSON validation errors to continue." : "No file selected."}</p>}
+            </> : <p className="text-sm text-muted">{jsonText.trim() ? "This file cannot be imported as it is. Fix the problems below, or let the assistant format it." : "No file selected."}</p>}
           </aside>
         </div>
-        {parsed.message ? <p id="json-validation" role="alert" className="whitespace-pre-wrap break-words border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-800">{parsed.message}</p> : null}
+        {assistantResult ? (
+          <div className="space-y-2 border-l-4 border-accent bg-[#F8FAF9] p-4 text-sm text-ink" role="status">
+            <p className="font-semibold">The assistant put your file into the import format. Check the result before you continue.</p>
+            <p className="text-muted">Your wording is unchanged, and keys appear only where your file states them.</p>
+            {assistantResult.changes.length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5">{assistantResult.changes.map(change => <li key={change}>{change}</li>)}</ul>
+            ) : null}
+            {assistantResult.could_not_read.length > 0 ? (
+              <div><p className="font-semibold">Not imported:</p>
+                <ul className="list-disc space-y-1 pl-5">{assistantResult.could_not_read.map(entry => <li key={entry}>{entry}</li>)}</ul></div>
+            ) : null}
+          </div>
+        ) : null}
+        {parsed.message ? (
+          <div id="json-validation" role="alert" className="space-y-3 border-l-4 border-red-500 bg-red-50 p-4 text-sm text-red-800">
+            <p className="whitespace-pre-wrap break-words">{parsed.message}</p>
+            <div className="space-y-1">
+              <Button type="button" variant="secondary" disabled={busy} onClick={() => void formatWithAssistant()}>
+                <Sparkles className="h-4 w-4" aria-hidden="true" />{formatting ? "Formatting your file" : "Let the assistant format this file"}
+              </Button>
+              <p className="text-ink">
+                {formatting
+                  ? "This takes a minute or two for a long file. Keep this page open."
+                  : "The assistant puts the file into the import format: it keeps your wording and keys, never adds an answer key your file does not state, and lists what it changed for you to check."}
+              </p>
+            </div>
+          </div>
+        ) : null}
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
           <Button disabled={!document || busy} type="submit"><ArrowRight className="h-4 w-4" aria-hidden="true" />{busy ? "Preparing review..." : "Continue to item review"}</Button>
         </div>
