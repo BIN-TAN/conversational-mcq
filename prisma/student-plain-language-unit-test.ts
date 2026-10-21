@@ -31,7 +31,7 @@ const source = (file: string) => readFileSync(path.join(process.cwd(), file), "u
 
 check("Feedback v8.2 and profiling v8.2 ask for complete, natural, plain language", () => {
   assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.2");
-  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.2");
+  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.3");
   assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.2");
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
     assert.match(prompt, /Write the way a knowledgeable, friendly tutor speaks: complete, natural sentences/);
@@ -40,6 +40,16 @@ check("Feedback v8.2 and profiling v8.2 ask for complete, natural, plain languag
   }
   assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Length is fine when it serves the focus\./);
   assert.match(interpretation.INTERPRETATION_V8_INSTRUCTIONS, /write rationales and notes as complete sentences\./);
+});
+
+check("Conversation v8.3 defines every focus type and strategy its turn record allows, and limits questions", () => {
+  const prompt = feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS;
+  const record = prompt.slice(prompt.indexOf("TURN RECORD"));
+  for (const type of feedback.FOCUS_TYPES) assert.match(record, new RegExp(`\\n  ${type}: `), `focus type ${type} is defined`);
+  for (const strategy of feedback.STRATEGIES) assert(record.includes(strategy), `strategy ${strategy} is listed`);
+  assert.match(record, /possible_misconception: an idea listed in the profile's possible misconceptions, including one that spans several items/);
+  assert.match(record, /asking the student to apply an idea to a new case is extend/);
+  assert.match(prompt, /not as rhetorical questions, and ask at most one question in a reply\./);
 });
 
 check("Results read as a sentence, and the stored result format is unchanged", () => {

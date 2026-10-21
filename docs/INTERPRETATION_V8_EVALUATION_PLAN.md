@@ -242,6 +242,10 @@ Go-live needs every criterion below to pass on the decision run, scored against 
 
 **Agreement statistics.** AC1 is the main statistic because "adequate" makes up half the ratings, and kappa understates agreement when one category dominates. Kappa is reported beside it.
 
+**Comparing two prompt versions.** A decision run for a revised prompt also compares each gated feedback and interpretation share with the approved version, scored by the same scorer. A gated share may not fall by more than 5 percentage points, overall or within openings or replies. Measures that are reported but not gated are compared and listed, not gated.
+
+**Focus and strategy labels in replies (from formative-conversation-v8.3).** The v8.2 decision run (21 Oct 2026) missed the expected reply focus mainly because the conversation prompt listed no focus types: replies about a listed misconception that spans two items were recorded as shared_difficulty (2 of 6 such replies in v8.1, 5 of 6 in v8.2), and one reply used invite_explanation, which the conversation prompt did not list. v8.3 defines each focus type and strategy in the turn record, as the opening prompt does by priority, and limits a reply to one question. The fixtures and their expected sets are unchanged.
+
 **Reported but not gated:** agreement on the beyond-option-text flag, the error source and the item status; recall of the item-issue flag and false flags; side-remark recording; considered-idea precision and recall; endorsement agreement on matched claims; rating stability across runs; the rejection reasons and their counts; token counts.
 
 Five feedback thresholds are proposals, because section 11.1 names those checks without giving a number: rejected twice, focus, strategy, instructor flag, and the question limit with false "corrected". Change them before the decision run if different ones are wanted.
