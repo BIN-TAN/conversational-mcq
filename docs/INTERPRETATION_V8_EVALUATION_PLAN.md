@@ -230,6 +230,7 @@ Go-live needs every criterion below to pass on the decision run, scored against 
 | Fallback profiles | < 5% of submissions | Rejected twice by the output checks, or the model failed |
 | Feedback: rejected twice | < 5% of runs | No message delivered |
 | Feedback: audience violations in delivered messages | 0 | Automatic checks, plus the 20-message reading |
+| Feedback: messages with a stock phrase (from v8.2) | ≤ 5% of delivered messages | Stock openers and closers such as "Great question!" or "I hope this helps", counted automatically and listed in the report |
 | Feedback: focus follows the priority | ≥ 90% of runs | Focus type in the expected set |
 | Feedback: strategy fits the evidence | ≥ 90% of runs | Strategy in the expected set |
 | Feedback: expected instructor flag raised | ≥ 90% of runs | Flag in the expected set |

@@ -63,7 +63,7 @@ export function resultsByAppendixTable(report: InterpretationReport | null, feed
     for (const [table, mode, label] of [["C4", "opening", "Opening feedback"], ["C5", "reply", "Formative conversation replies"]] as const) {
       const part = feedback.by_mode[mode];
       if (!part.runs) continue;
-      add(table, label, `${part.delivered} of ${part.runs} delivered; focus ${pct(part.focus_type)}, strategy ${pct(part.strategy)}, instructor flag ${pct(part.review_flag)}, within the question limit ${pct(part.question_limit)}; audience violations ${part.audience_violations}`
+      add(table, label, `${part.delivered} of ${part.runs} delivered; focus ${pct(part.focus_type)}, strategy ${pct(part.strategy)}, instructor flag ${pct(part.review_flag)}, within the question limit ${pct(part.question_limit)}; audience violations ${part.audience_violations}; messages with a stock phrase ${part.stock_phrase_messages}`
         + (mode === "reply" ? `; focus status ${pct(part.focus_status)}; echoes recorded as corrected reasoning ${part.false_corrected}` : ""));
     }
   }
@@ -185,11 +185,11 @@ export function renderMarkdownReport(input: {
       "",
       `${feedback.runs} runs, ${feedback.failed} without a delivered message. Shares: focus type ${pct(feedback.shares.focus_type)}, strategy ${pct(feedback.shares.strategy)}, focus items ${pct(feedback.shares.focus_items)}, focus status ${pct(feedback.shares.focus_status)}, instructor flag ${pct(feedback.shares.review_flag)}, question limit ${pct(feedback.shares.question_limit)}.`,
       "",
-      "| Case | Run | Focus | Strategy | Items | Status | Flag | Questions | Words for the reader to check |",
-      "|---|---:|---|---|---|---|---|---:|---|",
+      "| Case | Run | Focus | Strategy | Items | Status | Flag | Questions | Words for the reader to check | Stock phrases |",
+      "|---|---:|---|---|---|---|---|---:|---|---|",
       ...feedback.rows.map((row) => row.checks
-        ? `| ${row.feedback_case_id} | ${row.run} | ${row.output!.focus.focus_type}${row.checks.focus_type ? "" : " ✗"} | ${row.output!.strategy}${row.checks.strategy ? "" : " ✗"} | ${row.output!.focus.item_numbers.join(", ") || "-"}${row.checks.items ? "" : " ✗"} | ${row.output!.focus_status ?? "-"}${row.checks.focus_status && row.checks.no_false_corrected ? "" : " ✗"} | ${row.output!.instructor_review.flag}${row.checks.review_flag ? "" : " ✗"} | ${row.questions}${row.checks.question_limit ? "" : " ✗"} | ${(row.process_words_for_review ?? []).join(", ") || "-"} |`
-        : `| ${row.feedback_case_id} | ${row.run} | no message delivered | | | | | | |`),
+        ? `| ${row.feedback_case_id} | ${row.run} | ${row.output!.focus.focus_type}${row.checks.focus_type ? "" : " ✗"} | ${row.output!.strategy}${row.checks.strategy ? "" : " ✗"} | ${row.output!.focus.item_numbers.join(", ") || "-"}${row.checks.items ? "" : " ✗"} | ${row.output!.focus_status ?? "-"}${row.checks.focus_status && row.checks.no_false_corrected ? "" : " ✗"} | ${row.output!.instructor_review.flag}${row.checks.review_flag ? "" : " ✗"} | ${row.questions}${row.checks.question_limit ? "" : " ✗"} | ${(row.process_words_for_review ?? []).join(", ") || "-"} | ${(row.stock_phrases ?? []).join(", ") || "-"} |`
+        : `| ${row.feedback_case_id} | ${row.run} | no message delivered | | | | | | | |`),
       ""
     );
   }

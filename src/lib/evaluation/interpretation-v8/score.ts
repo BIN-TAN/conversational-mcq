@@ -48,7 +48,9 @@ export const GO_LIVE_THRESHOLDS = {
   unrated_item_rate_max: 0.05,
   feedback_focus_acceptable: 0.9,
   feedback_strategy_acceptable: 0.9,
-  feedback_review_flag_acceptable: 0.9
+  feedback_review_flag_acceptable: 0.9,
+  /** Feedback v8.2 language rule: share of delivered messages with a stock phrase. */
+  feedback_stock_phrase_max: 0.05
 } as const;
 
 /** What one response is expected to lead to (from the fixtures or the human reference). */
@@ -606,6 +608,16 @@ const PROCESS_WORDS = /\b(seconds?|minutes?|quickly|paste\w*|clipboard|tab|windo
  * Questions the message asks the student: question marks outside double quotation marks. A
  * question quoted as an example ("What evidence supports this use?") is not asked of the student.
  */
+/**
+ * Stock phrases the feedback prompts (v8.2) rule out: openers and closers that sound generated
+ * rather than written for this student.
+ */
+const STOCK_PHRASES = /\b(?:(?:great|good|excellent) question[!.,]|(?:i )?hope this helps\b|let[\u2019']?s dive in\b|let[\u2019']?s break (?:it|this) down\b|happy to help\b|as an ai\b|i[\u2019']?m here to help\b)/i;
+
+export function stockPhrases(message: string) {
+  return (message.match(new RegExp(STOCK_PHRASES, "gi")) ?? []).map((phrase) => phrase.toLowerCase().replace(/[!.,]$/, ""));
+}
+
 export function questionsAsked(message: string) {
   const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
   return (unquoted.match(/\?/g) ?? []).length;
@@ -630,7 +642,8 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       review_flag: expected.review_flags.includes(output.instructor_review.flag),
       question_limit: questions <= expected.max_questions,
       no_false_corrected: !expected.must_not_mark_corrected || output.focus_status !== "corrected_reasoning_expressed",
-      audience: studentFacingTextProblems(output.student_visible_message).length === 0
+      audience: studentFacingTextProblems(output.student_visible_message).length === 0,
+      natural_language: stockPhrases(output.student_visible_message).length === 0
     };
     return {
       feedback_case_id: record.feedback_case_id,
@@ -640,6 +653,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       checks,
       questions,
       process_words_for_review: (output.student_visible_message.match(new RegExp(PROCESS_WORDS, "gi")) ?? []).map((word) => word.toLowerCase()),
+      stock_phrases: stockPhrases(output.student_visible_message),
       message: output.student_visible_message,
       output
     };
@@ -656,7 +670,9 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     criterion("Strategy fits the evidence (share)", ">=", GO_LIVE_THRESHOLDS.feedback_strategy_acceptable, share((checks) => checks.strategy)),
     criterion("Expected instructor flag raised (share)", ">=", GO_LIVE_THRESHOLDS.feedback_review_flag_acceptable, share((checks) => checks.review_flag)),
     criterion("Messages over the question limit", "<=", 0, scored.filter((row) => !row.checks!.question_limit).length),
-    criterion("Echo or bare answer recorded as corrected reasoning", "<=", 0, scored.filter((row) => !row.checks!.no_false_corrected).length)
+    criterion("Echo or bare answer recorded as corrected reasoning", "<=", 0, scored.filter((row) => !row.checks!.no_false_corrected).length),
+    criterion("Messages with a stock phrase (share)", "<=", GO_LIVE_THRESHOLDS.feedback_stock_phrase_max,
+      scored.length ? 1 - (share((checks) => checks.natural_language) ?? 1) : null)
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
   const byMode = (mode: "opening" | "reply") => {
@@ -674,6 +690,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       review_flag: part((checks) => checks.review_flag),
       question_limit: part((checks) => checks.question_limit),
       audience_violations: delivered.filter((row) => !row.checks!.audience).length,
+      stock_phrase_messages: delivered.filter((row) => !row.checks!.natural_language).length,
       false_corrected: delivered.filter((row) => !row.checks!.no_false_corrected).length
     };
   };

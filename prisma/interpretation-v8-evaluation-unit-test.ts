@@ -44,6 +44,8 @@ import {
   questionsAsked,
   scoreFeedback,
   scoreInterpretation,
+  stockPhrases,
+  GO_LIVE_THRESHOLDS,
   type ReferenceCodingRow
 } from "../src/lib/evaluation/interpretation-v8/score";
 import { assertNoProhibitedProviderInput } from "../src/lib/agents/redaction";
@@ -404,6 +406,13 @@ async function main() {
     assert.equal(record.attempts[0].outcome, "invalid_output");
     assert.ok(JSON.stringify(record.attempts[0].rejected_output).includes("never wrote"));
     assert.equal(record.attempts.at(-1)!.rejected_output, null);
+  });
+
+  await check("Feedback v8.2 language: stock phrases are counted and reported, ordinary wording is not", () => {
+    assert.deepEqual(stockPhrases("Great question! Let\u2019s dive in. I hope this helps."), ["great question", "let\u2019s dive in", "i hope this helps"]);
+    assert.deepEqual(stockPhrases("Your explanation for Question 2 treats the mean as a measure of spread. You can ask about this or anything else, or stop here."), []);
+    assert.deepEqual(stockPhrases("A good question to ask yourself is which value changes."), [], "Only the stock opener, not the words in a sentence");
+    assert.ok(GO_LIVE_THRESHOLDS.feedback_stock_phrase_max <= 0.05);
   });
 
   console.log(`interpretation-v8-evaluation-unit-test: ${checks} checks passed`);

@@ -10,7 +10,7 @@ import { z } from "zod";
  */
 export const INTERPRETATION_V8_AGENT_NAME = "student_profiling_agent" as const;
 export const INTERPRETATION_V8_AGENT_VERSION = "8" as const;
-export const INTERPRETATION_V8_PROMPT_VERSION = "student-profiling-v8.1" as const;
+export const INTERPRETATION_V8_PROMPT_VERSION = "student-profiling-v8.2" as const;
 export const INTERPRETATION_V8_SCHEMA_VERSION = "student-interpretation-output-v8" as const;
 export const INTERPRETATION_V8_INPUT_VERSION = "student-interpretation-input-v8" as const;
 
@@ -55,7 +55,7 @@ possible_revision_of_reasoning | limited_engagement_evidence | context_noted
 Cite the indicators used, write one or two sentences for internal use (the feedback models read them; instructors and students do not), and list the alternative explanations.
 
 OUTPUT
-Return only the structured fields. Use null for a field that does not apply, and never placeholder text such as "null", "none" or "n/a". Give a side remark only for an incorrect remark outside the essential elements. Do not give an overall label; the application derives the summary from your item ratings.`;
+Return only the structured fields. Use null for a field that does not apply, and never placeholder text such as "null", "none" or "n/a". Write the text the instructor reads (rationales, missing elements, ideas and uncertainty notes) in clear, plain, natural language with the defined assessment terms, and write rationales and notes as complete sentences. Give a side remark only for an incorrect remark outside the essential elements. Do not give an overall label; the application derives the summary from your item ratings.`;
 
 export const INTERPRETATION_V8_PROMPT_HASH = createHash("sha256")
   .update([INTERPRETATION_V8_PROMPT_VERSION, INTERPRETATION_V8_SCHEMA_VERSION, INTERPRETATION_V8_INSTRUCTIONS].join("\n"))

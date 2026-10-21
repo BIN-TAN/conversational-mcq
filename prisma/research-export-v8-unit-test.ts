@@ -250,7 +250,7 @@ async function main() {
     assert.equal(rows[0].attempt_role, "initial_diagnosis");
     assert.equal(rows[0].generation_mode, "live_model");
     assert.equal(rows[0].rules_version, "interpretation-rules-v8.1");
-    assert.equal(rows[0].prompt_version, "student-profiling-v8.1");
+    assert.equal(rows[0].prompt_version, "student-profiling-v8.2");
     assert.equal(rows[0].schema_version, "student-interpretation-output-v8");
     assert.equal(rows[0].profile_record_id, "profile_a1");
     assert.equal(rows[0].item_counted_with_decisions, true);
