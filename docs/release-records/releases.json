@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-20T22:02:24.599133+00:00",
+  "updated_at": "2026-10-21T00:20:56.640809+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3336,6 +3336,107 @@
         "src/lib/services/teacher-research-data/dictionary.ts",
         "prisma/feedback-display-completion-smoke-test.ts",
         "prisma/migrations/20261020100000_assessment_published_at/migration.sql"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-03",
+      "date": "2026-10-20",
+      "title": "Initial response item diagnostics and study code display changes",
+      "application_commit": "f686b864a65bb6567ba42f55a468b4189fe1a042",
+      "push_status": "Application commit f686b864a65bb6567ba42f55a468b4189fe1a042 fast-forwarded origin/main from 45a0b2c2d44791af9274dd3a1a2412acdc8db5d7. Remote SHA verified at 2026-10-21T00:12:31.5576167Z. The later ledger and Word commit uses [skip render], is documentation only and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbc0731srm7s739688rg",
+        "source_commit": "f686b864a65bb6567ba42f55a468b4189fe1a042",
+        "verified_at": "2026-10-21T00:20:41.531Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dbc0731srm7s739688rg",
+        "evidence": [
+          "Manual exact-commit deployment started at 2026-10-21T00:13:00.317Z; Live at 2026-10-21T00:17:50Z. Previous Live application: 39e1500286439828fcdd88ae1536b7765cf2b308, deployment dep-dbbu5dui0phs73e887b0.",
+          "Read-only runtime check at 2026-10-21T00:18:50.491Z confirmed the exact RENDER_GIT_COMMIT, HTTP 200, database/schema ready, one preparation worker, valid operational approval and both v8 hash matches. Public health also returned HTTP 200. First-minutes logs were reviewed through 2026-10-21T00:20:41.531Z; no release-related startup or student-facing error was observed. No rollback was required.",
+          "Auto-Deploy remained Off. No Render environment variable was changed; operational and v8 approval hashes are unchanged. Item preparation and instructor report approval variables remain unset. No migration was added or changed; the existing pre-deploy migration check found none pending.",
+          "No production student sign-in, simulated attempt, generation request, load test or student-record write was performed. UI checks used new synthetic accounts on a dedicated local audit database with mock mode and live AI calls disabled."
+        ]
+      },
+      "summary": "The student mini-test list no longer displays Study code, and the research page no longer offers the study-code filter. Item diagnostics and candidate patterns, including their dashboard CSV rows, now use each student's first submitted non-waived attempt, sealed before feedback. Initial understanding follows the same attempt-order selection; Latest understanding remains the most recent submitted attempt. All requested checks passed without an additional fix commit.",
+      "changes": [
+        {
+          "area": "Student and research pages",
+          "problem": "Study codes and the participant-code filter were visible before their planned use in the 2027 courses.",
+          "fix": "Remove the Study code line from the student mini-test list and the Include only these study codes box from the research page. Update dictionary wording and comments.",
+          "impact": "The API include_study_codes filter and exported student_roster.study_code remain available. Restoring the page filter for the 2027 courses remains a future change."
+        },
+        {
+          "area": "Initial item diagnostics and candidate patterns",
+          "problem": "The item view and candidate patterns summarized latest submitted responses rather than initial pre-feedback evidence.",
+          "fix": "Choose each student's first submitted non-waived attempt in attempt order, using the sealed response package. Use the same selection for Initial understanding and dashboard CSV item and pattern rows.",
+          "impact": "Later attempts and mutable revisions do not replace the initial evidence. Latest understanding keeps its separate latest-attempt meaning."
+        },
+        {
+          "area": "Item charts and explanatory text",
+          "problem": "Option-selection bars and latest-response wording did not match the intended initial-response diagnostic view.",
+          "fix": "Show Correct and incorrect and Confidence distribution for each item, with the sentence Initial responses: each student's first submitted attempt, before any feedback. Remove the option chart and latest submitted responses sentence.",
+          "impact": "The displayed charts and downloadable item/pattern rows use the same initial-response population."
+        },
+        {
+          "area": "Regression coverage",
+          "problem": "Existing checks encoded the previous latest-response and study-code UI behavior.",
+          "fix": "Bundle updates dashboard counts and candidate-pattern expectations, checks attempt-1 correctness at 33.3% despite restoration and mutable revision, and checks absence of the research filter.",
+          "impact": "The changed database checks passed locally. No additional application or test fix was needed during this release."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Bundle and database preconditions",
+          "result": "PASS",
+          "detail": "Exact bundle commit and clean tracked state verified; origin/main was 45a0b2c and an ancestor. Package manifests, Prisma schema and migrations are unchanged. Prisma generate and migrate status passed; all 68 local migrations are applied. Database loopback address was checked without exposing it."
+        },
+        {
+          "name": "Full standard checks",
+          "result": "18 steps PASS",
+          "detail": "The complete run-local-checks.ps1 passed, including typecheck, lint, design checks, dictionary audits, database checks and production build (126 seconds). Lint retained 9 existing warnings and no errors. Scripted review passed 18 scenarios with 1 existing non-high issue and zero high-severity issues."
+        },
+        {
+          "name": "Clean redesign suites and approval",
+          "result": "187 checks PASS; approval valid; hashes match",
+          "detail": "npm run test:redesign-v8 passed in the clean test environment. verify-approved-config returned valid true and no issues. Both required v8 hashes matched their approved values and the production runtime."
+        },
+        {
+          "name": "Sixteen requested supplementary scripts",
+          "result": "16 PASS; no failures",
+          "detail": "Teacher dashboard, attempt policy (12 checks on the dedicated audit database), research export UI, teacher review, service, feedback completion, analysis-ready export, selected-session export, export integrity, detailed student/teacher CSV, master export, process summary, dictionary privacy, study participation (11), v8 export (25) and conversation outcome (9) all exited 0. No baseline comparison or fix rerun was necessary. The five legacy checks excluded by the release instruction were not run."
+        },
+        {
+          "name": "Three local screens",
+          "result": "PASS with saved screenshots",
+          "detail": "Student list has no Study code; research page has no code filter; the dashboard shows the exact initial-response sentence and both charts on all three items. The synthetic fixture includes a later changed answer and still shows 33.3% initial correctness. Screenshots are stored under E:\\New_Downloads\\cmcq-v8-release\\.data\\release-03."
+        },
+        {
+          "name": "Production verification",
+          "result": "Read-only PASS",
+          "detail": "Exact Live commit, HTTP health/schema, one preparation worker, operational approval and both v8 hashes were verified separately from push. Human acceptance testing is intentionally left to the researcher."
+        }
+      ],
+      "data_impact": [
+        "No recorded data, export column or dictionary column changes. No schema, migration, prompt or approval-hash change. Existing student records and sealed source packages are preserved.",
+        "Students could see Study code on the mini-test list from CMCQ-20261020-02 Live at 2026-10-20T21:57:33Z until CMCQ-20261020-03 Live at 2026-10-21T00:17:50Z. This is a display interval, not evidence that any particular student viewed it.",
+        "student_roster.study_code and the include_study_codes API filter remain. The page filter is planned to return for the 2027 courses; this release does not remove or backfill study codes.",
+        "The dashboard item view, dashboard CSV item rows and candidate patterns now use each student's first submitted non-waived attempt, sealed before feedback. Dashboard CSVs downloaded before this release used latest submitted attempts. Historical downloaded files are not rewritten; re-exported derived values can differ.",
+        "Initial understanding now selects the first submitted attempt in attempt order. Latest understanding continues to use the most recent submitted attempt. These are different evidence windows, not evidence of a measured learning gain."
+      ],
+      "limitations": [
+        "The 9 lint warnings and 1 non-high scripted-review issue remain. The five pre-existing failures documented in release 02 were explicitly outside this release and were not rerun or claimed fixed.",
+        "Local mock checks do not establish live feedback quality or classroom learning outcomes. No production student flow was exercised by the agent.",
+        "Researcher checklist: confirm no Study code on the student list; confirm no Include only these study codes box on the research page; confirm the exact initial-response sentence, both charts for each item and no latest submitted responses sentence; complete a short test with feedback and a reply."
+      ],
+      "references": [
+        "src/components/teacher-dashboard/assessment-dashboard-client.tsx",
+        "src/lib/services/teacher-dashboard/assessment-dashboard.ts",
+        "src/components/teacher-data/research-data-exports-client.tsx",
+        "prisma/teacher-dashboard-smoke-test.ts",
+        "prisma/attempt-policy-database-smoke-test.ts",
+        "prisma/student-research-export-error-ui-smoke-test.ts"
       ]
     }
   ],
