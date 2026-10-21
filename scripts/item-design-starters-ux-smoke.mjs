@@ -85,7 +85,7 @@ try {
   assert.match(adapt, /one at a time/);
   assert.equal(await existingPath.getAttribute("aria-pressed"), "true");
   await page.getByText("Attach the file with your items below and press Send.", { exact: false }).waitFor();
-  assert(await input.evaluate(el => document.activeElement === el));
+  await page.waitForFunction(() => document.activeElement?.id === "item-design-assistant-message", null, { timeout: 2000 });
 
   await newPath.click();
   const fresh = await input.inputValue();
@@ -101,7 +101,7 @@ try {
     const prompt = await input.inputValue();
     assert.match(prompt, /9 items with 5 options/);
     assert.match(prompt, /for my review; do not generate items yet/);
-    assert(await input.evaluate(el => document.activeElement === el));
+    await page.waitForFunction(() => document.activeElement?.id === "item-design-assistant-message", null, { timeout: 2000 });
     prompts.push(prompt);
   }
   assert.match(prompts[0], /topic, student level, and scope/);
@@ -137,7 +137,7 @@ try {
   }
   await existingPath.focus();
   await page.keyboard.press("Enter");
-  assert(await input.evaluate(el => document.activeElement === el));
+  await page.waitForFunction(() => document.activeElement?.id === "item-design-assistant-message", null, { timeout: 2000 });
   checks.push("desktop/mobile layout and keyboard activation");
 
   await input.fill("x".repeat(20000));
