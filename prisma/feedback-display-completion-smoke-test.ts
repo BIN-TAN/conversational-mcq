@@ -73,7 +73,7 @@ async function main() {
     const dashboardInput = { teacher_user_db_id: assessment.created_by_user_db_id!, assessment_public_id: demoAssessmentPublicId };
     const dashboardBefore = await getTeacherAssessmentDashboard(dashboardInput);
     const profilesBefore = await db.studentProfile.count({ where: { concept_unit_session_db_id: concept.id } });
-    await assert.rejects(lifecycle("finish"), /Finish is available/);
+    await assert.rejects(lifecycle("finish"), /You can finish once the conversation with the tutor has ended/);
     await lifecycle("pause");
     assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: session.id } })).completed_at, null);
     await lifecycle("resume");
@@ -97,11 +97,11 @@ async function main() {
     assert.equal(conversationRow.lifecycle_reason, "student_ended_conversation");
     assert.equal(await canFinishConversationAssessment(session.id, session.assessment_db_id), true);
     await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "synthetic_other_closure" } });
-    await assert.rejects(lifecycle("finish"), /Finish is available/);
+    await assert.rejects(lifecycle("finish"), /You can finish once the conversation with the tutor has ended/);
     await db.formativeConversationSession.update({ where: { id: conversationRow.id }, data: { lifecycle_reason: "platform_failure:synthetic" } });
     assert.equal(await canFinishConversationAssessment(session.id, session.assessment_db_id), true);
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: null } });
-    await assert.rejects(lifecycle("finish"), /Finish is available/);
+    await assert.rejects(lifecycle("finish"), /You can finish once the conversation with the tutor has ended/);
     await db.conceptUnitSession.update({ where: { id: concept.id }, data: { initial_completed_at: concept.initial_completed_at } });
     await assert.rejects(updateStudentFormativeConversationLifecycle({ ...input, student_user_db_id: assessment.created_by_user_db_id!, action: "finish" }));
     // Restore the student-stop fixture after checking the platform-failure guard;
