@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21T00:20:56.640809+00:00",
+  "updated_at": "2026-10-21T04:12:14.821489+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -3437,6 +3437,123 @@
         "prisma/teacher-dashboard-smoke-test.ts",
         "prisma/attempt-policy-database-smoke-test.ts",
         "prisma/student-research-export-error-ui-smoke-test.ts"
+      ]
+    },
+    {
+      "id": "CMCQ-20261020-04",
+      "date": "2026-10-20",
+      "title": "Course topic banks and resilient item authoring",
+      "application_commit": "bfb3fbc2dab403600c9e2a36b77fdd32dac300ed",
+      "push_status": "Application commit bfb3fbc2dab403600c9e2a36b77fdd32dac300ed fast-forwarded origin/main from f71b84afcf63589bf95f460457566073a4e946df. Remote SHA verified at 2026-10-21T04:04:18.8112164Z. The later ledger and Word commit uses [skip render], is documentation only and is not deployed.",
+      "deployment": {
+        "status": "verified_live",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbc3jo0n74is73f8makg",
+        "source_commit": "bfb3fbc2dab403600c9e2a36b77fdd32dac300ed",
+        "verified_at": "2026-10-21T04:11:51.120Z",
+        "url": "https://dashboard.render.com/web/srv-d987t1vaqgkc73d5l5q0/deploys/dep-dbc3jo0n74is73f8makg",
+        "evidence": [
+          "Manual specific-commit deployment started at 2026-10-21T04:04:48Z; Live at 2026-10-21T04:09:35Z. Previous Live application f686b864a65bb6567ba42f55a468b4189fe1a042, deployment dep-dbc0731srm7s739688rg.",
+          "Read-only runtime verification at 2026-10-21T04:10:04.906Z confirmed exact RENDER_GIT_COMMIT, HTTP 200, database/schema ready, one preparation worker, valid operational approval and both v8 hashes. Public health also returned HTTP 200. First-minutes logs were reviewed through 2026-10-21T04:11:51.120Z; no release-related startup or student-facing error was observed. No rollback was needed.",
+          "Auto-Deploy remained Off and no Render environment variable changed. Operational and v8 approval hashes are unchanged. Item preparation and instructor report approval variables remain unset. No schema or migration change; the existing pre-deploy migration check found none pending.",
+          "Production verification was read-only: no sign-in, student attempt, item-builder request, generation, load test or student-record change. Local screen checks used synthetic accounts, mock mode and a dedicated local audit database."
+        ]
+      },
+      "summary": "The teacher item builder retains a course topic bank, fills the design panel for one topic, and creates or reopens separate mini tests for other topics without re-uploading materials. Revised item-writing rules also guide the sample import JSON. Empty design rows no longer block saving; HTML platform responses receive plain English errors; stale teacher-tool calls can retry after a restart. One test fixture was corrected. A pre-existing raw network-disconnection message remains documented.",
+      "changes": [
+        {
+          "area": "Course topic bank and design panel",
+          "problem": "Uploaded PDFs and images reach the assistant only on the upload turn; later turns and new topic mini tests need retained course evidence.",
+          "fix": "Assistant v5 with output/context v3 stores topic summaries, knowledge points, content notes, source quiz items/options/keys and shared templates in item_design_assistant_state.topic_map, linked by topic_bank_id. It selects one topic and fills objectives/evidence, misconceptions, exemplars and generation settings.",
+          "impact": "The selected topic is sent in full, other topics briefly. Topic lists replace previous lists; empty notes/source items preserve existing content; a reply without topics preserves the bank. Stored v2 outputs replay as v3 with an empty bank. Essential unresolved choices may still require teacher input."
+        },
+        {
+          "area": "Mini tests for other topics",
+          "problem": "Teachers otherwise need to upload course materials and reconstruct the design for every topic.",
+          "fix": "The topic-mini-test endpoint creates a draft in the same folder with the selected bank topic, bank ID, material records including Word text, and item_design_origin. The new builder consumes prepare=topic once to request panel preparation. Existing bank/topic mini tests are reused.",
+          "impact": "The sidebar links back to existing topic mini tests and avoids duplicates. Local mock checks confirmed same-folder creation, copied bank/materials, origin and idempotence; live assistant quality awaits human acceptance."
+        },
+        {
+          "area": "Item writing and runtime budgets",
+          "problem": "Draft generation needs explicit guidance for applied, focused items and enough output capacity for complete course designs.",
+          "fix": "Generation prompt/context v4 receives the selected course_topic with its notes and knowledge points. Rules require a short new case, one idea, parallel options, one correct key, plausible distractors, varied key positions, independent items and low reading load; all/none, combined options, negative stems and cues are disallowed. Up to 48 blueprint updates, 16000 first-call output tokens, 20000 recovery tokens and 360-second provider timeout are supported.",
+          "impact": "Teacher authoring prompt versions/hashes are recorded on agent calls but are not hash-gated. Initial replies after uploads can take several minutes. Interpretation/feedback prompts and their approvals are untouched."
+        },
+        {
+          "area": "Design save and platform response resilience",
+          "problem": "Empty Add rows prevented saving, incomplete-field messages used internal terms, and HTML platform responses could surface JSON parsing errors.",
+          "fix": "Ignore fully empty design rows and identify incomplete entries in the panel's English labels. Handle HTML responses across teacher content, reports, comparisons, chance restoration, sign-in and student pages; student connection status preserves retries. Mark stale started assistant/draft calls failed after 15/20 minutes with abandoned_without_response when the same request is retried.",
+          "impact": "A local stopped-server Save still shows Failed to fetch, rather than the requested restart message. The same behavior was reproduced on f686b86, so it was retained under the release instructions. HTML-response checks pass; outright connection refusal is a distinct path."
+        },
+        {
+          "area": "Sample mini-test import",
+          "problem": "The sample should demonstrate the current item-writing rules.",
+          "fix": "The updated bundle adds a91dfd13a1b1f8dff4725036d6c14589313be86e: short applied cases, parallel options, low reading load and an applied SEM item, with matching import documentation.",
+          "impact": "mini-test-import-v1, item count, keys and item 1 idea labels remain unchanged. The new sample passed the JSON import smoke test on the disposable local audit database. The prompt and bundle changed during local checking; the new commit was incorporated before push and checks were rerun."
+        },
+        {
+          "area": "Release verification fixture correction",
+          "problem": "The bundle's evidence-centered design smoke fixture omitted required topic_map.item_templates; the candidate failed while f686b86 passed.",
+          "fix": "Add item_templates: [] to that fixture only, committed as bfb3fbc2dab403600c9e2a36b77fdd32dac300ed on the updated bundle.",
+          "impact": "All five builder checks and steps 2.3/2.4 passed after the correction. No additional application code was changed by the release agent."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Bundle and local database",
+          "result": "PASS",
+          "detail": "Verified bundle, clean tracked state, baseline f71b84a and fast-forward ancestry. Package manifests, schema and migrations unchanged. Prisma generate and migrate status passed; all 68 migrations are applied. Database address was checked as loopback without exposure."
+        },
+        {
+          "name": "Five item-builder scripts",
+          "result": "5 PASS after one fixture fix",
+          "detail": "Topic map 12 checks; resilience 6 checks; design smoke, runtime budgets 16000/20000, and material upload passed. Initial missing-item_templates failure was baseline-compared and repaired in the test fixture only."
+        },
+        {
+          "name": "Standard and clean redesign suites",
+          "result": "18 steps and 187 checks PASS",
+          "detail": "Final updated-bundle run: typecheck, lint, design checks, dictionary audits, database checks and production build passed (build 115 seconds). Lint has 10 warnings and zero errors: 9 prior warnings and 1 bundled unused-variable warning. Scripted student review passed 18 scenarios with 1 existing non-high issue and no high-severity issue."
+        },
+        {
+          "name": "Nine further scripts",
+          "result": "9 PASS on final candidate",
+          "detail": "JSON import (7 grouped checks), batch cleanup, classroom data integrity (14), teacher dashboard/review, attempt policy (12), service, feedback completion and analysis-ready export all passed. Attempt policy, integrity and JSON import used the dedicated local audit database. Initial integrity and import runs hit the disposable-database guard on both candidate and f686b86; correcting the local runner environment resolved them without source changes. The five explicitly excluded legacy checks were not run."
+        },
+        {
+          "name": "Mock local screens",
+          "result": "3 scenarios PASS; 1 pre-existing limitation",
+          "detail": "Empty objective removed on successful save; incomplete objective named in panel language; other-topic draft created with retained materials and reused without duplicate. Saved screenshots and a read-only database verification support these results. Assistant unavailable in mock mode is expected. Stopped-server Save displayed Failed to fetch on candidate and baseline; HTML error-page unit coverage passed."
+        },
+        {
+          "name": "Approval and production",
+          "result": "Read-only PASS",
+          "detail": "Local approval valid true with no issues; interpretation and feedback v8 hashes unchanged. Render preflight confirmed prior Live, Auto-Deploy Off and matching approval hashes. Post-deploy exact commit, HTTP health/schema, worker count and approvals verified independently of push."
+        }
+      ],
+      "data_impact": [
+        "No student data, export column or dictionary column changes. No schema or migration change. Existing student records and sealed evidence are preserved; no backfill or reinterpretation is performed.",
+        "Item-builder agent calls now record assistant prompt v5/output/context v3 and generation prompt/context v4, with their prompt hashes. These teacher authoring prompts are not approval-hash-gated. Interpretation and feedback v8 prompt hashes are unchanged.",
+        "Course bank mini tests carry item_design_origin with source mini test and topic in topic administration rules. The retained bank, materials and origin are teacher authoring data.",
+        "Started teacher-tool calls cut off by a restart are closed as failed with error_category abandoned_without_response when the same request is retried after the threshold. These are teacher-tool audit rows, not student data; old rows are not silently relabeled as new instrumentation."
+      ],
+      "limitations": [
+        "The local network-refusal message remains Failed to fetch. It predates this release; this does not invalidate passing HTML-platform-response handling checks.",
+        "Ten lint warnings and one non-high scripted-review issue remain. Five legacy checks were expressly excluded, not claimed fixed. Local mock tests do not establish live model quality or learning outcomes.",
+        "Course materials: In the item builder of a new mini test, upload lecture slides, a quiz and any sample items or templates covering several topics. Confirm that Course topic bank lists the topics and knowledge points. The design panel should fill one topic, including objectives, evidence, misconceptions, the topic's quiz items and templates as exemplars, and settings, without asking you to fill it yourself. The first reply can take a few minutes.",
+        "Another topic: Click Create a mini test for this topic on another topic. Confirm that a new mini test opens and its design panel is filled for that topic without another upload. The first mini test should now link to it.",
+        "Empty learning objective: Add an empty learning objective and confirm that it does not block saving or sending a message.",
+        "Generated drafts: Generate drafts and check for short, plain stems, one clearly correct key, plausible distractors and no all of the above.",
+        "Sign-in: Confirm that a teacher account and a student test account can sign in.",
+        "Student attempt: Complete a short test attempt and confirm that feedback and a reply still work."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design-contract.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\teacher-content\\item-design-client.tsx",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\agent-call-staleness.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\teacher-evidence-centered-item-design-smoke-test.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\public\\samples\\mini-test-import.json"
       ]
     }
   ],
