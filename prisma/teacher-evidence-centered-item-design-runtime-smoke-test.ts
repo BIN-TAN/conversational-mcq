@@ -77,11 +77,68 @@ class ItemGenerationProvider implements LlmProvider {
     maxOutputTokens: number | undefined;
   }> = [];
   omitMaterialSummaries = false;
+  checkCallCount = 0;
+  revisionCallCount = 0;
+  failCheckCalls = new Set<number>();
+  checkedKeysWithheld = true;
+
+  private completed<TOutput>(request: { client_request_id: string }, output: unknown, id: string): StructuredAgentResult<TOutput> {
+    return {
+      provider: "mock",
+      client_request_id: request.client_request_id,
+      provider_request_id: `mock_${id}_request`,
+      provider_response_id: `mock_${id}_response`,
+      status: "completed",
+      parsed_output: output as TOutput,
+      raw_output: output,
+      usage: { input_tokens: 50, output_tokens: 80, total_tokens: 130 },
+      latency_ms: 1
+    };
+  }
 
   async executeStructured<TInput, TOutput>(
     request: StructuredAgentRequest<TInput, TOutput>
   ): Promise<StructuredAgentResult<TOutput>> {
     this.callCount += 1;
+    if (request.metadata?.purpose === "teacher_item_draft_check") {
+      this.checkCallCount += 1;
+      if (this.failCheckCalls.has(this.checkCallCount)) {
+        return { provider: "mock", client_request_id: request.client_request_id, status: "failed", latency_ms: 1,
+          error: { category: "network", message: "Injected check failure.", retryable: true } };
+      }
+      const checkInput = request.input as { items: Array<{ item_label: string; options: Array<Record<string, unknown>> }> };
+      if (JSON.stringify(checkInput).includes("proposed_correct_option") ||
+        checkInput.items.some((item) => item.options.some((option) => "rationale" in option))) {
+        this.checkedKeysWithheld = false;
+      }
+      // Items are named by position. The first check of a set finds an ambiguous stem in the
+      // second item; the item is then revised.
+      const output = {
+        schema_version: "evidence-centered-mcq-item-check-output-v1",
+        items: checkInput.items.map((item) => ({
+          item_label: item.item_label,
+          independent_answer: "A",
+          defensible_options: ["A"],
+          problems: item.item_label === "Item 2" && !item.options.some((option) => String(option.text).includes("(revised)"))
+            ? [{ check: "ambiguous_wording", detail: "The word \"situation\" could mean the sample or the population, so students may read the question in two ways." }]
+            : []
+        }))
+      };
+      return this.completed(request, output, `check_${this.checkCallCount}`);
+    }
+    if (request.metadata?.purpose === "teacher_item_draft_revision") {
+      this.revisionCallCount += 1;
+      const revisionInput = request.input as { items_to_revise: Array<Record<string, unknown> & { options: Array<Record<string, unknown>> }> };
+      const output = {
+        schema_version: "evidence-centered-mcq-revision-output-v1",
+        candidates: revisionInput.items_to_revise.map((item) => ({
+          ...item,
+          stem: `${String(item.stem)} Answer for the population, not the sample.`,
+          options: item.options.map((option) => option.label === "A" ? { ...option, text: `${String(option.text)} (revised)` } : option)
+        }))
+      };
+      return this.completed(request, output, `revision_${this.revisionCallCount}`);
+    }
     if (request.metadata?.purpose === "teacher_evidence_centered_blueprint_conversation") {
       this.assistantCallCount += 1;
       this.assistantRequests.push({
@@ -402,6 +459,22 @@ async function main() {
       batch_public_id: first.batch_public_id
     });
     assert(review.batch.candidates.length === 3, "Expected all generated drafts in the review batch.");
+    assert(provider.checkedKeysWithheld, "The check must see the items without the proposed key or the option rationales.");
+    assert(provider.checkCallCount === 2 && provider.revisionCallCount === 1,
+      "One check of the set, one revision of the flagged item, and one check of the revised item.");
+    const checkOf = (label: string) => {
+      const candidate = review.batch.candidates.find((entry) => entry.item_label === label);
+      return (candidate?.suggestion as { assistant_check?: { status: string; agrees_with_key: boolean; revised: boolean; remaining_problems: string[]; checked_stem: string } } | null)?.assistant_check;
+    };
+    assert(checkOf("Generated item 1")?.status === "checked" && checkOf("Generated item 1")?.agrees_with_key === true &&
+      checkOf("Generated item 1")?.revised === false, "An item without problems is checked once and left as written.");
+    const revisedCandidate = review.batch.candidates.find((entry) => entry.item_label === "Generated item 2");
+    assert(checkOf("Generated item 2")?.revised === true && checkOf("Generated item 2")?.remaining_problems.length === 0,
+      "The flagged item is revised and passes the second check.");
+    assert(revisedCandidate?.stem.includes("Answer for the population") && checkOf("Generated item 2")?.checked_stem === revisedCandidate.stem,
+      "The review shows the revised wording, and the check records the wording it checked.");
+    assert(review.batch.candidates.every((candidate) => !candidate.issue_flags.includes("assistant_check_needs_attention")),
+      "Drafts that pass the check carry no check flag.");
     assert(
       review.batch.candidates.every((candidate) => candidate.status === "needs_key"),
       "Generated candidates must require teacher key confirmation."
@@ -441,6 +514,7 @@ async function main() {
       }
     });
     provider.failGenerationCalls.add(3);
+    provider.failCheckCalls.add(3);
     const recovered = await withItemGenerationProviderForTest(
       { provider, provider_label: "mock" },
       () => generateAssessmentItemDrafts({
@@ -452,9 +526,24 @@ async function main() {
     assert(Boolean(recovered.batch_public_id), "A retryable chunk failure should recover without losing the saved design.");
     assert(Number(provider.generationCallCount) === 5, "Generation should include two initial chunks, one failed chunk, one bounded recovery, and the remaining chunk.");
 
-    const calls = await prisma.agentCall.findMany({
+    const recoveredReview = await getMcqItemImportBatch({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: assessmentPublicId,
+      batch_public_id: recovered.batch_public_id
+    });
+    assert(recoveredReview.batch.candidates.every((candidate) =>
+      candidate.issue_flags.includes("assistant_check_unavailable") &&
+      (candidate.suggestion as { assistant_check?: { status: string } } | null)?.assistant_check?.status === "unavailable"),
+      "When the check cannot run, the drafts are still delivered and say so.");
+
+    const allCalls = await prisma.agentCall.findMany({
       where: { agent_invocation_key: { startsWith: `evidence_item_generation:${assessmentPublicId}:` } }
     });
+    const checkCalls = allCalls.filter((call) => /:(check|revise):/.test(call.agent_invocation_key ?? ""));
+    assert(checkCalls.length === 4, "Three check and revision calls for the first set and one failed check for the second are audited.");
+    assert(checkCalls.filter((call) => call.call_status === "succeeded").length === 3, "The first set's check calls succeeded.");
+    assert(checkCalls.every((call) => call.prompt_hash && call.prompt_version), "Check calls record their prompt version and hash.");
+    const calls = allCalls.filter((call) => !/:(check|revise):/.test(call.agent_invocation_key ?? ""));
     assert(calls.length === 5, "Each chunk and recovery attempt should have a distinct persisted AgentCall.");
     assert(calls.filter((call) => call.call_status === "succeeded").length === 4, "Expected four successful generation chunks.");
     assert(calls.filter((call) => call.call_status === "failed").length === 1, "Expected one preserved failed generation call.");

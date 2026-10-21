@@ -1552,7 +1552,7 @@ export async function createGeneratedMcqReviewBatch(input: {
   candidates: Array<{
     item_label: string;
     stem: string;
-    options: Array<{ label: string; text: string; rationale: string }>;
+    options: Array<{ label: string; text: string; rationale: string; idea_label?: string | null }>;
     proposed_correct_option: string;
     correct_answer_explanation: string;
     target_reasoning_note: string;
@@ -1562,6 +1562,14 @@ export async function createGeneratedMcqReviewBatch(input: {
     cognitive_demand: string;
     difficulty: string;
     limitations: string[];
+  }>;
+  /** The draft check of each candidate, in the same order (item-design.ts checkGeneratedItems). */
+  item_checks?: Array<{
+    status: "checked" | "unavailable";
+    independent_answer: string | null;
+    agrees_with_key: boolean;
+    revised: boolean;
+    remaining_problems: string[];
   }>;
   generation_metadata: Record<string, unknown>;
 }) {
@@ -1580,7 +1588,15 @@ export async function createGeneratedMcqReviewBatch(input: {
     // One rationale per incorrect option, each kept with its own option.
     const optionRationales = generated.options
       .filter((option) => option.label !== generated.proposed_correct_option && option.rationale.trim())
-      .map((option) => ({ label: option.label, rationale: option.rationale.trim(), idea_label: null }));
+      .map((option) => ({ label: option.label, rationale: option.rationale.trim(), idea_label: option.idea_label?.trim() || null }));
+    const check = input.item_checks?.[index] ?? null;
+    const checkFlags = !check
+      ? []
+      : check.status === "unavailable"
+        ? ["assistant_check_unavailable"]
+        : !check.agrees_with_key || check.remaining_problems.length > 0
+          ? ["assistant_check_needs_attention"]
+          : [];
     const candidate = candidateFromDraft({
       item_label: generated.item_label,
       stem: generated.stem,
@@ -1602,7 +1618,7 @@ export async function createGeneratedMcqReviewBatch(input: {
         difficulty: generated.difficulty
       },
       parsing_confidence: 1,
-      issue_flags: ["teacher_confirmed_key_required"]
+      issue_flags: ["teacher_confirmed_key_required", ...checkFlags]
     }, index);
 
     return {
@@ -1617,6 +1633,14 @@ export async function createGeneratedMcqReviewBatch(input: {
         suggested_option_rationales: optionRationales,
         evidence_justification_summary: generated.correct_answer_explanation,
         limitations: generated.limitations,
+        // The wording that was checked, so the review page can tell when the teacher has edited it.
+        ...(check ? {
+          assistant_check: {
+            ...check,
+            checked_stem: candidate.stem,
+            checked_options: candidate.options.map(({ label, text }) => ({ label, text }))
+          }
+        } : {}),
         reviewer_warning: "Teacher review required before import."
       }
     };

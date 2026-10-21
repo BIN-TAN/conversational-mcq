@@ -1,12 +1,12 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v5" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v6" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v3" as const;
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v4" as const;
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v5" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -346,6 +346,8 @@ const GeneratedOptionSchema = z.object({
   label: z.string().trim().regex(/^[A-E]$/),
   text: z.string().trim().min(1).max(700),
   rationale: z.string().trim().min(1).max(1000),
+  /** Two to six words naming the incorrect idea (the same label for the same idea across items); null for the key. */
+  idea_label: z.string().trim().min(1).max(60).nullable().default(null),
   linked_misconception_ids: z.array(z.string().trim().min(1).max(80)).max(8)
 }).strict();
 
@@ -387,6 +389,93 @@ export const ItemGenerationOutputSchema = z.object({
   set_level_limitations: z.array(z.string().trim().min(1).max(500)).max(8),
   teacher_review_required: z.literal(true)
 }).strict();
+
+/**
+ * The check of generated drafts (20 Oct 2026). The checker sees each item without its proposed
+ * key, answers it as a well-prepared student would, and reports problems; items with a
+ * different answer or problems are revised once and checked again.
+ */
+export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v1" as const;
+export const ITEM_CHECK_SCHEMA_VERSION = "evidence-centered-mcq-item-check-output-v1" as const;
+export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v1" as const;
+export const ITEM_REVISION_SCHEMA_VERSION = "evidence-centered-mcq-revision-output-v1" as const;
+
+export const ItemCheckProblemSchema = z.enum([
+  "more_than_one_defensible_answer",
+  "no_defensible_answer",
+  "ambiguous_wording",
+  "answer_cue",
+  "implausible_distractor",
+  "not_plain_language",
+  "reading_load",
+  "outside_topic",
+  "does_not_assess_objective",
+  "item_dependency"
+]);
+
+export const ItemCheckOutputSchema = z.object({
+  schema_version: z.literal(ITEM_CHECK_SCHEMA_VERSION),
+  items: z.array(z.object({
+    item_label: z.string().trim().min(1).max(120),
+    independent_answer: z.string().trim().regex(/^[A-E]$/).nullable(),
+    defensible_options: z.array(z.string().trim().regex(/^[A-E]$/)).max(5),
+    problems: z.array(z.object({
+      check: ItemCheckProblemSchema,
+      detail: z.string().trim().min(1).max(400)
+    }).strict()).max(8)
+  }).strict()).min(1).max(12)
+}).strict();
+
+export type ItemCheckOutput = z.infer<typeof ItemCheckOutputSchema>;
+
+export const ItemRevisionOutputSchema = z.object({
+  schema_version: z.literal(ITEM_REVISION_SCHEMA_VERSION),
+  candidates: z.array(GeneratedItemCandidateSchema).min(1).max(12)
+}).strict();
+
+/** What the teacher sees about a draft's check. */
+export type ItemCheckSummary = {
+  status: "checked" | "unavailable";
+  independent_answer: string | null;
+  agrees_with_key: boolean;
+  revised: boolean;
+  remaining_problems: string[];
+};
+
+/** Whether a checked draft needs another look: a different or no single answer, or problems. */
+export function checkFindsProblem(
+  check: ItemCheckOutput["items"][number] | undefined,
+  proposedKey: string
+): boolean {
+  if (!check) return true;
+  return check.independent_answer !== proposedKey ||
+    check.defensible_options.length !== 1 ||
+    check.defensible_options[0] !== proposedKey ||
+    check.problems.length > 0;
+}
+
+export function itemCheckSummary(input: {
+  check: ItemCheckOutput["items"][number] | undefined;
+  proposed_key: string;
+  revised: boolean;
+}): ItemCheckSummary {
+  if (!input.check) {
+    return { status: "unavailable", independent_answer: null, agrees_with_key: false, revised: input.revised, remaining_problems: [] };
+  }
+  const agrees = input.check.independent_answer === input.proposed_key &&
+    input.check.defensible_options.length === 1 && input.check.defensible_options[0] === input.proposed_key;
+  const problems = input.check.problems.map((problem) => problem.detail);
+  if (!agrees) {
+    const options = input.check.defensible_options;
+    const list = options.length > 1 ? `${options.slice(0, -1).join(", ")} and ${options.at(-1)}` : options.join("");
+    problems.unshift(options.length > 1
+      ? `When the assistant answered this item without seeing the key, it found more than one defensible answer (${list}). The proposed key is ${input.proposed_key}. Please check that only one answer is correct.`
+      : input.check.independent_answer
+        ? `When the assistant answered this item without seeing the key, it chose ${input.check.independent_answer}, but the proposed key is ${input.proposed_key}. Please check which answer is correct.`
+        : `When the assistant answered this item without seeing the key, it could not defend any option. The proposed key is ${input.proposed_key}. Please check the item.`);
+  }
+  return { status: "checked", independent_answer: input.check.independent_answer, agrees_with_key: agrees, revised: input.revised, remaining_problems: problems };
+}
 
 export type ItemDesignBlueprint = z.infer<typeof ItemDesignBlueprintSchema>;
 export type ItemDesignAssistantMessage = z.infer<typeof ItemDesignAssistantMessageSchema>;
@@ -464,6 +553,10 @@ export function normalizeLegacyItemGenerationOutput(value: unknown): unknown {
       const item = record(candidate);
       return {
         ...item,
+        // Drafts generated before idea labels (generation v3) carry none.
+        options: Array.isArray(item.options)
+          ? item.options.map((option) => ({ idea_label: null, ...record(option) }))
+          : item.options,
         difficulty:
           typeof item.difficulty === "string"
             ? legacyCognitiveDemandBands[item.difficulty] ?? item.difficulty

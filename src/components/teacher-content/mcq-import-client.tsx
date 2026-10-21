@@ -9,9 +9,14 @@ import { MINI_TEST_JSON_SAMPLE_URL } from "@/lib/services/content/mini-test-json
 import { WorkbookGuides, WorkbookItemGuide, readWorkbookGuides } from "./workbook-guide";
 import {
   applyNoteSuggestion,
+  assistantCheckHeadline,
+  assistantCheckOf,
   blankNoteSuggestions,
+  candidateStatusLabel,
   incorrectOptionLabels,
   isImported,
+  issueFlagDescriptions,
+  keysTheCheckAgreedWith,
   needsNotes,
   noteFields,
   optionRationaleFor,
@@ -157,6 +162,13 @@ export function McqImportClient({
   })));
   const missingKeys = selected.filter((candidate) => !candidate.options.some((option) => option.label === candidate.teacher_confirmed_key)).length;
   const importedCount = batch?.candidates.filter(isImported).length ?? 0;
+  const checkedKeys = generatedBatch && batch ? keysTheCheckAgreedWith(batch.candidates) : [];
+
+  function confirmCheckedKeys() {
+    for (const candidate of checkedKeys) {
+      updateCandidate(candidate.candidate_public_id, (entry) => ({ ...entry, teacher_confirmed_key: entry.llm_suggested_key }));
+    }
+  }
 
   useEffect(() => {
     if (!initialBatchPublicId) return;
@@ -535,6 +547,12 @@ export function McqImportClient({
                 <CheckCircle className="h-4 w-4" aria-hidden="true" />
                 Review suggested notes ({pendingNotes.length})
               </Button> : null}
+              {checkedKeys.length > 0 ? <span title="Fills in the proposed key for each draft whose automatic check, answering without the key, chose the same option and found nothing to fix. Read each item before you add it.">
+              <Button disabled={Boolean(busyAction)} onClick={confirmCheckedKeys} type="button" variant="secondary">
+                <CheckCircle className="h-4 w-4" aria-hidden="true" />
+                Confirm the keys the check agreed with ({checkedKeys.length})
+              </Button>
+              </span> : null}
               <Button disabled={!dirty || Boolean(busyAction)} onClick={saveReview} type="button" variant="secondary">
                 <Save className="h-4 w-4" aria-hidden="true" />Save review
               </Button>
@@ -573,15 +591,17 @@ export function McqImportClient({
                           Select item
                         </label>
                         <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${statusTone(candidate.status)}`}>
-                          {candidate.status.replaceAll("_", " ")}
+                          {candidateStatusLabel(candidate.status)}
                         </span>
                         <span className="text-xs text-muted">{candidate.source_location}</span>
                         <span className="text-xs text-muted">
                           {!generatedBatch ? `Parse confidence ${Math.round(candidate.parsing_confidence * 100)}%` : null}
                         </span>
                       </div>
-                      {candidate.issue_flags.length > 0 ? (
-                        <p className="text-xs text-amber-800">Issues: {candidate.issue_flags.join(", ")}</p>
+                      {issueFlagDescriptions(candidate.issue_flags).length > 0 ? (
+                        <ul className="list-disc space-y-1 pl-4 text-xs text-amber-800">
+                          {issueFlagDescriptions(candidate.issue_flags).map((description) => <li key={description}>{description}</li>)}
+                        </ul>
                       ) : null}
                       {candidate.duplicate_warnings.length > 0 ? (
                         <ul className="space-y-1 text-xs text-amber-800">
@@ -768,12 +788,23 @@ export function McqImportClient({
                         <p className="font-semibold">Assistant notes and reported problems</p>
                         {typeof suggestion.suggested_key === "string" && suggestion.suggested_key ? (
                           <p className="mt-1">
-                            Unofficial key suggestion: {String(suggestion.suggested_key)}. Confirm or edit the key before import.
+                            Proposed key: {String(suggestion.suggested_key)}. Confirm it, or enter the correct key, before you add the item.
                           </p>
                         ) : null}
                         <p className="mt-1">
-                          {String(suggestion.evidence_justification_summary ?? "Suggestion rationale unavailable.")}
+                          {String(suggestion.evidence_justification_summary ?? "No explanation came with this suggestion.")}
                         </p>
+                        {assistantCheckOf(candidate) ? (
+                          <div className="mt-2 border-t border-blue-200 pt-2">
+                            <p className="font-semibold">Automatic check</p>
+                            <p className="mt-1">{assistantCheckHeadline(assistantCheckOf(candidate)!, candidate.llm_suggested_key)}</p>
+                            {assistantCheckOf(candidate)!.remaining_problems.length > 0 ? (
+                              <ul className="mt-1 list-disc pl-5">
+                                {assistantCheckOf(candidate)!.remaining_problems.map((problem, index) => <li key={index}>{problem}</li>)}
+                              </ul>
+                            ) : null}
+                          </div>
+                        ) : null}
                         {preparationProblems(suggestion).length > 0 ? (
                           <ProblemList problems={preparationProblems(suggestion)} />
                         ) : Array.isArray(suggestion.limitations) ? (

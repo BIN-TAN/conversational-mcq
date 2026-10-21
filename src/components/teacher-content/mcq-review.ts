@@ -150,3 +150,116 @@ export function preparationProblems(record: unknown): PreparationProblemView[] {
       : [];
   });
 }
+
+const STATUS_LABELS: Record<string, string> = {
+  parsed: "Read from file",
+  needs_review: "Needs a look",
+  needs_key: "Key to confirm",
+  needs_options: "Stem or options missing",
+  key_conflict: "Key does not match an option",
+  ready_as_draft: "Ready to add",
+  imported: "Added",
+  rejected: "Not added",
+  blocked: "Blocked"
+};
+
+/** The review status in plain words. */
+export function candidateStatusLabel(status: string) {
+  return STATUS_LABELS[status] ?? status.replaceAll("_", " ");
+}
+
+const ISSUE_DESCRIPTIONS: Record<string, string | null> = {
+  missing_stem: "The question text is missing.",
+  too_few_options: "Fewer than two answer options were found.",
+  key_missing: "No answer key was found. Enter the correct option below.",
+  key_conflict: "The answer key in the file does not match any option.",
+  possible_duplicate: "This looks like an item you already have; see the note below.",
+  embedded_image_requires_review: "The source has an image. Check that the item still makes sense, or add the image to the item.",
+  equation_or_object_requires_review: "The source has an equation or embedded object that may not have come through. Check the wording.",
+  tracked_changes_require_review: "The Word file has tracked changes. Check that this is the final wording.",
+  external_relationships_not_fetched: "The Word file links to outside content, which was not loaded.",
+  table_formatting_needs_review: "The item came from a table. Check that the question and the options were split correctly.",
+  formatting_possible_wording_change: "The layout repair may have changed some wording. Compare it with your original.",
+  assistant_check_needs_attention: "The automatic check found something to look at; see the check below.",
+  assistant_check_unavailable: "The automatic check could not run for this item, so review it as usual.",
+  // The key area already asks for this on every generated draft.
+  teacher_confirmed_key_required: null
+};
+
+/** Review flags as short sentences for the teacher. */
+export function issueFlagDescriptions(flags: string[]) {
+  return flags.flatMap((flag) => {
+    const description = flag in ISSUE_DESCRIPTIONS ? ISSUE_DESCRIPTIONS[flag] : `${flag.replaceAll("_", " ")}.`;
+    return description ? [description[0].toUpperCase() + description.slice(1)] : [];
+  });
+}
+
+export type AssistantCheckView = {
+  status: "checked" | "unavailable";
+  independent_answer: string | null;
+  agrees_with_key: boolean;
+  revised: boolean;
+  remaining_problems: string[];
+  /** False once the teacher has edited the stem or options that were checked. */
+  current: boolean;
+};
+
+function checkedWordingIsCurrent(check: Record<string, unknown>, candidate: McqImportCandidate) {
+  if (typeof check.checked_stem !== "string" || !Array.isArray(check.checked_options)) return true;
+  const options = (candidate.options ?? []).map(({ label, text }) => ({ label, text }));
+  return check.checked_stem === candidate.stem && JSON.stringify(check.checked_options) === JSON.stringify(options);
+}
+
+/** The check of a generated draft (answered without its key), when the batch has one. */
+export function assistantCheckOf(candidate: McqImportCandidate): AssistantCheckView | null {
+  const suggestion = candidate.suggestion && typeof candidate.suggestion === "object" && !Array.isArray(candidate.suggestion)
+    ? (candidate.suggestion as Record<string, unknown>)
+    : {};
+  const value = suggestion.assistant_check;
+  if (!value || typeof value !== "object") return null;
+  const check = value as Record<string, unknown>;
+  if (check.status !== "checked" && check.status !== "unavailable") return null;
+  return {
+    status: check.status,
+    independent_answer: typeof check.independent_answer === "string" ? check.independent_answer : null,
+    agrees_with_key: check.agrees_with_key === true,
+    revised: check.revised === true,
+    remaining_problems: Array.isArray(check.remaining_problems)
+      ? check.remaining_problems.filter((entry): entry is string => typeof entry === "string" && Boolean(entry.trim()))
+      : [],
+    current: checkedWordingIsCurrent(check, candidate)
+  };
+}
+
+/** One or two plain sentences on the outcome of the check. */
+export function assistantCheckHeadline(check: AssistantCheckView, proposedKey: string | null) {
+  if (check.status === "unavailable") {
+    return "The automatic check could not run for this item, so review it as usual.";
+  }
+  const answer = check.independent_answer ?? proposedKey;
+  const passed = check.agrees_with_key && check.remaining_problems.length === 0;
+  const result = passed
+    ? check.revised
+      ? `The first check found a problem, so the item was rewritten. On the rewritten item, the assistant answered without seeing the key, chose ${answer}, the proposed key, and found nothing else to fix.`
+      : `The assistant answered this item without seeing the key, chose ${answer}, the proposed key, and found nothing to fix.`
+    : check.revised
+      ? "The item was rewritten once after the first check, and the second check still found something to look at:"
+      : "The automatic check found something to look at:";
+  return check.current
+    ? result
+    : `You have edited this item since the automatic check, so this result applies to the earlier wording. ${result}`;
+}
+
+/**
+ * Drafts whose check chose the proposed key and found nothing to fix, with no key confirmed
+ * yet. The teacher can confirm these keys together and still reads every item.
+ */
+export function keysTheCheckAgreedWith(candidates: McqImportCandidate[]) {
+  return candidates.filter((candidate) => {
+    if (isImported(candidate) || candidate.teacher_confirmed_key || !candidate.llm_suggested_key) return false;
+    const check = assistantCheckOf(candidate);
+    return Boolean(check && check.status === "checked" && check.current && check.agrees_with_key &&
+      check.remaining_problems.length === 0 && check.independent_answer === candidate.llm_suggested_key &&
+      candidate.options.some((option) => option.label === candidate.llm_suggested_key));
+  });
+}

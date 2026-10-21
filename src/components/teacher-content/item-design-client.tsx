@@ -23,6 +23,7 @@ import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { apiRequest, ClientApiError, errorFromUnknown } from "./api";
 import { blueprintIssueLabels, normalizeBlueprint } from "./item-design-blueprint";
+import { prepareTopicMiniTests, topicPreparationMessage, topicRunStepText, type TopicRunState } from "./topic-preparation";
 import type { StructuredApiError } from "./types";
 import { Button, collectIssues, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
 
@@ -113,7 +114,14 @@ type CourseTopic = {
   source_material_ids: string[];
 };
 
-type TopicMiniTest = { topic_id: string; assessment_public_id: string; title: string; status: string };
+type TopicMiniTest = {
+  topic_id: string;
+  assessment_public_id: string;
+  title: string;
+  status: string;
+  /** The latest generated drafts of that mini test, when there are any. */
+  draft_review_url?: string | null;
+};
 
 type AssistantState = {
   ready_for_item_generation: boolean;
@@ -202,6 +210,12 @@ function ItemDesignAssistantWorkspace({
   onSend,
   onCreateTopicMiniTest,
   creatingTopicId,
+  onGenerate,
+  onPrepareOtherTopics,
+  onStopTopicRun,
+  topicRun,
+  topicRunActive,
+  topicRunStopping,
   readOnly,
   transcriptEndRef
 }: {
@@ -219,11 +233,18 @@ function ItemDesignAssistantWorkspace({
   onSend: (event: FormEvent<HTMLFormElement>) => void;
   onCreateTopicMiniTest: (topicId: string) => void;
   creatingTopicId: string | null;
+  onGenerate: () => void;
+  onPrepareOtherTopics: () => void;
+  onStopTopicRun: () => void;
+  topicRun: TopicRunState[] | null;
+  topicRunActive: boolean;
+  topicRunStopping: boolean;
   readOnly: boolean;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
 }) {
   const topicMap = design.assistant_state.topic_map ?? { topics: [], item_templates: [], selected_topic_id: null };
   const topicMiniTests = design.topic_mini_tests ?? [];
+  const otherTopics = topicMap.topics.filter((topic) => topic.topic_id !== topicMap.selected_topic_id);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const evidenceCount = blueprint.objectives.reduce(
@@ -351,7 +372,7 @@ function ItemDesignAssistantWorkspace({
             {busy === "assistant" ? (
               <div className="flex justify-start">
                 <div className="rounded-md border border-line bg-white px-4 py-3 text-sm text-muted">
-                  Reviewing your material and updating the design...
+                  Reading your material and updating the design. This can take a few minutes.
                 </div>
               </div>
             ) : null}
@@ -525,16 +546,23 @@ function ItemDesignAssistantWorkspace({
                               {topic.knowledge_points.map((point) => <li key={point}>{point}</li>)}
                             </ul>
                             {selected ? null : other ? (
-                              <a
-                                className="mt-2 inline-block text-sm font-semibold text-accent underline"
-                                href={`/teacher/content/assessments/${other.assessment_public_id}/item-design`}
-                              >
-                                Open its mini test: {other.title}
-                              </a>
+                              <div className="mt-2 space-y-1">
+                                <a
+                                  className="block text-sm font-semibold text-accent underline"
+                                  href={`/teacher/content/assessments/${other.assessment_public_id}/item-design`}
+                                >
+                                  Open its mini test: {other.title}
+                                </a>
+                                {other.draft_review_url ? (
+                                  <a className="block text-sm font-semibold text-accent underline" href={other.draft_review_url}>
+                                    Review its drafts
+                                  </a>
+                                ) : null}
+                              </div>
                             ) : (
                               <Button
                                 className="mt-2 w-full"
-                                disabled={creatingTopicId !== null || busy !== null}
+                                disabled={creatingTopicId !== null || busy !== null || topicRunActive}
                                 onClick={() => onCreateTopicMiniTest(topic.topic_id)}
                                 type="button"
                                 variant="secondary"
@@ -548,6 +576,44 @@ function ItemDesignAssistantWorkspace({
                     );
                   })}
                 </ul>
+                {otherTopics.length > 0 && design.assessment.is_editable ? (
+                  <div className="mt-3 space-y-2">
+                    <Button
+                      className="w-full"
+                      disabled={busy !== null || creatingTopicId !== null || topicRunActive}
+                      onClick={onPrepareOtherTopics}
+                      type="button"
+                      variant="secondary"
+                    >
+                      <Sparkles className="h-4 w-4" aria-hidden="true" />
+                      {topicRunActive ? "Preparing the other topics" : `Prepare the other topics (${otherTopics.length})`}
+                    </Button>
+                    <p className="text-xs leading-5 text-muted">
+                      For each topic, this creates its mini test, fills in the design panel and writes checked drafts for you to review. It takes a few minutes per topic, so keep this page open. You can stop and start again later; finished topics are kept.
+                    </p>
+                    {topicRun ? (
+                      <ol className="space-y-2" aria-live="polite">
+                        {topicRun.map((entry) => (
+                          <li className="rounded-md border border-line px-3 py-2 text-sm" key={entry.topic_id}>
+                            <p className="font-medium text-ink">{entry.title}</p>
+                            <p className="text-xs text-muted">{topicRunStepText(entry.step)}</p>
+                            {entry.note ? <p className="mt-1 text-xs leading-5 text-muted">{entry.note}</p> : null}
+                            {entry.link ? (
+                              <a className="mt-1 inline-block text-xs font-semibold text-accent underline" href={entry.link}>
+                                {entry.step === "ready" ? "Review the drafts" : "Open the mini test"}
+                              </a>
+                            ) : null}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : null}
+                    {topicRunActive ? (
+                      <Button className="w-full" disabled={topicRunStopping} onClick={onStopTopicRun} type="button" variant="secondary">
+                        {topicRunStopping ? "Stopping after the current step" : "Stop after the current step"}
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -571,6 +637,22 @@ function ItemDesignAssistantWorkspace({
                 <ul className="mt-2 list-disc space-y-2 pl-5 text-sm leading-5 text-ink">
                   {design.assistant_state.remaining_questions.map((entry) => <li key={entry}>{entry}</li>)}
                 </ul>
+              </div>
+            ) : null}
+
+            {design.assistant_state.ready_for_item_generation && design.assessment.is_editable ? (
+              <div className="rounded-md border border-line bg-[#F8FAF9] p-3">
+                <p className="text-sm font-medium text-ink">The design is ready for drafts.</p>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Writing the drafts and checking each one takes a few minutes. You read every item and confirm every answer key before anything is added.
+                </p>
+                <Button className="mt-2 w-full" disabled={readOnly || busy !== null} onClick={onGenerate} type="button">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  {busy === "generate" ? "Writing and checking drafts" : "Generate drafts"}
+                </Button>
+                {busy === "generate" ? (
+                  <p className="mt-2 text-xs leading-5 text-muted" role="status">This takes a few minutes. Keep this page open.</p>
+                ) : null}
               </div>
             ) : null}
 
@@ -606,11 +688,15 @@ export function ItemDesignClient({
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
   const [assistantClientMessageId, setAssistantClientMessageId] = useState<string | null>(null);
   const [creatingTopicId, setCreatingTopicId] = useState<string | null>(null);
+  const [topicRun, setTopicRun] = useState<TopicRunState[] | null>(null);
+  const [topicRunActive, setTopicRunActive] = useState(false);
+  const stopTopicRun = useRef(false);
+  const [topicRunStopping, setTopicRunStopping] = useState(false);
   const autoPrepareStarted = useRef(false);
   const starterPrefixRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const isDirty = Boolean(blueprint && design && JSON.stringify(blueprint) !== JSON.stringify(design.blueprint));
-  const { allowNavigation } = useUnsavedChanges(isDirty || Boolean(assistantInput.trim()) || assistantFiles.length > 0 || (busy !== null && busy !== "load"));
+  const { allowNavigation } = useUnsavedChanges(isDirty || Boolean(assistantInput.trim()) || assistantFiles.length > 0 || topicRunActive || (busy !== null && busy !== "load"));
 
   const load = useCallback(async () => {
     setBusy("load");
@@ -638,9 +724,7 @@ export function ItemDesignClient({
     if (!topic || design.assistant_thread.messages.length > 0 || !design.assessment.is_editable) return;
     autoPrepareStarted.current = true;
     router.replace(`/teacher/content/assessments/${assessmentPublicId}/item-design`);
-    void sendAssistantMessage(
-      `Prepare this mini test for the topic "${topic.title}" from the course topic bank, and fill in the whole design panel.`
-    );
+    void sendAssistantMessage(topicPreparationMessage(topic.title));
     // sendAssistantMessage reads the current design; the guard above runs it once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoPrepareTopic, design, blueprint, busy, assessmentPublicId, router]);
@@ -796,6 +880,34 @@ export function ItemDesignClient({
     }
   }
 
+  async function handlePrepareOtherTopics() {
+    if (!design || topicRunActive) return;
+    const topicMap = design.assistant_state.topic_map;
+    const topics = (topicMap?.topics ?? []).filter((topic) => topic.topic_id !== topicMap?.selected_topic_id);
+    if (topics.length === 0) return;
+    stopTopicRun.current = false;
+    setTopicRunStopping(false);
+    setTopicRunActive(true);
+    setError(null);
+    setSuccess(null);
+    setTopicRun(topics.map((topic) => ({ topic_id: topic.topic_id, title: topic.title, step: "waiting", link: null, note: null })));
+    try {
+      await prepareTopicMiniTests({
+        bank_assessment_public_id: assessmentPublicId,
+        topics: topics.map((topic) => ({ topic_id: topic.topic_id, title: topic.title })),
+        existing: design.topic_mini_tests ?? [],
+        onUpdate: (state) => setTopicRun((current) =>
+          current ? current.map((entry) => entry.topic_id === state.topic_id ? state : entry) : current),
+        shouldStop: () => stopTopicRun.current
+      });
+    } finally {
+      setTopicRunActive(false);
+      void apiRequest<DesignResponse>(`/api/teacher/assessments/${assessmentPublicId}/item-design`)
+        .then((response) => setDesign((current) => current ? { ...current, topic_mini_tests: response.topic_mini_tests } : current))
+        .catch(() => undefined);
+    }
+  }
+
   async function sendAssistantMessage(message: string) {
     if (!message || !design || !blueprint) return;
 
@@ -845,7 +957,7 @@ export function ItemDesignClient({
     }
   }
 
-  const readOnly = !design?.assessment.is_editable || busy !== null;
+  const readOnly = !design?.assessment.is_editable || busy !== null || topicRunActive;
 
   return (
     <div className="space-y-6">
@@ -896,6 +1008,12 @@ export function ItemDesignClient({
               onSend={handleAssistantSend}
               onCreateTopicMiniTest={(topicId) => void handleCreateTopicMiniTest(topicId)}
               creatingTopicId={creatingTopicId}
+              onGenerate={() => void handleGenerate()}
+              onPrepareOtherTopics={() => void handlePrepareOtherTopics()}
+              onStopTopicRun={() => { stopTopicRun.current = true; setTopicRunStopping(true); }}
+              topicRun={topicRun}
+              topicRunActive={topicRunActive}
+              topicRunStopping={topicRunStopping}
               readOnly={readOnly}
               transcriptEndRef={transcriptEndRef}
             />
@@ -1202,7 +1320,7 @@ export function ItemDesignClient({
             <ErrorPanel error={error} focusOnError />
             <SuccessPanel message={success} />
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-sm text-muted" role="status">{busy === "save" ? "Saving design..." : busy === "generate" ? "Generating drafts..." : isDirty ? "Unsaved changes" : "All design changes saved"}</p>
+              <p className="text-sm text-muted" role="status">{busy === "save" ? "Saving the design." : busy === "generate" ? "Writing and checking drafts. This takes a few minutes; keep this page open." : isDirty ? "Unsaved changes" : "All design changes saved"}</p>
             <div className="flex flex-wrap gap-2">
               <Button disabled={readOnly || busy !== null} onClick={handleSave} type="button" variant="secondary">
                 <Save className="h-4 w-4" aria-hidden="true" /> {busy === "save" ? "Saving" : "Save design"}

@@ -1,10 +1,11 @@
 /**
- * Item builder authoring assistant v5 (20 Oct 2026). The assistant reads the course materials
+ * Item builder authoring assistant v5 (20 Oct 2026; v6 on 21 Oct adds the plain-language rule). The assistant reads the course materials
  * (slides, quizzes, sample items, templates) once and keeps a course topic bank: each topic
  * with its knowledge points, content notes and the quiz or sample items that assess it. It
  * fills the whole design panel for the mini test's one topic, and the mini tests for the other
  * topics are created from the same bank, one at a time, without uploading the materials again.
- * Item generation v4 adds item-writing rules and keeps the reading load low.
+ * Item generation v4 adds item-writing rules and keeps the reading load low (v5: plain language
+ * and idea labels; see prisma/item-draft-check-unit-test.ts).
  * No database or provider calls. Run with: npx tsx prisma/item-design-topic-map-unit-test.ts
  */
 import assert from "node:assert/strict";
@@ -81,10 +82,10 @@ const blueprint: ItemDesignBlueprint = {
   generation_settings: { target_item_count: 4, option_count: 4, difficulty_mix: ["foundational", "analyzing"], context_notes: null }
 };
 
-check("Versions: assistant v5 with output v3, generation v4", () => {
-  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v5");
+check("Versions: assistant v6 with output v3, generation v5", () => {
+  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v6");
   assert.equal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, "evidence-centered-item-design-assistant-output-v3");
-  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v4");
+  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v5");
 });
 
 check("The reply carries the topic bank: knowledge points, notes and quiz items per topic, and templates", () => {
@@ -256,9 +257,11 @@ check("The builder sidebar shows the bank, and a new topic mini test is prepared
     "Open its mini test",
     "/item-design/topic-mini-test",
     "autoPrepareStarted.current = true",
-    "from the course topic bank, and fill in the whole design panel",
+    "sendAssistantMessage(topicPreparationMessage(topic.title))",
     "design.assistant_state.topic_map ?? { topics: [], item_templates: [], selected_topic_id: null }"
   ]) assert(client.includes(part), part);
+  assert(source("src/components/teacher-content/topic-preparation.ts")
+    .includes("from the course topic bank, and fill in the whole design panel"));
 });
 
 console.log(`\n${passed} item design topic bank checks passed; no database or provider calls.`);
