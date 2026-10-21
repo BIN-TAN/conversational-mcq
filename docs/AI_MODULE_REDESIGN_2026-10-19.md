@@ -333,6 +333,8 @@ OUTPUT
 Items with target reasoning and distractor rationales, and a list of problems, each tied to an item and a field.
 ```
 
+Until this prompt is approved, the live item builder uses the evidence-centred authoring assistant (`src/lib/services/content/item-design.ts`). Its prompt (v5, 20 Oct 2026) follows the same division of work: the assistant reads the course materials for their core knowledge points, groups them into topic clusters with their knowledge points, keeps that topic map across the conversation, and fills the whole design panel for the mini test's one topic, including the instructor's item templates and examples as exemplars. Item generation (v4) keeps the reading load low and treats the exemplars as templates.
+
 ### 9.3 Item administration
 
 The behaviour stays the same; the output shrinks from 12 message types, 4 quality levels and 7 actions to 5 actions. The model also stops receiving the answer key, which it never needs for this decision. The application already stores the student's exact words, and its fixed neutral wording is what the student sees.

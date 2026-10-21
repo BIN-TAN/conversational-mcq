@@ -129,14 +129,14 @@ async function main() {
     const now = new Date("2026-10-21T00:30:00Z");
     const minutesAgo = (minutes: number) => new Date(now.getTime() - minutes * 60_000);
     const calls = [
-      { id: "fresh", call_status: "started", started_at: minutesAgo(3), created_at: minutesAgo(3) },
-      { id: "stale", call_status: "started", started_at: minutesAgo(12), created_at: minutesAgo(12) },
+      { id: "fresh", call_status: "started", started_at: minutesAgo(9), created_at: minutesAgo(9) },
+      { id: "stale", call_status: "started", started_at: minutesAgo(16), created_at: minutesAgo(16) },
       { id: "done", call_status: "succeeded", started_at: minutesAgo(30), created_at: minutesAgo(30) },
-      { id: "no_start", call_status: "started", started_at: null, created_at: minutesAgo(11) }
+      { id: "no_start", call_status: "started", started_at: null, created_at: minutesAgo(17) }
     ];
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_DESIGN_ASSISTANT_STALE_CALL_MS, now).map((call) => call.id), ["stale", "no_start"]);
     assert.deepEqual(abandonedStartedCalls(calls, ITEM_GENERATION_STALE_CALL_MS, now).map((call) => call.id), []);
-    assert(ITEM_DESIGN_ASSISTANT_STALE_CALL_MS > 2 * 120_000, "Longer than two provider calls of 120 seconds");
+    assert(ITEM_DESIGN_ASSISTANT_STALE_CALL_MS > 2 * 240_000, "Longer than two assistant provider calls of 240 seconds");
   });
 
   console.log(`\n${passed} teacher tools resilience checks passed; no database or provider calls.`);

@@ -210,6 +210,7 @@ assert.equal(
 const assistantOutput = ItemDesignAssistantOutputSchema.parse({
   schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION,
   assistant_message: "I added an application objective and kept the misconception as a design hypothesis.",
+  topic_map: { topics: [], selected_topic_id: null },
   blueprint_updates: [
     { update_type: "set_section_topic", value: "Sampling and generalization" },
     {

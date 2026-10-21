@@ -103,8 +103,16 @@ type SourceMaterial = {
   created_at: string;
 };
 
+type CourseTopic = {
+  topic_id: string;
+  title: string;
+  knowledge_points: string[];
+  source_material_ids: string[];
+};
+
 type AssistantState = {
   ready_for_item_generation: boolean;
+  topic_map: { topics: CourseTopic[]; selected_topic_id: string | null };
   change_summary: string[];
   remaining_questions: string[];
 };
@@ -476,6 +484,32 @@ function ItemDesignAssistantWorkspace({
                     {design.source_materials.length - 4} earlier material{design.source_materials.length - 4 === 1 ? "" : "s"}
                   </p>
                 ) : null}
+              </div>
+            ) : null}
+
+            {design.assistant_state.topic_map.topics.length > 0 ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                  Topics in the course materials ({design.assistant_state.topic_map.topics.length})
+                </p>
+                <ul className="mt-2 space-y-2">
+                  {design.assistant_state.topic_map.topics.map((topic) => {
+                    const selected = topic.topic_id === design.assistant_state.topic_map.selected_topic_id;
+                    return (
+                      <li key={topic.topic_id}>
+                        <details className="rounded-md border border-line" open={selected}>
+                          <summary className="cursor-pointer px-3 py-2 text-sm font-medium text-ink">
+                            {topic.title}
+                            {selected ? <span className="ml-2 text-xs font-semibold text-accent">This mini test</span> : null}
+                          </summary>
+                          <ul className="list-disc space-y-1 border-t border-line px-3 py-2 pl-7 text-sm leading-5 text-muted">
+                            {topic.knowledge_points.map((point) => <li key={point}>{point}</li>)}
+                          </ul>
+                        </details>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             ) : null}
 

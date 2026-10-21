@@ -1,11 +1,12 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v4" as const;
-export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v2" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v5" as const;
+export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v3" as const;
+const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v3" as const;
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v4" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -126,10 +127,41 @@ export const ItemDesignAssistantBlueprintUpdateSchema = z.discriminatedUnion("up
   }).strict()
 ]);
 
+/**
+ * The topics the course materials teach, each with its core knowledge points (v3). The design
+ * panel is filled for the selected topic; one mini test assesses one topic.
+ */
+export const ItemDesignTopicSchema = z.object({
+  topic_id: z.string().trim().min(1).max(80),
+  title: z.string().trim().min(1).max(240),
+  knowledge_points: z.array(z.string().trim().min(1).max(300)).min(1).max(12),
+  source_material_ids: z.array(z.string().trim().min(1).max(100)).max(40)
+}).strict();
+
+export const ItemDesignTopicMapSchema = z.object({
+  topics: z.array(ItemDesignTopicSchema).max(12),
+  selected_topic_id: z.string().trim().min(1).max(80).nullable()
+}).strict();
+
+export type ItemDesignTopicMap = z.infer<typeof ItemDesignTopicMapSchema>;
+
+export const EMPTY_ITEM_DESIGN_TOPIC_MAP: ItemDesignTopicMap = { topics: [], selected_topic_id: null };
+
+/** A topic map whose selected topic is one of its topics (otherwise none is selected). */
+export function consistentTopicMap(value: unknown): ItemDesignTopicMap {
+  const parsed = ItemDesignTopicMapSchema.safeParse(value);
+  if (!parsed.success) return EMPTY_ITEM_DESIGN_TOPIC_MAP;
+  const map = parsed.data;
+  return map.selected_topic_id && map.topics.some((topic) => topic.topic_id === map.selected_topic_id)
+    ? map
+    : { ...map, selected_topic_id: null };
+}
+
 export const ItemDesignAssistantOutputSchema = z.object({
   schema_version: z.literal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION),
   assistant_message: z.string().trim().min(1).max(4000),
-  blueprint_updates: z.array(ItemDesignAssistantBlueprintUpdateSchema).max(24),
+  topic_map: ItemDesignTopicMapSchema,
+  blueprint_updates: z.array(ItemDesignAssistantBlueprintUpdateSchema).max(48),
   change_summary: z.array(z.string().trim().min(1).max(300)).max(10),
   remaining_questions: z.array(z.string().trim().min(1).max(500)).max(8),
   material_summaries: z.array(z.object({
@@ -339,8 +371,13 @@ export function normalizeLegacyItemDesignBlueprint(value: unknown): unknown {
 export function normalizeLegacyItemDesignAssistantOutput(value: unknown): unknown {
   const output = record(value);
   if (!Array.isArray(output.blueprint_updates)) return value;
+  // v2 outputs (before the topic map) replay as v3 with no topics.
+  const versioned = output.schema_version === ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2
+    ? { schema_version: ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, topic_map: EMPTY_ITEM_DESIGN_TOPIC_MAP }
+    : {};
   return {
     ...output,
+    ...versioned,
     blueprint_updates: output.blueprint_updates.map((candidate) => {
       const update = record(candidate);
       if (update.update_type !== "update_generation_settings") return candidate;
