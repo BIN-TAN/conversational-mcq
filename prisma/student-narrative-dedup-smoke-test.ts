@@ -105,7 +105,7 @@ assert(
   "sidebar should retain answer reviews"
 );
 assert(
-  componentSource.includes("Total correct"),
+  componentSource.includes("Your score"),
   "sidebar should retain compact initial-results summary"
 );
 assert(

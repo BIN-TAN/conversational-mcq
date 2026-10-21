@@ -63,7 +63,7 @@ export async function POST(
     ) {
       throw new StudentAssessmentServiceError(
         "invalid_phase_for_action",
-        "The tutor response is not ready to retry.",
+        "Please wait a moment before asking the tutor again.",
         409
       );
     }

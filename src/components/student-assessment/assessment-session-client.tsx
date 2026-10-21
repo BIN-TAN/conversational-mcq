@@ -84,7 +84,7 @@ import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdo
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
-const STUDENT_FACING_TUTOR_LABEL = "Assessment Tutor";
+const STUDENT_FACING_TUTOR_LABEL = "Tutor";
 const FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000;
 const FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000;
 
@@ -329,7 +329,7 @@ export function FormativeOpeningStatus({
         role="status"
       >
         <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        Reviewing your responses and preparing personalized learning support...
+        Reading your answers and preparing your feedback...
       </p>
     );
   }
@@ -341,8 +341,7 @@ export function FormativeOpeningStatus({
         data-testid="formative-conversation-opening-retry"
       >
         <p className="text-sm text-muted">
-          Your responses are saved. Personalized learning support is not ready
-          yet.
+          Your answers are saved, but your feedback is not ready yet.
         </p>
         <button
           className="inline-flex items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-xs font-semibold text-ink hover:border-accent disabled:opacity-60"
@@ -366,8 +365,8 @@ export function FormativeOpeningStatus({
       className="mt-4 rounded-md bg-slate-50 px-3 py-2 text-sm text-muted"
       data-testid="formative-conversation-opening-unavailable"
     >
-      Personalized learning support is temporarily unavailable. Your responses
-      are saved. You can pause and return later.
+      Feedback is not available right now. Your answers are saved, so you can
+      pause and come back later.
     </p>
   );
 }
@@ -406,7 +405,7 @@ function FormativeResponseWaitingStatus({
   const message =
     !messageSaved
       ? stage === "delayed"
-        ? "Waiting for confirmation. You can review earlier messages while you wait."
+        ? "We are still confirming that your message arrived. You can read earlier messages while you wait."
         : "Sending your message..."
       : stage === "preparing"
       ? "Preparing a response..."
@@ -478,7 +477,7 @@ function FormativeConversationControls(input: {
       {conversation.can_finish_assessment ? <button type="button" disabled={input.isBusy}
         className="rounded-md bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60"
         onClick={input.onFinish} data-testid="finish-assessment">Finish assessment</button> :
-        <p className="text-sm text-muted">Your responses are saved. Use End attempt at the top of the page to finish, or contact your teacher if you need help.</p>}
+        <p className="text-sm text-muted">Your answers are saved. To finish, select &ldquo;End attempt&rdquo; at the top of the page. If you need help, contact your instructor.</p>}
     </section>;
   }
   const response = conversation.assistant_response;
@@ -541,8 +540,8 @@ function FormativeConversationControls(input: {
             data-testid="formative-conversation-response-retry"
           >
             <p className="text-sm text-amber-950">
-              Your message is saved. The tutor could not respond just now.
-              {!response.can_retry ? " Resume the conversation to retry, or contact your teacher for help." : ""}
+              Your message is saved, but the tutor could not reply just now.
+              {!response.can_retry ? " If this keeps happening, contact your instructor." : ""}
             </p>
             {response.can_retry ? (
               <button
@@ -552,7 +551,7 @@ function FormativeConversationControls(input: {
                 type="button"
               >
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
-                Try tutor response again
+                Ask the tutor again
               </button>
             ) : null}
           </div>
@@ -615,7 +614,7 @@ function FormativeConversationControls(input: {
             ? "This conversation is paused. Resume it when you are ready to continue."
             : conversation.can_end
               ? `You have reached the end of this conversation. Select "${input.finishLabel}" when you are ready.`
-              : "This conversation has ended. Use End attempt at the top of the page when you are ready to finish the assessment."}
+              : "This conversation has ended. When you are ready, select \"End attempt\" at the top of the page to finish the assessment."}
         </p>
       )}
     </section>
@@ -809,11 +808,8 @@ function AgentItemMessage({
 }) {
   const initialItemLabel =
     item.initial_item_position && item.initial_item_total
-      ? `Item ${item.initial_item_position} of ${item.initial_item_total} - ${Math.max(
-          item.initial_item_total - item.initial_item_position,
-          0
-        )} remaining after this`
-      : `Item ${item.item_order}`;
+      ? `Question ${item.initial_item_position} of ${item.initial_item_total}`
+      : `Question ${item.item_order}`;
   const answerPrompt = buildInitialAdminPrompt({
     kind: "answer_prompt",
     assessmentState: isTransferItem ? "TRANSFER_ITEM" : "AWAIT_ANSWER",
@@ -1123,7 +1119,7 @@ function PackageReviewMessage({
                   <details className="min-w-0 flex-1 group" open={isEditing}>
                     <summary className="cursor-pointer list-none rounded-lg px-1 py-1 focus:outline-none focus:ring-2 focus:ring-accent-soft">
                       <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
-                        Item {item.initial_item_position ?? item.item_order} response
+                        Question {item.initial_item_position ?? item.item_order}
                       </span>
                       <span className="mt-1 block text-sm leading-6 text-ink">
                         Answer: {displayAnswer(item.existing_selected_option)}
@@ -1132,7 +1128,7 @@ function PackageReviewMessage({
                           : ""}
                       </span>
                       <span className="mt-1 block text-xs font-medium text-accent group-open:hidden">
-                        Expand details
+                        Show details
                       </span>
                       <span className="mt-1 hidden text-xs font-medium text-accent group-open:block">
                         Hide details
@@ -1152,7 +1148,7 @@ function PackageReviewMessage({
                           <dt className="font-semibold text-ink">Tempting option</dt>
                           <dd className="text-muted">
                             {item.no_tempting_option
-                              ? "No"
+                              ? "None"
                               : item.tempting_option
                                 ? item.tempting_option
                                 : "Not provided"}
@@ -1317,7 +1313,7 @@ function PackageReviewMessage({
                         onClick={onSaveEdit}
                         type="button"
                       >
-                        Save edits
+                        Save changes
                       </button>
                       <button
                         className="inline-flex items-center justify-center rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
@@ -1337,7 +1333,7 @@ function PackageReviewMessage({
         </div>
       ) : null}
       <p className="mt-4 text-sm leading-6 text-muted" data-testid="initial-preparation-expectation">
-        After you finish this review, preparing your initial feedback may take about a minute or longer.
+        After you finish this review, your feedback may take a minute or more to prepare.
       </p>
       <button
         className="mt-4 inline-flex items-center justify-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
@@ -1555,7 +1551,7 @@ function InFlowEditPanel({
               onClick={onSave}
               type="button"
             >
-              Save edit
+              Save changes
             </button>
             <button
               className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
@@ -1605,7 +1601,7 @@ function FollowupControls({
   if (state.assessment_state === "SESSION_COMPLETE" || state.next_step === "session_completed") {
     return (
       <AgentMessage>
-        <p className="font-medium text-ink">This assessment session is complete.</p>
+        <p className="font-medium text-ink">You have finished this assessment. Your answers are saved.</p>
       </AgentMessage>
     );
   }
@@ -2015,7 +2011,7 @@ function PackageResultsChatCard({
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
           <div data-testid="package-results-summary">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Total correct</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Your score</p>
             <ObservedFeedback enabled={observe} send={send} event={{ event_type: "package_results_shown",
               concept_unit_public_id: conceptId, event_category: "feedback_display",
               payload: { content_id: feedbackContentId(sessionId, conceptId, "initial-results"), content_kind: "package_summary" } }}>
@@ -2030,7 +2026,7 @@ function PackageResultsChatCard({
                   open
                 >
                   <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
-                    Item {item.item_position ?? "?"} — {item.status_label}
+                    {item.item_position ? `Question ${item.item_position}: ` : ""}{item.status_label}
                   </summary>
                   <div className="mt-2 space-y-1 text-sm text-muted">
                     <p>
@@ -2045,7 +2041,7 @@ function PackageResultsChatCard({
                       <span className="font-semibold text-ink">Correct answer:</span>{" "}
                       {item.answer_revealed && item.revealed_answer
                         ? item.revealed_answer
-                        : "Not shown"}
+                        : "Your instructor has chosen not to show it."}
                     </p>
                     {item.answer_explanation_revealed && item.answer_explanation ? (
                       <ObservedFeedback enabled={observe} send={send} event={{ event_type: "item_correctness_status_shown",
@@ -2057,7 +2053,7 @@ function PackageResultsChatCard({
                     ) : null}
                     {item.distractor_boundary ? (
                       <p>
-                        <span className="font-semibold text-ink">Boundary to notice:</span>{" "}
+                        <span className="font-semibold text-ink">What to watch for:</span>{" "}
                         {item.distractor_boundary}
                       </p>
                     ) : null}
@@ -2309,8 +2305,8 @@ function activeItemPrompt(input: {
     return (
       <AgentMessage>
         <p className="font-medium text-ink">
-          We will start with {initialItemCount} initial {initialItemCount === 1 ? "question" : "questions"}. I will ask for your answer, your reason,
-          your confidence, and whether another option was tempting.
+          We will start with {initialItemCount} {initialItemCount === 1 ? "question" : "questions"}. For each one, I will ask for your answer,
+          why you chose it, how sure you are, and whether another option was tempting.
         </p>
         {state.current_concept_unit ? (
           <button
@@ -2437,7 +2433,7 @@ function activeItemPrompt(input: {
   if (state.assessment_state === "ITEM_COMPLETE") {
     return (
       <AgentMessage>
-        <p className="font-medium text-ink">Thanks. I am opening the next question.</p>
+        <p className="font-medium text-ink">Thanks. Here is the next question.</p>
       </AgentMessage>
     );
   }
@@ -2463,7 +2459,7 @@ function activeItemPrompt(input: {
     return (
       <AgentMessage>
         <p className="font-medium text-ink">
-          Your initial responses have been reviewed. The next support step is not available yet in this prototype.
+          Your answers are saved. The next part is not ready yet. Refresh the page in a minute, or contact your instructor if this message stays.
         </p>
       </AgentMessage>
     );
@@ -2533,14 +2529,14 @@ function activeItemPrompt(input: {
   if (state.assessment_state === "SESSION_COMPLETE" || state.next_step === "session_completed") {
     return (
       <AgentMessage>
-        <p className="font-medium text-ink">This assessment session is complete.</p>
+        <p className="font-medium text-ink">You have finished this assessment. Your answers are saved.</p>
       </AgentMessage>
     );
   }
 
   return (
     <AgentMessage>
-      <p className="font-medium text-ink">The assessment is preparing the next step.</p>
+      <p className="font-medium text-ink">Getting the next part ready...</p>
     </AgentMessage>
   );
 }
@@ -2876,7 +2872,7 @@ export function AssessmentSessionClient({
         ? (errorValue as StructuredStudentApiError)
         : {
             code: "request_failed",
-            message: "The request could not be completed.",
+            message: "Something went wrong, and your last step may not have been saved. Check your connection and try again.",
             status: 500
           };
 
@@ -3138,7 +3134,7 @@ export function AssessmentSessionClient({
         } else {
           throw {
             code: "missing_session",
-            message: "No assessment session was provided.",
+            message: "This link does not include an assessment. Go back to your assessments and open it again.",
             status: 400
           } satisfies StructuredStudentApiError;
         }
@@ -3479,7 +3475,7 @@ export function AssessmentSessionClient({
       return;
     }
 
-    if (unprotectedDraft && !window.confirm("Leave with unsent changes? These changes could not be kept on this device. Cancel to send or finish editing them first.")) return;
+    if (unprotectedDraft && !window.confirm("You have text you have not sent. If you leave now, it will be lost. Select Cancel to go back and send it, or OK to leave anyway.")) return;
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
@@ -3521,8 +3517,8 @@ export function AssessmentSessionClient({
 
     const confirmed = window.confirm(
       state?.preparation?.status === "failed"
-        ? "End this attempt?\n\nYour submitted responses will remain saved, but learning support is incomplete. This attempt cannot be resumed. Contact your teacher if you need another chance."
-        : "End this attempt?\n\nYour submitted responses will remain saved. This attempt cannot be resumed. You can start again if you have a remaining chance."
+        ? "End this attempt?\n\nYour answers stay saved, but you will not get feedback on them, and you cannot come back to this attempt. If you need another attempt, contact your instructor."
+        : "End this attempt?\n\nYour answers stay saved, but you cannot come back to this attempt. You can start a new attempt if you have any left."
     );
 
     if (!confirmed) {
@@ -3557,7 +3553,7 @@ export function AssessmentSessionClient({
     if (state.followup && trimmed.length > state.followup.message_max_chars) {
       setError({
         code: "message_too_long",
-        message: `Keep the message under ${state.followup.message_max_chars} characters.`,
+        message: `Your message is too long. Please keep it under ${state.followup.message_max_chars} characters.`,
         status: 400
       });
       return;
@@ -3665,7 +3661,7 @@ export function AssessmentSessionClient({
     if (trimmed.length > maxChars) {
       setError({
         code: "message_too_long",
-        message: `Keep the message under ${maxChars} characters.`,
+        message: `Your message is too long. Please keep it under ${maxChars} characters.`,
         status: 400
       });
       return;
@@ -3694,7 +3690,7 @@ export function AssessmentSessionClient({
       if (!activityRuntime?.activity_attempt_public_id) {
         throw {
           code: "activity_not_ready",
-          message: "Prepare the activity before sending a response.",
+          message: "This activity is still loading. Wait a moment, then send your response again.",
           status: 409
         } satisfies StructuredStudentApiError;
       }
@@ -3877,7 +3873,7 @@ export function AssessmentSessionClient({
             onClick={failedAction.retry}
             type="button"
           >
-            Retry {failedAction.label}
+            Try again
           </button>
         ) : null}
       </div>
@@ -3895,19 +3891,19 @@ export function AssessmentSessionClient({
         {preparationPending ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" aria-hidden="true" /> : null}
         {state.preparation.status === "failed"
           ? state.preparation.failure_reason === "output_token_limit"
-            ? "Your responses are saved. AI feedback reached its response limit and could not finish."
-            : "Your responses are saved, but learning support could not be prepared."
+            ? "Your answers are saved, but your feedback could not be finished this time."
+            : "Your answers are saved, but your feedback could not be prepared."
           : state.preparation.status === "paused"
-            ? "Your responses are saved. Preparation is paused."
-            : "Your responses are saved. Preparing your learning conversation..."}
+            ? "Your answers are saved. Preparing your feedback is on hold for now."
+            : "Your answers are saved. Preparing your feedback..."}
       </p>
       {preparationPending ? (
         <p className="mt-2 text-sm leading-6 text-muted" data-testid="initial-preparation-wait-notice">
-          Preparing your initial feedback may take about a minute or longer. You can review your responses while you wait.
+          Your feedback may take a minute or more to prepare. You can look over your answers while you wait.
         </p>
       ) : null}
       {preparationConnectionLost && preparationPending ? (
-        <p className="mt-2 text-sm text-muted">Connection interrupted. Checking progress again shortly.</p>
+        <p className="mt-2 text-sm text-muted">Your connection was interrupted. We will check again in a few seconds.</p>
       ) : null}
       {state.preparation.can_retry ? (
         <button type="button" className="mt-3 inline-flex items-center gap-2 rounded-md border border-line px-4 py-2 font-semibold disabled:opacity-50"
@@ -3924,32 +3920,32 @@ export function AssessmentSessionClient({
       ) : null}
       {state.preparation.taking_long && state.preparation.can_finish ? (
         <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-taking-long">
-          This is taking longer than usual. You can keep waiting, or finish now. Your responses are saved either way,
-          and your teacher will see if learning support was not available.
+          This is taking longer than usual. You can keep waiting, or finish now. Your answers are saved either way,
+          and your instructor will see that feedback was not available.
         </p>
       ) : null}
       {state.preparation.status === "failed" ? (
         <p className="mt-3 text-sm leading-6 text-muted" data-testid="initial-feedback-help">
           {state.preparation.can_retry && state.preparation.can_finish
-            ? "You can try again, or finish now. Your responses are saved either way, and your teacher will see that learning support was not available."
+            ? "You can try again, or finish now. Your answers are saved either way, and your instructor will see that feedback was not available."
             : state.preparation.can_retry
-              ? "You can try again or contact your teacher for help."
+              ? "You can try again, or contact your instructor for help."
               : state.preparation.can_finish
-                ? "You can finish now. Your responses are saved, and your teacher will see that learning support was not available."
-                : "Please contact your teacher for help with this test."}
+                ? "You can finish now. Your answers are saved, and your instructor will see that feedback was not available."
+                : "Please contact your instructor for help with this assessment."}
         </p>
       ) : null}
       {review?.locked && !state.package_results ? (
         <details className="mt-4 border-t border-line pt-3" data-testid="submitted-response-review">
-          <summary className="cursor-pointer font-semibold text-ink">Review your responses</summary>
+          <summary className="cursor-pointer font-semibold text-ink">Review your answers</summary>
           <ol className="mt-3 space-y-4">
             {review.items.map((item, index) => (
               <li key={item.item_public_id} className="space-y-2 break-words text-sm text-ink">
                 <p className="font-semibold">{index + 1}. {item.item_stem}</p>
                 <p>Your answer: {item.existing_selected_option
                   ? `${item.existing_selected_option}. ${item.options.find((option) => option.label === item.existing_selected_option)?.text ?? ""}`
-                  : "Skipped"}</p>
-                <p className="whitespace-pre-wrap">Your reasoning: {item.existing_reasoning_text || "Not provided"}</p>
+                  : "No answer"}</p>
+                <p className="whitespace-pre-wrap">Your reason: {item.existing_reasoning_text || "Not provided"}</p>
                 <p>Confidence: {item.existing_confidence_rating ? confidenceLabel(item.existing_confidence_rating) : "Not provided"}</p>
                 {item.tempting_option ? <p>Tempting option: {item.tempting_option}{item.tempting_option_reason ? ` - ${item.tempting_option_reason}` : ""}</p> : null}
               </li>
@@ -4071,17 +4067,17 @@ export function AssessmentSessionClient({
             <AgentMessage>
               <p className="font-medium text-ink">
                 {state.preparation?.status === "skipped"
-                  ? "Your responses are saved. This attempt is finished without AI feedback."
+                  ? "Your answers are saved. This attempt ended without feedback."
                   : isReviewablePastAttempt
                   ? "Past attempt review"
-                  : "This attempt is not available as a past attempt."}
+                  : "This attempt is still open, so it cannot be reviewed yet."}
               </p>
               <p className="mt-2 text-sm leading-6 text-muted">
                 {state.preparation?.status === "skipped"
-                  ? "Learning support could not be completed. Your teacher can review your responses with you."
+                  ? "Feedback could not be prepared for this attempt. Your instructor can go over your answers with you."
                   : isReviewablePastAttempt
-                  ? "This is a read-only view. You can look back through your answers and learning conversation."
-                  : "Return to assessments to resume or manage this attempt."}
+                  ? "This is a read-only view. You can look back through your answers and your conversation with the tutor."
+                  : "Go back to your assessments to continue or end this attempt."}
               </p>
             </AgentMessage>
           ) : null}
@@ -4093,7 +4089,7 @@ export function AssessmentSessionClient({
               onClick={failedAction.retry}
               type="button"
             >
-              Retry {failedAction.label}
+              Try again
             </button>
           ) : null}
           {beforePackageResults.map((entry) => (
@@ -4226,10 +4222,10 @@ export function AssessmentSessionClient({
         >
           <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
             <h2 id="end-assessment-dialog-title" className="text-lg font-semibold text-ink">
-              End the assessment?
+              End this attempt?
             </h2>
             <p className="mt-3 text-sm leading-6 text-muted">
-              This will end the current assessment conversation.
+              Your answers stay saved, but you cannot come back to this attempt.
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <button

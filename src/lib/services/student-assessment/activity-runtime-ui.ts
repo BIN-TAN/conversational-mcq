@@ -937,7 +937,7 @@ async function assertActiveStudentAccount(studentUserDbId: string, client: Prism
   if (!user || user.role !== "student" || user.account_status !== "active") {
     throw new StudentAssessmentServiceError(
       "account_unavailable",
-      "This account is currently unavailable.",
+      "This account cannot be used right now. Please contact your instructor.",
       403
     );
   }
@@ -974,7 +974,7 @@ async function ownedSessionContext(input: {
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }

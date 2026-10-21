@@ -769,7 +769,7 @@ async function main() {
       error: {
         code: "formative_conversation_unavailable",
         message:
-          "The learning conversation is temporarily unavailable. Please try again.",
+          "The tutor is not available right now. Your answers are saved. Please try again in a minute.",
         details: {
           retryable: true
         }
@@ -1504,7 +1504,7 @@ async function main() {
     );
     assert(
       studentUiSource.includes(
-        "Reviewing your responses and preparing personalized learning support..."
+        "Reading your answers and preparing your feedback..."
       ) &&
         studentUiSource.includes("setIsCompletingPackage(true)") &&
         studentUiSource.includes(
@@ -1708,7 +1708,7 @@ async function main() {
     );
     assert(
       preparingOpeningMarkup.includes(
-        "Reviewing your responses and preparing personalized learning support..."
+        "Reading your answers and preparing your feedback..."
       ),
       "The opening wait state must describe its student-facing purpose."
     );
@@ -1720,9 +1720,9 @@ async function main() {
       })
     );
     assert(
-      retryOpeningMarkup.includes("Your responses are saved.") &&
+      retryOpeningMarkup.includes("Your answers are saved") &&
         retryOpeningMarkup.includes(
-          "Personalized learning support is not ready yet."
+          "your feedback is not ready yet."
         ) &&
         retryOpeningMarkup.includes("Try again"),
       "The opening retry state must preserve the student's work and expose a clear retry."
@@ -1734,10 +1734,10 @@ async function main() {
     );
     assert(
       unavailableOpeningMarkup.includes(
-        "Personalized learning support is temporarily unavailable."
+        "Feedback is not available right now."
       ) &&
         unavailableOpeningMarkup.includes(
-          "You can pause and return later."
+          "pause and come back later."
         ),
       "The unavailable state must explain safe recovery without generating tutor content."
     );

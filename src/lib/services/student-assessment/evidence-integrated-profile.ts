@@ -1964,9 +1964,17 @@ export function studentSafeProjectionFromEvidenceProfile(
   };
 }
 
+/** "2 of 3 correct" (as stored in the profile) in a sentence a student reads naturally. */
+export function studentResultSentence(initialResults: string) {
+  const counts = /^(\d+) of (\d+) correct$/.exec(initialResults.trim());
+  if (!counts) return `Your result: ${initialResults}.`;
+  const total = Number(counts[2]);
+  return `You got ${counts[1]} of ${total} ${total === 1 ? "question" : "questions"} right.`;
+}
+
 export function packageResultsForStudent(profile: EvidenceIntegratedProfileV2) {
   return {
-    result_summary: `You answered ${profile.student_safe_summary.initial_results}.`,
+    result_summary: studentResultSentence(profile.student_safe_summary.initial_results),
     answer_reveal_policy: profile.outcome_summary.restricted_answer_reveal_state.answer_reveal_policy,
     result_status_reveal_policy:
       profile.outcome_summary.restricted_answer_reveal_state.correctness_status_reveal_policy,
@@ -1982,8 +1990,8 @@ export function packageResultsForStudent(profile: EvidenceIntegratedProfileV2) {
           : item.result === "incorrect"
             ? "Incorrect"
             : item.result === "unanswered"
-              ? "Unanswered"
-              : "Not scored",
+              ? "No answer"
+              : "Not marked",
       confidence: item.confidence,
       answer_revealed: item.answer_key_revealed,
       revealed_answer: item.answer_key_revealed ? item.correct_option : null,

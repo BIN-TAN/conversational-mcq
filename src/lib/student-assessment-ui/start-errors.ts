@@ -18,13 +18,14 @@ export function normalizeAssessmentStartErrorForStudent(
   if (error.status === 409 && ACTIVE_ATTEMPT_ERROR_CODES.has(error.code)) {
     return {
       ...error,
-      message: "You already have an activity in progress. Resume your current attempt."
+      message: "You already have an attempt in progress. Resume it to continue."
     };
   }
 
   return error;
 }
 
-export function shouldDisplayStudentApiErrorCode(error: StructuredStudentApiError) {
-  return error.status !== 409;
+/** Internal error codes are never shown to students; the message says what to do. */
+export function shouldDisplayStudentApiErrorCode(_error: StructuredStudentApiError) {
+  return false;
 }

@@ -61,7 +61,7 @@ async function assertStudentComponentQualityShape() {
   assert(agentItemSource.includes("<button"), "Answer option cards should be buttons.");
   assert(!agentItemSource.includes("<OptionChip"), "Answer selection should not render separate A-D chips.");
   assert(source.includes("in-flow-edit-panel"), "In-flow edit affordance is missing.");
-  assert(source.includes("Total correct"), "Student sidebar should retain compact initial-results wording.");
+  assert(source.includes("Your score"), "Student sidebar should retain compact initial-results wording.");
   assert(source.includes("data-testid=\"initial-answer-review-list\""), "Student sidebar should retain answer reviews.");
   assert(!source.includes("What your responses show"), "Student sidebar should not duplicate the profile narrative.");
   assert(!source.includes("Your explanations"), "Student sidebar should not duplicate reasoning narrative.");

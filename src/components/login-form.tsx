@@ -44,7 +44,7 @@ export function LoginForm({ audience = "student" }: { audience?: "student" | "te
       }
 
       if (!response.ok || !data.user) {
-        setError(data.error ?? "Sign-in did not work. Check your user ID and password, then try again.");
+        setError(data.error ?? "Sign-in did not work. Check your username and password, then try again.");
         return;
       }
 

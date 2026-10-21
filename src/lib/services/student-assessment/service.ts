@@ -127,7 +127,7 @@ const IDK_OPTION_LABEL = "E";
 /** D3: student-facing payloads never include the understanding profile. */
 const STUDENT_LEARNING_PROFILE_VISIBLE = false as boolean;
 const REPEATED_INVALID_RESPONSE_PROMPT =
-  "Please keep your response about this question. A brief reason is enough; you can also say you are unsure or have no more to add.";
+  "Let's stay with this question. A short reason is enough, and it's fine to say you're not sure or that you have nothing to add.";
 
 function repeatedInvalidOverride(input: {
   attempt_count: number;
@@ -541,7 +541,7 @@ async function assertNoCompletedPackageConflict(input: {
   if (conflictingOperation) {
     throw new StudentAssessmentServiceError(
       "package_completion_conflict",
-      "This assessment changed in another request. Refresh to continue from the latest saved state.",
+      "This assessment was updated in another tab or window. Refresh the page to continue from your latest saved answers.",
       409,
       {
         operation_public_id: input.identity.operation_public_id,
@@ -567,7 +567,7 @@ async function findOrCreatePackageCompletionOperation(input: {
     if (existing.request_hash !== input.identity.request_hash) {
       throw new StudentAssessmentServiceError(
         "package_completion_conflict",
-        "This assessment changed in another request. Refresh to continue from the latest saved state.",
+        "This assessment was updated in another tab or window. Refresh the page to continue from your latest saved answers.",
         409,
         {
           operation_public_id: input.identity.operation_public_id,
@@ -613,7 +613,7 @@ async function findOrCreatePackageCompletionOperation(input: {
     if (raced.request_hash !== input.identity.request_hash) {
       throw new StudentAssessmentServiceError(
         "package_completion_conflict",
-        "This assessment changed in another request. Refresh to continue from the latest saved state.",
+        "This assessment was updated in another tab or window. Refresh the page to continue from your latest saved answers.",
         409,
         {
           operation_public_id: input.identity.operation_public_id,
@@ -1287,7 +1287,7 @@ function validTemptingOptionLabels(
 }
 
 function sameOptionTemptingMessage() {
-  return "You already chose that as your answer. Was a different option tempting, or should I record that no other option was tempting? You can choose a different option, choose No, or edit your original answer if you meant to change it.";
+  return "That is the answer you chose. Was a different option tempting? If so, choose it. If not, choose No. If you meant to change your answer, edit your answer instead.";
 }
 
 async function logSameOptionTemptingRejected(input: {
@@ -1427,7 +1427,7 @@ function packageReviewPrompt(initialItemTotal?: number | null) {
   });
 }
 const TRANSFER_COMPLETION_MESSAGE =
-  "Thanks. Your response to the additional question has been recorded.";
+  "Thanks. Your answer to the additional question is saved.";
 
 function studentFacingConfidenceLabel(value: string | null | undefined) {
   if (value === "low") return "Low";
@@ -1661,7 +1661,7 @@ function assertActionAllowedForState(input: {
   if (!allowed.ok) {
     throw new StudentAssessmentServiceError(
       "invalid_phase_for_action",
-      "This action is not allowed in the current assessment state.",
+      "That step is not available right now. Refresh the page to continue.",
       409,
       {
         assessment_state: input.assessment_state,
@@ -1743,7 +1743,7 @@ async function validPublishedConceptUnits(
   if (conceptUnits.length === 0) {
     throw new StudentAssessmentServiceError(
       "assessment_has_no_valid_published_concept_unit",
-      "Assessment has no valid published concept unit.",
+      "This assessment is not set up correctly yet. Please let your instructor know.",
       409,
       { assessment_db_id: assessmentDbId }
     );
@@ -1763,7 +1763,7 @@ async function validPublishedConceptUnits(
   if (invalid.length > 0) {
     throw new StudentAssessmentServiceError(
       "assessment_has_no_valid_published_concept_unit",
-      "Published concept units must have at least 3 included active items.",
+      "This assessment is not set up correctly yet. Please let your instructor know.",
       409,
       { concept_units: invalid }
     );
@@ -1803,7 +1803,7 @@ async function getOwnedSession(input: { student_user_db_id: string; session_publ
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }
@@ -1823,7 +1823,7 @@ async function assertActiveStudentAccount(
   if (!user || user.role !== "student" || user.account_status !== "active") {
     throw new StudentAssessmentServiceError(
       "account_unavailable",
-      "This account is currently unavailable.",
+      "This account cannot be used right now. Please contact your instructor.",
       403
     );
   }
@@ -1861,7 +1861,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
     if (existing.action_type !== input.action_type || existing.request_hash !== requestHash) {
       throw new StudentAssessmentServiceError(
         "idempotency_conflict",
-        "The same client_action_id was used with different request content.",
+        "Something went wrong while saving. Refresh the page and try again.",
         409
       );
     }
@@ -1877,7 +1877,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
     if (!abandoned) {
       throw new StudentAssessmentServiceError(
         "session_start_conflict",
-        "A matching request is already in progress.",
+        "We are still saving your last step. Wait a few seconds, then try again.",
         409
       );
     }
@@ -1897,7 +1897,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       // Another tab or a rapid retry claimed this operation between read and insert.
       throw new StudentAssessmentServiceError(
-        "session_start_conflict", "A matching request is already in progress. Please retry shortly.", 409
+        "session_start_conflict", "We are still saving your last step. Wait a few seconds, then try again. Please retry shortly.", 409
       );
     }
     throw error;
@@ -2116,7 +2116,7 @@ export async function startOrResumeStudentAssessmentSession(
           });
 
           if (!assessment) {
-            throw new StudentAssessmentServiceError("not_found", "Assessment was not found.", 404);
+            throw new StudentAssessmentServiceError("not_found", "We could not find this assessment.", 404);
           }
 
           const now = new Date();
@@ -2161,7 +2161,7 @@ export async function startOrResumeStudentAssessmentSession(
                 lifecycle.blocking_reason === "attempt_needs_review"
                   ? "attempt_needs_review"
                   : "attempt_state_inconsistent",
-                "The existing attempt needs review before it can be resumed.",
+                "Your instructor needs to check this attempt before you can continue. Your answers are saved.",
                 409,
                 {
                   session_public_id: existing.session_public_id,
@@ -2180,7 +2180,7 @@ export async function startOrResumeStudentAssessmentSession(
             if (!fallbackConceptUnitId) {
               throw new StudentAssessmentServiceError(
                 "current_concept_unit_unavailable",
-                "The existing session cannot be resumed because its current concept unit is unavailable.",
+                "This attempt cannot be continued because its topic is no longer available. Please contact your instructor.",
                 409,
                 { session_public_id: existing.session_public_id }
               );
@@ -2405,7 +2405,7 @@ export async function startOrResumeStudentAssessmentSession(
           const familyResumable = findResumableAssessmentSession(otherFamilySessions);
           if (familyResumable) {
             throw new StudentAssessmentServiceError("existing_resumable_attempt",
-              "Resume or end your earlier version of this assessment before starting another attempt.", 409,
+              "You already have an attempt in progress. Resume it or end it before starting a new one.", 409,
               { existing_session_public_id: familyResumable.session_public_id });
           }
 
@@ -2416,7 +2416,7 @@ export async function startOrResumeStudentAssessmentSession(
           if (assessment.status === "archived") {
             throw new StudentAssessmentServiceError(
               "assessment_archived",
-              "Archived assessments are not available for new starts.",
+              "This assessment is closed to new attempts.",
               409,
               { assessment_public_id: assessment.assessment_public_id }
             );
@@ -2425,7 +2425,7 @@ export async function startOrResumeStudentAssessmentSession(
           if (assessment.status !== "published") {
             throw new StudentAssessmentServiceError(
               "assessment_not_published",
-              "Assessment is not published.",
+              "This assessment is not open yet.",
               409,
               { assessment_public_id: assessment.assessment_public_id }
             );
@@ -2437,7 +2437,7 @@ export async function startOrResumeStudentAssessmentSession(
           ) {
             throw new StudentAssessmentServiceError(
               "assessment_manual_review_not_available",
-              "This assessment is not available for ordinary student starts.",
+              "This assessment is not open for new attempts.",
               409,
               { assessment_public_id: assessment.assessment_public_id }
             );
@@ -2450,7 +2450,7 @@ export async function startOrResumeStudentAssessmentSession(
           ) {
             throw new StudentAssessmentServiceError(
               "invalid_assessment_availability_window",
-              "Assessment availability window is invalid.",
+              "This assessment's dates are not set up correctly. Please let your instructor know.",
               409,
               { assessment_public_id: assessment.assessment_public_id }
             );
@@ -2466,7 +2466,7 @@ export async function startOrResumeStudentAssessmentSession(
           if (computedAvailability.availability_state === "not_released") {
             throw new StudentAssessmentServiceError(
               "assessment_not_released",
-              "Assessment is not released yet.",
+              "This assessment is not open yet.",
               409,
               {
                 assessment_public_id: assessment.assessment_public_id,
@@ -2479,7 +2479,7 @@ export async function startOrResumeStudentAssessmentSession(
           if (computedAvailability.availability_state === "closed_to_new_starts") {
             throw new StudentAssessmentServiceError(
               "assessment_closed_to_new_starts",
-              "Assessment is closed to new starts.",
+              "This assessment is closed to new attempts.",
               409,
               {
                 assessment_public_id: assessment.assessment_public_id,
@@ -2752,7 +2752,7 @@ export async function startOrResumeStudentAssessmentSession(
 
     throw new StudentAssessmentServiceError(
       "session_start_conflict",
-      "Could not start or resume the assessment session safely.",
+      "We could not open the assessment. Refresh the page and try again.",
       409,
       {
         assessment_public_id: input.assessment_public_id,
@@ -2885,7 +2885,7 @@ export async function getStudentSessionState(input: {
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }
@@ -3541,7 +3541,7 @@ async function getActionContext(input: {
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }
@@ -4189,7 +4189,7 @@ export async function recordSelectedOption(input: {
       if (!labels.includes(data.selected_option)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Selected option does not exist for this item.",
+          "That option is not available for this question.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5052,7 +5052,7 @@ export async function recordTemptingOption(input: {
       if (!noTemptingOption && !temptingOption) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
-          "Select the tempting option, or choose no tempting option.",
+          "Choose the option that tempted you, or choose No.",
           400
         );
       }
@@ -5083,7 +5083,7 @@ export async function recordTemptingOption(input: {
       if (temptingOption && !labels.includes(temptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option must be a different A-D option, or choose no tempting option.",
+          "Choose an option other than your answer, or choose No.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5092,7 +5092,7 @@ export async function recordTemptingOption(input: {
       if (state.assessment_state === "AWAIT_TEMPTING_REASON" && !noTemptingOption && !temptingOptionReason) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
-          "Explain what made the tempting option seem plausible.",
+          "Write a few words about what made that option tempting.",
           400
         );
       }
@@ -5363,7 +5363,7 @@ export async function updatePackageReviewItemResponse(input: {
       if (!answerLabels.includes(selectedOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Selected option does not exist for this item.",
+          "That option is not available for this question.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5372,7 +5372,7 @@ export async function updatePackageReviewItemResponse(input: {
       if (!noTemptingOption && !temptingOption) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
-          "Select the tempting option, or choose no tempting option.",
+          "Choose the option that tempted you, or choose No.",
           400
         );
       }
@@ -5380,7 +5380,7 @@ export async function updatePackageReviewItemResponse(input: {
       if (temptingOption && !labels.includes(temptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option must be a different A-D option, or choose no tempting option.",
+          "Choose an option other than your answer, or choose No.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5389,7 +5389,7 @@ export async function updatePackageReviewItemResponse(input: {
       if (!noTemptingOption && !temptingOptionReason) {
         throw new StudentAssessmentServiceError(
           "validation_failed",
-          "Explain what made the tempting option seem plausible.",
+          "Write a few words about what made that option tempting.",
           400
         );
       }
@@ -5713,7 +5713,7 @@ export async function updateInFlowItemResponse(input: {
       if (nextSelectedOption && !answerLabels.includes(nextSelectedOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Selected option does not exist for this item.",
+          "That option is not available for this question.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5722,7 +5722,7 @@ export async function updateInFlowItemResponse(input: {
       if (nextTemptingOption && !temptingLabels.includes(nextTemptingOption)) {
         throw new StudentAssessmentServiceError(
           "invalid_option",
-          "Tempting option must be a different A-D option, or choose no tempting option.",
+          "Choose an option other than your answer, or choose No.",
           400,
           { item_public_id: context.item.item_public_id }
         );
@@ -5930,11 +5930,11 @@ export async function updateInFlowItemResponse(input: {
             phase: context.session.current_phase,
             actor_type: "student",
             message_text: resetTemptingEvidence
-              ? "I changed my answer and will reconsider whether another option was tempting."
+              ? "I changed my answer."
               : nextNoTemptingOption
               ? "No other option was tempting."
               : nextTemptingReason
-                ? `Option ${nextTemptingOption} was tempting because ${nextTemptingReason}`
+                ? `Option ${nextTemptingOption} was tempting because ${/[.!?]$/.test(nextTemptingReason.trim()) ? nextTemptingReason.trim() : `${nextTemptingReason.trim()}.`}`
                 : `Option ${nextTemptingOption} was tempting.`,
             structured_payload: {
               source: context.isTransferItem ? "transfer_tempting_option" : "initial_tempting_option",
@@ -6277,13 +6277,13 @@ export async function submitInitialConceptUnitForPreparation(input: {
     const incomplete = items.filter((item) => !submitted.has(item.id));
     if (!items.length || incomplete.length) {
       throw new StudentAssessmentServiceError("missing_evidence_confirmation_required",
-        "Every included item needs a submitted response before completion.", 409,
+        "Please answer every question before you finish the review.", 409,
         { incomplete_item_public_ids: incomplete.map((item) => item.item_public_id) });
     }
     const now = new Date();
     if (!unit.initial_completed_at) {
       if (!["initial_item_administration", "missing_evidence_repair", "initial_concept_unit_completed"].includes(session.current_phase)) {
-        throw publicConflict("This attempt is not ready for submission.");
+        throw publicConflict("This attempt cannot be submitted yet. Please answer every question first.");
       }
       await tx.conceptUnitSession.update({ where: { id: unit.id }, data: { status: "initial_completed", initial_completed_at: now } });
       if (session.current_phase === "missing_evidence_repair") {
@@ -6312,7 +6312,7 @@ export async function submitInitialConceptUnitForPreparation(input: {
     }, tx);
     if (queued.job.status !== "failed") return queued.job;
     if (queued.job.last_error_category === "preparation_source_conflict") {
-      throw publicConflict("Preparation needs teacher review. Your saved responses have not changed.");
+      throw publicConflict("We could not prepare your feedback, and your instructor needs to check it. Your saved answers have not changed.");
     }
     // Only an explicit student retry reopens an exhausted job; retain its attempt history.
     const retried = await tx.workflowJob.update({ where: { id: queued.job.id }, data: {

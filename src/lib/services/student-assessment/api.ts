@@ -96,13 +96,13 @@ export function studentAssessmentRouteError(error: unknown): NextResponse {
     }
     return jsonApiError(
       "conflict",
-      "The learning conversation request conflicts with its saved state.",
+      "This conversation changed in another tab or window. Refresh the page to see the latest messages.",
       409
     );
   }
 
   if (error instanceof z.ZodError) {
-    return jsonApiError("validation_failed", "Request validation failed.", 400, {
+    return jsonApiError("validation_failed", "Something in that request was not right. Refresh the page and try again.", 400, {
       issues: error.issues
     });
   }
@@ -113,7 +113,7 @@ export function studentAssessmentRouteError(error: unknown): NextResponse {
 
   return jsonApiError(
     "conflict",
-    "Student assessment request could not be completed.",
+    "Something went wrong. Your saved answers are safe. Refresh the page and try again.",
     500
   );
 }

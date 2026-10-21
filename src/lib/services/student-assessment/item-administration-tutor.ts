@@ -319,7 +319,7 @@ export function itemAdministrationStudentMessage(
     case "defer_question":
       return `I've saved your question for later. For now, tell me in your own words ${request}, or say you're not sure.`;
     case "procedural_help":
-      return "Type your response in the message box and send it. A sentence or two in your own words is enough, and it's okay to be unsure. To change something you already sent, use the Edit button next to it.";
+      return "Type your response in the message box and send it. A sentence or two in your own words is enough, and it's okay to be unsure. To change something you already sent, use the Edit buttons below your answer.";
     case "redirect":
       return options.empty_response
         ? `Your message was empty. Tell me in your own words ${request}, or say you're not sure.`

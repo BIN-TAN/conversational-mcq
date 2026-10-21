@@ -54,6 +54,6 @@ export async function getOwnedInitialPreparationStatus(input: { student_user_db_
     session_public_id: input.session_public_id, user_db_id: input.student_user_db_id,
     user: { role: "student", account_status: "active" }
   } });
-  if (!session) throw new StudentAssessmentServiceError("session_not_owned", "Session was not found for this student.", 403);
+  if (!session) throw new StudentAssessmentServiceError("session_not_owned", "We could not find this attempt. Go back to your assessments and open it again.", 403);
   return { preparation: await getInitialPreparationStatus(session) };
 }

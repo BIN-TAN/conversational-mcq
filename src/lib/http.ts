@@ -53,14 +53,14 @@ export async function requireRoleApi(role: AppRole): Promise<
   if (!user) {
     return {
       ok: false,
-      response: jsonApiError("unauthorized", "Authentication is required.", 401)
+      response: jsonApiError("unauthorized", "You are not signed in, or your sign-in has expired. Please sign in again.", 401)
     };
   }
 
   if (user.role !== role) {
     return {
       ok: false,
-      response: jsonApiError("forbidden", "This endpoint requires a different role.", 403)
+      response: jsonApiError("forbidden", "This page is for a different kind of account. Sign in with the right account to continue.", 403)
     };
   }
 

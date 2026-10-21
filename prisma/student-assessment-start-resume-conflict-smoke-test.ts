@@ -418,7 +418,7 @@ async function main() {
   });
   assert(
     safeStartError.message ===
-      "You already have an activity in progress. Resume your current attempt.",
+      "You already have an attempt in progress. Resume it to continue.",
     "Active-attempt conflicts should be converted to a student-safe recovery message."
   );
   assert(

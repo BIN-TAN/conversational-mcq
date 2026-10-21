@@ -80,7 +80,7 @@ async function assertStudentComponentShape() {
   assert(source.includes("student-chat-message"), "Student chat message test hook is missing.");
   assert(source.includes("student-assessment-chat-shell"), "Chat shell test hook is missing.");
   assert(source.includes("data-testid=\"chat-transcript\""), "Chat transcript test hook is missing.");
-  assert(source.includes("Assessment Tutor"), "Assessment Tutor label should be visible.");
+  assert(source.includes('STUDENT_FACING_TUTOR_LABEL = "Tutor"'), "The tutor label should be visible.");
   assert(!source.includes("Assessment Agent"), "Assessment Agent student-facing label should be replaced.");
   assert(source.includes("\"You\""), "Student bubble label should be visible.");
   assert(source.includes("flex justify-start"), "Agent bubbles should be left aligned.");
@@ -95,7 +95,7 @@ async function assertStudentComponentShape() {
     "Package review chat copy is missing."
   );
   assert(source.includes("Edit response"), "Package review edit action is missing.");
-  assert(source.includes("Expand details"), "Package review should use collapsible response summaries.");
+  assert(source.includes("Show details"), "Package review should use collapsible response summaries.");
   assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
   assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");

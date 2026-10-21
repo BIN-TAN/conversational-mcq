@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { KeyRound } from "lucide-react";
+import { requestErrorMessage } from "@/components/server-unavailable-message";
 
 type AccountSecurityState = {
   user_id: string;
@@ -57,8 +58,8 @@ export function AccountSettingsClient({ initialAccount }: { initialAccount: Acco
       setPasswordNew("");
       setPasswordConfirm("");
       setMessage(data.message ?? "Password changed.");
-    } catch {
-      setError("Password change request could not be completed.");
+    } catch (caught) {
+      setError(requestErrorMessage(caught, "Your password could not be changed. Try again in a moment."));
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,7 @@
 import type { ChatNativeAssessmentState } from "@/lib/student-assessment/state-machine";
 
-export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v3";
+// v4 (release CMCQ-20261020-06): plainer wording for five prompts; the variants keep their IDs.
+export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v4";
 
 export type InitialAdminRequiredEvidence =
   | "answer"
@@ -70,18 +71,18 @@ const ANSWER_PROMPTS = [
 const REASONING_PROMPTS = [
   "What led you to choose {option}? A brief reason is enough; it is okay to be unsure.",
   "Why did {option} seem best to you? Share your current thinking, even if you are unsure.",
-  "What was your reason for choosing {option}? You do not need to invent a reason if you do not know.",
+  "What was your reason for choosing {option}? If you are not sure why, just say so.",
   "What mattered most when you chose {option}? A short explanation is enough."
 ];
 
 const TEMPTING_PROMPTS = [
   "Was a different option tempting? If yes, which one, and what made it tempting? You can also say No.",
-  "Was a different option tempting, or should I record that no other option was tempting?",
+  "Was a different option tempting? If so, choose it. If not, choose No.",
   "Did a different option seem plausible? If yes, which one, and what made it seem possible? You can also say No."
 ];
 
 const IDK_TEMPTING_PROMPT =
-  "Did any A-D option seem plausible? If yes, which one, and what made it seem possible? You can also say No.";
+  "Did any of the answer options seem like it could be right? If yes, which one, and what made it seem possible? You can also say No.";
 
 const TEMPTING_REASON_PROMPTS = [
   "What made that option seem tempting?",
@@ -184,13 +185,13 @@ export function buildInitialAdminPrompt(input: {
   } else if (input.kind === "reasoning_prompt") {
     if (selectedE) {
       promptText =
-        "That's okay. What makes this hard to decide? You do not need to invent a reason; this helps me understand what feedback may be useful later.";
+        "That's okay. What makes this one hard to decide? A few words are enough, and they help me give you useful feedback later.";
       promptVariant = "reasoning_uncertainty";
     } else {
       const index = deterministicIndex(seed, REASONING_PROMPTS.length);
       promptText = (REASONING_PROMPTS[index] ?? REASONING_PROMPTS[0]).replace(
         "{option}",
-        selectedOption ?? "that option"
+        selectedOption ? `option ${selectedOption}` : "that option"
       );
       promptVariant = `reasoning_${index + 1}`;
     }
@@ -218,12 +219,12 @@ export function buildInitialAdminPrompt(input: {
     promptVariant = "edit";
   } else if (input.kind === "procedural_clarification") {
     promptText =
-      "That is okay. For now, use the current prompt: choose an option, write a brief reason, or say you do not know yet.";
+      "That's okay. For now, please answer the question above: choose an option, give a short reason, or say you don't know yet.";
     promptVariant = "procedural_clarification";
   } else {
     promptText = indicatedUnknown
-      ? "You do not need to invent a reason. I will record this as uncertainty."
-      : "Please add a little more so I can record your current thinking.";
+      ? "That's fine. I'll note that you're not sure."
+      : "Could you add a little more about your thinking?";
     promptVariant = indicatedUnknown ? "repair_uncertainty" : "repair_more";
   }
 

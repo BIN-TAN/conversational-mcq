@@ -15,7 +15,7 @@ assert.equal(
 );
 assert.doesNotMatch(source, /You finished this assessment\./);
 assert.match(source, /Start another attempt/);
-assert.match(source, /Assessment in progress/);
+assert.match(source, /You have an attempt in progress\./);
 assert.match(source, /End current assessment/);
 assert.match(source, /Review previous attempts/);
 assert.match(source, /Review attempt/);
@@ -27,10 +27,10 @@ assert.doesNotMatch(source, /latest completed attempt/i);
 assert.doesNotMatch(source, /next attempt/i);
 assert.match(source, /const canStartNew = assessment\.can_start && !canOpen;/);
 assert.doesNotMatch(source, />\s*Unavailable\s*</);
-assert.match(source, /Previous assessment/);
+assert.match(source, /Past attempts only/);
 assert.doesNotMatch(source, /\{assessment\.description\}/);
 assert.doesNotMatch(source, /\{assessment\.student_safe_availability_message\}/);
-assert.match(source, /New starts close on \$\{assessment\.close_at_course_time\}\./);
+assert.match(source, /You can start this assessment until \$\{assessment\.close_at_course_time\}\./);
 
 console.log(JSON.stringify({
   status: "passed",

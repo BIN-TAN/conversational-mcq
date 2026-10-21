@@ -35,7 +35,7 @@ export async function POST(request: Request) {
     });
 
     if (!refreshed || refreshed.role !== "student") {
-      return jsonApiError("account_unavailable", "This account is currently unavailable.", 403);
+      return jsonApiError("account_unavailable", "This account cannot be used right now. Please contact your instructor.", 403);
     }
 
     const publicUser = toPublicUser(refreshed);

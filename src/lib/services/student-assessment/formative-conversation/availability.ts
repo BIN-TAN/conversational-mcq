@@ -3,7 +3,7 @@ import { LlmConfigurationError } from "@/lib/llm/config";
 export const FORMATIVE_CONVERSATION_UNAVAILABLE_CODE =
   "formative_conversation_unavailable" as const;
 export const FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE =
-  "The learning conversation is temporarily unavailable. Please try again.";
+  "The tutor is not available right now. Your answers are saved. Please try again in a minute.";
 
 export class FormativeConversationUnavailableError extends Error {
   readonly code = FORMATIVE_CONVERSATION_UNAVAILABLE_CODE;
@@ -13,7 +13,7 @@ export class FormativeConversationUnavailableError extends Error {
     public readonly retryable = true
   ) {
     super(reason_code.endsWith("_limit_exceeded")
-      ? "Learning support has reached its usage allowance. Your responses are saved. Please contact your teacher."
+      ? "The tutor has reached its usage limit for now. Your answers are saved. Please contact your instructor."
       : FORMATIVE_CONVERSATION_UNAVAILABLE_MESSAGE);
     this.name = "FormativeConversationUnavailableError";
   }

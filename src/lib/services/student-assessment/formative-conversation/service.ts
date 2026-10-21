@@ -1405,7 +1405,7 @@ export async function persistFormativeConversationAssistantMessage(input: {
 }
 
 export const FORMATIVE_CONVERSATION_LIFECYCLE_HANDOFF_MESSAGE =
-  "We've reached the end of this conversation. It may help to ask your instructor for another explanation or work through this concept with them." as const;
+  "This conversation has reached its limit, so the tutor could not reply to your last message. Your message is saved, and your instructor can help with anything that is still unclear." as const;
 
 export async function persistFormativeConversationLifecycleHandoff(input: {
   conversation_public_id: string;

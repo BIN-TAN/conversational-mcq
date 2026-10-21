@@ -703,7 +703,7 @@ export async function changeStudentPassword(input: {
   if (!student || student.role !== "student" || student.account_status !== "active") {
     throw new StudentAccountServiceError(
       "account_unavailable",
-      "This account is currently unavailable.",
+      "This account cannot be used right now. Please contact your instructor.",
       403
     );
   }

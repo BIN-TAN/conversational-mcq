@@ -104,7 +104,7 @@ function assertStudentComponentCopyIsHardened() {
     "src/app/api/student/sessions/[sessionPublicId]/activity-runtime/choice/route.ts",
     "utf8"
   );
-  assert(source.includes("Total correct"), "Student sidebar should retain compact initial-results wording.");
+  assert(source.includes("Your score"), "Student sidebar should retain compact initial-results wording.");
   assert(source.includes("data-testid=\"initial-answer-review-list\""), "Student sidebar should retain answer reviews.");
   assert(!source.includes("What your responses show"), "Student sidebar should not duplicate the profile narrative.");
   assert(!source.includes("Your explanations"), "Student sidebar should not duplicate reasoning narrative.");
@@ -114,9 +114,9 @@ function assertStudentComponentCopyIsHardened() {
   assert(!/reasonably_calibrated|overconfident|underconfident/.test(source), "Student view should not expose confidence enum values.");
   assert(source.includes("data-testid=\"activity-runtime-end-assessment\""), "End assessment action should have its own student control.");
   assert(source.includes("data-testid=\"end-attempt\""), "Global End attempt control should remain present.");
-  assert(source.includes("End the assessment?"), "End assessment dialog title is missing.");
+  assert(source.includes("End this attempt?"), "End assessment dialog title is missing.");
   assert(
-    source.includes("This will end the current assessment conversation."),
+    source.includes("Your answers stay saved, but you cannot come back to this attempt."),
     "End assessment dialog message is missing."
   );
   assert(source.includes("Keep working"), "End assessment dialog should include Keep working.");

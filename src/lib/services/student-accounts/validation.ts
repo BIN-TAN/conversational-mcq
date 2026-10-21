@@ -98,20 +98,20 @@ const obviousPasswordValues = new Set([
 function passwordSchema(minimumLength: number) {
   return z
   .string()
-  .min(minimumLength, `Password must be at least ${minimumLength} characters.`)
+  .min(minimumLength, `The password must be at least ${minimumLength} characters long.`)
   .max(200, "Password must be 200 characters or fewer.")
   .superRefine((value, context) => {
     if (value.trim() !== value) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Password must not include leading or trailing whitespace."
+        message: "The password cannot start or end with a space."
       });
     }
 
     if (controlCharacters.test(value) || value.includes("\n") || value.includes("\r")) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "Password must not include control characters or line breaks."
+        message: "The password cannot contain line breaks or other hidden characters."
       });
     }
 
@@ -165,7 +165,7 @@ function parsePassword(value: unknown, userId: string | undefined, schema: typeo
       {
         code: z.ZodIssueCode.custom,
         path: [],
-        message: "Password must not be the same as user_id."
+        message: "The password cannot be the same as the username."
       }
     ]);
   }

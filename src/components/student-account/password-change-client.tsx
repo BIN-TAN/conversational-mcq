@@ -3,6 +3,7 @@
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound } from "lucide-react";
+import { requestErrorMessage } from "@/components/server-unavailable-message";
 
 type PasswordChangeResponse = {
   student?: {
@@ -12,6 +13,7 @@ type PasswordChangeResponse = {
   error?: {
     code?: string;
     message?: string;
+    details?: { issues?: Array<{ message?: string }> };
   };
 };
 
@@ -47,15 +49,17 @@ export function PasswordChangeClient({
       const data = (await response.json().catch(() => ({}))) as PasswordChangeResponse;
 
       if (!response.ok || data.student?.must_change_password) {
-        setError(data.error?.message ?? "Password could not be changed.");
+        // A password rule that was not met is named in the issue, not in the general message.
+        const issue = data.error?.details?.issues?.find((entry) => entry.message)?.message;
+        setError(issue ?? data.error?.message ?? "Your password could not be changed.");
         return;
       }
 
-      setMessage("Password changed. Continuing to assessments.");
+      setMessage("Your password has been changed. Taking you to your assessments...");
       router.replace("/student/assessment");
       router.refresh();
-    } catch {
-      setError("Password change request could not be completed.");
+    } catch (caught) {
+      setError(requestErrorMessage(caught, "Your password could not be changed. Try again in a moment."));
     } finally {
       setIsSubmitting(false);
     }
@@ -93,6 +97,9 @@ export function PasswordChangeClient({
           value={newPassword}
           required
         />
+        <span className="text-xs font-normal text-muted">
+          Use at least 8 characters. Do not use your username or a common password.
+        </span>
       </label>
 
       <label className="flex flex-col gap-2 text-sm font-medium text-ink">
@@ -121,7 +128,7 @@ export function PasswordChangeClient({
         type="submit"
       >
         <KeyRound className="h-4 w-4" aria-hidden="true" />
-        {isSubmitting ? "Updating" : "Set password"}
+        {isSubmitting ? "Saving..." : "Set password"}
       </button>
     </form>
   );

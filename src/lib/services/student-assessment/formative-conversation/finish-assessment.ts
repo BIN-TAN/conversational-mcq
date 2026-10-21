@@ -51,7 +51,7 @@ export async function finishConversationAssessment(input: { student_user_db_id: 
   const owned = await prisma.assessmentSession.findFirst({ where: {
     session_public_id: input.session_public_id, user_db_id: input.student_user_db_id
   }, select: { id: true } });
-  if (!owned) throw new StudentAssessmentServiceError("not_found", "Assessment attempt not found.", 404);
+  if (!owned) throw new StudentAssessmentServiceError("not_found", "We could not find this attempt.", 404);
   await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`;
     const session = await tx.assessmentSession.findUniqueOrThrow({ where: { id: owned.id } });
@@ -59,7 +59,7 @@ export async function finishConversationAssessment(input: { student_user_db_id: 
     if (lifecycle.canonical_status === "completed") return;
     if (lifecycle.canonical_status !== "active" ||
         !await canFinishConversationAssessment(session.id, session.assessment_db_id, tx)) {
-      throw new StudentAssessmentServiceError("invalid_phase_for_action", "Finish is available after all questions and learning conversations are closed. Resume this attempt or contact your teacher if feedback is unavailable.", 409);
+      throw new StudentAssessmentServiceError("invalid_phase_for_action", "You can finish once the conversation with the tutor has ended. If feedback is not available, contact your instructor.", 409);
     }
     const now = new Date();
     await tx.assessmentSession.update({ where: { id: session.id }, data: {

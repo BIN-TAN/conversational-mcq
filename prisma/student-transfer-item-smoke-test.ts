@@ -438,7 +438,7 @@ async function main() {
 }
 
 const TRANSFER_COMPLETION_TEXT_FOR_TEST =
-  "Thanks. Your response to the additional question has been recorded.";
+  "Thanks. Your answer to the additional question is saved.";
 
 main()
   .catch((error) => {

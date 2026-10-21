@@ -289,7 +289,7 @@ assert.match(designSource, /Save and generate drafts/);
 assert.match(assistantRouteSource, /respondToAssessmentItemDesignAssistant/);
 assert.match(reviewSource, /Review generated item drafts/);
 assert.match(reviewSource, /teacher-confirmed key/i);
-assert.match(studentSource, /remaining after this/);
+assert.match(studentSource, /`Question \$\{item\.initial_item_position\} of \$\{item\.initial_item_total\}`/);
 assert.match(formativePlanningSource, /projectConceptAdministrationRulesForStudentAgents/);
 assert.match(followupSource, /projectConceptAdministrationRulesForStudentAgents/);
 assert.match(responsePackageSource, /projectConceptAdministrationRulesForStudentAgents/);

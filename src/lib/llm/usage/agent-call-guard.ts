@@ -5,7 +5,7 @@ import { checkLlmLiveCallReadiness, type LlmUsageGuardBlockedReason } from "./us
 
 export class LlmUsageBlockedError extends Error {
   constructor(public readonly reason: LlmUsageGuardBlockedReason, public readonly retryAfter?: string) {
-    super("Learning support has reached its usage allowance. Your responses are saved.");
+    super("The AI service has reached its usage limit for now. Your work is saved. Please try again later.");
     this.name = "LlmUsageBlockedError";
   }
 }

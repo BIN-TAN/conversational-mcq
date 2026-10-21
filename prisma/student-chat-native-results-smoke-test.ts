@@ -24,7 +24,7 @@ assert.doesNotMatch(source, /lg:grid-cols-\[minmax\(0,1fr\)_18rem\]/);
 assert.doesNotMatch(source, /data-testid="student-flow-stage"/);
 assert.doesNotMatch(source, /Continue to feedback/);
 assert.doesNotMatch(source, /I have your \d+ responses/);
-assert.match(source, /This will end the current assessment conversation\./);
+assert.match(source, /Your answers stay saved, but you cannot come back to this attempt\./);
 assert.doesNotMatch(source, /You will not complete another activity or transfer item/);
 
 console.log(JSON.stringify({

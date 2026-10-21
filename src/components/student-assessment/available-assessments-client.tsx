@@ -20,7 +20,6 @@ import {
 } from "./api";
 import {
   normalizeAssessmentStartErrorForStudent,
-  shouldDisplayStudentApiErrorCode,
   startErrorRecoverySessionPublicId
 } from "@/lib/student-assessment-ui/start-errors";
 import type {
@@ -46,18 +45,18 @@ function availabilityLabel(assessment: AvailableAssessment) {
   }
 
   if (assessment.recent_reviewable_attempts.length > 0) {
-    return "Previous assessment";
+    return "Past attempts only";
   }
 
   if (assessment.availability_state === "not_released") {
-    return "Not released";
+    return "Not open yet";
   }
 
   if (assessment.availability_state === "closed_to_new_starts") {
     return "Closed";
   }
 
-  return "Previous assessment";
+  return "Not available now";
 }
 
 function statusClass(assessment: AvailableAssessment) {
@@ -83,22 +82,26 @@ function statusClass(assessment: AvailableAssessment) {
 function attemptCardSummary(assessment: AvailableAssessment) {
   const policy = assessment.attempt_policy;
   if (policy?.maximum_attempts !== null && policy?.maximum_attempts !== undefined) {
-    if (assessment.can_resume) return `Attempt in progress. ${policy.remaining_attempts} new ${policy.remaining_attempts === 1 ? "attempt" : "attempts"} remaining.`;
+    if (assessment.can_resume) {
+      return policy.remaining_attempts === 0
+        ? "You have an attempt in progress. It is your last one."
+        : `You have an attempt in progress. You can start ${policy.remaining_attempts} more after this one.`;
+    }
     return policy.remaining_attempts === 0
-      ? "All three chances used. Previous attempts remain available for review."
-      : `${policy.remaining_attempts} of ${policy.maximum_attempts} chances remaining`;
+      ? `You have used all ${policy.maximum_attempts} attempts. You can still review your past attempts.`
+      : `${policy.remaining_attempts} of ${policy.maximum_attempts} attempts left.`;
   }
   if (assessment.availability_status === "completed") {
     return null;
   }
 
   if (assessment.existing_attempt_number && assessment.existing_session_status) {
-    return "Assessment in progress";
+    return "You have an attempt in progress.";
   }
 
   const attemptsUsed = assessment.attempt_policy?.attempts_used ?? 0;
   if (attemptsUsed === 0) {
-    return "No attempts yet";
+    return "You have not started this assessment yet.";
   }
 
   if (assessment.availability_status === "ended") {
@@ -110,7 +113,7 @@ function attemptCardSummary(assessment: AvailableAssessment) {
 
 function availabilityTimingNote(assessment: AvailableAssessment) {
   if (assessment.can_start && assessment.close_at_course_time) {
-    return `New starts close on ${assessment.close_at_course_time}.`;
+    return `You can start this assessment until ${assessment.close_at_course_time}.`;
   }
 
   return null;
@@ -201,7 +204,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
       return;
     }
 
-    const confirmed = window.confirm("End the assessment?\n\nThis will end the current assessment conversation.");
+    const confirmed = window.confirm("End this attempt?\n\nYour answers stay saved, but you cannot come back to this attempt.");
 
     if (!confirmed) {
       return;
@@ -284,11 +287,6 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
                 <div>
                   <p className="font-semibold">{error.message}</p>
-                  {shouldDisplayStudentApiErrorCode(error) ? (
-                    <p className="mt-1 text-xs uppercase tracking-wide text-red-700">
-                      {error.code}
-                    </p>
-                  ) : null}
                   {startErrorRecoverySessionPublicId(error) ? (
                     <button
                       className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-red-900 px-3 text-xs font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
@@ -313,7 +311,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
             <div className="rounded-lg border border-line bg-white p-6">
               <h2 className="text-lg font-semibold text-ink">No assessments available</h2>
               <p className="mt-2 text-sm leading-6 text-muted">
-                Your teacher researcher has not published an available assessment yet.
+                Your instructor has not opened any assessments yet. Please check back later.
               </p>
             </div>
           ) : null}
@@ -450,7 +448,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                                 Attempt {attempt.attempt_number}
                               </p>
                               <p className="mt-1 text-xs text-muted">
-                                {attempt.status === "completed" ? "Completed" : "Ended"}{" "}
+                                {attempt.status === "completed" ? "Completed on" : "Ended on"}{" "}
                                 {formatAttemptDate(attempt.ended_at)}
                               </p>
                             </div>

@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     payload = loginSchema.parse(await request.json());
   } catch {
-    return jsonError("Invalid login payload.", 400);
+    return jsonError("Enter your username and your password or access code.", 400);
   }
 
   try {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     });
 
     if (!user) {
-      return jsonError("Invalid user ID or access code.", 401);
+      return jsonError("The username, password or access code is not correct. Check them and try again.", 401);
     }
 
     const passwordMatches = payload.password
@@ -56,11 +56,11 @@ export async function POST(request: Request) {
       user.role === "teacher_researcher" ? passwordMatches : passwordMatches || accessCodeMatches;
 
     if (!isAllowed) {
-      return jsonError("Invalid user ID or access code.", 401);
+      return jsonError("The username, password or access code is not correct. Check them and try again.", 401);
     }
 
     if (user.role === "student" && user.account_status !== "active") {
-      return jsonError("This account is currently unavailable.", 403);
+      return jsonError("This account cannot be used right now. Please contact your instructor.", 403);
     }
 
     const publicUser = toPublicUser(user);
@@ -73,6 +73,6 @@ export async function POST(request: Request) {
 
     return response;
   } catch {
-    return jsonError("Login is unavailable. Check database and environment configuration.", 503);
+    return jsonError("Sign-in is not working right now. Please try again in a few minutes.", 503);
   }
 }

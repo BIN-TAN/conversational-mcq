@@ -105,7 +105,7 @@ async function withProgressionActionIdempotency<T extends Record<string, unknown
     if (existing.action_type !== input.action_type || existing.request_hash !== requestHash) {
       throw new StudentAssessmentServiceError(
         "idempotency_conflict",
-        "The same client_action_id was used with different request content.",
+        "Something went wrong while saving. Refresh the page and try again.",
         409
       );
     }
@@ -181,7 +181,7 @@ async function currentContext(input: { student_user_db_id: string; session_publi
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }

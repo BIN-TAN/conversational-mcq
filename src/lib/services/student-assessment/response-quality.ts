@@ -105,9 +105,9 @@ export const RESPONSE_QUALITY_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 const CONTENT_DEFER_MESSAGE =
-  "I can explain the concept after the initial question set. For now, choose the option that seems best, or choose E if you do not know yet.";
+  "I can't explain the topic until you have finished these questions. For now, please answer the question in front of you, or say you're not sure.";
 const FORMATIVE_REPAIR_MESSAGE =
-  "I could not use that response for the activity. Please answer the current question in your own words.";
+  "I couldn't tell how that answers the question. Could you answer it in your own words?";
 const UNKNOWN_REASON_PATTERNS = [
   /\bi\s*(do not|don't|dont)\s+know\b/,
   /\bi\s*(do not|don't|dont)\s+know\s+(the\s+)?reason\b/,
@@ -242,13 +242,13 @@ function repairPrompt(input: {
   quality: z.infer<typeof ResponseQualitySchema>;
 }) {
   if (input.quality === "content_question" || input.quality === "answer_request") {
-    return stageIsInitial(input.stage) ? CONTENT_DEFER_MESSAGE : "I can help with the process, but I cannot give the answer. Please respond in your own words.";
+    return stageIsInitial(input.stage) ? CONTENT_DEFER_MESSAGE : "I can't give you the answer, but I can explain what to do here. Please answer in your own words.";
   }
 
   if (input.quality === "clarification_question") {
     return stageIsInitial(input.stage)
       ? "You can write one or two sentences. Try to explain what led you to your answer."
-      : "Use your own words for the activity. I am looking for your current thinking, not a perfect answer.";
+      : "Use your own words. I'm looking for your current thinking, not a perfect answer.";
   }
 
   if (input.quality === "edit_request") {
@@ -265,7 +265,7 @@ function repairPrompt(input: {
 
   return input.selected_option === "E"
     ? "Please add what makes this hard to decide."
-    : `I could not use that as a response. What is your reason for choosing ${input.selected_option ?? "that option"}?`;
+    : `Could you tell me a bit more? Why did you choose ${input.selected_option ? `option ${input.selected_option}` : "that option"}?`;
 }
 
 export function deterministicResponseQuality(input: {

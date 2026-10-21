@@ -841,7 +841,7 @@ async function getOwnedFollowupSession(input: {
   if (!session) {
     throw new StudentAssessmentServiceError(
       "session_not_owned",
-      "Session was not found for this student.",
+      "We could not find this attempt. Go back to your assessments and open it again.",
       403
     );
   }
