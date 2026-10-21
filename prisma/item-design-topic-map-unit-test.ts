@@ -82,8 +82,8 @@ const blueprint: ItemDesignBlueprint = {
   generation_settings: { target_item_count: 4, option_count: 4, difficulty_mix: ["foundational", "analyzing"], context_notes: null }
 };
 
-check("Versions: assistant v6 with output v3, generation v5", () => {
-  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v6");
+check("Versions: assistant v7 with output v3, generation v5", () => {
+  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v7");
   assert.equal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, "evidence-centered-item-design-assistant-output-v3");
   assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v5");
 });

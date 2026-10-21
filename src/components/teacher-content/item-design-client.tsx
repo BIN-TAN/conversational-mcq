@@ -23,6 +23,14 @@ import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
 import { apiRequest, ClientApiError, errorFromUnknown } from "./api";
 import { blueprintIssueLabels, normalizeBlueprint } from "./item-design-blueprint";
+import {
+  defaultItemDesignPath,
+  ITEM_DESIGN_PATHS,
+  itemDesignPathStarter,
+  readStoredItemDesignPath,
+  storeItemDesignPath,
+  type ItemDesignPath
+} from "./item-design-paths";
 import { prepareTopicMiniTests, topicPreparationMessage, topicRunStepText, type TopicRunState } from "./topic-preparation";
 import type { StructuredApiError } from "./types";
 import { Button, collectIssues, ErrorPanel, Field, LoadingRow, PageHeader, SuccessPanel } from "./ui";
@@ -95,7 +103,7 @@ type SourceMaterial = {
   material_id: string;
   file_name: string;
   media_type: string;
-  source_kind: "docx" | "pdf" | "image";
+  source_kind: "docx" | "text" | "pdf" | "image";
   byte_size: number;
   sha256: string;
   content_summary: string;
@@ -149,7 +157,7 @@ type DesignResponse = {
 const MAX_ASSISTANT_FILES = 5;
 const MAX_ASSISTANT_FILE_BYTES = 15_000_000;
 const MAX_ASSISTANT_TOTAL_BYTES = 30_000_000;
-const ACCEPTED_ASSISTANT_FILES = ".pdf,.docx,.png,.jpg,.jpeg,.webp";
+const ACCEPTED_ASSISTANT_FILES = ".pdf,.docx,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json,.xlsx,.xls";
 
 function fileSizeLabel(bytes: number) {
   if (bytes < 1_000_000) return `${Math.max(1, Math.round(bytes / 1000))} KB`;
@@ -211,18 +219,23 @@ function ItemDesignAssistantWorkspace({
   onCreateTopicMiniTest,
   creatingTopicId,
   onGenerate,
+  onImportExistingItems,
+  existingItemFiles,
+  onExistingItemFilesChange,
   onPrepareOtherTopics,
   onStopTopicRun,
   topicRun,
   topicRunActive,
   topicRunStopping,
   readOnly,
-  transcriptEndRef
+  transcriptEndRef,
+  path,
+  onPathChoose
 }: {
   assistantFiles: File[];
   assistantInput: string;
   blueprint: Blueprint;
-  busy: "load" | "save" | "assistant" | "generate" | null;
+  busy: "load" | "save" | "assistant" | "generate" | "import" | null;
   design: DesignResponse;
   error: StructuredApiError | null;
   onAssistantInputChange: (value: string) => void;
@@ -234,6 +247,9 @@ function ItemDesignAssistantWorkspace({
   onCreateTopicMiniTest: (topicId: string) => void;
   creatingTopicId: string | null;
   onGenerate: () => void;
+  onImportExistingItems: () => void;
+  existingItemFiles: File[];
+  onExistingItemFilesChange: (files: File[]) => void;
   onPrepareOtherTopics: () => void;
   onStopTopicRun: () => void;
   topicRun: TopicRunState[] | null;
@@ -241,6 +257,8 @@ function ItemDesignAssistantWorkspace({
   topicRunStopping: boolean;
   readOnly: boolean;
   transcriptEndRef: RefObject<HTMLDivElement | null>;
+  path: ItemDesignPath | null;
+  onPathChoose: (path: ItemDesignPath) => void;
 }) {
   const topicMap = design.assistant_state.topic_map ?? { topics: [], item_templates: [], selected_topic_id: null };
   const topicMiniTests = design.topic_mini_tests ?? [];
@@ -253,12 +271,8 @@ function ItemDesignAssistantWorkspace({
   );
   const messages = design.assistant_thread.messages;
   const reviewRequest = `Plan for ${blueprint.generation_settings.target_item_count} items with ${blueprint.generation_settings.option_count} options each unless we agree otherwise. Fill in the design panel yourself and ask only essential questions, one at a time. Prepare the design for my review; do not generate items yet.`;
-  const suggestions = [
-    {
-      label: "Build from course materials",
-      icon: BookOpenCheck,
-      prompt: "Read the course materials I attach or paste: lecture slides, quizzes, sample items and item templates. Build the course topic bank, with each topic's knowledge points, content notes and the quiz or sample items that assess it. Then fill the whole design panel for the topic that fits this mini test; the other topics get their own mini tests later. Link the design to the material and flag gaps instead of inventing source content. If no material is available, ask me for it first."
-    },
+  // Further ways to start a new mini test, once the instructor has chosen to write new items.
+  const newItemStarters = [
     {
       label: "Plan a topic-based test",
       icon: MessageSquareText,
@@ -268,13 +282,70 @@ function ItemDesignAssistantWorkspace({
       label: "Probe common misconceptions",
       icon: Sparkles,
       prompt: "Help me turn the misconceptions or student-language examples I provide into a mini-test design. Ask for the topic and examples if missing. For each hypothesis, identify the related objective and reasoning evidence that could distinguish it from a slip, guessing, or incomplete explanation. Treat misconceptions as hypotheses to investigate, not established facts about students."
-    },
-    {
-      label: "Improve existing questions",
-      icon: PencilLine,
-      prompt: "Review the exemplar questions I paste or attach. Ask for them if missing. Check alignment with the topic and objectives, ambiguous wording, answer-key defensibility, and whether distractors reveal distinct reasoning. Flag uncertain keys for my confirmation. Use the review to propose a design for revised or complementary items without unnecessary duplicates; a high wrong-answer rate alone does not establish a misconception."
     }
   ];
+  const chosenPath = ITEM_DESIGN_PATHS.find((entry) => entry.id === path) ?? null;
+  const importBlock = design.assessment.is_editable ? (
+    <div className={`rounded-md border p-3 ${path === "existing" ? "border-accent bg-[#F8FAF9]" : "border-line"}`}>
+      <p className="text-sm font-medium text-ink">{path === "existing" ? "Bring your items into review" : "Already have items for this topic?"}</p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        The assistant reads the finished items for this topic in your course materials, or in files you attach here: PDF, Word, Excel, CSV, text or images. It keeps your wording and the keys your file states, and suggests any missing target reasoning, essential elements and notes on the wrong options. You review everything before an item is added.
+      </p>
+      <label className="mt-2 block text-xs font-medium text-ink" htmlFor="existing-item-files">Files with your items (optional)</label>
+      <input
+        accept={ACCEPTED_ASSISTANT_FILES}
+        className="mt-1 block w-full text-xs"
+        disabled={readOnly || busy !== null}
+        id="existing-item-files"
+        multiple
+        onChange={(event) => onExistingItemFilesChange(Array.from(event.target.files ?? []).slice(0, MAX_ASSISTANT_FILES))}
+        type="file"
+      />
+      {existingItemFiles.length > 0 ? (
+        <p className="mt-1 text-xs text-muted">{existingItemFiles.map((file) => file.name).join(", ")}</p>
+      ) : null}
+      <Button
+        className="mt-2 w-full"
+        disabled={readOnly || busy !== null}
+        onClick={onImportExistingItems}
+        type="button"
+        variant={path === "existing" ? "primary" : "secondary"}
+      >
+        <FileText className="h-4 w-4" aria-hidden="true" />
+        {busy === "import" ? "Reading your items" : "Import my items"}
+      </Button>
+      {busy === "import" ? (
+        <p className="mt-2 text-xs leading-5 text-muted" role="status">
+          Reading your items and checking each one. This takes a few minutes; keep this page open.
+        </p>
+      ) : null}
+    </div>
+  ) : null;
+  const generateBlock = design.assistant_state.ready_for_item_generation && design.assessment.is_editable ? (
+    <div className="rounded-md border border-line bg-[#F8FAF9] p-3">
+      <p className="text-sm font-medium text-ink">
+        {path === "existing" ? "New drafts as well (optional)" : "The design is ready for drafts."}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        {path === "existing"
+          ? "If you want more items than you have, the assistant can write new drafts from the same design. Writing and checking them takes a few minutes, and you review every draft."
+          : "Writing the drafts and checking each one takes a few minutes. You read every item and confirm every answer key before anything is added."}
+      </p>
+      <Button
+        className="mt-2 w-full"
+        disabled={readOnly || busy !== null}
+        onClick={onGenerate}
+        type="button"
+        variant={path === "existing" ? "secondary" : "primary"}
+      >
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
+        {busy === "generate" ? "Writing and checking drafts" : "Generate drafts"}
+      </Button>
+      {busy === "generate" ? (
+        <p className="mt-2 text-xs leading-5 text-muted" role="status">This takes a few minutes. Keep this page open.</p>
+      ) : null}
+    </div>
+  ) : null;
 
   return (
     <section className="overflow-hidden rounded-md border border-line bg-white shadow-soft">
@@ -290,6 +361,25 @@ function ItemDesignAssistantWorkspace({
                 <p className="text-sm text-muted">{design.assessment.title}</p>
               </div>
             </div>
+            {messages.length > 0 ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2 text-xs" role="group" aria-label="Starting point">
+                <span className="text-muted">Starting point:</span>
+                {ITEM_DESIGN_PATHS.map((entry) => (
+                  <button
+                    aria-pressed={path === entry.id}
+                    className={`rounded-md border px-2 py-1 font-medium transition hover:border-accent ${
+                      path === entry.id ? "border-accent bg-accent-soft text-accent" : "border-line text-ink"
+                    }`}
+                    disabled={busy !== null}
+                    key={entry.id}
+                    onClick={() => onPathChoose(entry.id)}
+                    type="button"
+                  >
+                    {entry.title}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </header>
 
           <div
@@ -298,26 +388,66 @@ function ItemDesignAssistantWorkspace({
             data-testid="item-design-assistant-transcript"
           >
             {messages.length === 0 ? (
-              <div className="mx-auto max-w-xl py-2 text-center">
-                <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
-                <h3 className="mt-4 text-lg font-semibold text-ink">Plan your mini test</h3>
-                <div className="mt-5 grid gap-2 sm:grid-cols-2">
-                  {suggestions.map((suggestion) => (
+              <div className="mx-auto max-w-2xl py-2">
+                <div className="text-center">
+                  <BookOpenCheck className="mx-auto h-8 w-8 text-accent" aria-hidden="true" />
+                  <h3 className="mt-4 text-lg font-semibold text-ink">How would you like to start?</h3>
+                  <p className="mt-1 text-sm leading-6 text-muted">
+                    Either way, the assistant first fills in the item specifications with you, and you review them.
+                  </p>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2" role="group" aria-label="How to start">
+                  {ITEM_DESIGN_PATHS.map((entry) => (
                     <button
-                      className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-white px-3 py-3 text-left text-sm font-medium text-ink transition hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                      aria-pressed={path === entry.id}
+                      className={`flex min-w-0 flex-col gap-2 rounded-md border bg-white px-4 py-4 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60 ${
+                        path === entry.id ? "border-accent ring-2 ring-accent-soft" : "border-line"
+                      }`}
                       disabled={readOnly || busy !== null}
-                      key={suggestion.label}
+                      key={entry.id}
                       onClick={() => {
-                        onStarterSelect(`${suggestion.prompt}\n\n${reviewRequest}`);
+                        onPathChoose(entry.id);
                         requestAnimationFrame(() => messageInputRef.current?.focus());
                       }}
                       type="button"
                     >
-                      <suggestion.icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
-                      <span>{suggestion.label}</span>
+                      <span className="flex items-center gap-2 text-sm font-semibold text-ink">
+                        {entry.id === "existing"
+                          ? <FileText className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                          : <Sparkles className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />}
+                        {entry.title}
+                      </span>
+                      <span className="text-xs leading-5 text-muted">{entry.description}</span>
                     </button>
                   ))}
                 </div>
+                {chosenPath ? (
+                  <p className="mt-4 rounded-md border border-line bg-white px-3 py-2 text-sm leading-6 text-ink" role="status">
+                    {chosenPath.next_step}
+                  </p>
+                ) : null}
+                {path === "new" ? (
+                  <div className="mt-3">
+                    <p className="text-xs text-muted">Or start from a plan instead of materials:</p>
+                    <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                      {newItemStarters.map((suggestion) => (
+                        <button
+                          className="flex min-w-0 items-center gap-2 rounded-md border border-line bg-white px-3 py-2 text-left text-sm font-medium text-ink transition hover:border-accent hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
+                          disabled={readOnly || busy !== null}
+                          key={suggestion.label}
+                          onClick={() => {
+                            onStarterSelect(`${suggestion.prompt}\n\n${reviewRequest}`);
+                            requestAnimationFrame(() => messageInputRef.current?.focus());
+                          }}
+                          type="button"
+                        >
+                          <suggestion.icon className="h-4 w-4 shrink-0 text-accent" aria-hidden="true" />
+                          <span>{suggestion.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -440,7 +570,7 @@ function ItemDesignAssistantWorkspace({
                   type="button"
                 >
                   <Paperclip className="h-4 w-4" aria-hidden="true" />
-                  Add PDF, Word, or images
+                  Add files (PDF, Word, Excel, text or images)
                 </button>
                 <p className="text-xs leading-5 text-muted">Up to 5 files, 15 MB each, 30 MB total.</p>
               </div>
@@ -640,21 +770,7 @@ function ItemDesignAssistantWorkspace({
               </div>
             ) : null}
 
-            {design.assistant_state.ready_for_item_generation && design.assessment.is_editable ? (
-              <div className="rounded-md border border-line bg-[#F8FAF9] p-3">
-                <p className="text-sm font-medium text-ink">The design is ready for drafts.</p>
-                <p className="mt-1 text-xs leading-5 text-muted">
-                  Writing the drafts and checking each one takes a few minutes. You read every item and confirm every answer key before anything is added.
-                </p>
-                <Button className="mt-2 w-full" disabled={readOnly || busy !== null} onClick={onGenerate} type="button">
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  {busy === "generate" ? "Writing and checking drafts" : "Generate drafts"}
-                </Button>
-                {busy === "generate" ? (
-                  <p className="mt-2 text-xs leading-5 text-muted" role="status">This takes a few minutes. Keep this page open.</p>
-                ) : null}
-              </div>
-            ) : null}
+            {path === "existing" ? <>{importBlock}{generateBlock}</> : <>{generateBlock}{importBlock}</>}
 
             <Button className="w-full" onClick={onOpenReview} type="button" variant="secondary">
               <PencilLine className="h-4 w-4" aria-hidden="true" />
@@ -682,7 +798,8 @@ export function ItemDesignClient({
   const [blueprint, setBlueprint] = useState<Blueprint | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | null>("load");
+  const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | "import" | null>("load");
+  const [existingItemFiles, setExistingItemFiles] = useState<File[]>([]);
   const [view, setView] = useState<"assistant" | "review">(initialView);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
@@ -693,6 +810,10 @@ export function ItemDesignClient({
   const stopTopicRun = useRef(false);
   const [topicRunStopping, setTopicRunStopping] = useState(false);
   const autoPrepareStarted = useRef(false);
+  const [path, setPath] = useState<ItemDesignPath | null>(null);
+  const pathRestored = useRef(false);
+  // Files sent while adapting existing items; they come into review once the design is filled in.
+  const pendingItemFiles = useRef<File[] | null>(null);
   const starterPrefixRef = useRef("");
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const isDirty = Boolean(blueprint && design && JSON.stringify(blueprint) !== JSON.stringify(design.blueprint));
@@ -715,6 +836,21 @@ export function ItemDesignClient({
   }, [assessmentPublicId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!design || pathRestored.current) return;
+    pathRestored.current = true;
+    setPath(defaultItemDesignPath(design, readStoredItemDesignPath(assessmentPublicId)));
+  }, [design, assessmentPublicId]);
+
+  function handlePathChoose(next: ItemDesignPath) {
+    if (!design || !blueprint) return;
+    setPath(next);
+    storeItemDesignPath(assessmentPublicId, next);
+    if (design.assistant_thread.messages.length === 0 && design.assessment.is_editable) {
+      handleStarterSelect(itemDesignPathStarter(next, blueprint.generation_settings));
+    }
+  }
 
   // A mini test created from the course topic bank: the assistant fills its design panel once.
   useEffect(() => {
@@ -860,7 +996,21 @@ export function ItemDesignClient({
         ? "Please use the attached course materials to help refine this mini test."
         : ""
     );
-    await sendAssistantMessage(message);
+    const sentFiles = assistantFiles;
+    const response = await sendAssistantMessage(message);
+    if (!response || path !== "existing") return;
+    if (sentFiles.length > 0) {
+      pendingItemFiles.current = sentFiles;
+      setExistingItemFiles(sentFiles);
+    }
+    // Adapting existing items: once the assistant has filled in the design without open
+    // questions, the items come into review. Otherwise the instructor answers first.
+    if (pendingItemFiles.current && response.assistant_state.ready_for_item_generation &&
+      response.assistant_state.remaining_questions.length === 0) {
+      const files = pendingItemFiles.current;
+      pendingItemFiles.current = null;
+      await importExistingItems(files);
+    }
   }
 
   async function handleCreateTopicMiniTest(topicId: string) {
@@ -880,6 +1030,33 @@ export function ItemDesignClient({
     }
   }
 
+  async function handleImportExistingItems() {
+    if (!design || busy !== null) return;
+    pendingItemFiles.current = null;
+    await importExistingItems(existingItemFiles);
+  }
+
+  async function importExistingItems(files: File[]) {
+    setBusy("import");
+    setError(null);
+    setSuccess(null);
+    try {
+      const form = new FormData();
+      files.forEach((file) => form.append("files", file, file.name));
+      const imported = await apiRequest<{ review_url: string }>(
+        `/api/teacher/assessments/${assessmentPublicId}/item-design/existing-items`,
+        { method: "POST", body: form }
+      );
+      setExistingItemFiles([]);
+      allowNavigation();
+      router.push(imported.review_url);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handlePrepareOtherTopics() {
     if (!design || topicRunActive) return;
     const topicMap = design.assistant_state.topic_map;
@@ -894,7 +1071,7 @@ export function ItemDesignClient({
     try {
       await prepareTopicMiniTests({
         bank_assessment_public_id: assessmentPublicId,
-        topics: topics.map((topic) => ({ topic_id: topic.topic_id, title: topic.title })),
+        topics: topics.map((topic) => ({ topic_id: topic.topic_id, title: topic.title, has_source_items: topic.source_items.length > 0 })),
         existing: design.topic_mini_tests ?? [],
         onUpdate: (state) => setTopicRun((current) =>
           current ? current.map((entry) => entry.topic_id === state.topic_id ? state : entry) : current),
@@ -908,8 +1085,8 @@ export function ItemDesignClient({
     }
   }
 
-  async function sendAssistantMessage(message: string) {
-    if (!message || !design || !blueprint) return;
+  async function sendAssistantMessage(message: string): Promise<DesignResponse | null> {
+    if (!message || !design || !blueprint) return null;
 
     setBusy("assistant");
     setError(null);
@@ -921,7 +1098,7 @@ export function ItemDesignClient({
       const currentDesign = JSON.stringify(blueprint) === JSON.stringify(design.blueprint)
         ? design
         : await saveBlueprint(false);
-      if (!currentDesign) return;
+      if (!currentDesign) return null;
 
       const requestPayload = {
         client_message_id: clientMessageId,
@@ -950,8 +1127,10 @@ export function ItemDesignClient({
       starterPrefixRef.current = "";
       setAssistantFiles([]);
       setAssistantClientMessageId(null);
+      return response;
     } catch (caught) {
       setError(errorFromUnknown(caught));
+      return null;
     } finally {
       setBusy(null);
     }
@@ -1009,11 +1188,16 @@ export function ItemDesignClient({
               onCreateTopicMiniTest={(topicId) => void handleCreateTopicMiniTest(topicId)}
               creatingTopicId={creatingTopicId}
               onGenerate={() => void handleGenerate()}
+              onImportExistingItems={() => void handleImportExistingItems()}
+              existingItemFiles={existingItemFiles}
+              onExistingItemFilesChange={setExistingItemFiles}
               onPrepareOtherTopics={() => void handlePrepareOtherTopics()}
               onStopTopicRun={() => { stopTopicRun.current = true; setTopicRunStopping(true); }}
               topicRun={topicRun}
               topicRunActive={topicRunActive}
               topicRunStopping={topicRunStopping}
+              path={path}
+              onPathChoose={handlePathChoose}
               readOnly={readOnly}
               transcriptEndRef={transcriptEndRef}
             />

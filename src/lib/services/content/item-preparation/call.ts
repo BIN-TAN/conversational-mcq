@@ -41,10 +41,12 @@ import {
  * - format_imported: mcq_import_formatting_assistant_agent (import "Repair imported layout")
  * - check: item_verification_agent (topic verification before publishing)
  *
- * Live calls also need ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH to equal this prompt's hash:
- * the operator's record that this exact prompt passed validation. Until then the import
- * suggestions report that the assistant is unavailable and the item check uses its
- * deterministic fallback. Mock mode uses the labelled local stand-in.
+ * The item check before publishing also needs ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH to
+ * equal this prompt's hash: the operator's record that this exact prompt passed validation.
+ * Until then it uses its deterministic fallback. The two import tasks (suggest missing notes,
+ * repair the layout) run live like the item builder (release CMCQ-20261020-06): they only
+ * suggest, the instructor accepts every suggestion, and each call records this prompt's
+ * version and hash. Mock mode uses the labelled local stand-in.
  */
 export const ITEM_PREPARATION_MAX_ATTEMPTS = 2;
 const PROVIDER_TIMEOUT_MS = 120_000;
@@ -92,7 +94,7 @@ function liveModelPlan(task: ItemPreparationTask): ItemPreparationPlan {
   if (runtime.provider !== "openai" || !runtime.live_calls_enabled) {
     return { mode: "blocked", reason: "live_calls_disabled" };
   }
-  if (!itemPreparationApprovalStatus().approved) {
+  if (task === "check" && !itemPreparationApprovalStatus().approved) {
     return { mode: "blocked", reason: "item_preparation_v8_not_approved" };
   }
   return {
@@ -108,8 +110,7 @@ function liveModelPlan(task: ItemPreparationTask): ItemPreparationPlan {
 /**
  * Teacher-triggered import assistance (draft/adapt and format), as before: "mock" uses the
  * local stand-in (callers refuse it in production), a test override replaces the provider,
- * and "live" needs LLM_PROVIDER=openai, LLM_LIVE_CALLS_ENABLED=true, the role's model and
- * the approved prompt hash.
+ * and "live" needs LLM_PROVIDER=openai, LLM_LIVE_CALLS_ENABLED=true and the role's model.
  */
 export function planTeacherItemPreparation(input: {
   task: Exclude<ItemPreparationTask, "check">;

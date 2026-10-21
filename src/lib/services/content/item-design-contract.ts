@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v6" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v7" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v3" as const;
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
@@ -239,7 +239,7 @@ export const ItemDesignSourceMaterialSchema = z.object({
   client_message_id: z.string().trim().min(1).max(120),
   file_name: z.string().trim().min(1).max(240),
   media_type: z.string().trim().min(1).max(120),
-  source_kind: z.enum(["docx", "pdf", "image"]),
+  source_kind: z.enum(["docx", "text", "pdf", "image"]),
   byte_size: z.number().int().positive(),
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   parser_version: z.string().trim().min(1).max(120).nullable(),
@@ -475,6 +475,132 @@ export function itemCheckSummary(input: {
         : `When the assistant answered this item without seeing the key, it could not defend any option. The proposed key is ${input.proposed_key}. Please check the item.`);
   }
   return { status: "checked", independent_answer: input.check.independent_answer, agrees_with_key: agrees, revised: input.revised, remaining_problems: problems };
+}
+
+/**
+ * Existing items in the course materials (release CMCQ-20261020-06): the instructor's own
+ * finished items are read from the uploaded files, kept word for word, and prepared for the
+ * same review as generated drafts. A key is recorded only when the source states it; the
+ * item specifications the source lacks are proposed and marked as suggestions.
+ */
+export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v1" as const;
+export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v1" as const;
+export const EXISTING_ITEMS_MAX = 40;
+
+const OptionLabelSchema = z.string().trim().regex(/^[A-E]$/);
+
+export const ExistingItemsOutputSchema = z.object({
+  schema_version: z.literal(EXISTING_ITEMS_SCHEMA_VERSION),
+  items: z.array(z.object({
+    source_label: z.string().trim().min(1).max(120),
+    source_topic: z.string().trim().max(240).nullable(),
+    belongs_to_selected_topic: z.boolean(),
+    stem: z.string().trim().min(1).max(4000),
+    options: z.array(z.object({ label: OptionLabelSchema, text: z.string().trim().min(1).max(1500) }).strict()).min(2).max(5),
+    stated_key: OptionLabelSchema.nullable(),
+    suggested_key: OptionLabelSchema.nullable(),
+    target_reasoning: z.string().trim().min(1).max(1500),
+    target_reasoning_from_source: z.boolean(),
+    essential_elements: z.array(z.string().trim().min(1).max(400)).min(1).max(3),
+    essential_elements_from_source: z.boolean(),
+    option_notes: z.array(z.object({
+      label: OptionLabelSchema,
+      rationale: z.string().trim().min(1).max(1000),
+      idea_label: z.string().trim().min(1).max(60),
+      from_source: z.boolean(),
+      linked_misconception_ids: z.array(z.string().trim().min(1).max(80)).max(8)
+    }).strict()).max(4),
+    objective_ids: z.array(z.string().trim().min(1).max(80)).max(8),
+    note_for_teacher: z.string().trim().max(600).nullable()
+  }).strict()).max(EXISTING_ITEMS_MAX),
+  skipped: z.array(z.object({
+    source_label: z.string().trim().min(1).max(120),
+    reason: z.string().trim().min(1).max(400)
+  }).strict()).max(EXISTING_ITEMS_MAX)
+}).strict();
+
+export type ExistingItemsOutput = z.infer<typeof ExistingItemsOutputSchema>;
+
+export type ExistingItemDraft = {
+  item_label: string;
+  stem: string;
+  options: Array<{ label: string; text: string }>;
+  /** The key the source states; the instructor still confirms it. */
+  stated_key: string | null;
+  /** The assistant's answer when the source states no key; a suggestion only. */
+  suggested_key: string | null;
+  target_reasoning_note: string | null;
+  suggested_target_reasoning_note: string | null;
+  essential_elements: string | null;
+  suggested_essential_elements: string | null;
+  option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+  suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+  objective_ids: string[];
+  misconception_hypothesis_ids: string[];
+  source_topic: string | null;
+  from_source: string[];
+  suggested: string[];
+  note_for_teacher: string | null;
+};
+
+/**
+ * The items of the selected topic as review drafts: what the source states fills the fields,
+ * and what the assistant proposes waits as a suggestion for the instructor. Options the
+ * output does not list, rationales for the key and unknown links are dropped.
+ */
+export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemDesignBlueprint): {
+  drafts: ExistingItemDraft[];
+  other_topic_count: number;
+} {
+  const objectiveIds = new Set(blueprint.objectives.map((objective) => objective.objective_id));
+  const misconceptionIds = new Set(blueprint.misconception_hypotheses.map((entry) => entry.misconception_id));
+  const selected = output.items.filter((item) => item.belongs_to_selected_topic);
+  const drafts = selected.flatMap((item) => {
+    const labels = new Set(item.options.map((option) => option.label));
+    if (labels.size !== item.options.length) return [];
+    const statedKey = item.stated_key && labels.has(item.stated_key) ? item.stated_key : null;
+    const suggestedKey = !statedKey && item.suggested_key && labels.has(item.suggested_key) ? item.suggested_key : null;
+    const key = statedKey ?? suggestedKey;
+    const notes = item.option_notes.filter((note, index, all) =>
+      labels.has(note.label) && note.label !== key && all.findIndex((entry) => entry.label === note.label) === index);
+    const asRationale = (note: (typeof notes)[number]) => ({ label: note.label, rationale: note.rationale, idea_label: note.idea_label });
+    const elements = item.essential_elements.join("\n");
+    const fromSource = ["stem", "options", ...(statedKey ? ["key"] : [])];
+    const suggested = suggestedKey ? ["key"] : [];
+    (item.target_reasoning_from_source ? fromSource : suggested).push("target reasoning");
+    (item.essential_elements_from_source ? fromSource : suggested).push("essential elements");
+    if (notes.some((note) => note.from_source)) fromSource.push("notes on incorrect options");
+    if (notes.some((note) => !note.from_source)) suggested.push("notes on incorrect options");
+    return [{
+      item_label: item.source_label,
+      stem: item.stem,
+      options: item.options.map(({ label, text }) => ({ label, text })),
+      stated_key: statedKey,
+      suggested_key: suggestedKey,
+      target_reasoning_note: item.target_reasoning_from_source ? item.target_reasoning : null,
+      suggested_target_reasoning_note: item.target_reasoning_from_source ? null : item.target_reasoning,
+      essential_elements: item.essential_elements_from_source ? elements : null,
+      suggested_essential_elements: item.essential_elements_from_source ? null : elements,
+      option_rationales: notes.filter((note) => note.from_source).map(asRationale),
+      suggested_option_rationales: notes.filter((note) => !note.from_source).map(asRationale),
+      objective_ids: item.objective_ids.filter((id) => objectiveIds.has(id)),
+      misconception_hypothesis_ids: [...new Set(notes.flatMap((note) => note.linked_misconception_ids).filter((id) => misconceptionIds.has(id)))],
+      source_topic: item.source_topic,
+      from_source: fromSource,
+      suggested,
+      note_for_teacher: item.note_for_teacher
+    }];
+  });
+  return { drafts, other_topic_count: output.items.length - selected.length };
+}
+
+/** One sentence for the review page: what came from the instructor's file and what the assistant suggested. */
+export function describeExistingItemSources(fromSource: string[], suggested: string[]) {
+  const list = (values: string[]) =>
+    values.length <= 1 ? values.join("") : `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
+  return suggested.length === 0
+    ? `Everything here comes from your file: ${list(fromSource)}.`
+    : `From your file: ${list(fromSource)}. Suggested by the assistant for your review: ${list(suggested)}.`;
 }
 
 export type ItemDesignBlueprint = z.infer<typeof ItemDesignBlueprintSchema>;

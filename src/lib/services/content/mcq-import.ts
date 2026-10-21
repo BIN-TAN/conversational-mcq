@@ -14,6 +14,7 @@ import {
 } from "./mcq-docx-parser";
 import { ensureMiniTestPrimaryConceptUnit } from "./assessments";
 import { ContentServiceError } from "./errors";
+import { describeExistingItemSources } from "./item-design-contract";
 import { parseMiniTestJson } from "./mini-test-json-contract";
 import { assertAssessmentEditable } from "./governance";
 import { replaceItemMediaAssets } from "./items";
@@ -1674,6 +1675,142 @@ export async function createGeneratedMcqReviewBatch(input: {
 
   return { batch: serializeBatch(batch), replayed: false };
 }
+
+export const EXISTING_ITEMS_SOURCE_TYPE = "existing_items_from_materials";
+
+/**
+ * The instructor's own items read from course materials (item-design.ts
+ * importExistingItemsFromMaterials). Wording, a stated key and the notes the source gives fill
+ * the fields; what the assistant proposed waits as a suggestion for blank fields. The instructor
+ * confirms every key before an item is added.
+ */
+export async function createExistingItemsReviewBatch(input: {
+  teacher_user_db_id: string;
+  assessment_public_id: string;
+  source_checksum: string;
+  source_metadata: Record<string, unknown>;
+  drafts: Array<{
+    item_label: string;
+    stem: string;
+    options: Array<{ label: string; text: string }>;
+    stated_key: string | null;
+    suggested_key: string | null;
+    target_reasoning_note: string | null;
+    suggested_target_reasoning_note: string | null;
+    essential_elements: string | null;
+    suggested_essential_elements: string | null;
+    option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+    suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+    objective_ids: string[];
+    misconception_hypothesis_ids: string[];
+    source_topic: string | null;
+    from_source: string[];
+    suggested: string[];
+    note_for_teacher: string | null;
+  }>;
+  item_checks: Array<{
+    status: "checked" | "unavailable";
+    independent_answer: string | null;
+    agrees_with_key: boolean;
+    revised: boolean;
+    remaining_problems: string[];
+  } | null>;
+  generation_metadata: Record<string, unknown>;
+}) {
+  const assessment = await assertAssessmentEditable(input);
+  const existing = await prisma.mcqItemImportBatch.findFirst({
+    where: { assessment_db_id: assessment.id, source_type: EXISTING_ITEMS_SOURCE_TYPE, source_checksum: input.source_checksum },
+    orderBy: { created_at: "desc" }
+  });
+  if (existing) return { batch: serializeBatch(existing), replayed: true };
+
+  const candidates = input.drafts.map((draft, index) => {
+    const check = input.item_checks[index] ?? null;
+    const checkFlags = !check
+      ? []
+      : check.status === "unavailable"
+        ? ["assistant_check_unavailable"]
+        : !check.agrees_with_key || check.remaining_problems.length > 0
+          ? ["assistant_check_needs_attention"]
+          : [];
+    const candidate = candidateFromDraft({
+      item_label: draft.item_label,
+      stem: draft.stem,
+      options: draft.options,
+      imported_key: draft.stated_key,
+      target_reasoning_note: draft.target_reasoning_note,
+      strong_reasoning_should_mention: essentialElementsText(draft.essential_elements),
+      distractor_diagnostic_notes: null,
+      option_rationales: draft.option_rationales,
+      media_assets: [],
+      original_source_text: `Item ${draft.item_label} read from the course materials.`,
+      source_location: draft.source_topic ? `${draft.item_label} (${draft.source_topic})` : draft.item_label,
+      source_line_range: null,
+      source_metadata: {
+        ...input.source_metadata,
+        objective_ids: draft.objective_ids,
+        misconception_hypothesis_ids: draft.misconception_hypothesis_ids,
+        source_topic: draft.source_topic
+      },
+      parsing_confidence: 1,
+      issue_flags: [...(draft.stated_key ? [] : ["key_missing"]), ...checkFlags]
+    }, index);
+    const suggestedKey = draft.stated_key ? null : draft.suggested_key;
+    return {
+      ...candidate,
+      llm_suggested_key: suggestedKey,
+      suggestion_status: "pending_teacher_review" as const,
+      suggestion: {
+        ...(suggestedKey ? { suggested_key: suggestedKey } : {}),
+        ...(draft.suggested_target_reasoning_note ? { suggested_target_reasoning_note: draft.suggested_target_reasoning_note } : {}),
+        ...(draft.suggested_essential_elements ? { suggested_strong_reasoning_should_mention: draft.suggested_essential_elements } : {}),
+        suggested_option_rationales: draft.suggested_option_rationales,
+        evidence_justification_summary: [describeExistingItemSources(draft.from_source, draft.suggested), draft.note_for_teacher]
+          .filter(Boolean).join(" "),
+        filled_from_source: draft.from_source,
+        suggested_fields: draft.suggested,
+        limitations: [],
+        ...(check ? {
+          assistant_check: {
+            ...check,
+            checked_stem: candidate.stem,
+            checked_options: candidate.options.map(({ label, text }) => ({ label, text }))
+          }
+        } : {}),
+        reviewer_warning: "Teacher review required before import."
+      }
+    };
+  });
+
+  await applyDuplicateWarnings(candidates, {
+    teacher_user_db_id: input.teacher_user_db_id,
+    assessment_db_id: assessment.id
+  });
+  const summary = validationSummary(candidates, [
+    "Items read from course materials keep their wording; confirm every key and review the suggested notes before adding them."
+  ]);
+  const batch = await prisma.mcqItemImportBatch.create({
+    data: {
+      batch_public_id: generatePublicId("mcq_import_batch"),
+      assessment_db_id: assessment.id,
+      uploaded_by_user_db_id: input.teacher_user_db_id,
+      source_type: EXISTING_ITEMS_SOURCE_TYPE,
+      source_file_name: null,
+      source_checksum: input.source_checksum,
+      status: "previewed",
+      candidate_count: candidates.length,
+      key_missing_count: candidates.filter((candidate) => !candidate.imported_key).length,
+      llm_suggestion_count: candidates.length,
+      duplicate_count: candidates.filter((candidate) => candidate.issue_flags.includes("possible_duplicate")).length,
+      validation_summary: toRequiredPrismaJson(summary),
+      candidates_payload: toRequiredPrismaJson({ schema_version: MCQ_IMPORT_SCHEMA_VERSION, candidates }),
+      suggestion_payload: toRequiredPrismaJson(input.generation_metadata)
+    }
+  });
+
+  return { batch: serializeBatch(batch), replayed: false };
+}
+
 
 let mcqDiagnosticProviderOverrideForTest: ItemPreparationProviderOverride | null = null;
 let mcqFormattingProviderOverrideForTest: ItemPreparationProviderOverride | null = null;

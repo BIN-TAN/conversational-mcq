@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import * as XLSX from "xlsx";
 import { extractDocxForMcqImport } from "./mcq-docx-parser";
 import { ContentServiceError } from "./errors";
 
@@ -18,7 +19,8 @@ export type PreparedItemDesignMaterial = {
   client_message_id: string;
   file_name: string;
   media_type: string;
-  source_kind: "docx" | "pdf" | "image";
+  /** docx and text (plain text, Markdown, CSV, JSON, Excel) reach the model as extracted text. */
+  source_kind: "docx" | "text" | "pdf" | "image";
   byte_size: number;
   sha256: string;
   parser_version: string | null;
@@ -253,15 +255,68 @@ export async function prepareItemDesignMaterials(input: {
       continue;
     }
 
+    const text = textFromOtherFile(extension, file.bytes, fileName);
+    if (text !== null) {
+      const truncated = text.length > ITEM_DESIGN_MAX_EXTRACTED_TEXT_CHARACTERS;
+      prepared.push({
+        material_id: materialId,
+        client_message_id: input.client_message_id,
+        file_name: fileName,
+        media_type: TEXT_MEDIA_TYPES[extension] ?? "text/plain",
+        source_kind: "text",
+        byte_size: file.bytes.length,
+        sha256,
+        parser_version: extension === "xlsx" || extension === "xls" ? "sheetjs-csv-v1" : "utf8-text-v1",
+        extracted_text: text.slice(0, ITEM_DESIGN_MAX_EXTRACTED_TEXT_CHARACTERS),
+        warnings: truncated ? ["text_truncated_to_safe_authoring_limit"] : [],
+        provider_attachment: null
+      });
+      continue;
+    }
+
     throw new ContentServiceError(
       "validation_failed",
-      `${fileName} is not supported. Upload PDF, DOCX, PNG, JPEG, or WebP files.`,
+      `${fileName} cannot be read. Upload a PDF, Word, Excel, CSV, text, JSON or image file (PNG, JPEG or WebP). For a PowerPoint file, save it as a PDF first.`,
       400,
-      { supported_extensions: ["pdf", "docx", "png", "jpg", "jpeg", "webp"] }
+      { supported_extensions: SUPPORTED_EXTENSIONS }
     );
   }
 
   return prepared;
+}
+
+const SUPPORTED_EXTENSIONS = ["pdf", "docx", "png", "jpg", "jpeg", "webp", "txt", "md", "csv", "json", "xlsx", "xls"];
+
+const TEXT_MEDIA_TYPES: Record<string, string> = {
+  txt: "text/plain",
+  md: "text/markdown",
+  csv: "text/csv",
+  json: "application/json",
+  xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  xls: "application/vnd.ms-excel"
+};
+
+/** Plain text, Markdown, CSV and JSON as UTF-8; each Excel sheet as CSV under its name. */
+function textFromOtherFile(extension: string, bytes: Buffer, fileName: string): string | null {
+  if (["txt", "md", "csv", "json"].includes(extension)) {
+    const text = bytes.toString("utf8").replace(/^\uFEFF/, "").replace(/\u0000/g, "").trim();
+    if (!text) throw new ContentServiceError("validation_failed", `${fileName} has no readable text.`, 400);
+    return text;
+  }
+  if (extension === "xlsx" || extension === "xls") {
+    let workbook: ReturnType<typeof XLSX.read>;
+    try {
+      // Macros, formulas and external links are not read.
+      workbook = XLSX.read(bytes, { type: "buffer", bookVBA: false, cellFormula: false, sheetRows: 2000 });
+    } catch {
+      throw new ContentServiceError("validation_failed", `${fileName} could not be read as an Excel workbook.`, 400);
+    }
+    const text = workbook.SheetNames.map((name: string) =>
+      `Sheet: ${name}\n${XLSX.utils.sheet_to_csv(workbook.Sheets[name]!, { blankrows: false })}`).join("\n\n").trim();
+    if (!text) throw new ContentServiceError("validation_failed", `${fileName} has no readable cells.`, 400);
+    return text;
+  }
+  return null;
 }
 
 export function materialProviderContext(material: PreparedItemDesignMaterial) {
@@ -277,7 +332,7 @@ export function materialProviderContext(material: PreparedItemDesignMaterial) {
     extracted_text: material.extracted_text,
     warnings: material.warnings,
     content_delivery:
-      material.source_kind === "docx"
+      material.source_kind === "docx" || material.source_kind === "text"
         ? "extracted_text_in_context"
         : "multimodal_attachment_in_current_request"
   };

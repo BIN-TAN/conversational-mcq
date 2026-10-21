@@ -138,6 +138,7 @@ export function McqImportClient({
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [progress, setProgress] = useState<string | null>(null);
   const [savedCandidates, setSavedCandidates] = useState("");
   const [reviewNotes, setReviewNotes] = useState(false);
   const [checkedNotes, setCheckedNotes] = useState<string[]>([]);
@@ -153,6 +154,8 @@ export function McqImportClient({
     [batch]
   );
   const generatedBatch = batch?.source_type === "generated_evidence_blueprint";
+  // Items the assistant read from course materials are already laid out and checked.
+  const assistantBatch = generatedBatch || batch?.source_type === "existing_items_from_materials";
   const selected = batch?.candidates.filter((candidate) => candidate.import_selected && !isImported(candidate)) ?? [];
   const noteTargets = selected.filter(needsNotes);
   const pendingNotes = selected.flatMap((candidate) => blankNoteSuggestions(candidate).map((note) => ({
@@ -162,11 +165,11 @@ export function McqImportClient({
   })));
   const missingKeys = selected.filter((candidate) => !candidate.options.some((option) => option.label === candidate.teacher_confirmed_key)).length;
   const importedCount = batch?.candidates.filter(isImported).length ?? 0;
-  const checkedKeys = generatedBatch && batch ? keysTheCheckAgreedWith(batch.candidates) : [];
+  const checkedKeys = assistantBatch && batch ? keysTheCheckAgreedWith(batch.candidates) : [];
 
   function confirmCheckedKeys() {
     for (const candidate of checkedKeys) {
-      updateCandidate(candidate.candidate_public_id, (entry) => ({ ...entry, teacher_confirmed_key: entry.llm_suggested_key }));
+      updateCandidate(candidate.candidate_public_id, (entry) => ({ ...entry, teacher_confirmed_key: entry.imported_key ?? entry.llm_suggested_key }));
     }
   }
 
@@ -288,71 +291,81 @@ export function McqImportClient({
     }
   }
 
-  async function suggestForSelected() {
-    if (!batch || busyAction || noteTargets.length === 0 || noteTargets.length > 10) return;
-    setBusyAction("suggest");
-    setError(null);
-    setSuccess(null);
-    try {
+  /** Runs a per-item assistant request in groups the server accepts, one group after another. */
+  async function runInGroups(input: {
+    action: "suggest" | "format";
+    ids: string[];
+    group_size: number;
+  }) {
+    if (!batch) return null;
+    let current = batch;
+    for (let start = 0; start < input.ids.length; start += input.group_size) {
+      const group = input.ids.slice(start, start + input.group_size);
+      if (input.ids.length > input.group_size) {
+        setProgress(`Working on items ${start + 1} to ${start + group.length} of ${input.ids.length}...`);
+      }
       const data = await apiRequest<McqImportBatchResponse>(
-        `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${batch.batch_public_id}/suggest`,
+        `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${current.batch_public_id}/${input.action}`,
         {
           method: "POST",
           body: JSON.stringify({
             mode: "live",
-            expected_updated_at: batch.updated_at,
-            candidate_public_ids: noteTargets
-              .map((candidate) => candidate.candidate_public_id),
-            candidate_updates: batch.candidates.map(candidateUpdatePayload)
+            expected_updated_at: current.updated_at,
+            candidate_public_ids: group,
+            candidate_updates: current.candidates.map(candidateUpdatePayload)
           })
         }
       );
+      current = data.batch;
       receiveBatch(data.batch);
-      const failed = data.batch.candidates.filter((candidate) => candidate.suggestion_status === "failed").length;
+    }
+    return current;
+  }
+
+  async function suggestForSelected() {
+    if (!batch || busyAction || noteTargets.length === 0) return;
+    setBusyAction("suggest");
+    setError(null);
+    setSuccess(null);
+    try {
+      const ids = noteTargets.map((candidate) => candidate.candidate_public_id);
+      const updated = await runInGroups({ action: "suggest", ids, group_size: 10 });
+      const failed = updated?.candidates.filter((candidate) => ids.includes(candidate.candidate_public_id) && candidate.suggestion_status === "failed").length ?? 0;
       setSuccess(
         failed > 0
-          ? `Diagnostic suggestions returned with ${failed} item${failed === 1 ? "" : "s"} unavailable. You can continue reviewing and importing manually.`
-          : "Diagnostic suggestions added for selected candidates. Review before accepting."
+          ? `Suggestions are ready, but ${failed} item${failed === 1 ? " could" : "s could"} not be completed. You can fill those in yourself.`
+          : "Suggestions are ready. Open \"Review suggested notes\" to accept the ones you want."
       );
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
+      setProgress(null);
       setBusyAction(null);
     }
   }
 
   async function formatSelected() {
-    if (!batch || busyAction || selectedCount === 0 || selectedCount > 8) return;
+    if (!batch || busyAction || selectedCount === 0) return;
     setBusyAction("format");
     setError(null);
     setSuccess(null);
     try {
-      const data = await apiRequest<McqImportBatchResponse>(
-        `/api/teacher/assessments/${assessmentPublicId}/mcq-import/${batch.batch_public_id}/format`,
-        {
-          method: "POST",
-          body: JSON.stringify({
-            mode: "live",
-            expected_updated_at: batch.updated_at,
-            candidate_public_ids: selected
-              .map((candidate) => candidate.candidate_public_id),
-            candidate_updates: batch.candidates.map(candidateUpdatePayload)
-          })
-        }
-      );
-      receiveBatch(data.batch);
-      const failed = data.batch.candidates.filter((candidate) => candidate.formatting_status === "failed").length;
+      const ids = selected.map((candidate) => candidate.candidate_public_id);
+      const updated = await runInGroups({ action: "format", ids, group_size: 8 });
+      const failed = updated?.candidates.filter((candidate) => ids.includes(candidate.candidate_public_id) && candidate.formatting_status === "failed").length ?? 0;
       setSuccess(
         failed > 0
-          ? `Formatting assistance returned with ${failed} item${failed === 1 ? "" : "s"} unavailable. You can continue formatting manually.`
-          : "Formatting suggestions added for selected candidates. Review before accepting."
+          ? `The layout suggestions are ready, but ${failed} item${failed === 1 ? " could" : "s could"} not be completed. You can fix those yourself.`
+          : "The layout suggestions are ready. Review each one before you accept it."
       );
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
+      setProgress(null);
       setBusyAction(null);
     }
   }
+
 
   function acceptSelectedBlankSuggestions() {
     setBatch((previous) =>
@@ -420,7 +433,7 @@ export function McqImportClient({
   return (
     <div className="space-y-6">
       <PageHeader
-        title={generatedBatch ? "Review generated item drafts" : initialBatchPublicId ? "Review imported items" : "Import MCQ items"}
+        title={generatedBatch ? "Review generated item drafts" : batch?.source_type === "existing_items_from_materials" ? "Review your imported items" : initialBatchPublicId ? "Review imported items" : "Import MCQ items"}
         actions={
           <>
             {batch?.source_type === "project_json" ? <SecondaryLink href={`/teacher/content/assessments/${assessmentPublicId}/item-design?view=review`}>
@@ -520,7 +533,7 @@ export function McqImportClient({
         <section className="space-y-4 min-w-0">
           <div className="space-y-4 border-y border-line py-4">
             <div>
-              <h2 className="text-xl font-semibold text-ink">{generatedBatch ? "Draft review" : "Import preview"}</h2>
+              <h2 className="text-xl font-semibold text-ink">{generatedBatch ? "Draft review" : batch.source_type === "existing_items_from_materials" ? "Your items, read from the course materials" : "Import preview"}</h2>
               <p className="mt-1 text-sm text-muted">
                 {batch.candidate_count} {batch.candidate_count === 1 ? "item" : "items"} · {selectedCount} selected · {importedCount} added{dirty ? " · Unsaved changes" : ""}
               </p>
@@ -531,14 +544,14 @@ export function McqImportClient({
                 <RefreshCw className="h-4 w-4" aria-hidden="true" />
                 Reload
               </Button>
-              <span title={noteTargets.length > 10 ? "Select at most 10 items with missing notes." : "AI proposes target reasoning, essential elements and a rationale for each incorrect option, and reports problems. Existing notes and confirmed keys are kept."}>
-              <Button disabled={!noteTargets.length || noteTargets.length > 10 || Boolean(busyAction)} onClick={suggestForSelected} type="button" variant="secondary">
+              <span title="The assistant proposes the target reasoning, the essential elements and the incorrect idea behind each wrong option, with a short label; options that rest on the same idea share a label. Notes you already have and confirmed keys are kept. You accept each suggestion yourself.">
+              <Button disabled={!noteTargets.length || Boolean(busyAction)} onClick={suggestForSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Suggest missing notes ({noteTargets.length})
               </Button>
               </span>
-              {!generatedBatch ? <span title={selectedCount > 8 ? "Select at most 8 items for formatting." : "AI separates imported question text, options and source keys without rewriting the wording."}>
-              <Button disabled={selectedCount === 0 || selectedCount > 8 || Boolean(busyAction)} onClick={formatSelected} type="button" variant="secondary">
+              {!assistantBatch ? <span title="The assistant separates the question, the options and any key the source states, without changing your wording.">
+              <Button disabled={selectedCount === 0 || Boolean(busyAction)} onClick={formatSelected} type="button" variant="secondary">
                 <Sparkles className="h-4 w-4" aria-hidden="true" />
                 Repair imported layout
               </Button>
@@ -561,7 +574,7 @@ export function McqImportClient({
                 Add selected drafts ({selectedCount})
               </Button>
             </div>
-            {busyAction ? <p role="status" className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{busyAction === "suggest" ? "Preparing suggested notes…" : busyAction === "format" ? "Reviewing imported layout…" : "Saving or loading review…"}</p> : null}
+            {busyAction ? <p role="status" className="flex items-center gap-2 text-sm text-muted"><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{progress ?? (busyAction === "suggest" ? "Preparing suggested notes. This can take a minute." : busyAction === "format" ? "Repairing the imported layout. This can take a minute." : "Saving or loading the review…")}</p> : null}
           </div>
 
           <div className="space-y-4">
@@ -595,7 +608,7 @@ export function McqImportClient({
                         </span>
                         <span className="text-xs text-muted">{candidate.source_location}</span>
                         <span className="text-xs text-muted">
-                          {!generatedBatch ? `Parse confidence ${Math.round(candidate.parsing_confidence * 100)}%` : null}
+                          {!assistantBatch ? `Parse confidence ${Math.round(candidate.parsing_confidence * 100)}%` : null}
                         </span>
                       </div>
                       {issueFlagDescriptions(candidate.issue_flags).length > 0 ? (

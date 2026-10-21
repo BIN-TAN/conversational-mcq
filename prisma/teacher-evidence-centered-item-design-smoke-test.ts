@@ -276,7 +276,7 @@ assert.match(createSource, /useUnsavedChanges/);
 assert.doesNotMatch(createSource, /label="Diagnostic focus"/);
 assert.match(designSource, /Author with assistant/);
 assert.match(designSource, /Review design/);
-assert.match(designSource, /Add PDF, Word, or images/);
+assert.match(designSource, /Add files \(PDF, Word, Excel, text or images\)/);
 assert.match(designSource, /\.pdf,\.docx,\.png/);
 assert.doesNotMatch(designSource, /Do not include private student information/);
 assert.match(designSource, /Review and edit design/);

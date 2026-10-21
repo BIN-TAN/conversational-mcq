@@ -518,7 +518,7 @@ async function main() {
     assert.deepEqual(blocked, { status: "blocked", reason: "item_preparation_v8_not_approved", agent_call_id: null, agent_call_public_id: null });
   });
 
-  await check("Gating: mock uses the stand-in; live needs live calls and the approved prompt hash", () => {
+  await check("Gating: mock uses the stand-in; live needs live calls; only the publishing check also needs the approved prompt hash", () => {
     assert.deepEqual(call.planTeacherItemPreparation({ task: "format_imported", mode: "mock" }), { mode: "local_test" });
     const live = call.planTeacherItemPreparation({ task: "format_imported", mode: "live" });
     assert.equal(live.mode, "blocked");
@@ -535,6 +535,9 @@ async function main() {
     process.env.ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH = prep.ITEM_PREPARATION_PROMPT_HASH;
     assert.equal(call.itemPreparationApprovalStatus().approved, true);
     if (savedHash === undefined) delete process.env.ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH; else process.env.ITEM_PREPARATION_V8_APPROVED_PROMPT_HASH = savedHash;
+    const callSource = readFileSync(path.join(process.cwd(), "src/lib/services/content/item-preparation/call.ts"), "utf8");
+    assert(callSource.includes('if (task === "check" && !itemPreparationApprovalStatus().approved)'),
+      "The import tasks run live without the approval hash; the publishing check keeps it");
     assert.deepEqual(call.ITEM_PREPARATION_ROLE_BY_TASK, {
       draft_or_adapt: "mcq_diagnostic_authoring_assistant_agent",
       format_imported: "mcq_import_formatting_assistant_agent",

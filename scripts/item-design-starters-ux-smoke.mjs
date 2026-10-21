@@ -71,67 +71,87 @@ try {
   const url = base + "/teacher/content/assessments/synthetic_starters/item-design";
   await page.goto(url, { waitUntil: "networkidle" });
   const input = page.getByLabel("Message the item-design assistant", { exact: true });
-  const labels = ["Build from course materials", "Plan a topic-based test", "Probe common misconceptions", "Improve existing questions"];
+  await page.getByRole("heading", { name: "How would you like to start?" }).waitFor();
+  const existingPath = page.getByRole("button", { name: /^Adapt my existing items/ });
+  const newPath = page.getByRole("button", { name: /^Write new items from course materials/ });
+  const starters = ["Plan a topic-based test", "Probe common misconceptions"];
+  assert.equal(await page.getByRole("button", { name: starters[0], exact: true }).count(), 0, "plan starters appear only for new items");
+
+  await existingPath.click();
+  const adapt = await input.inputValue();
+  assert.match(adapt, /^I want to adapt my existing multiple-choice items\./);
+  assert.match(adapt, /misconception hypotheses from the incorrect options/);
+  assert.match(adapt, /number of my items for this topic \(3 to 12\)/);
+  assert.match(adapt, /one at a time/);
+  assert.equal(await existingPath.getAttribute("aria-pressed"), "true");
+  await page.getByText("Attach the file with your items below and press Send.", { exact: false }).waitFor();
+  assert(await input.evaluate(el => document.activeElement === el));
+
+  await newPath.click();
+  const fresh = await input.inputValue();
+  assert(!fresh.includes("adapt my existing"), "choosing the other path replaces the untouched starter");
+  assert.match(fresh, /^I want to write new items from my course materials\./);
+  assert.match(fresh, /9 items with 5 options/);
+  assert.match(fresh, /point out gaps instead of inventing source content/);
+  assert.match(fresh, /for my review; do not generate items yet/);
+  assert.equal(await newPath.getAttribute("aria-pressed"), "true");
   const prompts = [];
-  for (const label of labels) {
+  for (const label of starters) {
     await page.getByRole("button", { name: label, exact: true }).click();
     const prompt = await input.inputValue();
-    assert(prompt.length > label.length + 200);
     assert.match(prompt, /9 items with 5 options/);
-    assert.match(prompt, /one at a time/);
     assert.match(prompt, /for my review; do not generate items yet/);
     assert(await input.evaluate(el => document.activeElement === el));
     prompts.push(prompt);
   }
-  assert.match(prompts[0], /flag gaps instead of inventing source content/);
-  assert.match(prompts[1], /topic, student level, and scope/);
-  assert.match(prompts[2], /not established facts/);
-  assert.match(prompts[3], /uncertain keys for my confirmation/);
-  checks.push("four actionable, editable starters use the current target and preserve teacher review");
+  assert.match(prompts[0], /topic, student level, and scope/);
+  assert.match(prompts[1], /not established facts/);
+  checks.push("two starting points, adapt existing items or write new items, fill an editable opening message for review");
 
   await input.fill("My course excerpt: volunteers may differ from the target population.");
   await page.getByLabel("Course material files").setInputFiles({ name: "course.png", mimeType: "image/png", buffer: Buffer.from("synthetic-local-attachment") });
-  await page.getByRole("button", { name: labels[0], exact: true }).click();
+  await newPath.click();
   const withMaterial = await input.inputValue();
-  await page.getByRole("button", { name: labels[0], exact: true }).click();
+  await newPath.click();
   assert.equal(await input.inputValue(), withMaterial, "repeated click must not duplicate a starter");
   await page.getByRole("tab", { name: "Review design", exact: true }).click();
   await page.getByRole("tab", { name: "Author with assistant", exact: true }).click();
-  await page.getByRole("button", { name: labels[1], exact: true }).click();
+  await existingPath.click();
   const switched = await input.inputValue();
-  assert(!switched.includes("Use the course material I attach"));
+  assert(!switched.includes("write new items from my course materials"));
   assert(switched.endsWith("My course excerpt: volunteers may differ from the target population."));
   assert.equal(await page.getByRole("list", { name: "Selected course materials" }).getByText("course.png", { exact: true }).count(), 1);
   await input.fill("My edited request and notes must remain intact.");
-  await page.getByRole("button", { name: labels[2], exact: true }).click();
+  await newPath.click();
   assert((await input.inputValue()).endsWith("My edited request and notes must remain intact."));
-  checks.push("switching starters and tabs preserves notes, custom edits and attachments without duplication");
+  checks.push("switching paths, starters and tabs preserves notes, custom edits and attachments without duplication");
 
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `page overflow at ${width}`);
-    for (const label of labels) {
-      assert(await page.getByRole("button", { name: label, exact: true }).evaluate(el => el.scrollWidth <= el.clientWidth), `button overflow at ${width}: ${label}`);
+    for (const button of [existingPath, newPath, ...starters.map(label => page.getByRole("button", { name: label, exact: true }))]) {
+      assert(await button.evaluate(el => el.scrollWidth <= el.clientWidth), `button overflow at ${width}`);
     }
-    await page.getByRole("heading", { name: "Plan your mini test" }).scrollIntoViewIfNeeded();
+    await page.getByRole("heading", { name: "How would you like to start?" }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: join(output, `starters-${width}.png`), fullPage: true });
   }
-  await page.getByRole("button", { name: labels[3], exact: true }).focus();
+  await existingPath.focus();
   await page.keyboard.press("Enter");
   assert(await input.evaluate(el => document.activeElement === el));
   checks.push("desktop/mobile layout and keyboard activation");
 
   await input.fill("x".repeat(20000));
-  await page.getByRole("button", { name: labels[0], exact: true }).click();
+  await newPath.click();
   await page.getByText(/There is not enough room to add this starter/).waitFor();
   assert.equal((await input.inputValue()).length, 20000);
   checks.push("message limit fails safely without truncating teacher content");
-  assert.deepEqual(writes, [], "starter selection must not send, save or generate anything");
+  assert.deepEqual(writes, [], "choosing a path or starter must not send, save or generate anything");
 
   page.on("dialog", dialog => dialog.accept());
   design.assessment.is_editable = false;
   await page.reload({ waitUntil: "networkidle" });
-  for (const label of labels) assert(await page.getByRole("button", { name: label, exact: true }).isDisabled());
+  assert.equal(await newPath.getAttribute("aria-pressed"), "true", "the last choice is remembered in this browser");
+  assert(await existingPath.isDisabled() && await newPath.isDisabled());
   assert(await input.isDisabled());
   checks.push("read-only design remains locked; all interactions made zero mutation requests");
   assert.deepEqual(external, []);

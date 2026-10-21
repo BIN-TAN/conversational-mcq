@@ -1,7 +1,8 @@
 /**
  * Prepares the other topics of a course topic bank one after another (item builder sidebar):
  * for each topic it creates the topic's mini test with the stored course materials, lets the
- * assistant fill the design panel, and writes checked drafts for the teacher's review. Every
+ * assistant fill the design panel, and prepares checked drafts for the teacher's review: the
+ * instructor's own items when the materials have items for that topic, else new drafts. Every
  * step can be repeated safely, so a stopped or interrupted run continues where it stopped.
  */
 import { apiRequest, ClientApiError } from "./api";
@@ -33,7 +34,7 @@ const STEP_TEXT: Record<TopicRunStep, string> = {
   waiting: "Waiting",
   creating: "Creating the mini test",
   designing: "Filling in the design panel (a few minutes)",
-  drafting: "Writing and checking drafts (a few minutes)",
+  drafting: "Preparing and checking drafts (a few minutes)",
   ready: "Drafts ready to review",
   needs_input: "The assistant needs your answer",
   failed: "Not finished",
@@ -57,7 +58,7 @@ function builderUrl(assessmentPublicId: string) {
 
 export async function prepareTopicMiniTests(input: {
   bank_assessment_public_id: string;
-  topics: Array<{ topic_id: string; title: string }>;
+  topics: Array<{ topic_id: string; title: string; has_source_items?: boolean }>;
   existing: Array<{ topic_id: string; assessment_public_id: string; draft_review_url?: string | null }>;
   onUpdate: (state: TopicRunState) => void;
   shouldStop: () => boolean;
@@ -112,6 +113,22 @@ export async function prepareTopicMiniTests(input: {
         continue;
       }
       update("drafting", builderUrl(assessmentPublicId));
+      // The instructor's own items for this topic come first; new drafts only when there are none.
+      if (topic.has_source_items) {
+        try {
+          const imported = await apiRequest<{ review_url: string; imported_count: number }>(`${designUrl}/existing-items`, {
+            method: "POST",
+            body: JSON.stringify({})
+          });
+          results.push(update("ready", imported.review_url,
+            imported.imported_count === 1
+              ? "Imported your item from the course materials."
+              : `Imported ${imported.imported_count} of your items from the course materials.`));
+          continue;
+        } catch (caught) {
+          if (!(caught instanceof ClientApiError && caught.status === 422)) throw caught;
+        }
+      }
       const generated = await apiRequest<{ review_url: string }>(`${designUrl}/generate`, {
         method: "POST",
         body: JSON.stringify({ expected_blueprint_hash: design.blueprint_hash, mode: "live" })

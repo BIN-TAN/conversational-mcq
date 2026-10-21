@@ -130,7 +130,7 @@ async function main() {
     path.join(root, "src/app/api/teacher/assessments/[assessmentPublicId]/item-design/assistant/route.ts"),
     "utf8"
   );
-  assert.match(uiSource, /Add PDF, Word, or images/);
+  assert.match(uiSource, /Add files \(PDF, Word, Excel, text or images\)/);
   assert.match(uiSource, /multiple/);
   assert.match(routeSource, /request\.formData\(\)/);
   assert.match(routeSource, /Buffer\.from\(await file\.arrayBuffer\(\)\)/);

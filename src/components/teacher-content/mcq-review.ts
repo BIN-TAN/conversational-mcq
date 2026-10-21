@@ -262,10 +262,12 @@ export function assistantCheckHeadline(check: AssistantCheckView, proposedKey: s
  */
 export function keysTheCheckAgreedWith(candidates: McqImportCandidate[]) {
   return candidates.filter((candidate) => {
-    if (isImported(candidate) || candidate.teacher_confirmed_key || !candidate.llm_suggested_key) return false;
+    // The key the source stated, or else the proposed key.
+    const key = candidate.imported_key ?? candidate.llm_suggested_key;
+    if (isImported(candidate) || candidate.teacher_confirmed_key || !key) return false;
     const check = assistantCheckOf(candidate);
     return Boolean(check && check.status === "checked" && check.current && check.agrees_with_key &&
-      check.remaining_problems.length === 0 && check.independent_answer === candidate.llm_suggested_key &&
-      candidate.options.some((option) => option.label === candidate.llm_suggested_key));
+      check.remaining_problems.length === 0 && check.independent_answer === key &&
+      candidate.options.some((option) => option.label === key));
   });
 }

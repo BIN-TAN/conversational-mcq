@@ -219,7 +219,7 @@ async function main() {
     assert.deepEqual(keysTheCheckAgreedWith(list).map((entry) => entry.item_label), ["eligible"]);
     const client = source("src/components/teacher-content/mcq-import-client.tsx");
     assert(client.includes("Confirm the keys the check agreed with ({checkedKeys.length})"));
-    assert(client.includes("teacher_confirmed_key: entry.llm_suggested_key"));
+    assert(client.includes("teacher_confirmed_key: entry.imported_key ?? entry.llm_suggested_key"), "A key the file states comes first");
   });
 
   await check("The topic run prepares each other topic, skips drafted ones, asks when input is needed, and can stop", async () => {
@@ -293,7 +293,7 @@ async function main() {
     } finally {
       globalThis.fetch = original;
     }
-    assert.equal(topicRunStepText("drafting"), "Writing and checking drafts (a few minutes)");
+    assert.equal(topicRunStepText("drafting"), "Preparing and checking drafts (a few minutes)");
     const client = source("src/components/teacher-content/item-design-client.tsx");
     for (const part of ["Prepare the other topics (${otherTopics.length})", "Stop after the current step", "Review its drafts",
       "The design is ready for drafts.", "Generate drafts", "topicRunActive || (busy !== null"]) assert(client.includes(part), part);
