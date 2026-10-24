@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Loader2, RefreshCcw } from "lucide-react";
 import type { AttemptComparison, AttemptPair } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
+import { ItemContent } from "@/components/item-content";
+import { hasRichItemContent } from "@/lib/item-content/rich-text";
 
 const headings = ["Attempt 1", "Attempt 2", "Attempt 3", "Latest submitted"];
 const pairs: Array<[AttemptPair, string]> = [["1-2", "Attempt 1 to 2"], ["2-3", "Attempt 2 to 3"],
@@ -103,7 +105,8 @@ export function AttemptComparisonPanel({ assessmentPublicId }: { assessmentPubli
           <summary className="flex cursor-pointer list-none items-start gap-3 text-sm font-semibold"><ChevronDown className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" /><span className="min-w-0 break-words">{index + 1}. {item.stem}</span></summary>
           <div className="mt-4 space-y-4">
             <p className="text-xs text-muted">{item.objective}</p>
-            <ul className="space-y-1 text-sm">{item.options.map(option => <li key={option.label}><strong>{option.label}.</strong> {option.text}</li>)}</ul>
+            {hasRichItemContent(item.stem) ? <ItemContent as="div" className="text-sm leading-6" text={item.stem} /> : null}
+            <ul className="space-y-1 text-sm">{item.options.map(option => <ItemContent as="li" key={option.label} prefix={<strong>{option.label}.</strong>} text={option.text} />)}</ul>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">{item.columns.map((column, columnIndex) => <div key={column.view} className="min-w-0">
               <h4 className="text-sm font-semibold">{headings[columnIndex]}</h4>
               <p className="mb-3 mt-1 text-xs text-muted">{column.response_count} responses; {percentage(column.correct_percentage)} correct</p>
