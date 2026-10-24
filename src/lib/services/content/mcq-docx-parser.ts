@@ -1,6 +1,7 @@
 import { XMLParser } from "fast-xml-parser";
 import JSZip from "jszip";
 import mammoth from "mammoth";
+import { htmlToTextWithMarkdownTables } from "@/lib/item-content/docx-tables";
 import { ContentServiceError } from "./errors";
 import { readBoundedOfficeArchive } from "./office-archive";
 
@@ -28,6 +29,11 @@ export type DocxExtraction = {
   parser_version: string;
   source_file_name: string | null;
   raw_text: string;
+  /**
+   * raw_text with each Word table written as a Markdown pipe table (release
+   * CMCQ-20261024-11). Equal to raw_text when the document has no table.
+   */
+  text_with_tables: string;
   blocks: DocxTextBlock[];
   warnings: string[];
   embedded_image_count: number;
@@ -36,7 +42,9 @@ export type DocxExtraction = {
   tracked_change_detected: boolean;
 };
 
-const DOCX_PARSER_VERSION = "docx-structured-parser-v1";
+// v2 (release CMCQ-20261024-11): tables are kept as Markdown pipe tables in text_with_tables
+// and in the item text the MCQ import reads; v1 flattened them into lines.
+const DOCX_PARSER_VERSION = "docx-structured-parser-v2";
 const parser = new XMLParser({
   ignoreAttributes: false,
   removeNSPrefix: true,
@@ -240,8 +248,10 @@ export async function extractDocxForMcqImport(input: {
   }
 
   let rawText = "";
+  let documentBuffer: Buffer;
   try {
-    rawText = (await mammoth.extractRawText({ buffer: await zip.generateAsync({ type: "nodebuffer" }) })).value;
+    documentBuffer = await zip.generateAsync({ type: "nodebuffer" });
+    rawText = (await mammoth.extractRawText({ buffer: documentBuffer })).value;
   } catch {
     throw new ContentServiceError(
       "validation_failed",
@@ -265,6 +275,18 @@ export async function extractDocxForMcqImport(input: {
     }
   }
 
+  // Tables: mammoth's HTML keeps their rows and cells, which become Markdown pipe tables.
+  // Without a table the raw text is used exactly as before.
+  let textWithTables = rawText;
+  if (blocks.some((block) => block.kind === "table")) {
+    try {
+      const converted = htmlToTextWithMarkdownTables((await mammoth.convertToHtml({ buffer: documentBuffer })).value);
+      if (converted.trim()) textWithTables = converted;
+    } catch {
+      textWithTables = rawText;
+    }
+  }
+
   const relationshipsXml = await readZipText(zip, "word/_rels/document.xml.rels");
   const externalRelationshipCount = relationshipsXml
     ? (relationshipsXml.match(/TargetMode=["']External["']/g) ?? []).length
@@ -283,6 +305,7 @@ export async function extractDocxForMcqImport(input: {
     parser_version: DOCX_PARSER_VERSION,
     source_file_name: safeName(input.sourceFileName),
     raw_text: rawText,
+    text_with_tables: textWithTables,
     blocks,
     warnings,
     embedded_image_count: embeddedImageCount,

@@ -148,7 +148,8 @@ export async function prepareItemDesignMaterials(input: {
         bytes: file.bytes,
         sourceFileName: fileName
       });
-      const normalizedText = extraction.raw_text.replace(/\u0000/g, "").trim();
+      // Word tables reach the assistant as Markdown pipe tables (release CMCQ-20261024-11).
+      const normalizedText = extraction.text_with_tables.replace(/\u0000/g, "").trim();
       if (!normalizedText) {
         throw new ContentServiceError(
           "validation_failed",
