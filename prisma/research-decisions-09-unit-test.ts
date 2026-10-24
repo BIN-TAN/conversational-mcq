@@ -17,7 +17,7 @@ async function check(name: string, run: () => void | Promise<void>) {
   passed += 1;
   console.log(`ok - ${name}`);
 }
-const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8");
+const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
 
 async function main() {
   const prompts = await import("../src/lib/student-assessment/initial-admin-prompts");

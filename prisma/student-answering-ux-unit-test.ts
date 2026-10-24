@@ -37,7 +37,7 @@ async function check(name: string, run: () => void | Promise<void>) {
   passed += 1;
   console.log(`ok - ${name}`);
 }
-const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8");
+const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8").replace(/\r\n/g, "\n");
 const client = source("src/components/student-assessment/assessment-session-client.tsx");
 const list = source("src/components/student-assessment/available-assessments-client.tsx");
 const api = source("src/components/student-assessment/api.ts");

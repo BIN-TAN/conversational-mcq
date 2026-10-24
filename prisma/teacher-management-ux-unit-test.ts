@@ -27,7 +27,7 @@ process.on("unhandledRejection", (error) => {
 
 const root = process.cwd();
 function source(relativePath: string) {
-  return readFileSync(path.join(root, relativePath), "utf8");
+  return readFileSync(path.join(root, relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 let passed = 0;
