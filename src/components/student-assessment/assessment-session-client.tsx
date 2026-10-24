@@ -80,6 +80,7 @@ import {
   temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
+import { enterKeySends, useCoarsePointer } from "./use-coarse-pointer";
 import {
   formativeOutgoingMessageFor,
   formativeReplyWaitingMessage,
@@ -477,6 +478,7 @@ function FormativeConversationControls(input: {
   onSend: () => void;
 }) {
   const { conversation } = input;
+  const coarsePointer = useCoarsePointer();
   if (!["active", "paused"].includes(conversation.status)) {
     return <section className="space-y-3" data-testid="formative-conversation-ended">
       <p role="status" className="text-sm text-muted">This conversation has ended. Your messages are saved.</p>
@@ -574,7 +576,7 @@ function FormativeConversationControls(input: {
                 if (event.key === "Backspace" || event.key === "Delete") {
                   input.onBackspace();
                 }
-                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+                if (enterKeySends(event, coarsePointer)) {
                   event.preventDefault();
                   input.onSend();
                 }
@@ -732,6 +734,26 @@ function OptionChip({
       </span>
       {text ? <span className="font-normal">{text}</span> : null}
     </button>
+  );
+}
+
+/**
+ * Release CMCQ-20261024-09: in the reason, confidence and tempting-option steps the question's
+ * own figures and links can be opened again, folded by default. Shown only when the question
+ * has stem media. Opening it is not recorded.
+ */
+function CurrentItemMediaReminder({ item }: { item: { item_stem: string; media_assets: StudentSafeMediaAsset[] } | null | undefined }) {
+  const stemMedia = item?.media_assets.filter((asset) => asset.placement === "item_stem") ?? [];
+  if (!item || stemMedia.length === 0) return null;
+  return (
+    <details className="group rounded-xl border border-line bg-[#fbfcfa] px-3 py-2" data-testid="current-item-media-reminder">
+      <summary className="cursor-pointer list-none rounded-lg px-1 py-1 text-sm font-semibold text-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        <span className="group-open:hidden">Show the question and its {stemMedia.length === 1 ? "figure" : "figures"} again</span>
+        <span className="hidden group-open:inline">Hide the question</span>
+      </summary>
+      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+      <StudentMediaList mediaAssets={stemMedia} />
+    </details>
   );
 }
 
@@ -1047,6 +1069,7 @@ function TextComposer({
   /** D10: block paste and drop for written explanations. */
   blockPaste?: boolean;
 }) {
+  const coarsePointer = useCoarsePointer();
   return (
     <div className="ml-auto w-full max-w-[82%] rounded-2xl rounded-br-md border border-line bg-white px-3 py-2.5 shadow-sm sm:max-w-[72%]">
       <label className="sr-only" htmlFor={testId}>
@@ -1063,7 +1086,7 @@ function TextComposer({
         readOnly={busy}
         {...(blockPaste ? explanationPasteBlockProps : {})}
         onKeyDown={(event) => {
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
+          if (enterKeySends(event, coarsePointer)) {
             event.preventDefault();
             if (!busy && !disabled) onSend();
           }
@@ -1073,7 +1096,7 @@ function TextComposer({
       />
       <div className="mt-2 flex items-center justify-between gap-3">
         <p className="text-xs text-muted">
-          Press Enter to send; Shift+Enter adds a new line. {value.length} / {maxLength}
+          {coarsePointer ? null : "Press Enter to send; Shift+Enter adds a new line. "}{value.length} / {maxLength}
         </p>
         <button
           className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
@@ -2368,6 +2391,7 @@ function activeItemPrompt(input: {
 
     return (
       <>
+        <CurrentItemMediaReminder item={item} />
         <AgentMessage>
           <p className="font-medium text-ink">{reasoningPrompt.prompt_text}</p>
         </AgentMessage>
@@ -2391,6 +2415,7 @@ function activeItemPrompt(input: {
   if (state.assessment_state === "AWAIT_CONFIDENCE") {
     return (
       <>
+        <CurrentItemMediaReminder item={item} />
         <ConfidenceMessage
           disabled={isBusy}
           isTransferItem={isTransferItem}
@@ -2405,6 +2430,7 @@ function activeItemPrompt(input: {
   if (state.assessment_state === "AWAIT_TEMPTING_OPTION" && item) {
     return (
       <>
+        <CurrentItemMediaReminder item={item} />
         <TemptingOptionMessage
           disabled={isBusy}
           isTransferItem={isTransferItem}
@@ -2429,6 +2455,7 @@ function activeItemPrompt(input: {
 
     return (
       <>
+        <CurrentItemMediaReminder item={item} />
         <AgentMessage>
           <p className="font-medium text-ink">{temptingReasonPrompt.prompt_text}</p>
         </AgentMessage>

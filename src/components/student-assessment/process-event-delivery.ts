@@ -11,7 +11,9 @@ type Pending = { event: FrontendProcessEvent; queued_at: number };
 SAFE_TYPES.add("response_stage_observation");
 for (const type of ["package_results_shown", "item_correctness_status_shown", "formative_feedback_shown"]) SAFE_TYPES.add(type);
 for (const key of ["content_id", "content_kind", "turn_id", "source_turn_sequence_index", "conversation_public_id", "display_event_contract_version", "observation_method", "minimum_visible_ms"]) SAFE_PAYLOAD_KEYS.add(key);
-for (const key of ["observation_version", "stage_visit_id", "response_stage", "response_phase", "observation_kind", "monotonic_ms", "observation_sequence", "submission_id", "result", "input_length", "input_change_count"]) SAFE_PAYLOAD_KEYS.add(key);
+for (const key of ["observation_version", "stage_visit_id", "response_stage", "response_phase", "observation_kind", "monotonic_ms", "observation_sequence", "submission_id", "result", "input_length", "input_change_count",
+  // Release CMCQ-20261024-09: the ready observation's focus flag, dropped by this queue before.
+  "document_has_focus"]) SAFE_PAYLOAD_KEYS.add(key);
 type Storage = Pick<globalThis.Storage, "getItem" | "setItem" | "removeItem">;
 
 /**

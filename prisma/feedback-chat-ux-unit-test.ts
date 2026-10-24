@@ -94,7 +94,8 @@ async function main() {
     assert.match(gate, /orderBy: \{ started_at: "desc" \}/);
     assert.match(gate, /user_db_id: input\.student_user_db_id/);
     assert.match(gate, /client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID/);
-    assert.match(gate, /updated_at: \{ lt: new Date\(Date\.now\(\) - FORMATIVE_CONVERSATION_STALE_RESPONSE_MS\) \}/);
+    // Release 09 decision 7: the gate defers from the shorter (v8) window.
+    assert.match(gate, /updated_at: \{ lt: new Date\(Date\.now\(\) - FEEDBACK_V8_STALE_RESPONSE_MS\) \}/);
     assert.match(gate, /needs_full_projection: !opening\?\.assistant_turn_db_id \|\| staleReply/);
     assert.match(messagesRoute, /const owned = gate && gate\.needs_full_projection\n\s+\? await getStudentFormativeConversationProjection/);
     assert.equal(messagesRoute.match(/getStudentFormativeConversationProjection\(/g)?.length, 2, "the conditional pre-check and the final projection");
@@ -171,7 +172,8 @@ async function main() {
     assert.match(status, /waiting_since: inProgress \? job\.created_at\.toISOString\(\) : null/);
     assert.match(client, /data-testid="initial-preparation-stage"/);
     assert.match(client, /data-testid="initial-preparation-elapsed"/);
-    // The answer key is not shown during the wait.
+    // The wait card itself shows no answer key; from release 09 the answer review card (package
+    // results, built from the sealed package) shows it beside the wait card.
     const wait = between(client, 'data-testid="initial-preparation-status"', 'data-testid="submitted-response-review"');
     assert.doesNotMatch(wait, /correct_option|answer_key|is_correct/);
   });

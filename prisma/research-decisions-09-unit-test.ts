@@ -2,7 +2,8 @@
  * Release CMCQ-20261024-09: the eight decisions the researcher approved on 24 Oct.
  * Server side (this file): 2 tempting prompts (generator v5), 6 wait before feedback v8 attempt 2,
  * 7 the 6-minute v8 stale window (stale_reply_sweep_v2), 8 connection pool settings.
- * Client side (1, 3, 4, 5) is checked in the same file once merged.
+ * Also 1 document_has_focus, 3 Enter on touch screens, 4 figures in later steps, 5 answer review
+ * while feedback is prepared.
  * No database or provider calls. Run with: npx tsx prisma/research-decisions-09-unit-test.ts
  */
 import assert from "node:assert/strict";
@@ -118,6 +119,54 @@ async function main() {
     }
     assert.match(render, /^\s*plan: basic-1gb\s*$/m);
     assert(!source("src/lib/db.ts").includes("console."), "The connection string is never logged");
+  });
+
+  const delivery = await import("../src/components/student-assessment/process-event-delivery");
+  await check("1. The ready observation's document_has_focus now reaches the server", async () => {
+    const sent: unknown[] = [];
+    const queue = delivery.createProcessEventDelivery({
+      sessionId: "sess_test", tabId: "tab", storage: undefined,
+      send: async (events) => { sent.push(...events); },
+      timers: { set: () => 0, clear: () => undefined }
+    });
+    queue.enqueue({ event_type: "response_stage_observation", event_category: "response_stage", payload: { observation_kind: "ready", document_has_focus: false, response_text: "never sent" } } as never);
+    await queue.flush();
+    const payload = (sent[0] as { payload?: Record<string, unknown> } | undefined)?.payload ?? {};
+    assert.equal(payload.document_has_focus, false);
+    assert.equal(payload.response_text, undefined, "Other keys are still dropped");
+    assert.match(source("src/lib/services/teacher-research-data/response-stage-dictionary.ts"), /from release CMCQ-20261024-09 onward/);
+  });
+
+  const coarse = await import("../src/components/student-assessment/use-coarse-pointer");
+  await check("3. On a touch screen Enter adds a line and the hint is hidden; with a mouse Enter sends", () => {
+    const enter = { key: "Enter", shiftKey: false, keyCode: 13, nativeEvent: { isComposing: false } };
+    assert.equal(coarse.enterKeySends(enter, false), true);
+    assert.equal(coarse.enterKeySends(enter, true), false);
+    assert.equal(coarse.enterKeySends({ ...enter, shiftKey: true }, false), false);
+    assert.equal(coarse.enterKeySends({ ...enter, keyCode: 229 }, false), false);
+    assert.equal(coarse.enterKeySends({ ...enter, nativeEvent: { isComposing: true } }, false), false);
+    const client = source("src/components/student-assessment/assessment-session-client.tsx");
+    assert.equal(client.split("enterKeySends(event, coarsePointer)").length - 1, 2, "Both message boxes");
+    assert(client.includes('{coarsePointer ? null : "Press Enter to send; Shift+Enter adds a new line. "}'));
+    assert(!/event\.key === "Enter" && !event\.shiftKey/.test(client), "No other Enter-to-send handler");
+  });
+
+  await check("4. The reason, confidence and tempting steps can show the question's figures again", () => {
+    const client = source("src/components/student-assessment/assessment-session-client.tsx");
+    assert.equal(client.split("<CurrentItemMediaReminder item={item} />").length - 1, 4);
+    const reminder = client.slice(client.indexOf("function CurrentItemMediaReminder"), client.indexOf("function StudentMediaList"));
+    assert(reminder.includes('asset.placement === "item_stem"') && reminder.includes("<details") && !reminder.includes(" open"));
+  });
+
+  await check("5. While feedback is prepared, the answer review comes from the sealed package", () => {
+    const service = source("src/lib/services/student-assessment/service.ts");
+    const helper = service.slice(service.indexOf("async function answerReviewFromSealedPackage"), service.indexOf("async function getOrCreateInitialResponsePackage"));
+    assert(helper.includes("packageResultsForStudent(buildEvidenceIntegratedProfileBundle({ response_package_payload: sealed.payload }).profile)"));
+    assert(source("src/lib/services/student-assessment/interpretation-v8/prepare.ts").includes("buildEvidenceIntegratedProfileBundle({ response_package_payload: responsePackage.payload }).profile"),
+      "Same builder as the stored answer_review_v2");
+    assert(service.includes('const waitingAnswerReview = packageResultsExposed && assessmentState !== "PACKAGE_REVIEW" &&'),
+      "Never while the student can still change answers");
+    assert(/package_results: packageResultsExposed\n\s+\? latestEvidenceIntegratedProfile\n\s+\? packageResultsForStudent\(latestEvidenceIntegratedProfile\)\n\s+: waitingAnswerReview\n\s+: null,/.test(service));
   });
 
   console.log(`\n${passed} research-decision checks passed; no database or provider calls.`);

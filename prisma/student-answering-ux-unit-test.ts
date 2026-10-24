@@ -87,7 +87,8 @@ async function main() {
     }
     assert.match(between(client, "function displayTranscriptText", "\nfunction formatTranscriptTimestamp"),
       /return displayQuestionPositionLabel\(entry\.message_text\);/);
-    assert.equal(client.split("asset.placement").length - 1, 4, "item media placement is unchanged");
+    // Release 09 decision 4 adds one item_stem use (the reminder in later steps); the others are unchanged.
+    assert.equal(client.split("asset.placement").length - 1, 5, "item media placement is unchanged");
   });
 
   await check("Drafts are keyed by question and stage only, and stay in this tab", () => {

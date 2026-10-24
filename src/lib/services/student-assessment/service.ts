@@ -84,8 +84,10 @@ import {
 } from "@/lib/services/student-assessment/timing-contract";
 import { projectStoredStudentProfileIntegration } from "@/lib/services/student-assessment/profile-integration";
 import { prepareInitialInterpretationV8 } from "./interpretation-v8/prepare";
+import { logProductionError } from "@/lib/observability/production-safe-logger";
 import {
   ANSWER_EXPLANATION_VERSION,
+  buildEvidenceIntegratedProfileBundle,
   EvidenceIntegratedProfileV2Schema,
   packageResultsForStudent,
   studentSafeProjectionFromEvidenceProfile
@@ -393,6 +395,22 @@ async function latestInitialResponsePackageForConceptUnitSession(conceptUnitSess
     },
     orderBy: [{ created_at: "desc" }]
   });
+}
+
+/** The answer review of the sealed initial package, as interpretation v8 stores it (answer_review_v2). */
+async function answerReviewFromSealedPackage(conceptUnitSessionDbId: string) {
+  const sealed = await prisma.responsePackage.findFirst({
+    where: { concept_unit_session_db_id: conceptUnitSessionDbId, package_type: "initial_concept_unit_response_package" },
+    orderBy: [{ created_at: "desc" }],
+    select: { payload: true }
+  });
+  if (!sealed) return null;
+  try {
+    return packageResultsForStudent(buildEvidenceIntegratedProfileBundle({ response_package_payload: sealed.payload }).profile);
+  } catch (error) {
+    logProductionError(error, { safe_error_code: "waiting_answer_review_failed" });
+    return null;
+  }
 }
 
 async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string, db: Prisma.TransactionClient = prisma) {
@@ -3252,6 +3270,21 @@ export async function getStudentSessionState(input: {
     studentProfiles[0] ??
     null;
   const latestEvidenceIntegratedProfile = evidenceIntegratedProfileFromStoredProfile(latestStudentProfile);
+  // Release CMCQ-20261024-09: once the answers are submitted, the answer key and explanations
+  // are shown while feedback is prepared, not only when it is ready. revealed_at is written when
+  // the package is sealed, so the display now follows it. Before the stored profile exists, the
+  // review is built from the sealed package with the same function interpretation v8 stores as
+  // answer_review_v2, so the student sees the same review before and after. Read only once
+  // answering is over.
+  const packageResultsExposed = shouldExposeLearningProfileToStudent({
+    assessment_state: assessmentState,
+    effective_phase: effectivePhase,
+    current_item_role: transferItem ? "transfer" : currentItem ? "initial" : null
+  });
+  const waitingAnswerReview = packageResultsExposed && assessmentState !== "PACKAGE_REVIEW" &&
+    !latestEvidenceIntegratedProfile && conceptUnitSession
+    ? await answerReviewFromSealedPackage(conceptUnitSession.id)
+    : null;
   const latestFormativeDecision = conceptUnitSession
     ? await prisma.formativeDecision.findFirst({
         where: { concept_unit_session_db_id: conceptUnitSession.id },
@@ -3371,14 +3404,11 @@ export async function getStudentSessionState(input: {
         : null,
     activity_runtime: activityRuntime,
     formative_conversation: formativeConversation,
-    package_results:
-      shouldExposeLearningProfileToStudent({
-        assessment_state: assessmentState,
-        effective_phase: effectivePhase,
-        current_item_role: transferItem ? "transfer" : currentItem ? "initial" : null
-      }) && latestEvidenceIntegratedProfile
+    package_results: packageResultsExposed
+      ? latestEvidenceIntegratedProfile
         ? packageResultsForStudent(latestEvidenceIntegratedProfile)
-        : null,
+        : waitingAnswerReview
+      : null,
     progression: formativeConversation ? null : progression,
     // D3 (DESIGN_ALIGNMENT_2026-10-17.md): understanding profiles inform instructors
     // only. Students receive answer review and tailored feedback, not their profile.
