@@ -71,7 +71,7 @@ check("The JSON page parses deferred text, and continuing waits for the current 
 });
 
 check("Feedback preparation runs six jobs at a time", () => {
-  assert.match(source("render.yaml"), /- key: INITIAL_PREPARATION_CONCURRENCY\n\s+value: "6"/);
+  assert.match(source("render.yaml"), /- key: INITIAL_PREPARATION_CONCURRENCY\r?\n\s+value: "6"/);
 });
 
 console.log(`\n${passed} performance checks passed; no database or provider calls.`);
