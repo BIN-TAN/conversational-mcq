@@ -1,4 +1,4 @@
-import type { AccountSecurityTokenPurpose, Prisma, PrismaClient, User } from "@prisma/client";
+import type { AccountSecurityTokenPurpose, Prisma, PrismaClient } from "@prisma/client";
 import { z } from "zod";
 import { prisma as defaultPrisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
@@ -1142,14 +1142,5 @@ export function publicAccountSecurityError(error: unknown) {
     message: "Account security is temporarily unavailable.",
     status: 503,
     details: {}
-  };
-}
-
-export function teacherUserToPublicSession(user: Pick<User, "id" | "user_id" | "role" | "auth_version">) {
-  return {
-    user_db_id: user.id,
-    user_id: user.user_id,
-    role: user.role,
-    auth_version: user.auth_version
   };
 }

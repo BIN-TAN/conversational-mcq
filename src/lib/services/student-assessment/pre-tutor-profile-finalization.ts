@@ -1,21 +1,7 @@
 import { z } from "zod";
 import {
-  assertEvidenceFirstProfileIsFresh,
-  createTopicDialogueTurnEvidenceProfile,
-  integrateTopicDialogueEvidenceProfile,
-  selectEvidenceFirstTopicDialogueRoute,
-  type TopicDialogueCumulativeEvidenceProfile,
   type TopicDialogueTurnEvidenceProfile
 } from "@/lib/services/student-assessment/topic-dialogue-evidence-first-routing";
-import {
-  PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V4,
-  TargetEvidenceAdjudicationV4Schema,
-  TargetEvidenceContractV4Schema,
-  assertTargetEvidenceObservationConsistentV4,
-  mapTargetEvidenceAdjudicationToObservationV4,
-  type TargetEvidenceAdjudicationV4,
-  type TargetEvidenceContractV4
-} from "@/lib/services/student-assessment/target-evidence-contract-v4";
 import {
   PreTutorProfileFinalizationAttestationV2Schema,
   type PreTutorProfileFinalizationAttestationV2
@@ -60,77 +46,6 @@ export class PreTutorProfileFinalizationError extends Error {
     this.name = "PreTutorProfileFinalizationError";
     this.issue_codes = issueCodes;
   }
-}
-
-export function finalizeEvidenceFirstTurnBeforeTutor(input: {
-  contract: TargetEvidenceContractV4;
-  adjudication: TargetEvidenceAdjudicationV4;
-  interaction_intent: "task_language_confusion" | "protected_request" |
-    "off_topic_response" | "ordinary_conceptual_response";
-  confidence_evidence: "high" | "medium" | "low" | null;
-  source_student_turn_id: string;
-  source_sequence_index: number;
-  latest_accepted_student_turn_id: string;
-  latest_accepted_sequence_index: number;
-  concept_id: string;
-  distractor_anchor: string;
-  prior_cumulative_profile: TopicDialogueCumulativeEvidenceProfile | null;
-  created_at?: string;
-}) {
-  const contract = TargetEvidenceContractV4Schema.parse(input.contract);
-  const adjudication = TargetEvidenceAdjudicationV4Schema.parse(
-    input.adjudication
-  );
-  const observation = mapTargetEvidenceAdjudicationToObservationV4({
-    contract,
-    adjudication,
-    interaction_intent: input.interaction_intent,
-    confidence_evidence: input.confidence_evidence
-  });
-  const consistency = assertTargetEvidenceObservationConsistentV4({
-    contract,
-    adjudication,
-    observation
-  });
-  const profile = createTopicDialogueTurnEvidenceProfile({
-    source_student_turn_id: input.source_student_turn_id,
-    source_sequence_index: input.source_sequence_index,
-    concept_id: input.concept_id,
-    distractor_anchor: input.distractor_anchor,
-    observation,
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V4,
-    created_at: input.created_at
-  });
-  const cumulative = integrateTopicDialogueEvidenceProfile({
-    prior: input.prior_cumulative_profile,
-    current: profile
-  });
-  const route = selectEvidenceFirstTopicDialogueRoute({ profile, cumulative });
-  assertEvidenceFirstProfileIsFresh({
-    profile,
-    route,
-    cumulative,
-    latest_student_turn_id: input.latest_accepted_student_turn_id,
-    latest_sequence_index: input.latest_accepted_sequence_index
-  });
-  const tutorDispatchPermitted = route.selected_mode === "remain_in_dialogue";
-  const attestation = PreTutorProfileFinalizationAttestationSchema.parse({
-    finalization_version: PRE_TUTOR_PROFILE_FINALIZATION_VERSION,
-    source_student_turn_id: profile.source_student_turn_id,
-    source_sequence_index: profile.source_sequence_index,
-    evaluator_schema_valid: true,
-    target_contract_applied: true,
-    anchor_interpretation_completed: true,
-    blocking_conflicts_propagated: true,
-    profile_constructed: true,
-    profile_consistency_passed: true,
-    cumulative_profile_updated: true,
-    sound_gate_executed: true,
-    platform_mode_finalized: true,
-    latest_turn_freshness_passed: true,
-    tutor_dispatch_permitted: tutorDispatchPermitted
-  });
-  return { observation, consistency, profile, cumulative, route, attestation };
 }
 
 export function assertTutorDispatchUsesFinalizedProfile(input: {

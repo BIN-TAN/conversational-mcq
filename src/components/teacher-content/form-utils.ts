@@ -16,21 +16,6 @@ export function stringifyJson(value: unknown): string {
   return JSON.stringify(value ?? {}, null, 2);
 }
 
-export function linesToArray(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-}
-
-export function arrayToLines(value: unknown): string {
-  if (!Array.isArray(value)) {
-    return "";
-  }
-
-  return value.filter((entry) => typeof entry === "string").join("\n");
-}
-
 export function normalizeOptions(value: unknown): ItemOption[] {
   if (!Array.isArray(value)) {
     return [
@@ -53,17 +38,4 @@ export function normalizeOptions(value: unknown): ItemOption[] {
       };
     })
     .filter((entry): entry is ItemOption => Boolean(entry));
-}
-
-export function normalizeRationales(value: unknown): Record<string, string> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, entry]) => [
-      key,
-      typeof entry === "string" ? entry : String(entry ?? "")
-    ])
-  );
 }

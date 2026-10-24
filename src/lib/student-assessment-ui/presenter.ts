@@ -319,16 +319,3 @@ export function buildStudentConversationFrame(state: StudentSessionState): Stude
 
   return StudentConversationFrameSchema.parse(frame);
 }
-
-export function buildSkipConfirmationFrame(fields: MissingEvidenceField[]): StudentConversationFrame {
-  return StudentConversationFrameSchema.parse({
-    assistant_message: `Continue without ${missingFieldList(fields)}? The system will keep going, but it will have less evidence for this response.`,
-    interaction_type: "confirm_skip",
-    allowed_actions: ["confirm_skip", "cancel_skip"],
-    current_item: null,
-    missing_fields: fields,
-    can_review_responses: true,
-    can_exit: true,
-    can_continue: true
-  });
-}

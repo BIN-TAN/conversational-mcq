@@ -97,14 +97,6 @@ function unique(values: string[]) {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
 
-function exactMessageSpan(label: string, message: string) {
-  return [{ label, span: message.trim().slice(0, 900) }];
-}
-
-function yes(value: "yes" | "no" | "partial" | "not_applicable") {
-  return value === "yes";
-}
-
 export function buildActivityTargetEvidenceContract(input: {
   concept_id: string;
   item_id: string;
@@ -188,102 +180,6 @@ export function buildActivityTargetEvidenceContract(input: {
       description: input.distractor_claim,
       observable_patterns: []
     }]
-  });
-}
-
-function normalizedAnchorTokens(contract: TargetEvidenceContract) {
-  const genericTokens = new Set(["item", "current", "target"]);
-  const itemTokens = (contract.item_id.toLowerCase().match(/[a-z0-9]+/gu) ?? [])
-    .filter((token) =>
-      (token.length > 1 || /^\d+$/u.test(token)) && !genericTokens.has(token)
-    );
-  const option = contract.distractor_option.toLowerCase();
-  return { itemTokens, option };
-}
-
-function messageAppliesToAnchor(
-  message: string,
-  contract: TargetEvidenceContract
-) {
-  const lower = message.toLowerCase();
-  const { itemTokens, option } = normalizedAnchorTokens(contract);
-  const itemMentioned = itemTokens.some((token) =>
-    new RegExp(`\\b${token.replace(/[^a-z0-9]/gu, "")}\\b`, "iu")
-      .test(lower)
-  );
-  const optionMentioned = new RegExp(
-    `\\boption\\s+${option.replace(/[^a-z0-9]/gu, "")}\\b`, "iu"
-  ).test(message);
-  return itemMentioned && optionMentioned;
-}
-
-export function buildTargetEvidenceAdjudicationFromActivityPacket(input: {
-  latest_student_message: string;
-  packet: ActivityMisconceptionEvidencePacketV1;
-  contract: TargetEvidenceContract;
-}): TargetEvidenceAdjudication {
-  const flags = input.packet.evidence_elicited;
-  const update = input.packet.misconception_evidence_update;
-  const responseKind = input.packet.student_activity_response.response_kind;
-  const relationship = yes(flags.student_explained_target_boundary) ||
-    yes(flags.student_reconstructed_concept_independently);
-  const mechanism = yes(flags.student_repaired_reasoning_link) ||
-    yes(flags.student_identified_hidden_assumption) ||
-    (relationship && update.evidence_quality === "high");
-  const anchor = messageAppliesToAnchor(
-    input.latest_student_message,
-    input.contract
-  );
-  const resolutionStatuses = new Set([
-    "misconception_unsupported",
-    "boundary_understanding_improved",
-    "independent_evidence_supported",
-    "no_actionable_misconception_evidence"
-  ]);
-  const contradictionStatuses = new Set([
-    "misconception_persisted",
-    "conceptual_entry_gap_remains",
-    "reasoning_boundary_still_blurred"
-  ]);
-  const coherentConclusion = resolutionStatuses.has(update.status) &&
-    responseKind === "substantive";
-  const criterionTruth = new Map<string, boolean>([
-    ["target_conceptual_relationship", relationship],
-    ["required_mechanism", mechanism],
-    ["active_anchor_application", anchor],
-    ["coherent_conclusion", coherentConclusion]
-  ]);
-  return TargetEvidenceAdjudicationSchema.parse({
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION,
-    target_evidence_contract_version: input.contract.contract_version,
-    criterion_results: input.contract.criteria.map((criterion) => {
-      const satisfied = criterion.criterion_kind === "optional_deepening"
-        ? false
-        : criterionTruth.get(criterion.criterion_id) ?? false;
-      return {
-        criterion_id: criterion.criterion_id,
-        satisfied,
-        exact_evidence_spans: satisfied
-          ? exactMessageSpan(criterion.criterion_id, input.latest_student_message)
-          : [],
-        confidence: update.confidence
-      };
-    }),
-    contradiction_results: input.contract.contradiction_criteria.map(
-      (criterion) => ({
-        contradiction_id: criterion.contradiction_id,
-        present: contradictionStatuses.has(update.status),
-        exact_evidence_spans: contradictionStatuses.has(update.status)
-          ? exactMessageSpan(
-              criterion.contradiction_id,
-              input.latest_student_message
-            )
-          : []
-      })
-    ),
-    evidence_quality: update.evidence_quality,
-    coherent_conclusion: coherentConclusion,
-    limitations: update.limitations
   });
 }
 

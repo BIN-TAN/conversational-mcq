@@ -45,11 +45,3 @@ export function resolveTopicDialogueExecutionPlan(
       };
   }
 }
-
-export function formativeExecutionModeForEvaluation(input: {
-  e2a_mode?: "e2a_live_operational" | "e2a_injected_no_live_test";
-}): FormativeExecutionMode {
-  if (input.e2a_mode === "e2a_live_operational") return "live_e2a_canary";
-  if (input.e2a_mode === "e2a_injected_no_live_test") return "no_live_e2a_contract";
-  return "deterministic_e1";
-}

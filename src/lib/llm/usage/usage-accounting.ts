@@ -120,10 +120,6 @@ function summarize(rows: TokenRow[]): LlmUsageSummary {
   };
 }
 
-function emptySummary(): LlmUsageSummary {
-  return summarize([]);
-}
-
 function perAgentSummary(rows: TokenRow[]) {
   return Object.fromEntries(
     LiveModelRole.options.map((agentName) => [
@@ -208,8 +204,4 @@ export async function getLlmUsageSnapshot(input: LlmUsageSnapshotInput): Promise
     agent_session: agentSessionRows ? summarize(agentSessionRows) : null,
     per_agent_daily: perAgentSummary(dailyRows)
   };
-}
-
-export function summarizeUsageRowsForTest(rows: TokenRow[]) {
-  return rows.length === 0 ? emptySummary() : summarize(rows);
 }

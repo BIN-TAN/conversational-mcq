@@ -1,5 +1,4 @@
 import { randomBytes, randomUUID } from "node:crypto";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import {
@@ -27,18 +26,6 @@ type DecisionRow = {
   decided_at: Date;
   decided_by: string | null;
 };
-
-export async function loadItemReviewDecisions(itemPublicIds: string[]): Promise<Map<string, InstructorItemDecision>> {
-  const ids = [...new Set(itemPublicIds.filter(Boolean))];
-  if (!ids.length) return new Map();
-  const rows = await prisma.$queryRaw<DecisionRow[]>`
-    SELECT i.item_public_id, d.decision::text AS decision, d.note, d.decided_at, u.user_id AS decided_by
-    FROM item_review_decisions d
-    JOIN items i ON i.id = d.item_db_id
-    LEFT JOIN users u ON u.id = d.decided_by_user_db_id
-    WHERE d.superseded_at IS NULL AND i.item_public_id IN (${Prisma.join(ids)})`;
-  return new Map(rows.map((row) => [row.item_public_id, row.decision]));
-}
 
 export async function loadItemReviewDecisionRowsForAssessment(assessmentDbId: string): Promise<DecisionRow[]> {
   return prisma.$queryRaw<DecisionRow[]>`

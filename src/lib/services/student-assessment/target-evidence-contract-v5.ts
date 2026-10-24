@@ -7,34 +7,23 @@ import {
   ActiveAnchorAliasContractSchema
 } from "@/lib/services/student-assessment/active-anchor-alias-resolution";
 import {
-  ActiveAnchorAliasResolutionV2Schema,
-  resolveActiveAnchorAliasV2
+  ActiveAnchorAliasResolutionV2Schema
 } from "@/lib/services/student-assessment/active-anchor-alias-resolution-v2";
 import {
-  AnchorParityReconciliationResultSchema,
-  reconcileCanonicalAnchorParityV1
+  AnchorParityReconciliationResultSchema
 } from "@/lib/services/student-assessment/anchor-parity-reconciliation";
 import {
-  CanonicalAnchorEvidenceSchema,
-  canonicalizeEvaluatorAnchorEvidenceV1
+  CanonicalAnchorEvidenceSchema
 } from "@/lib/services/student-assessment/canonical-anchor-evidence";
 import {
   ANCHOR_CONTRADICTION_PROPAGATION_VERSION_V2,
   AnchorContradictionPropagationResultV2Schema,
   assertBlockingAnchorConflictPropagatedV2,
-  propagateAnchorContradictionV2,
   type AnchorContradictionPropagationResultV2
 } from "@/lib/services/student-assessment/anchor-contradiction-propagation-v2";
-import type {
-  AnchorResolutionStatus
-} from "@/lib/services/student-assessment/anchor-conclusion-consistency";
-import {
-  isBlockingAnchorConflictLimitation
-} from "@/lib/services/student-assessment/anchor-conclusion-consistency";
 import {
   PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V5,
-  ProductionTurnEvidenceStructuredFieldsV5Schema,
-  type ProductionTurnEvidenceStructuredFieldsV5
+  ProductionTurnEvidenceStructuredFieldsV5Schema
 } from "@/lib/services/student-assessment/production-turn-evidence-evaluator-v5";
 import type {
   TurnEvidenceObservation
@@ -43,7 +32,6 @@ import {
   TargetEvidenceAdjudicationV3Schema,
   TargetEvidenceContractV3Schema,
   buildActivityTargetEvidenceContractV3,
-  buildTargetEvidenceAdjudicationFromActivityPacketV3,
   mapTargetEvidenceAdjudicationToObservationV3,
   type TurnEvidenceObservationV3
 } from "@/lib/services/student-assessment/target-evidence-contract-v3";
@@ -136,135 +124,6 @@ export class TargetEvidenceEvaluatorParityErrorV5 extends Error {
     this.name = "TargetEvidenceEvaluatorParityErrorV5";
     this.issue_codes = issueCodes;
   }
-}
-
-export function buildTargetEvidenceAdjudicationFromEvaluatorOutputV5(input: {
-  latest_student_message: string;
-  packet: ActivityMisconceptionEvidencePacketV1;
-  structured_turn_evidence: ProductionTurnEvidenceStructuredFieldsV5;
-  contract: TargetEvidenceContractV5;
-  expected_source_student_turn_id: string;
-  expected_source_sequence_index: number;
-  prior_visible_message?: string | null;
-  prior_anchor_resolution_status?: AnchorResolutionStatus | null;
-}) {
-  const contract = TargetEvidenceContractV5Schema.parse(input.contract);
-  const structured = ProductionTurnEvidenceStructuredFieldsV5Schema.parse(
-    input.structured_turn_evidence
-  );
-  const base = buildTargetEvidenceAdjudicationFromActivityPacketV3({
-    latest_student_message: input.latest_student_message,
-    packet: input.packet,
-    contract: v3Contract(contract),
-    prior_anchor_resolution_status: input.prior_anchor_resolution_status
-  });
-  const {
-    anchor_interpretation: _legacyAnchorInterpretation,
-    ...baseWithoutLegacyAnchorInterpretation
-  } = base;
-  void _legacyAnchorInterpretation;
-  const canonicalAnchor = canonicalizeEvaluatorAnchorEvidenceV1({
-    structured_turn_evidence: structured,
-    contract: contract.active_anchor_alias_contract,
-    source_message: input.latest_student_message,
-    expected_source_turn_id: input.expected_source_student_turn_id,
-    expected_source_sequence_index: input.expected_source_sequence_index
-  });
-  const aliases = resolveActiveAnchorAliasV2({
-    message: input.latest_student_message,
-    contract: contract.active_anchor_alias_contract,
-    prior_visible_message: input.prior_visible_message,
-    source_turn_id: input.expected_source_student_turn_id,
-    source_sequence_index: input.expected_source_sequence_index,
-    evaluator_canonical_evidence: canonicalAnchor
-  });
-  const parity = reconcileCanonicalAnchorParityV1({
-    evaluator_evidence: canonicalAnchor,
-    resolver_result: aliases,
-    target_contract: contract.active_anchor_alias_contract,
-    expected_source_turn_id: input.expected_source_student_turn_id,
-    expected_source_sequence_index: input.expected_source_sequence_index
-  });
-  const parityIssues: string[] = parity.issue_codes.map((issue) => {
-    if (issue === "canonical_application_disagreement") {
-      return "explicit_anchor_not_detected";
-    }
-    if (issue === "canonical_stance_disagreement") {
-      return "anchor_stance_not_detected";
-    }
-    if (issue === "canonical_anchor_id_mismatch") {
-      return "active_anchor_id_mismatch";
-    }
-    if (issue === "source_turn_mismatch") {
-      return "cross_artifact_source_student_turn_disagreement";
-    }
-    if (issue === "source_sequence_mismatch") {
-      return "cross_artifact_source_sequence_disagreement";
-    }
-    return "explicit_anchor_evidence_span_missing";
-  });
-  if (input.packet.misconception_evidence_update.limitations.some(
-    isBlockingAnchorConflictLimitation
-  ) && !structured.blocking_conflict) {
-    parityIssues.push("contradiction_not_structured");
-  }
-  if (parityIssues.length > 0) {
-    throw new TargetEvidenceEvaluatorParityErrorV5(parityIssues);
-  }
-  const exactAnchorSpans = canonicalAnchor.evidence_spans.map((entry) => ({
-    label: entry.label,
-    span: entry.span
-  }));
-  const criterionResults = base.criterion_results.map((criterion) => {
-    if (criterion.criterion_id !== "active_anchor_application") {
-      return criterion;
-    }
-    const satisfied = canonicalAnchor.application === "explicit";
-    return {
-      ...criterion,
-      satisfied,
-      exact_evidence_spans: satisfied ? exactAnchorSpans : []
-    };
-  });
-  const propagation = propagateAnchorContradictionV2({
-    contract,
-    structured_evidence: structured,
-    anchor_application: canonicalAnchor.application,
-    anchor_stance: canonicalAnchor.stance,
-    exact_anchor_spans: exactAnchorSpans,
-    mapper_version: TURN_EVIDENCE_PROFILE_MAPPER_VERSION_V5
-  });
-  assertBlockingAnchorConflictPropagatedV2(propagation);
-  return TargetEvidenceAdjudicationV5Schema.parse({
-    ...baseWithoutLegacyAnchorInterpretation,
-    evaluator_version: PRODUCTION_TURN_EVIDENCE_EVALUATOR_VERSION_V5,
-    target_evidence_contract_version: TARGET_EVIDENCE_CONTRACT_VERSION_V5,
-    criterion_results: criterionResults,
-    contradiction_results: contract.contradiction_criteria.map((criterion) => {
-      const propagated = propagation.structured_contradictions.some((entry) =>
-        entry.contradiction_type === criterion.contradiction_id
-      );
-      const prior = base.contradiction_results.find((entry) =>
-        entry.contradiction_id === criterion.contradiction_id
-      );
-      return {
-        contradiction_id: criterion.contradiction_id,
-        present: propagated || prior?.present === true,
-        exact_evidence_spans: propagated
-          ? [
-              ...structured.exact_anchor_evidence_spans,
-              ...structured.exact_conceptual_evidence_spans
-            ].map((entry) => ({ label: entry.label, span: entry.span }))
-          : prior?.exact_evidence_spans ?? []
-      };
-    }),
-    coherent_conclusion: base.coherent_conclusion && !propagation.blocking,
-    structured_turn_evidence: structured,
-    canonical_anchor_evidence: canonicalAnchor,
-    anchor_alias_resolution: aliases,
-    anchor_parity_reconciliation: parity,
-    anchor_propagation: propagation
-  });
 }
 
 export function mapTargetEvidenceAdjudicationToObservationV5(input: {

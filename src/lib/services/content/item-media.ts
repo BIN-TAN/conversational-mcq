@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 import type {
   ItemMediaAsset,
@@ -252,16 +252,6 @@ export function mediaStorageStatus(env: NodeJS.ProcessEnv = process.env): MediaS
     missing_env: missing,
     uploads_enabled: provider === "s3" && missing.length === 0
   };
-}
-
-export function safeStorageKey(contentType: string) {
-  const extension = contentType === "image/png"
-    ? "png"
-    : contentType === "image/jpeg"
-      ? "jpg"
-      : "webp";
-
-  return `item-media/${new Date().toISOString().slice(0, 10)}/${randomUUID()}.${extension}`;
 }
 
 export function validateImageUploadForMedia(input: MediaStoragePutInput) {

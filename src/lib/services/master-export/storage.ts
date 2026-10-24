@@ -38,11 +38,6 @@ export async function writeExportFile(storageKey: string, contents: string) {
   await writeFile(pathForStorageKey(storageKey), contents, "utf8");
 }
 
-export async function writeExportBytes(storageKey: string, contents: Uint8Array) {
-  await mkdir(EXPORT_DIR, { recursive: true });
-  await writeFile(pathForStorageKey(storageKey), contents);
-}
-
 export async function readExportFile(storageKey: string) {
   return readFile(pathForStorageKey(storageKey));
 }
@@ -60,15 +55,6 @@ export async function openExportStream(storageKey: string) {
 
 export async function deleteExportFile(storageKey: string) {
   await rm(pathForStorageKey(storageKey), { force: true });
-}
-
-export async function exportFileExists(storageKey: string) {
-  try {
-    await stat(pathForStorageKey(storageKey));
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function cleanupExpiredExports(now = new Date()) {
