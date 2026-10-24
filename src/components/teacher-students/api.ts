@@ -23,7 +23,7 @@ export function fetchStudents(input: {
   direction?: "asc" | "desc";
   page?: number;
   page_size?: number;
-}) {
+}, signal?: AbortSignal) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(input)) {
     if (value !== undefined && value !== "") {
@@ -31,7 +31,7 @@ export function fetchStudents(input: {
     }
   }
 
-  return apiRequest<StudentListResponse>(`/api/teacher/students?${params.toString()}`);
+  return apiRequest<StudentListResponse>(`/api/teacher/students?${params.toString()}`, { signal });
 }
 
 export function createStudent(input: {

@@ -285,7 +285,7 @@ export function RosterImportClient({ defaultTemporaryPassword }: { defaultTempor
               <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                 <tr>
                   <th className="px-3 py-2">Row</th>
-                  <th className="px-3 py-2">user_id</th>
+                  <th className="px-3 py-2">Student ID</th>
                   <th className="px-3 py-2">Display name</th>
                   <th className="px-3 py-2">Email</th>
                   <th className="px-3 py-2">Existing name</th>
@@ -308,7 +308,13 @@ export function RosterImportClient({ defaultTemporaryPassword }: { defaultTempor
                     </td>
                     <td className="px-3 py-2">
                       {Array.isArray(row.validation_errors) && row.validation_errors.length > 0
-                        ? JSON.stringify(row.validation_errors)
+                        ? row.validation_errors
+                            .map((issue) =>
+                              issue && typeof issue === "object" && "message" in issue
+                                ? String((issue as { message: unknown }).message)
+                                : String(issue)
+                            )
+                            .join(" ")
                         : "OK"}
                     </td>
                   </tr>

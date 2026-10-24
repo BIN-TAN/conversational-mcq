@@ -70,8 +70,8 @@ export function createMasterExport(input: {
   );
 }
 
-export function fetchExportJobs() {
-  return apiRequest<ExportJobsResponse>("/api/teacher/export/jobs", {
+export function fetchExportJobs(limit?: number) {
+  return apiRequest<ExportJobsResponse>(`/api/teacher/export/jobs${limit ? `?limit=${limit}` : ""}`, {
     method: "GET"
   });
 }

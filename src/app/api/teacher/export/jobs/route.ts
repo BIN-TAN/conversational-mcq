@@ -5,7 +5,7 @@ import {
 } from "@/lib/services/master-export/api";
 import { listExportJobs } from "@/lib/services/master-export/service";
 
-export async function GET() {
+export async function GET(request: Request) {
   const auth = await requireMasterExportTeacher();
 
   if (!auth.ok) {
@@ -13,7 +13,10 @@ export async function GET() {
   }
 
   try {
-    return NextResponse.json(await listExportJobs());
+    const limit = Number(new URL(request.url).searchParams.get("limit"));
+    return NextResponse.json(
+      await listExportJobs(Number.isFinite(limit) && limit > 0 ? { limit } : {})
+    );
   } catch (error) {
     return masterExportRouteError(error);
   }

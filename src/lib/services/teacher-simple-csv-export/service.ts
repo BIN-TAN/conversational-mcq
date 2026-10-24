@@ -722,8 +722,54 @@ function fileResult(fileName: string, content: string) {
   };
 }
 
-export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: string }) {
-  const [assessments, students, sessions] = await Promise.all([
+// The research-data page shows counts only. Reading them with relation counts keeps the
+// numbers identical to the lengths of the full session history the exports load, without
+// loading turns, events, packages or profiles for every session on each page view.
+const sessionCountSelect = {
+  session_public_id: true,
+  user: { select: { user_id: true } },
+  assessment: { select: { assessment_public_id: true } },
+  concept_unit_sessions: {
+    select: {
+      _count: {
+        select: {
+          item_responses: true,
+          response_packages: true
+        }
+      }
+    }
+  },
+  _count: {
+    select: {
+      process_events: true,
+      conversation_turns: true,
+      agent_calls: true,
+      formative_conversation_sessions: true
+    }
+  }
+} satisfies Prisma.AssessmentSessionSelect;
+
+type SessionCountRecord = Prisma.AssessmentSessionGetPayload<{ select: typeof sessionCountSelect }>;
+
+async function loadSessionCounts(input: { teacher_user_db_id: string }) {
+  return prisma.assessmentSession.findMany({
+    where: {
+      assessment: {},
+      user: { role: "student" },
+      OR: authorizedSessionOr(input.teacher_user_db_id)
+    },
+    select: sessionCountSelect,
+    orderBy: [
+      { assessment: { title: "asc" } },
+      { user: { user_id: "asc" } },
+      { attempt_number: "asc" },
+      { created_at: "asc" }
+    ]
+  });
+}
+
+async function loadExplorerAssessmentsAndStudents(input: { teacher_user_db_id: string }) {
+  return Promise.all([
     prisma.assessment.findMany({
       where: {
         OR: [
@@ -769,8 +815,14 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
         display_name: true,
         account_status: true
       }
-    }),
-    loadSessions({ teacher_user_db_id: input.teacher_user_db_id })
+    })
+  ]);
+}
+
+export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: string }) {
+  const [[assessments, students], sessions] = await Promise.all([
+    loadExplorerAssessmentsAndStudents(input),
+    loadSessionCounts(input)
   ]);
   const formativeConversationSessionIds = new Set(
     sessions
@@ -786,12 +838,15 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
   );
   const countsByAssessment = new Map<string, ExportAvailabilityCounts>();
   const countsByStudent = new Map<string, ExportAvailabilityCounts>();
-
-  for (const session of sessions) {
-    const counts = countsForSession(
+  const countsBySession = sessions.map((session) => ({
+    session,
+    counts: countsForSession(
       session,
       supplementalBySession.get(session.session_public_id)
-    );
+    )
+  }));
+
+  for (const { session, counts } of countsBySession) {
     mergeCounts(countsByAssessment, session.assessment.assessment_public_id, counts);
     mergeCounts(countsByStudent, session.user.user_id, counts);
   }
@@ -814,26 +869,21 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
         availability: availabilityForCounts(counts)
       };
     }),
-    sessions: sessions.map((session) => {
-      const counts = countsForSession(
-        session,
-        supplementalBySession.get(session.session_public_id)
-      );
-      return {
-        session_public_id: session.session_public_id,
-        counts,
-        availability: availabilityForCounts(counts)
-      };
-    }),
-    data_dictionary: SIMPLE_CSV_DATA_DICTIONARY
+    // The page reads these for the "Selected session" scope.
+    sessions: countsBySession.map(({ session, counts }) => ({
+      session_public_id: session.session_public_id,
+      counts,
+      availability: availabilityForCounts(counts)
+    }))
   };
 }
 
+// Turn-latency rows are not shown on the page, so they are not computed here; the export
+// files still compute them (turn_latency_row_count) from the full session history.
 type ExportAvailabilityCounts = {
   sessions: number;
   item_responses: number;
   process_events: number;
-  latency_rows: number;
   conversation_turns: number;
   response_packages: number;
   agent_calls: number;
@@ -852,7 +902,6 @@ function emptyAvailabilityCounts(): ExportAvailabilityCounts {
     sessions: 0,
     item_responses: 0,
     process_events: 0,
-    latency_rows: 0,
     conversation_turns: 0,
     response_packages: 0,
     agent_calls: 0,
@@ -929,18 +978,23 @@ async function loadSupplementalAvailabilityCounts(
   return counts;
 }
 
-function countsForSession(
-  session: ExportSession,
+export function countsForSession(
+  session: SessionCountRecord,
   supplemental: SupplementalAvailabilityCounts = emptySupplementalAvailabilityCounts()
 ): ExportAvailabilityCounts {
   return {
     sessions: 1,
-    item_responses: session.concept_unit_sessions.flatMap((entry) => entry.item_responses).length,
-    process_events: session.process_events.length,
-    latency_rows: buildTurnLatencyCount(session),
-    conversation_turns: session.conversation_turns.length,
-    response_packages: session.concept_unit_sessions.flatMap((entry) => entry.response_packages).length,
-    agent_calls: session.agent_calls.length,
+    item_responses: session.concept_unit_sessions.reduce(
+      (total, entry) => total + entry._count.item_responses,
+      0
+    ),
+    process_events: session._count.process_events,
+    conversation_turns: session._count.conversation_turns,
+    response_packages: session.concept_unit_sessions.reduce(
+      (total, entry) => total + entry._count.response_packages,
+      0
+    ),
+    agent_calls: session._count.agent_calls,
     activity_attempts:
       session._count.formative_conversation_sessions > 0
         ? 0
@@ -1108,8 +1162,9 @@ function aggregateRows(input: {
 }
 
 export async function downloadStudentAssessmentMatrixCsv(input: { teacher_user_db_id: string }) {
-  const [options, sessions] = await Promise.all([
-    listSimpleCsvExplorerOptions(input),
+  // The matrix needs only the assessment and student lists, not the page's availability counts.
+  const [[assessments, students], sessions] = await Promise.all([
+    loadExplorerAssessmentsAndStudents(input),
     loadSessions(input)
   ]);
   const source = buildExportSourceIdentity({
@@ -1126,8 +1181,8 @@ export async function downloadStudentAssessmentMatrixCsv(input: { teacher_user_d
     grouped.set(key, rows);
   }
 
-  const rows = options.students.flatMap((student) =>
-    options.assessments.map((assessment) =>
+  const rows = students.flatMap((student) =>
+    assessments.map((assessment) =>
       aggregateRows({
         student,
         assessment,

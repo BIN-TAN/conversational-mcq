@@ -54,10 +54,21 @@ const rosterCommitSchema = z.object({
   replace_pending_passwords: z.boolean().default(false)
 }).strict();
 
+// Query strings carry "true"/"false" text; z.coerce.boolean() would read "false" as true.
+// The route parses the query and listStudents parses it again, so an already-parsed boolean
+// is accepted too; an empty value means "any".
+export const hasSessionsQuerySchema = z
+  .union([
+    z.boolean(),
+    z.enum(["true", "false"]).transform((value) => value === "true"),
+    z.literal("").transform(() => undefined)
+  ])
+  .optional();
+
 export const studentListQuerySchema = z.object({
   search: z.string().trim().optional(),
   account_status: z.enum(["active", "inactive"]).optional(),
-  has_sessions: z.coerce.boolean().optional(),
+  has_sessions: hasSessionsQuerySchema,
   sort: z.enum(["user_id", "created_at", "updated_at", "last_login_at", "password_changed_at"]).default("user_id"),
   direction: z.enum(["asc", "desc"]).default("asc"),
   page: z.coerce.number().int().positive().default(1),
@@ -452,8 +463,8 @@ export async function createStudentAccount(input: {
     throw new StudentAccountServiceError(
       existing.role === "student" ? "student_already_exists" : "user_id_role_conflict",
       existing.role === "student"
-        ? "A student account already exists for this user_id."
-        : "This user_id belongs to a teacher_researcher account.",
+        ? "A student account already exists with this student ID."
+        : "This ID belongs to an instructor account.",
       409
     );
   }
@@ -806,7 +817,7 @@ export async function previewRosterImport(input: {
       validationErrors.push({
         code: "missing_user_id_column",
         column: "user_id",
-        message: "user_id column is required."
+        message: "The file needs a user_id column for the student ID."
       });
     }
 
@@ -852,7 +863,7 @@ export async function previewRosterImport(input: {
       row.validation_errors.push({
         code: "duplicate_user_id",
         column: "user_id",
-        message: `Duplicate normalized user_id. First seen at CSV row ${first}.`
+        message: `This student ID is repeated in the file. It first appears in row ${first}.`
       });
     } else {
       seen.set(row.user_id_normalized, row.source_row_number);
@@ -883,7 +894,7 @@ export async function previewRosterImport(input: {
       row.validation_errors.push({
         code: "teacher_account_conflict",
         column: "user_id",
-        message: "This user_id belongs to a teacher_researcher account."
+        message: "This ID belongs to an instructor account."
       });
       continue;
     }
@@ -973,7 +984,7 @@ export async function commitRosterImport(input: {
     if (batch.uploaded_by_user_db_id !== input.teacher_user_db_id) {
       throw new StudentAccountServiceError(
         "forbidden",
-        "This roster import batch belongs to another teacher_researcher account.",
+        "This roster import belongs to another instructor account.",
         403
       );
     }

@@ -161,6 +161,7 @@
     "research-export:preflight": "tsx prisma/research-export-preflight.ts",
     "student:research-export-readiness-smoke": "tsx prisma/student-research-export-readiness-smoke-test.ts",
     "test:design-alignment": "tsx prisma/design-alignment-unit-test.ts",
+    "test:teacher-management-ux": "tsx prisma/teacher-management-ux-unit-test.ts",
     "test:redesign-v8": "tsx prisma/design-alignment-unit-test.ts && tsx prisma/interpretation-v8-unit-test.ts && tsx prisma/feedback-v8-unit-test.ts && tsx prisma/item-preparation-v8-unit-test.ts && tsx prisma/item-administration-v4-unit-test.ts && tsx prisma/instructor-report-v8-unit-test.ts && tsx prisma/research-export-v8-unit-test.ts && tsx prisma/interpretation-v8-evaluation-unit-test.ts",
     "test:v8-evaluation": "tsx prisma/interpretation-v8-evaluation-unit-test.ts",
     "eval:v8": "tsx prisma/interpretation-v8-evaluation-cli.ts",

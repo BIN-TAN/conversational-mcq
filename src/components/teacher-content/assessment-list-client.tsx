@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   Archive,
@@ -34,6 +34,8 @@ import {
   verticalListSortingStrategy
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { archiveConfirmation, restoreConfirmation } from "@/lib/teacher-management-labels";
 import { apiRequest, errorFromUnknown } from "./api";
 import { ArchivedAssessmentBatchDeletionControl } from "./archived-assessment-batch-deletion-control";
 import type { AssessmentSummary, StructuredApiError } from "./types";
@@ -43,6 +45,7 @@ import {
   Field,
   LoadingRow,
   PageHeader,
+  PublicIdControl,
   StatusBadge,
   SuccessPanel,
   formatDate
@@ -274,14 +277,17 @@ function SortableAssessmentRow({
       ) : null}
       <td className="px-4 py-4 align-top">
         <p className="font-semibold text-ink">{assessment.title}</p>
-        <p className="mt-1 font-mono text-xs text-muted">{assessment.assessment_public_id}</p>
+        {reorderMode ? null : (
+          <div className="mt-1">
+            <PublicIdControl id={assessment.assessment_public_id} />
+          </div>
+        )}
         {reorderMode ? (
           <p className="mt-2 text-xs font-semibold text-accent">Organization changes are not saved yet.</p>
         ) : null}
       </td>
       <td className="px-4 py-4 align-top">
-        <StatusBadge status={assessment.status} />
-        {isClosed(assessment) ? <p className="mt-1 text-xs font-semibold text-muted">Closed</p> : null}
+        <StatusBadge assessment={assessment} status={assessment.status} />
       </td>
       <td className="px-4 py-4 align-top">
         {assessment.diagnostic_focus ? (
@@ -386,6 +392,13 @@ export function AssessmentListClient() {
   const [isSavingOrganization, setIsSavingOrganization] = useState(false);
   const [draftAssessments, setDraftAssessments] = useState<AssessmentSummary[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    kind: "archive" | "restore";
+    assessment: AssessmentSummary;
+  } | null>(null);
+  // Read by loadAssessments without making it depend on the mode, so entering, cancelling or
+  // saving reorder mode never triggers a reload that replaces the active-only draft.
+  const isReorderModeRef = useRef(false);
   const [searchText, setSearchText] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
   const [folderFilter, setFolderFilter] = useState("all");
@@ -399,6 +412,10 @@ export function AssessmentListClient() {
     })
   );
 
+  useEffect(() => {
+    isReorderModeRef.current = isReorderMode;
+  }, [isReorderMode]);
+
   const loadAssessments = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -407,15 +424,17 @@ export function AssessmentListClient() {
       const data = await apiRequest<AssessmentListResponse>("/api/teacher/assessments");
       setAssessments(data.assessments);
       setOrganizationRevision(data.organization_revision);
-      if (isReorderMode) {
-        setDraftAssessments(data.assessments);
+      if (isReorderModeRef.current) {
+        setDraftAssessments(
+          sortAssessments(activeOrganizationAssessments(data.assessments), "folder_order")
+        );
       }
     } catch (caught) {
       setError(errorFromUnknown(caught));
     } finally {
       setIsLoading(false);
     }
-  }, [isReorderMode]);
+  }, []);
 
   useEffect(() => {
     void loadAssessments();
@@ -425,8 +444,9 @@ export function AssessmentListClient() {
     setSelectedArchivedIds(new Set());
   }, [folderFilter, searchText, sortMode, statusFilter]);
 
+  // The draft holds active mini tests only, so it is compared with the active ones.
   const persistedOrganizationSignature = useMemo(
-    () => organizationSignature(assessments),
+    () => organizationSignature(activeOrganizationAssessments(assessments)),
     [assessments]
   );
   const draftOrganizationSignature = useMemo(
@@ -449,6 +469,20 @@ export function AssessmentListClient() {
     window.addEventListener("beforeunload", onBeforeUnload);
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, [hasUnsavedOrganizationChanges]);
+
+  async function confirmPendingAction() {
+    if (!pendingAction) {
+      return;
+    }
+
+    const { kind, assessment } = pendingAction;
+    if (kind === "archive") {
+      await archiveAssessment(assessment);
+    } else {
+      await restoreAssessment(assessment);
+    }
+    setPendingAction(null);
+  }
 
   async function archiveAssessment(assessment: AssessmentSummary) {
     setBusyId(assessment.assessment_public_id);
@@ -956,7 +990,15 @@ export function AssessmentListClient() {
                     </span>
                   </button>
                   {collapsed ? null : (
-                    <div className="overflow-x-auto">
+                    <div
+                      aria-label={`${group.folder} mini tests`}
+                      className="overflow-x-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                      role="region"
+                      tabIndex={0}
+                    >
+                      <p className="border-b border-line px-4 py-2 text-xs text-muted lg:hidden">
+                        Scroll sideways to see every column.
+                      </p>
                       <table className="w-full min-w-[980px] border-collapse text-left text-sm">
                         <thead className="border-b border-line bg-[#fbfcf8] text-xs uppercase tracking-wide text-muted">
                           <tr>
@@ -996,7 +1038,7 @@ export function AssessmentListClient() {
                                   folderOptions={reorderFolderOptions}
                                   isBusy={busyId === assessment.assessment_public_id}
                                   key={assessment.assessment_public_id}
-                                  onArchive={archiveAssessment}
+                                  onArchive={(target) => setPendingAction({ kind: "archive", assessment: target })}
                                   onMoveDown={(assessmentPublicId) =>
                                     moveAssessmentRelative(assessmentPublicId, "down")
                                   }
@@ -1004,7 +1046,7 @@ export function AssessmentListClient() {
                                   onMoveUp={(assessmentPublicId) =>
                                     moveAssessmentRelative(assessmentPublicId, "up")
                                   }
-                                  onRestore={restoreAssessment}
+                                  onRestore={(target) => setPendingAction({ kind: "restore", assessment: target })}
                                   onSelect={toggleArchivedAssessment}
                                   reorderMode={isReorderMode}
                                   selected={selectedArchivedIds.has(assessment.assessment_public_id)}
@@ -1023,6 +1065,27 @@ export function AssessmentListClient() {
           </div>
         </DndContext>
       ) : null}
+
+      {pendingAction ? (() => {
+        const copy = pendingAction.kind === "archive"
+          ? archiveConfirmation(pendingAction.assessment)
+          : restoreConfirmation(pendingAction.assessment);
+        return (
+          <ConfirmDialog
+            busy={busyId === pendingAction.assessment.assessment_public_id}
+            confirmLabel={copy.confirmLabel}
+            id={`assessment-${pendingAction.kind}-dialog`}
+            onCancel={() => setPendingAction(null)}
+            onConfirm={() => void confirmPendingAction()}
+            question={copy.question}
+            tone={pendingAction.kind === "archive" ? "danger" : "primary"}
+          >
+            {copy.sentences.map((sentence) => (
+              <p key={sentence}>{sentence}</p>
+            ))}
+          </ConfirmDialog>
+        );
+      })() : null}
     </div>
   );
 }

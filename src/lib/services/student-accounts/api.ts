@@ -18,7 +18,7 @@ export function studentAccountRouteError(error: unknown): NextResponse {
   }
 
   if (error instanceof z.ZodError) {
-    return jsonApiError("validation_failed", "Request validation failed.", 400, {
+    return jsonApiError("validation_failed", "Some of the information entered was not accepted. Check the fields and try again.", 400, {
       issues: error.issues
     });
   }

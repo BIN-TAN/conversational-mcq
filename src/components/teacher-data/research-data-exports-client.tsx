@@ -2,7 +2,15 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { BookOpen, Download, Loader2, RefreshCw } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { WorkspaceTabs } from "@/components/ui/workspace-tabs";
+import {
+  exportFailureLabel,
+  exportScopeLabel,
+  exportStatusLabel,
+  exportTypeLabel,
+  researchExportRetryQuery
+} from "@/lib/teacher-management-labels";
 import { errorFromUnknown, fetchExportJobs, fetchResearchExportReadiness } from "./api";
 import { EmptyPanel, ErrorPanel, formatDate, StatusPill } from "./ui";
 import type { ExportJob, ResearchExportReadiness, StructuredApiError } from "./types";
@@ -11,7 +19,6 @@ type ExportAvailabilityCounts = {
   sessions: number;
   item_responses: number;
   process_events: number;
-  latency_rows: number;
   conversation_turns: number;
   response_packages: number;
   agent_calls: number;
@@ -47,7 +54,6 @@ type OptionsResponse = {
   assessments: AssessmentOption[];
   students: StudentOption[];
   sessions: SessionOption[];
-  data_dictionary: Array<{ field: string; definition?: string }>;
 };
 
 type DataDictionaryEntry = {
@@ -245,8 +251,18 @@ function buttonClass(disabled = false) {
 }
 
 function DownloadLink({ href, label, disabled = false }: { href: string; label: string; disabled?: boolean }) {
+  if (disabled) {
+    // A disabled download is a real disabled control, not a link that goes nowhere.
+    return (
+      <button className={buttonClass(true)} disabled type="button">
+        <Download className="h-4 w-4" aria-hidden="true" />
+        {label}
+      </button>
+    );
+  }
+
   return (
-    <a aria-disabled={disabled} className={buttonClass(disabled)} href={disabled ? "#" : href}>
+    <a className={buttonClass(false)} href={href}>
       <Download className="h-4 w-4" aria-hidden="true" />
       {label}
     </a>
@@ -298,11 +314,20 @@ function scopeQuery(input: {
   }
   params.set("include_incomplete_sessions", input.includeIncomplete ? "true" : "false");
   if (input.includeRestricted) {
+    // confirm_restricted_fields is added only after the instructor confirms in the dialog.
     params.set("include_restricted_fields", "true");
-    params.set("confirm_restricted_fields", "true");
   }
   const query = params.toString();
   return query ? `?${query}` : "";
+}
+
+function withRestrictedConfirmation(query: string) {
+  const params = new URLSearchParams(query.startsWith("?") ? query.slice(1) : query);
+  if (params.get("include_restricted_fields") === "true") {
+    params.set("confirm_restricted_fields", "true");
+  }
+  const text = params.toString();
+  return text ? `?${text}` : "";
 }
 
 function selectedCounts(input: {
@@ -331,7 +356,6 @@ function selectedCounts(input: {
       sessions: total.sessions + assessment.counts.sessions,
       item_responses: total.item_responses + assessment.counts.item_responses,
       process_events: total.process_events + assessment.counts.process_events,
-      latency_rows: total.latency_rows + assessment.counts.latency_rows,
       conversation_turns: total.conversation_turns + assessment.counts.conversation_turns,
       response_packages: total.response_packages + assessment.counts.response_packages,
       agent_calls: total.agent_calls + assessment.counts.agent_calls,
@@ -343,7 +367,6 @@ function selectedCounts(input: {
       sessions: 0,
       item_responses: 0,
       process_events: 0,
-      latency_rows: 0,
       conversation_turns: 0,
       response_packages: 0,
       agent_calls: 0,
@@ -643,6 +666,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [generatingDataset, setGeneratingDataset] = useState(false);
+  const [pendingRestrictedQuery, setPendingRestrictedQuery] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -697,6 +721,21 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   useEffect(() => {
     void refresh();
   }, []);
+
+  // After an export only the job history (and, after a failure, readiness) can have changed,
+  // so the availability counts are not reloaded.
+  async function refreshAfterExport(failed: boolean) {
+    try {
+      const [loadedJobs, loadedReadiness] = await Promise.all([
+        fetchExportJobs(),
+        failed ? fetchResearchExportReadiness() : Promise.resolve(null)
+      ]);
+      setJobs(loadedJobs.export_jobs);
+      if (loadedReadiness) setReadiness(loadedReadiness.readiness);
+    } catch {
+      // The export result is already shown; a failed history refresh is not worth a second error.
+    }
+  }
 
   const dictionaryQuery = useMemo(
     () =>
@@ -790,11 +829,20 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
   });
   const readinessBlocked = readiness ? !readiness.ready : true;
 
-  async function generateDataset() {
+  // Restricted fields need an explicit yes in a dialog before the request is sent.
+  function requestDataset(query: string) {
+    if (new URLSearchParams(query.slice(1)).get("include_restricted_fields") === "true") {
+      setPendingRestrictedQuery(query);
+      return;
+    }
+    void generateDataset(query);
+  }
+
+  async function generateDataset(query: string) {
     setGeneratingDataset(true);
     setError(null);
     try {
-      const response = await fetch(`/api/teacher/research-data/analysis-ready${datasetQuery}`, {
+      const response = await fetch(`/api/teacher/research-data/analysis-ready${query}`, {
         method: "POST",
         headers: { Accept: "application/json" }
       });
@@ -808,19 +856,19 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
             message: "Research dataset generation could not be started."
           }
         );
-        await refresh();
+        await refreshAfterExport(true);
         return;
       }
       const job = payload?.export_job;
       if (!job?.download_url) {
         setError({
           code: "research_export_download_unavailable",
-          message: "The research dataset was generated but no download URL was returned."
+          message: "The research dataset was generated, but the download link is missing. Refresh the page and download it from Export job history."
         });
-        await refresh();
+        await refreshAfterExport(false);
         return;
       }
-      await refresh();
+      await refreshAfterExport(false);
       window.location.assign(job.download_url);
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -910,10 +958,14 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 <input
                   className="h-10 rounded-md border border-line bg-white px-3 text-sm disabled:bg-slate-100"
                   disabled={scopeMode !== "session"}
+                  aria-describedby="research-session-help"
                   onChange={(event) => setSessionId(event.target.value)}
-                  placeholder="sess_..."
+                  placeholder="Paste the session ID"
                   value={sessionId}
                 />
+                <span className="text-xs font-normal text-muted" id="research-session-help">
+                  Or open a session in Student sessions and choose Export this session.
+                </span>
               </label>
             </div>
             {countPills(counts)}
@@ -980,7 +1032,7 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
               </label>
             </div>
             <div className="mt-5 flex flex-wrap gap-3">
-              <ActionButton disabled={!hasData || readinessBlocked || generatingDataset} onClick={() => void generateDataset()}>
+              <ActionButton disabled={!hasData || readinessBlocked || generatingDataset} onClick={() => requestDataset(datasetQuery)}>
                 {generatingDataset ? (
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
                 ) : (
@@ -1000,47 +1052,60 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
                     <tr>
-                      <th className="px-3 py-2">Export ID</th>
                       <th className="px-3 py-2">Scope</th>
                       <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">File/table set</th>
-                      <th className="px-3 py-2">Restricted</th>
+                      <th className="px-3 py-2">File</th>
+                      <th className="px-3 py-2">Restricted fields</th>
                       <th className="px-3 py-2">Rows</th>
-                      <th className="px-3 py-2">Failure</th>
+                      <th className="px-3 py-2">Problem</th>
                       <th className="px-3 py-2">Created</th>
                       <th className="px-3 py-2">Completed</th>
                       <th className="px-3 py-2">Download</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
-                    {jobs.slice(0, 8).map((job) => (
-                      <tr key={job.export_public_id}>
-                        <td className="px-3 py-2 font-mono text-xs">{job.export_public_id}</td>
-                        <td className="px-3 py-2">{jobOption(job, "export_scope") || "legacy"}</td>
-                        <td className="px-3 py-2">
-                          <StatusPill value={job.status} tone={job.status === "completed" ? "good" : job.status === "failed" ? "bad" : "warn"} />
-                        </td>
-                        <td className="px-3 py-2">{jobOption(job, "export_type") || job.export_schema_version || "legacy export"}</td>
-                        <td className="px-3 py-2">{jobOption(job, "restricted_fields_included") || "false"}</td>
-                        <td className="px-3 py-2">{job.row_count ?? ""}</td>
-                        <td className="max-w-xs px-3 py-2 text-xs text-muted">
-                          {job.status === "failed" ? jobOption(job, "failure_code") || job.error_message || "Export failed" : ""}
-                        </td>
-                        <td className="px-3 py-2">{formatDate(job.created_at)}</td>
-                        <td className="px-3 py-2">{formatDate(job.completed_at)}</td>
-                        <td className="px-3 py-2">
-                          {job.download_url ? (
-                            <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a>
-                          ) : job.status === "failed" && jobOption(job, "retryable") === "true" ? (
-                            <button className="font-semibold text-accent hover:underline" onClick={() => void generateDataset()} type="button">
-                              Retry
-                            </button>
-                          ) : (
-                            "Not available"
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {jobs.slice(0, 8).map((job) => {
+                      const retry = job.status === "failed" && jobOption(job, "retryable") === "true"
+                        ? researchExportRetryQuery(job.options)
+                        : null;
+                      return (
+                        <tr key={job.export_public_id}>
+                          <td className="px-3 py-2">{exportScopeLabel(jobOption(job, "export_scope"))}</td>
+                          <td className="px-3 py-2">
+                            <StatusPill
+                              tone={job.status === "completed" ? "good" : job.status === "failed" ? "bad" : "warn"}
+                              value={exportStatusLabel(job.status)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">{exportTypeLabel(jobOption(job, "export_type"))}</td>
+                          <td className="px-3 py-2">{jobOption(job, "restricted_fields_included") === "true" ? "Included" : "Not included"}</td>
+                          <td className="px-3 py-2">{job.row_count ?? ""}</td>
+                          <td className="max-w-xs px-3 py-2 text-xs text-muted">
+                            {job.status === "failed"
+                              ? jobOption(job, "safe_failure_message") || exportFailureLabel(jobOption(job, "failure_code") || job.error_message)
+                              : ""}
+                          </td>
+                          <td className="px-3 py-2">{formatDate(job.created_at)}</td>
+                          <td className="px-3 py-2">{formatDate(job.completed_at)}</td>
+                          <td className="px-3 py-2">
+                            {job.download_url ? (
+                              <a className="font-semibold text-accent hover:underline" href={job.download_url}>Download</a>
+                            ) : job.status === "failed" && jobOption(job, "retryable") === "true" ? (
+                              <button
+                                className="font-semibold text-accent hover:underline disabled:text-slate-400"
+                                disabled={readinessBlocked || generatingDataset}
+                                onClick={() => requestDataset(retry ? retry.query : datasetQuery)}
+                                type="button"
+                              >
+                                {retry ? "Retry with the same settings" : "Generate again with current settings"}
+                              </button>
+                            ) : (
+                              "Not available"
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1180,6 +1245,26 @@ export function ResearchDataExportsClient({ initialSection = "dataset" }: { init
         </section>
       ) : null}
       </div>
+      {pendingRestrictedQuery ? (
+        <ConfirmDialog
+          confirmLabel="Generate with restricted fields"
+          id="restricted-fields-dialog"
+          onCancel={() => setPendingRestrictedQuery(null)}
+          onConfirm={() => {
+            const query = withRestrictedConfirmation(pendingRestrictedQuery);
+            setPendingRestrictedQuery(null);
+            void generateDataset(query);
+          }}
+          question="Include restricted research fields in this file?"
+          tone="danger"
+        >
+          <p>
+            The file will include answer keys and instructor diagnostic notes. Use it only for authorized research
+            review, and store it where students cannot reach it.
+          </p>
+          <p>The export history will record that restricted fields were included.</p>
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

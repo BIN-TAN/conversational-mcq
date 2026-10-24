@@ -38,16 +38,21 @@ export function ErrorPanel({ error }: { error: StructuredApiError | null }) {
   }
 
   return (
-    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+    <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900" role="alert">
       <div className="flex gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <div>
+        <div className="min-w-0">
           <p className="font-semibold">{error.message}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
-          {error.details ? (
-            <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs">
-              {JSON.stringify(error.details, null, 2)}
-            </pre>
+          {error.code || error.details ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-medium">Technical details</summary>
+              {error.code ? <p className="mt-1 break-all text-xs text-red-700">{error.code}</p> : null}
+              {error.details ? (
+                <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-white p-3 text-xs">
+                  {JSON.stringify(error.details, null, 2)}
+                </pre>
+              ) : null}
+            </details>
           ) : null}
         </div>
       </div>

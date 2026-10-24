@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies } from "next/headers";
+import { cache } from "react";
 import type { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { getAuthEnv } from "@/lib/env";
@@ -163,9 +164,17 @@ export async function getUserForSessionToken(token?: string): Promise<PublicUser
   return toPublicUser(user);
 }
 
-export async function getCurrentUser(): Promise<PublicUser | null> {
+// React's cache() is scoped to one server request: the teacher layout, the section layout and
+// the page share one session lookup per render instead of querying the user up to three
+// times. Nothing is shared between requests, and outside a server render it simply calls
+// through, so route handlers behave exactly as before.
+const getCurrentUserForRequest = cache(async (): Promise<PublicUser | null> => {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
 
   return getUserForSessionToken(token);
+});
+
+export async function getCurrentUser(): Promise<PublicUser | null> {
+  return getCurrentUserForRequest();
 }

@@ -9,35 +9,35 @@ export function normalizeUserId(value: string) {
 
 export const userIdSchema = z
   .string()
-  .min(1, "user_id is required.")
-  .max(100, "user_id must be 100 characters or fewer.")
+  .min(1, "User ID is required.")
+  .max(100, "User ID must be 100 characters or fewer.")
   .transform((value) => value.normalize("NFC"))
   .superRefine((value, context) => {
     const trimmed = value.trim();
 
     if (trimmed.length === 0) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "user_id is required." });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "User ID is required." });
       return;
     }
 
     if (trimmed !== value) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "user_id must not include leading or trailing whitespace."
+        message: "User ID must not include leading or trailing whitespace."
       });
     }
 
     if (controlCharacters.test(value) || value.includes("\n") || value.includes("\r")) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "user_id must not include control characters or line breaks."
+        message: "User ID must not include control characters or line breaks."
       });
     }
 
     if (!allowedUserIdCharacters.test(trimmed)) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "user_id may contain letters, numbers, period, underscore, hyphen, and @."
+        message: "User ID may contain letters, numbers, period, underscore, hyphen, and @."
       });
     }
   })
@@ -45,20 +45,20 @@ export const userIdSchema = z
 
 export const displayNameSchema = z
   .string()
-  .max(200, "display_name must be 200 characters or fewer.")
+  .max(200, "Display name must be 200 characters or fewer.")
   .transform((value) => value.trim().normalize("NFC"))
   .superRefine((value, context) => {
     if (controlCharacters.test(value) || value.includes("\n") || value.includes("\r")) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "display_name must not include control characters or line breaks."
+        message: "Display name must not include control characters or line breaks."
       });
     }
   });
 
 export const studentEmailSchema = z
   .string()
-  .max(254, "email must be 254 characters or fewer.")
+  .max(254, "Email must be 254 characters or fewer.")
   .transform((value) => value.trim().normalize("NFC"))
   .superRefine((value, context) => {
     if (value.length === 0) {
@@ -68,7 +68,7 @@ export const studentEmailSchema = z
     if (controlCharacters.test(value) || value.includes("\n") || value.includes("\r")) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "email must not include control characters or line breaks."
+        message: "Email must not include control characters or line breaks."
       });
       return;
     }
@@ -76,7 +76,7 @@ export const studentEmailSchema = z
     const emailResult = z.string().email().safeParse(value);
 
     if (!emailResult.success) {
-      context.addIssue({ code: z.ZodIssueCode.custom, message: "email must be a valid email address." });
+      context.addIssue({ code: z.ZodIssueCode.custom, message: "Email must be a valid email address." });
     }
   });
 
@@ -175,12 +175,12 @@ function parsePassword(value: unknown, userId: string | undefined, schema: typeo
 
 export function userIdValidationError(value: unknown) {
   const result = userIdSchema.safeParse(value);
-  return result.success ? null : result.error.issues[0]?.message ?? "Invalid user_id.";
+  return result.success ? null : result.error.issues[0]?.message ?? "Invalid user ID.";
 }
 
 export function displayNameValidationError(value: unknown) {
   const result = displayNameSchema.safeParse(value ?? "");
-  return result.success ? null : result.error.issues[0]?.message ?? "Invalid display_name.";
+  return result.success ? null : result.error.issues[0]?.message ?? "Invalid display name.";
 }
 
 export function studentEmailValidationError(value: unknown) {

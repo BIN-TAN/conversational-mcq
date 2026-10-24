@@ -1181,10 +1181,32 @@ export async function createMasterCsvExport(input: {
   }
 }
 
-export async function listExportJobs() {
+export const EXPORT_JOB_LIST_DEFAULT_LIMIT = 10;
+export const EXPORT_JOB_LIST_MAX_LIMIT = 100;
+
+// The research-data page shows the most recent few jobs, so it reads only those, and only
+// the columns the serialized job needs.
+export async function listExportJobs(input: { limit?: number } = {}) {
+  const limit = Math.min(
+    EXPORT_JOB_LIST_MAX_LIMIT,
+    Math.max(1, Math.trunc(input.limit ?? EXPORT_JOB_LIST_DEFAULT_LIMIT))
+  );
   const jobs = await prisma.exportJob.findMany({
     orderBy: { created_at: "desc" },
-    take: 100
+    take: limit,
+    select: {
+      export_public_id: true,
+      status: true,
+      file_name: true,
+      storage_key: true,
+      row_count: true,
+      options: true,
+      export_schema_version: true,
+      created_at: true,
+      completed_at: true,
+      expires_at: true,
+      error_message: true
+    }
   });
 
   return {

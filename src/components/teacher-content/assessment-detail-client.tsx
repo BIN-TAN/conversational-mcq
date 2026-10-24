@@ -4,6 +4,15 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Archive, CheckCircle, Download, Eye, FilePenLine, Plus, RefreshCw, RotateCcw, Save, Sparkles, Trash2, Upload, X } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  archiveConfirmation,
+  assessmentStatusPhrase,
+  contentLockSentence,
+  publishConfirmation,
+  returnToDraftConfirmation,
+  type ConfirmationCopy
+} from "@/lib/teacher-management-labels";
 import { apiRequest, errorFromUnknown } from "./api";
 import { ItemBatchDeletionControl } from "./item-batch-deletion-control";
 import { MAX_ITEM_BATCH_DELETION, type ItemDeletionResult } from "@/lib/services/content/item-deletion-contract";
@@ -22,6 +31,7 @@ import {
   LoadingRow,
   PageHeader,
   PrimaryLink,
+  PublicIdControl,
   SecondaryLink,
   StatusBadge,
   SuccessPanel,
@@ -84,6 +94,7 @@ export function AssessmentDetailClient({
   const [revisionReason, setRevisionReason] = useState("");
   const [isCreatingRevision, setIsCreatingRevision] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<string[]>([]);
+  const [pendingAction, setPendingAction] = useState<"publish" | "archive" | "return-to-draft" | null>(null);
 
   const loadAssessment = useCallback(async () => {
     setIsLoading(true);
@@ -113,11 +124,9 @@ export function AssessmentDetailClient({
       ...previous,
       mini_test_items: previous.mini_test_items?.filter((item) => !result.deleted_item_public_ids.includes(item.item_public_id))
     } : previous);
-    setSuccess(`Deleted ${result.deleted_item_public_ids.length} items.`);
-    // Refresh counts without replacing unsaved title, organization, or date fields.
-    void apiRequest<AssessmentDetailResponse>(`/api/teacher/assessments/${assessmentPublicId}`)
-      .then((data) => setAssessment(data.assessment))
-      .catch(() => setError({ code: "refresh_failed", message: "Items were deleted, but the updated mini test could not be loaded. Refresh the page before continuing." }));
+    setSuccess(`Deleted ${result.deleted_item_public_ids.length} ${result.deleted_item_public_ids.length === 1 ? "item" : "items"}.`);
+    // The deletion result names the removed items, so the list is updated in place without
+    // reloading the mini test (and without replacing unsaved title, folder, or date fields).
   }
 
   useEffect(() => {
@@ -210,7 +219,7 @@ export function AssessmentDetailClient({
       await apiRequest(`/api/teacher/assessments/${assessmentPublicId}/archive`, {
         method: "POST"
       });
-      setSuccess("Assessment archived.");
+      setSuccess("Mini test archived. Students can no longer start it.");
       await loadAssessment();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -278,8 +287,8 @@ export function AssessmentDetailClient({
         { method: "POST" }
       );
       setSuccess(data.superseded_assessment_public_id
-        ? "Corrected version published. The previous version is archived for existing attempts and research history."
-        : `Assessment published. Publishable topics: ${data.publishable_concept_unit_public_ids.join(", ")}`);
+        ? "Corrected version published. The previous version is archived; existing attempts stay attached to it."
+        : `Mini test published. ${assessmentStatusPhrase(data.assessment).detail}`);
       await loadAssessment();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -321,14 +330,6 @@ export function AssessmentDetailClient({
   }
 
   async function returnAssessmentToDraft() {
-    const confirmed = window.confirm(
-      "This assessment can still be returned to draft because no student session has started."
-    );
-
-    if (!confirmed) {
-      return;
-    }
-
     setBusyAction("return-to-draft");
     setError(null);
     setSuccess(null);
@@ -337,7 +338,7 @@ export function AssessmentDetailClient({
       await apiRequest(`/api/teacher/assessments/${assessmentPublicId}/return-to-draft`, {
         method: "POST"
       });
-      setSuccess("Assessment returned to draft.");
+      setSuccess("Mini test returned to draft. Students cannot see it until you publish it again.");
       await loadAssessment();
     } catch (caught) {
       setError(errorFromUnknown(caught));
@@ -388,24 +389,6 @@ export function AssessmentDetailClient({
                 Preview the test
               </Link>
             ) : null}
-            {isDraftEditable ? (
-              <PrimaryLink href={designItemsHref}>
-                <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                Design and generate
-              </PrimaryLink>
-            ) : null}
-            {isDraftEditable ? (
-              <PrimaryLink href={addItemHref}>
-                <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                Add MCQ item
-              </PrimaryLink>
-            ) : null}
-            {isDraftEditable ? (
-              <PrimaryLink href={importItemsHref}>
-                <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                Import MCQ items
-              </PrimaryLink>
-            ) : null}
             <Button disabled={isLoading} onClick={loadAssessment} type="button" variant="secondary">
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
               Refresh
@@ -447,16 +430,20 @@ export function AssessmentDetailClient({
             ) : null}
             <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={saveAssessment}>
               <div className="flex flex-wrap items-center gap-3">
-                <StatusBadge status={assessment.status} />
-                <ContentStateBadge state={assessment.content_state} />
-                <span className="font-mono text-xs text-muted">{assessment.assessment_public_id}</span>
+                <StatusBadge assessment={assessment} status={assessment.status} />
+                {assessment.content_state === "locked_after_student_session" ||
+                assessment.content_state === "published_unused" ? (
+                  <ContentStateBadge state={assessment.content_state} />
+                ) : null}
+                <PublicIdControl id={assessment.assessment_public_id} />
               </div>
+              <p className="mt-2 text-sm text-muted">{assessmentStatusPhrase(assessment).detail}</p>
               {isReadOnly ? (
                 <div className="mt-4 rounded-md border border-line bg-slate-50 p-4 text-sm leading-6 text-muted">
                   <p>
                     {isLocked
                       ? "Student data collection has started. This version is read-only so its questions, answer keys, and historical responses remain consistent."
-                      : "This assessment can still be returned to draft because no student session has started."}
+                      : "No student has started this mini test, so you can still return it to draft to make changes."}
                   </p>
                   {isLocked && assessment.superseded_by_assessment_public_id ? (
                     <Link
@@ -549,7 +536,7 @@ export function AssessmentDetailClient({
                 </Button>
                 <Button
                   disabled={isLocked || isArchived || busyAction === "publish"}
-                  onClick={publishAssessment}
+                  onClick={() => setPendingAction("publish")}
                   type="button"
                   variant="secondary"
                 >
@@ -559,7 +546,7 @@ export function AssessmentDetailClient({
                 {canReturnToDraft ? (
                   <Button
                     disabled={busyAction === "return-to-draft"}
-                    onClick={returnAssessmentToDraft}
+                    onClick={() => setPendingAction("return-to-draft")}
                     type="button"
                     variant="secondary"
                   >
@@ -569,7 +556,7 @@ export function AssessmentDetailClient({
                 ) : null}
                 <Button
                   disabled={assessment.status === "archived" || busyAction === "archive"}
-                  onClick={archiveAssessment}
+                  onClick={() => setPendingAction("archive")}
                   type="button"
                   variant="danger"
                 >
@@ -642,7 +629,7 @@ export function AssessmentDetailClient({
                       </PrimaryLink>
                       <PrimaryLink href={addItemHref}>
                         <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Add MCQ item
+                        {miniTestItems.length > 0 ? "Add another MCQ item" : "Add MCQ item"}
                       </PrimaryLink>
                       <PrimaryLink href={importItemsHref}>
                         <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -703,7 +690,9 @@ export function AssessmentDetailClient({
                             Item {item.item_order}
                           </h3>
                           <p className="mt-1 line-clamp-3 text-sm leading-6 text-muted">{item.item_stem}</p>
-                          <p className="mt-2 font-mono text-xs text-muted">{item.item_public_id}</p>
+                          <div className="mt-2">
+                            <PublicIdControl id={item.item_public_id} />
+                          </div>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           <Link
@@ -730,26 +719,6 @@ export function AssessmentDetailClient({
                   ))}
                 </div>
               )}
-              <div className="mt-5 border-t border-line pt-4">
-                <div className="flex flex-wrap gap-2">
-                  {isDraftEditable ? (
-                    <>
-                      <PrimaryLink href={designItemsHref}>
-                        <Sparkles className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Design and generate
-                      </PrimaryLink>
-                      <PrimaryLink href={addItemHref}>
-                        <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Add another MCQ item
-                      </PrimaryLink>
-                      <PrimaryLink href={importItemsHref}>
-                        <Upload className="mr-2 h-4 w-4" aria-hidden="true" />
-                        Import MCQ items
-                      </PrimaryLink>
-                    </>
-                  ) : null}
-                </div>
-              </div>
             </section>
 
           </section>
@@ -789,7 +758,7 @@ export function AssessmentDetailClient({
                 <div>
                   <dt className="text-muted">Student sessions</dt>
                   <dd className="font-medium text-ink">
-                    {assessment.has_student_sessions ? "Started" : "None"}
+                    {assessment.has_student_sessions ? "Students have started" : "No student has started"}
                   </dd>
                 </div>
                 <div>
@@ -803,13 +772,13 @@ export function AssessmentDetailClient({
                   </div>
                 ) : null}
                 <div>
-                  <dt className="text-muted">Lock reason</dt>
-                  <dd className="font-medium text-ink">{assessment.content_lock_reason ?? "None"}</dd>
+                  <dt className="text-muted">Editing</dt>
+                  <dd className="font-medium text-ink">{contentLockSentence(assessment.content_lock_reason)}</dd>
                 </div>
               </dl>
             </section>
             <section className="rounded-lg border border-line bg-white p-5 text-sm leading-6 text-muted shadow-soft">
-              Archive the assessment to prevent new sessions while preserving existing session data.
+              Archive the mini test to stop new attempts. Students who already started can finish, and past attempts are kept.
             </section>
             <form
               className="rounded-lg border border-red-200 bg-white p-5 text-sm leading-6 text-muted shadow-soft"
@@ -934,6 +903,39 @@ export function AssessmentDetailClient({
           </aside>
         </div>
       ) : null}
+
+      {assessment && pendingAction ? (() => {
+        const copy: ConfirmationCopy =
+          pendingAction === "publish"
+            ? publishConfirmation(assessment)
+            : pendingAction === "archive"
+              ? archiveConfirmation(assessment)
+              : returnToDraftConfirmation();
+        return (
+          <ConfirmDialog
+            busy={busyAction === pendingAction}
+            confirmLabel={copy.confirmLabel}
+            id={`assessment-${pendingAction}-dialog`}
+            onCancel={() => setPendingAction(null)}
+            onConfirm={() => {
+              const action = pendingAction;
+              const run =
+                action === "publish"
+                  ? publishAssessment
+                  : action === "archive"
+                    ? archiveAssessment
+                    : returnAssessmentToDraft;
+              void run().finally(() => setPendingAction(null));
+            }}
+            question={copy.question}
+            tone={pendingAction === "archive" ? "danger" : "primary"}
+          >
+            {copy.sentences.map((sentence) => (
+              <p key={sentence}>{sentence}</p>
+            ))}
+          </ConfirmDialog>
+        );
+      })() : null}
     </div>
   );
 }

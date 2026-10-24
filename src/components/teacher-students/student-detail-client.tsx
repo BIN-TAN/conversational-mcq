@@ -143,7 +143,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
         <>
           <section className="grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border border-line bg-white p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">user_id</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Student ID</p>
               <p className="mt-2 font-semibold text-ink">{student.user_id}</p>
             </div>
             <div className="rounded-lg border border-line bg-white p-4">
@@ -165,7 +165,7 @@ export function StudentDetailClient({ userId }: { userId: string }) {
                 Password status
               </p>
               <p className="mt-2 text-sm text-ink">
-                {student.must_change_password ? "Temporary password pending" : "Password set"}
+                {student.must_change_password ? "Must change password" : "Password set"}
               </p>
             </div>
             <div className="rounded-lg border border-line bg-white p-4">
@@ -261,8 +261,8 @@ export function StudentDetailClient({ userId }: { userId: string }) {
               )}
             </div>
             <p className="mt-4 text-sm leading-6 text-muted">
-              user_id is immutable in this UI. Use deactivate/reactivate for reversible account
-              control. Use deletion only when permanent removal is appropriate.
+              The student ID cannot be changed. Deactivate an account to block sign-in for now, and
+              reactivate it later. Delete it only when it must be removed permanently.
             </p>
           </section>
 
@@ -370,9 +370,9 @@ export function StudentDetailClient({ userId }: { userId: string }) {
                     <tr>
                       <th className="px-3 py-2">Event</th>
                       <th className="px-3 py-2">Performed by</th>
-                      <th className="px-3 py-2">Roster batch</th>
+                      <th className="px-3 py-2">Roster import</th>
                       <th className="px-3 py-2">Created</th>
-                      <th className="px-3 py-2">Metadata</th>
+                      <th className="px-3 py-2">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-line">
@@ -381,13 +381,20 @@ export function StudentDetailClient({ userId }: { userId: string }) {
                         <td className="px-3 py-2">{event.event_type.replace(/_/g, " ")}</td>
                         <td className="px-3 py-2">{event.performed_by_user_id}</td>
                         <td className="px-3 py-2">
-                          {event.roster_import_batch?.batch_public_id ?? ""}
+                          {event.roster_import_batch
+                            ? event.roster_import_batch.source_file_name ?? "Roster file"
+                            : ""}
                         </td>
                         <td className="px-3 py-2">{formatDate(event.created_at)}</td>
                         <td className="px-3 py-2">
-                          <pre className="max-h-32 overflow-auto whitespace-pre-wrap text-xs">
-                            {JSON.stringify(event.metadata, null, 2)}
-                          </pre>
+                          {event.metadata ? (
+                            <details>
+                              <summary className="cursor-pointer text-xs font-medium">Technical details</summary>
+                              <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap text-xs">
+                                {JSON.stringify(event.metadata, null, 2)}
+                              </pre>
+                            </details>
+                          ) : null}
                         </td>
                       </tr>
                     ))}

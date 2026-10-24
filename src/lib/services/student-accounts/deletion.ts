@@ -161,7 +161,7 @@ async function assertTeacherResearcher(client: StudentDeletionClient, teacherUse
   if (!teacher || teacher.role !== "teacher_researcher") {
     throw new StudentAccountServiceError(
       "forbidden",
-      "Only teacher_researcher users can delete student accounts.",
+      "Only an instructor can delete student accounts.",
       403
     );
   }

@@ -1,8 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { type ReactNode, useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle, ChevronRight, Loader2 } from "lucide-react";
+import {
+  assessmentStatusPhrase,
+  contentStatusLabel,
+  type AssessmentStatusInput
+} from "@/lib/teacher-management-labels";
 import type { StructuredApiError } from "./types";
 
 export function PageHeader({
@@ -61,18 +66,66 @@ export function Breadcrumbs({
   );
 }
 
-export function StatusBadge({ status }: { status: string }) {
+/**
+ * Status badge. For a mini test, pass `assessment` so the badge combines the status with the
+ * release and closing dates ("Scheduled – opens …", "Open to students", …). Items and topics
+ * show the plain status word.
+ */
+export function StatusBadge({
+  status,
+  assessment
+}: {
+  status: string;
+  assessment?: Omit<AssessmentStatusInput, "status">;
+}) {
+  const phrase = assessment ? assessmentStatusPhrase({ ...assessment, status }) : null;
+  const tone = phrase?.tone ?? (status === "published" ? "open" : status === "archived" ? "archived" : "draft");
   const styles =
-    status === "published"
+    tone === "open"
       ? "border-green-200 bg-green-50 text-green-800"
-      : status === "archived"
-        ? "border-slate-200 bg-slate-100 text-slate-700"
-        : "border-amber-200 bg-amber-50 text-amber-800";
+      : tone === "scheduled"
+        ? "border-blue-200 bg-blue-50 text-blue-800"
+        : tone === "archived" || tone === "closed"
+          ? "border-slate-200 bg-slate-100 text-slate-700"
+          : "border-amber-200 bg-amber-50 text-amber-800";
 
   return (
     <span className={`inline-flex rounded-md border px-2 py-1 text-xs font-semibold ${styles}`}>
-      {status}
+      {phrase ? phrase.label : contentStatusLabel(status)}
     </span>
+  );
+}
+
+/** The public ID stays one click away for support and file names, not under every title. */
+export function PublicIdControl({ id }: { id: string }) {
+  const [copied, setCopied] = useState(false);
+
+  async function copyId() {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  }
+
+  return (
+    <details className="text-xs text-muted">
+      <summary className="inline-flex cursor-pointer list-none font-medium hover:text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+        Show ID
+      </summary>
+      <span className="mt-1 flex flex-wrap items-center gap-2">
+        <code className="break-all font-mono">{id}</code>
+        <button
+          className="rounded border border-line bg-white px-2 py-0.5 font-semibold text-ink hover:border-accent"
+          onClick={() => void copyId()}
+          type="button"
+        >
+          {copied ? "Copied" : "Copy ID"}
+        </button>
+      </span>
+    </details>
   );
 }
 
@@ -95,18 +148,18 @@ export function ContentStateBadge({ state }: { state: string }) {
 
 export function contentStateLabel(state: string) {
   if (state === "locked_after_student_session") {
-    return "locked after student session";
+    return "Questions locked – students have started";
   }
 
   if (state === "published_unused") {
-    return "published unused";
+    return "Published – no student has started";
   }
 
   if (state === "archived") {
-    return "archived";
+    return "Archived";
   }
 
-  return "draft editable";
+  return "Editable";
 }
 
 export function ErrorPanel({ error, focusOnError = false }: { error?: StructuredApiError | null; focusOnError?: boolean }) {
@@ -125,7 +178,7 @@ export function ErrorPanel({ error, focusOnError = false }: { error?: Structured
         <div className="min-w-0">
           <p className="font-semibold">{error.message}</p>
           <details className="mt-2">
-            <summary className="cursor-pointer text-xs font-medium">Error details</summary>
+            <summary className="cursor-pointer text-xs font-medium">Technical details</summary>
             <p className="mt-1 break-all text-xs text-red-700">{error.code}</p>
             <ValidationDetails details={error.details} />
           </details>

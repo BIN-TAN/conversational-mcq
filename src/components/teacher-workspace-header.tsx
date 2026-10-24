@@ -6,6 +6,7 @@ import { TeacherAccountUtilityLink } from "@/components/teacher-account-utility-
 import { TeacherLogoutButton } from "@/components/teacher-logout-button";
 import { TeacherPrimaryNav } from "@/components/teacher-primary-nav";
 import { UAlbertaLogo } from "@/components/ualberta-logo";
+import { pageRendersOwnHeading } from "@/lib/teacher-management-labels";
 
 const teacherSectionTitles = [
   { pathPrefix: "/teacher/dashboard", title: "Assessment dashboard" },
@@ -30,6 +31,8 @@ function sectionTitle(pathname: string | null) {
 export function TeacherWorkspaceHeader({ userId }: { userId: string }) {
   const pathname = usePathname();
   const isAccountPage = pathname === "/teacher/account";
+  // One <h1> per page: when the page has its own heading, the section title is plain text.
+  const SectionTitleTag = pageRendersOwnHeading(pathname) ? "p" : "h1";
 
   return (
     <header className="border-b-4 border-ualberta-gold bg-ualberta-green-dark text-white">
@@ -41,9 +44,9 @@ export function TeacherWorkspaceHeader({ userId }: { userId: string }) {
               <p className="text-sm font-semibold uppercase text-ualberta-gold">
                 EDPY 507: Measurement Theory
               </p>
-              <h1 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+              <SectionTitleTag className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
                 {sectionTitle(pathname)}
-              </h1>
+              </SectionTitleTag>
               <p className="mt-2 hidden break-words text-sm text-white/80 sm:block">Signed in as {userId}</p>
             </div>
           </div>

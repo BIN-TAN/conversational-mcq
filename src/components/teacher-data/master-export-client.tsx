@@ -41,7 +41,7 @@ export function MasterExportClient() {
       const [assessmentResult, outcomeResult, jobResult] = await Promise.all([
         fetchAssessments(),
         fetchOutcomeNames(),
-        fetchExportJobs()
+        fetchExportJobs(100)
       ]);
       setAssessments(assessmentResult.assessments);
       setOutcomeNames(outcomeResult.outcome_names);

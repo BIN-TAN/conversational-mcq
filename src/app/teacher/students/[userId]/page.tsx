@@ -24,7 +24,7 @@ export default async function TeacherStudentDetailPage({
   return (
     <main className="px-6 py-8">
       <div className="mx-auto max-w-7xl">
-        <TeacherPageHeader title="Student detail" metadata={<span>User ID: {decodedUserId}</span>} />
+        <TeacherPageHeader title="Student detail" metadata={<span>Student ID: {decodedUserId}</span>} />
         <section className="mt-6">
           <StudentDetailClient userId={decodedUserId} />
         </section>

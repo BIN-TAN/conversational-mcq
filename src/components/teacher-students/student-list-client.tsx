@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowUpDown, Eye, Search, Upload, UserPlus } from "lucide-react";
+import { ArrowUpDown, Eye, Loader2, Search, Upload, UserPlus } from "lucide-react";
 import { errorFromUnknown, fetchStudents } from "./api";
 import { StudentBatchDeletionControl } from "./student-batch-deletion-control";
 import { StudentPasswordResetControl } from "./student-password-reset-control";
@@ -10,6 +10,8 @@ import type { StructuredApiError, StudentListResponse } from "./types";
 import { EmptyPanel, ErrorPanel, formatDate, LoadingPanel, StatusPill } from "./ui";
 
 type SortField = "user_id" | "created_at" | "updated_at" | "last_login_at" | "password_changed_at";
+
+const SEARCH_DEBOUNCE_MS = 300;
 
 export function StudentListClient() {
   const [filters, setFilters] = useState({
@@ -21,27 +23,51 @@ export function StudentListClient() {
     page: 1,
     page_size: 25
   });
+  const [searchInput, setSearchInput] = useState("");
   const [data, setData] = useState<StudentListResponse | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadToken, setReloadToken] = useState(0);
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
 
-  const load = useCallback(async () => {
+  // Typing waits briefly before searching, so each keystroke does not send a request.
+  useEffect(() => {
+    if (searchInput === filters.search) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSelectedUserIds(new Set());
+      setFilters((current) => ({ ...current, search: searchInput, page: 1 }));
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [filters.search, searchInput]);
+
+  // A newer request cancels the older one, so a slow earlier answer never replaces newer
+  // results. The previous rows stay on screen while the next page of results loads.
+  useEffect(() => {
+    const controller = new AbortController();
     setLoading(true);
     setError(null);
 
-    try {
-      setData(await fetchStudents(filters));
-    } catch (requestError) {
-      setError(errorFromUnknown(requestError));
-    } finally {
-      setLoading(false);
-    }
-  }, [filters]);
+    fetchStudents(filters, controller.signal)
+      .then((result) => {
+        if (!controller.signal.aborted) setData(result);
+      })
+      .catch((requestError: unknown) => {
+        if (!controller.signal.aborted) setError(errorFromUnknown(requestError));
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+    return () => controller.abort();
+  }, [filters, reloadToken]);
+
+  const load = useCallback(() => {
+    setReloadToken((current) => current + 1);
+  }, []);
 
   function updateFilter(key: keyof typeof filters, value: string | number) {
     setSelectedUserIds(new Set());
@@ -102,9 +128,11 @@ export function StudentListClient() {
                 <Search className="h-4 w-4 text-muted" aria-hidden="true" />
                 <input
                   className="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-sm outline-none"
-                  onChange={(event) => updateFilter("search", event.target.value)}
-                  placeholder="user_id or display name"
-                  value={filters.search}
+                  aria-label="Search by student ID, display name, or email"
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  placeholder="Student ID, name, or email"
+                  type="search"
+                  value={searchInput}
                 />
               </div>
             </label>
@@ -169,7 +197,13 @@ export function StudentListClient() {
       </section>
 
       <ErrorPanel error={error} />
-      {loading ? <LoadingPanel label="Loading student accounts" /> : null}
+      {loading && !data ? <LoadingPanel label="Loading student accounts" /> : null}
+      {loading && data ? (
+        <p className="inline-flex items-center gap-2 text-sm text-muted" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+          Updating the list
+        </p>
+      ) : null}
 
       {!loading && data && data.students.length === 0 ? (
         <EmptyPanel title="No student accounts found">
@@ -177,8 +211,8 @@ export function StudentListClient() {
         </EmptyPanel>
       ) : null}
 
-      {!loading && data && data.students.length > 0 ? (
-        <section className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
+      {data && data.students.length > 0 ? (
+        <section aria-busy={loading} className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
           <div className="flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-2">
             <span className="text-sm font-medium text-muted">
               {selectedUserIds.size} selected
@@ -222,7 +256,7 @@ export function StudentListClient() {
                       onClick={() => sortBy("user_id")}
                       type="button"
                     >
-                      user_id
+                      Student ID
                       <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </th>

@@ -507,15 +507,8 @@ export async function getAssessmentDetail(input: {
       _count: { select: { concept_units: true, assessment_sessions: true } },
       concept_units: {
         orderBy: [{ order_index: "asc" }, { created_at: "asc" }],
+        // The parent assessment is already loaded above; each topic reuses it below.
         include: {
-          assessment: {
-            select: {
-              assessment_public_id: true,
-              title: true,
-              status: true,
-              _count: { select: { assessment_sessions: true } }
-            }
-          },
           items: {
             orderBy: [{ item_order: "asc" }, { created_at: "asc" }],
             include: itemSerializerInclude
@@ -540,7 +533,16 @@ export async function getAssessmentDetail(input: {
       ...assessment,
       superseded_by_assessment_public_id: successor?.assessment_public_id ?? null
     }),
-    concept_units: assessment.concept_units.map(serializeConceptUnit),
+    concept_units: assessment.concept_units.map((conceptUnit) =>
+      serializeConceptUnit({
+        ...conceptUnit,
+        assessment: {
+          assessment_public_id: assessment.assessment_public_id,
+          status: assessment.status,
+          _count: { assessment_sessions: assessment._count.assessment_sessions }
+        }
+      })
+    ),
     import_reviews: assessment.mcq_item_import_batches,
     mini_test_items: assessment.concept_units
       .flatMap((conceptUnit) => conceptUnit.items)

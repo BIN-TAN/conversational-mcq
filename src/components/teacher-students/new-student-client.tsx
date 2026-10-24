@@ -85,12 +85,12 @@ export function NewStudentClient({ defaultTemporaryPassword }: { defaultTemporar
       <section className="rounded-lg border border-line bg-white p-5 shadow-soft">
         <h2 className="text-xl font-semibold text-ink">Create one student</h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-          The canonical user_id cannot be edited later. If an incorrect ID is created, create the
-          correct account and deactivate the incorrect account.
+          The student ID cannot be changed later. If a wrong ID is created, create the
+          correct account and deactivate the wrong one.
         </p>
         <div className="mt-5 grid gap-4 md:grid-cols-2">
           <label className="flex flex-col gap-2 text-sm font-medium text-ink">
-            user_id
+            Student ID
             <input
               className="h-10 rounded-md border border-line px-3 text-sm"
               onChange={(event) => {

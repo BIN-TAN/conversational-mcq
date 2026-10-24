@@ -287,7 +287,7 @@ function PreviewTable({ rows }: { rows: Array<Record<string, unknown>> }) {
         <thead className="bg-slate-50 text-xs uppercase tracking-wide text-muted">
           <tr>
             <th className="px-3 py-2">Row</th>
-            <th className="px-3 py-2">user_id</th>
+            <th className="px-3 py-2">Student ID</th>
             <th className="px-3 py-2">Outcome</th>
             <th className="px-3 py-2">Score</th>
             <th className="px-3 py-2">Max</th>
