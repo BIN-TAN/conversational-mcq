@@ -89,7 +89,7 @@ const output = (items: ExistingItemsOutput["items"], skipped: ExistingItemsOutpu
 
 async function main() {
   await check("Versions, and the output carries up to 40 items with a list of what was skipped", () => {
-    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v1");
+    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v2");
     assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v1");
     assert.equal(EXISTING_ITEMS_MAX, 40);
     assert.equal(output([item()], [{ source_label: "D9", reason: "The stem has no options." }]).skipped.length, 1);

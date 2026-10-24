@@ -507,7 +507,7 @@ export function itemCheckSummary(input: {
  * same review as generated drafts. A key is recorded only when the source states it; the
  * item specifications the source lacks are proposed and marked as suggestions.
  */
-export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v1" as const;
+export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v2" as const;
 export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v1" as const;
 export const EXISTING_ITEMS_MAX = 40;
 
