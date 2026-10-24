@@ -694,7 +694,7 @@
     "csv-stringify": "^6.8.0",
     "fast-xml-parser": "^5.10.1",
     "jszip": "^3.10.1",
-    "katex": "^0.16.11",
+    "katex": "^0.18.4",
     "lucide-react": "^0.468.0",
     "mammoth": "^1.12.0",
     "next": "15.5.28",
@@ -732,6 +732,7 @@
     "typescript": "^5.7.2"
   },
   "overrides": {
+    "katex": "$katex",
     "next": {
       "postcss": "$postcss",
       "sharp": "0.35.5"
