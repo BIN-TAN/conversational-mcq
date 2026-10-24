@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import type { FlaggedItemReview } from "@/lib/services/item-review/service";
 
@@ -75,11 +76,15 @@ export function ItemReviewPanel({ assessmentPublicId }: { assessmentPublicId: st
         <article key={item.item_public_id} className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Question {item.item_number}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+                Question {item.item_number}
+                <Link className="ml-3 normal-case tracking-normal text-accent underline-offset-2 hover:underline"
+                  href={`/teacher/content/items/${encodeURIComponent(item.item_public_id)}`}>Open the question</Link>
+              </p>
               <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
               <ul className="mt-2 space-y-1 text-sm text-muted">
                 {item.options.map((option) => (
-                  <li key={option.label}>{option.label}. {option.text}{option.label === item.correct_option ? " (key)" : ""}</li>
+                  <li key={option.label}>{option.label}. {option.text}{option.label === item.correct_option ? " (answer key)" : ""}</li>
                 ))}
               </ul>
             </div>

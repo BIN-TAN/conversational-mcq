@@ -39,7 +39,20 @@ function safeErrorMessage(message: string | null | undefined) {
     .slice(0, 1200);
 }
 
-export function serializeWorkflowJob(job: WorkflowJob): WorkflowJobSummary {
+export const workflowJobSummarySelect = {
+  job_public_id: true,
+  job_type: true,
+  status: true,
+  attempt_count: true,
+  max_attempts: true,
+  run_after: true,
+  last_error_category: true,
+  last_error_message: true,
+  created_at: true,
+  completed_at: true
+} satisfies Prisma.WorkflowJobSelect;
+
+export function serializeWorkflowJob(job: Pick<WorkflowJob, keyof typeof workflowJobSummarySelect>): WorkflowJobSummary {
   return {
     job_public_id: job.job_public_id,
     job_type: job.job_type,

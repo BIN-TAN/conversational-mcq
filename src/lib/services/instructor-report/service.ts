@@ -229,6 +229,8 @@ export async function getInstructorReportStatus(input: {
   assessment_public_id: string;
 }): Promise<InstructorReportStatus> {
   await assertOwnedAssessment(input.teacher_user_db_id, input.assessment_public_id);
+  // The 20 most recent calls, without their payloads. Only the payload of the newest validated
+  // call is then loaded; an older one is loaded only when a newer payload cannot be read.
   const calls = await prisma.agentCall.findMany({
     where: {
       agent_name: INSTRUCTOR_REPORT_AGENT_NAME,
@@ -239,19 +241,21 @@ export async function getInstructorReportStatus(input: {
     select: {
       agent_call_public_id: true,
       created_at: true,
-      model_name: true,
-      provider: true,
       call_status: true,
       output_validated: true,
-      output_payload: true,
       validation_error: true,
       error_category: true
     }
   });
-  const latestReport = calls
-    .filter((call) => call.call_status === "succeeded" && call.output_validated)
-    .map((call) => storedReportFromCall(call))
-    .find((report): report is StoredInstructorReport => report !== null) ?? null;
+  let latestReport: StoredInstructorReport | null = null;
+  for (const candidate of calls.filter((call) => call.call_status === "succeeded" && call.output_validated)) {
+    const call = await prisma.agentCall.findUnique({
+      where: { agent_call_public_id: candidate.agent_call_public_id },
+      select: { agent_call_public_id: true, created_at: true, model_name: true, provider: true, output_payload: true }
+    });
+    latestReport = call ? storedReportFromCall(call) : null;
+    if (latestReport) break;
+  }
   const latest = calls[0] ?? null;
   const plan = instructorReportNarrativePlan();
   return {

@@ -22,7 +22,7 @@ import {
 import { formativeConversationTurnLimit } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import { getGuardedOperationalAgentIntegrationReadiness } from "@/lib/operational/guarded-agent-integration";
 import { deriveAutomationState } from "@/lib/workflow/automation";
-import { serializeWorkflowJob } from "@/lib/workflow/jobs";
+import { serializeWorkflowJob, workflowJobSummarySelect } from "@/lib/workflow/jobs";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate } from "./serializers";
 
@@ -94,6 +94,8 @@ function serializeFormativeLearningProfile(profile: StudentProfile & ProfileReco
     created_at: serializeDate(profile.created_at)
   };
 }
+
+const DISPLAYED_WORKFLOW_JOB_LIMIT = 20;
 
 export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
   const session = await prisma.assessmentSession.findUnique({
@@ -417,8 +419,10 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
           }
         }
       },
+      // Only the columns shown to the instructor and used to derive the automation state.
       workflow_jobs: {
-        orderBy: [{ created_at: "desc" }]
+        orderBy: [{ created_at: "desc" }],
+        select: workflowJobSummarySelect
       },
       workflow_overrides: {
         orderBy: [{ created_at: "desc" }],
@@ -762,7 +766,8 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       automation_state: automationState,
       automation_paused_at: serializeDate(session.automation_paused_at),
       automation_exception_reason: session.automation_exception_reason,
-      workflow_jobs: serializedWorkflowJobs,
+      // The automation state above uses every job; the list shows the newest ones.
+      workflow_jobs: serializedWorkflowJobs.slice(0, DISPLAYED_WORKFLOW_JOB_LIMIT),
       workflow_overrides: session.workflow_overrides.map((override) => ({
         override_public_id: override.override_public_id,
         action_type: override.action_type,

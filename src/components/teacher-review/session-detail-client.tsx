@@ -60,6 +60,7 @@ import {
   JsonDetails,
   label,
   LoadingState,
+  plainReviewReason,
   StatusPill
 } from "./ui";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
@@ -67,6 +68,7 @@ import { ProcessDataSection } from "./process-data-section";
 import { processEventLabel } from "@/lib/services/teacher-review/process-data-summary";
 import { profileCodeReadableLabel } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { ReviewResourceStatus, useReviewResource } from "./review-resource";
+import { readStoredSessionListQuery, sessionListHref } from "./session-list-query";
 
 const tabs = [
   "overview",
@@ -247,7 +249,12 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [processError, setProcessError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
+  // A reload after the first one keeps the current detail on screen (with open sections
+  // and scroll position) and shows a small indicator instead.
+  const [refreshing, setRefreshing] = useState(false);
+  const loadedSession = useRef<string | null>(null);
   const [processLoading, setProcessLoading] = useState(true);
+  const [backHref, setBackHref] = useState("/teacher/sessions");
   const itemResource = useReviewResource(sessionPublicId, revision, !loading && ["item_responses", "formative_conversation"].includes(activeTab), fetchItemResponses);
   const readableResource = useReviewResource(sessionPublicId, revision, !loading && activeTab === "readable_transcript", fetchReadableTranscript);
   const transcriptResource = useReviewResource(sessionPublicId, revision, !loading && activeTab === "assessment_log" && structuredOpen, fetchTranscript);
@@ -292,20 +299,24 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
 
   const loadCore = useCallback(async () => {
     const request = ++coreRequest.current;
-    setLoading(true);
+    const background = loadedSession.current === sessionPublicId;
+    if (background) setRefreshing(true);
+    else setLoading(true);
     setError(null);
-    setDetail(null);
-    setProcessEvents(null);
     setRevision((value) => value + 1);
 
     try {
       const detailResult = await fetchSessionDetail(sessionPublicId);
       if (request !== coreRequest.current) return;
+      loadedSession.current = sessionPublicId;
       setDetail(detailResult);
     } catch (requestError) {
       if (request === coreRequest.current) setError(errorFromUnknown(requestError));
     } finally {
-      if (request === coreRequest.current) setLoading(false);
+      if (request === coreRequest.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
   }, [sessionPublicId]);
 
@@ -328,6 +339,11 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
   useEffect(() => {
     void loadCore();
   }, [loadCore]);
+
+  // Return to the session list with the filters, sort and page the instructor left it with.
+  useEffect(() => {
+    setBackHref(sessionListHref(readStoredSessionListQuery()));
+  }, []);
 
   useEffect(() => {
     void loadProcessEvents();
@@ -513,22 +529,24 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
       <div className="flex flex-wrap items-center gap-2">
         <Link
           className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
-          href="/teacher/sessions"
+          href={backHref}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
           Back to sessions
         </Link>
         <button
-          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-line bg-white px-3 text-sm font-semibold text-ink hover:border-accent disabled:opacity-60"
+          disabled={refreshing}
           onClick={() => {
             void loadCore();
             void loadProcessEvents();
           }}
           type="button"
         >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
+          {refreshing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <RefreshCw className="h-4 w-4" aria-hidden="true" />}
           Refresh
         </button>
+        <span aria-live="polite" className="text-sm text-muted">{refreshing ? "Updating..." : ""}</span>
       </div>
 
       {error ? <ErrorState error={error} /> : null}
@@ -540,13 +558,13 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-wide text-accent">
-                  session review
+                  Session review
                 </p>
                 <h2 className="mt-2 break-words text-2xl font-semibold text-ink [overflow-wrap:anywhere]">
                   {detail.student.user_id} · {detail.assessment.title}
                 </h2>
                 <p className="mt-2 break-words text-sm text-muted">
-                  Session public ID: {detail.session.session_public_id}
+                  Session reference: {detail.session.session_public_id}
                 </p>
               </div>
               <CopyButton value={detail.session.session_public_id} />
@@ -578,6 +596,10 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
               detail={detail}
               onCloseAttempt={handleCloseAttempt}
               onAutomationAction={handleAutomationAction}
+              onAttemptChanged={() => {
+                void loadCore();
+                void loadProcessEvents();
+              }}
             />
           ) : null}
           {["item_responses", "formative_conversation"].includes(activeTab) ? <ReviewResourceStatus resource={itemResource} /> : null}
@@ -663,7 +685,7 @@ function formativeOutcomeLabel(
     return "Largely improved";
   }
   if (outcome === "teacher_assistance_recommended") {
-    return "Teacher assistance recommended";
+    return "Instructor assistance recommended";
   }
   return "No validated profile change yet";
 }
@@ -1126,7 +1148,7 @@ export function FormativeConversationEvidenceSection({
                   <p className="mt-1 text-sm leading-6 text-ink">
                     {conversation.learning_outcome ===
                     "teacher_assistance_recommended"
-                      ? "The latest validated profile transition recommends further teacher support."
+                      ? "The latest profile update during the conversation recommends instructor assistance."
                       : latestTransition
                         ? "No teacher-assistance recommendation is recorded in the latest validated transition."
                         : "No validated teacher-attention recommendation yet."}
@@ -1290,13 +1312,15 @@ export function Overview({
   automationAction,
   detail,
   onCloseAttempt,
-  onAutomationAction
+  onAutomationAction,
+  onAttemptChanged
 }: {
   attemptAction: { error: StructuredApiError | null; status: string | null } | null;
   automationAction: { action: string; error: StructuredApiError | null; status: string | null } | null;
   detail: SessionDetailResponse;
   onCloseAttempt: () => void;
   onAutomationAction: (action: "pause" | "resume" | "retry" | "stop_followup") => void;
+  onAttemptChanged?: () => void;
 }) {
   const formativeConversation =
     detail.formative_conversations.find(
@@ -1314,10 +1338,10 @@ export function Overview({
   return (
     <section className="space-y-5">
       <div className="grid gap-3 md:grid-cols-3">
-        <Fact labelText="Student user_id" value={detail.student.user_id} />
+        <Fact labelText="Student user ID" value={detail.student.user_id} />
         <Fact labelText="Assessment" value={detail.assessment.title} />
         <Fact
-          labelText="Assessment public ID"
+          labelText="Assessment reference"
           value={
             <div className="flex flex-wrap items-center gap-2">
               <span>{detail.assessment.assessment_public_id}</span>
@@ -1346,11 +1370,7 @@ export function Overview({
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
         <Fact
           labelText="Response collection"
-          value={
-            detail.session.response_collection_mode_snapshot === "llm_assisted"
-              ? "LLM-assisted conversation"
-              : "Deterministic collection"
-          }
+          value={label(detail.session.response_collection_mode_snapshot)}
         />
         <Fact
           labelText="Needs review"
@@ -1358,7 +1378,7 @@ export function Overview({
             detail.session.needs_review ? (
               <div>
                 <StatusPill value="needs_review" tone="bad" />
-                <p className="mt-2 text-xs text-muted">{detail.session.needs_review_reason}</p>
+                <p className="mt-2 text-xs text-muted">{plainReviewReason(detail.session.needs_review_reason)}</p>
               </div>
             ) : (
               <StatusPill value="not_flagged" tone="good" />
@@ -1403,7 +1423,7 @@ export function Overview({
             This attempt is already terminal and cannot be closed again.
           </p>
         ) : null}
-        <RestoreAttemptChance sessionPublicId={detail.session.session_public_id} />
+        <RestoreAttemptChance sessionPublicId={detail.session.session_public_id} onRestored={onAttemptChanged} />
         {attemptAction?.error ? (
           <div className="mt-4">
             <ErrorState error={attemptAction.error} />
@@ -1437,7 +1457,7 @@ export function Overview({
         </div>
         {detail.automation.automation_exception_reason ? (
           <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            {detail.automation.automation_exception_reason}
+            {plainReviewReason(detail.automation.automation_exception_reason)}
           </p>
         ) : null}
         <div className="mt-4 flex flex-wrap gap-2">
@@ -1499,9 +1519,9 @@ export function Overview({
         ) : null}
         <div className="mt-5 grid gap-3 lg:grid-cols-2">
           <div>
-            <h4 className="text-sm font-semibold text-ink">Workflow jobs</h4>
+            <h4 className="text-sm font-semibold text-ink">Background steps (newest first)</h4>
             {detail.automation.workflow_jobs.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No workflow jobs recorded.</p>
+              <p className="mt-2 text-sm text-muted">No background steps recorded.</p>
             ) : (
               <div className="mt-2 space-y-2">
                 {detail.automation.workflow_jobs.map((job) => (
@@ -1514,9 +1534,10 @@ export function Overview({
                       Attempts {job.attempt_count} / {job.max_attempts} · Run after {formatDate(job.run_after)}
                     </p>
                     {job.last_error_category ? (
-                      <p className="mt-1 text-xs text-muted">
-                        {job.last_error_category}: {job.last_error_message}
-                      </p>
+                      <details className="mt-1 text-xs text-muted">
+                        <summary className="cursor-pointer font-semibold">Technical details</summary>
+                        <p className="mt-1 break-words">{job.last_error_category}: {job.last_error_message}</p>
+                      </details>
                     ) : null}
                   </div>
                 ))}
@@ -1524,9 +1545,9 @@ export function Overview({
             )}
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-ink">Overrides</h4>
+            <h4 className="text-sm font-semibold text-ink">Instructor actions</h4>
             {detail.automation.workflow_overrides.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No teacher overrides recorded.</p>
+              <p className="mt-2 text-sm text-muted">No instructor actions recorded.</p>
             ) : (
               <div className="mt-2 space-y-2">
                 {detail.automation.workflow_overrides.map((override) => (
@@ -1974,9 +1995,14 @@ function ProcessEventsSection({
       </section>
 
       {error ? <ErrorState error={error} /> : null}
-      {loading ? <LoadingState label="Loading assessment log" /> : null}
+      {loading && !data ? <LoadingState label="Loading assessment log" /> : null}
+      {loading && data ? (
+        <p className="flex items-center gap-2 text-sm text-muted" role="status">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Updating...
+        </p>
+      ) : null}
 
-      {data && !loading && !error ? (
+      {data && !error ? (
         <>
           <details className="border-b border-line pb-4"><summary className="cursor-pointer text-sm font-semibold">Technical event counts</summary><div className="mt-3 grid gap-3 md:grid-cols-4">
             {[

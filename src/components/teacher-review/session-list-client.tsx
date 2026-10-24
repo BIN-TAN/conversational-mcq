@@ -1,55 +1,38 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { teacherPhaseLabel } from "@/lib/teacher-session-labels";
-import { ArrowUpDown, Eye, Search } from "lucide-react";
+import { ArrowUpDown, Eye, Loader2, Search } from "lucide-react";
 import { errorFromUnknown, fetchTeacherSessions } from "./api";
 import type { SessionListResponse, StructuredApiError } from "./types";
 import { SessionBatchDeletionControl } from "./session-batch-deletion-control";
-import { EmptyState, ErrorState, formatDate, LoadingState, StatusPill } from "./ui";
+import {
+  DEFAULT_SESSION_LIST_FILTERS,
+  hasActiveSessionListFilters,
+  parseSessionListQuery,
+  serializeSessionListQuery,
+  SESSION_LIST_PAGE_SIZES,
+  SESSION_LIST_PHASES,
+  SESSION_LIST_STATUSES,
+  storeSessionListQuery,
+  type SessionListFilters,
+  type SessionListSortField
+} from "./session-list-query";
+import { EmptyState, ErrorState, formatDate, label, LoadingState, plainReviewReason, StatusPill } from "./ui";
 
-const statuses = ["not_started", "active", "paused", "completed", "student_exited", "needs_review"];
-const phases = [
-  "not_started",
-  "session_started",
-  "concept_unit_intro",
-  "initial_item_administration",
-  "missing_evidence_repair",
-  "initial_concept_unit_completed",
-  "profiling_pending",
-  "profiling_completed",
-  "planning_pending",
-  "planning_completed",
-  "followup_active",
-  "followup_profile_update_pending",
-  "followup_planning_update_pending",
-  "followup_stopped",
-  "between_concept_units",
-  "session_completed",
-  "student_exited",
-  "needs_review"
-];
+const SEARCH_DEBOUNCE_MS = 300;
 
-type SortField = "started_at" | "last_activity_at" | "completed_at";
+type SortField = SessionListSortField;
+type AssessmentOption = { assessment_public_id: string; title: string };
 
 function canDeleteSession(status: string) {
   return status === "completed" || status === "student_exited";
 }
 
-function cleanParams(filters: {
-  search: string;
-  assessment_public_id: string;
-  status: string;
-  phase: string;
-  needs_review: string;
-  sort: SortField;
-  direction: "asc" | "desc";
-  page: number;
-  page_size: number;
-}) {
+function cleanParams(filters: SessionListFilters, includeFilterOptions: boolean) {
   return {
-    search: filters.search,
+    search: filters.search.trim(),
     assessment_public_id: filters.assessment_public_id,
     status: filters.status,
     phase: filters.phase,
@@ -58,47 +41,90 @@ function cleanParams(filters: {
     sort: filters.sort,
     direction: filters.direction,
     page: filters.page,
-    page_size: filters.page_size
+    page_size: filters.page_size,
+    // The assessment options are loaded with the first request only.
+    include_filters: includeFilterOptions ? undefined : false
   };
 }
 
 export function TeacherSessionListClient() {
-  const [filters, setFilters] = useState({
-    search: "",
-    assessment_public_id: "",
-    status: "",
-    phase: "",
-    needs_review: "",
-    sort: "last_activity_at" as SortField,
-    direction: "desc" as "asc" | "desc",
-    page: 1,
-    page_size: 25
-  });
+  const [filters, setFilters] = useState<SessionListFilters>(DEFAULT_SESSION_LIST_FILTERS);
+  const [searchInput, setSearchInput] = useState("");
+  // Filters are read from the URL on mount before the first request.
+  const [ready, setReady] = useState(false);
   const [data, setData] = useState<SessionListResponse | null>(null);
+  const [assessmentOptions, setAssessmentOptions] = useState<AssessmentOption[] | null>(null);
   const [error, setError] = useState<StructuredApiError | null>(null);
   const [loading, setLoading] = useState(true);
   const [success, setSuccess] = useState<string | null>(null);
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const activeRequest = useRef<AbortController | null>(null);
+  const optionsLoaded = useRef(false);
+
+  useEffect(() => {
+    const initial = parseSessionListQuery(window.location.search);
+    setFilters(initial);
+    setSearchInput(initial.search);
+    setReady(true);
+  }, []);
 
   const load = useCallback(async () => {
+    activeRequest.current?.abort();
+    const controller = new AbortController();
+    activeRequest.current = controller;
     setLoading(true);
     setError(null);
 
     try {
-      const result = await fetchTeacherSessions(cleanParams(filters));
+      const result = await fetchTeacherSessions(cleanParams(filters, !optionsLoaded.current), controller.signal);
+      if (controller.signal.aborted) return;
+      if (result.filters) {
+        optionsLoaded.current = true;
+        setAssessmentOptions(result.filters.assessments);
+      }
       setData(result);
     } catch (requestError) {
+      if (controller.signal.aborted) return;
       setError(errorFromUnknown(requestError));
     } finally {
-      setLoading(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setLoading(false);
+      }
     }
   }, [filters]);
 
   useEffect(() => {
+    if (!ready) return;
     void load();
-  }, [load]);
+  }, [load, ready]);
 
-  function updateFilter(key: keyof typeof filters, value: string | number) {
+  useEffect(() => () => activeRequest.current?.abort(), []);
+
+  // Keep the list state in the address so a reload or "Back to sessions" shows the same list.
+  useEffect(() => {
+    if (!ready) return;
+    const query = serializeSessionListQuery(filters);
+    storeSessionListQuery(query);
+    try {
+      window.history.replaceState(window.history.state, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+    } catch {
+      // Some embedded browsers refuse history changes; the list still works.
+    }
+  }, [filters, ready]);
+
+  // Search waits until typing pauses.
+  useEffect(() => {
+    if (!ready || searchInput === filters.search) return;
+    const timer = window.setTimeout(() => {
+      setSelectedSessionIds(new Set());
+      setSuccess(null);
+      setFilters((current) => ({ ...current, search: searchInput, page: 1 }));
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, filters.search, ready]);
+
+  function updateFilter(key: keyof SessionListFilters, value: string | number) {
     setSelectedSessionIds(new Set());
     setSuccess(null);
     setFilters((current) => ({
@@ -118,6 +144,11 @@ export function TeacherSessionListClient() {
         current.sort === field && current.direction === "desc" ? "asc" : "desc",
       page: 1
     }));
+  }
+
+  function ariaSort(field: SortField) {
+    if (filters.sort !== field) return "none" as const;
+    return filters.direction === "asc" ? "ascending" as const : "descending" as const;
   }
 
   const deletablePageSessionIds = useMemo(
@@ -159,14 +190,15 @@ export function TeacherSessionListClient() {
       <section className="rounded-lg border border-line bg-white p-4 shadow-soft">
         <div className="grid gap-3 md:grid-cols-5">
           <label className="flex flex-col gap-2 text-sm font-medium text-ink md:col-span-2">
-            Student user_id
+            Student user ID or name
             <div className="flex items-center rounded-md border border-line bg-white px-3">
               <Search className="h-4 w-4 text-muted" aria-hidden="true" />
               <input
                 className="h-10 min-w-0 flex-1 border-0 bg-transparent px-2 text-sm outline-none"
-                onChange={(event) => updateFilter("search", event.target.value)}
-                placeholder="Search by user_id"
-                value={filters.search}
+                onChange={(event) => setSearchInput(event.target.value)}
+                placeholder="Search by student ID or name"
+                type="search"
+                value={searchInput}
               />
             </div>
           </label>
@@ -178,7 +210,7 @@ export function TeacherSessionListClient() {
               value={filters.assessment_public_id}
             >
               <option value="">All assessments</option>
-              {data?.filters.assessments.map((assessment) => (
+              {(assessmentOptions ?? []).map((assessment) => (
                 <option
                   key={assessment.assessment_public_id}
                   value={assessment.assessment_public_id}
@@ -196,9 +228,9 @@ export function TeacherSessionListClient() {
               value={filters.status}
             >
               <option value="">All statuses</option>
-              {statuses.map((status) => (
+              {SESSION_LIST_STATUSES.map((status) => (
                 <option key={status} value={status}>
-                  {status.replace(/_/g, " ")}
+                  {label(status)}
                 </option>
               ))}
             </select>
@@ -211,7 +243,7 @@ export function TeacherSessionListClient() {
               value={filters.phase}
             >
               <option value="">All phases</option>
-              {phases.map((phase) => (
+              {SESSION_LIST_PHASES.map((phase) => (
                 <option key={phase} value={phase}>
                   {teacherPhaseLabel(phase)}
                 </option>
@@ -239,7 +271,7 @@ export function TeacherSessionListClient() {
               onChange={(event) => updateFilter("page_size", Number(event.target.value))}
               value={filters.page_size}
             >
-              {[10, 25, 50, 100].map((size) => (
+              {SESSION_LIST_PAGE_SIZES.map((size) => (
                 <option key={size} value={size}>
                   {size}
                 </option>
@@ -255,16 +287,24 @@ export function TeacherSessionListClient() {
           {success}
         </p>
       ) : null}
-      {loading ? <LoadingState label="Loading student sessions" /> : null}
+      {loading && !data ? <LoadingState label="Loading student sessions" /> : null}
+      <p aria-live="polite" className={loading && data ? "flex items-center gap-2 text-sm text-muted" : "sr-only"}>
+        {loading && data ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Updating the list...</> : ""}
+      </p>
 
-      {!loading && data && data.sessions.length === 0 ? (
-        <EmptyState title="No sessions found">
-          Change the filters or create a development review fixture with
-          <code className="mx-1 rounded bg-slate-100 px-1">npm run demo:teacher-review</code>.
-        </EmptyState>
+      {data && data.sessions.length === 0 ? (
+        hasActiveSessionListFilters(filters) ? (
+          <EmptyState title="No sessions match these filters">
+            Change or clear the search and filters to see more sessions.
+          </EmptyState>
+        ) : (
+          <EmptyState title="No sessions yet">
+            Student sessions appear here once students start a mini test.
+          </EmptyState>
+        )
       ) : null}
 
-      {!loading && data && data.sessions.length > 0 ? (
+      {data && data.sessions.length > 0 ? (
         <section className="overflow-hidden rounded-lg border border-line bg-white shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3">
             <div>
@@ -318,7 +358,7 @@ export function TeacherSessionListClient() {
                   <th className="px-4 py-3">Phase</th>
                   <th className="px-4 py-3">Automation</th>
                   <th className="px-4 py-3">Topics with questions submitted</th>
-                  <th className="px-4 py-3">
+                  <th className="px-4 py-3" aria-sort={ariaSort("last_activity_at")}>
                     <button
                       className="inline-flex items-center gap-1 font-semibold"
                       onClick={() => sortBy("last_activity_at")}
@@ -328,7 +368,7 @@ export function TeacherSessionListClient() {
                       <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </th>
-                  <th className="px-4 py-3">
+                  <th className="px-4 py-3" aria-sort={ariaSort("completed_at")}>
                     <button
                       className="inline-flex items-center gap-1 font-semibold"
                       onClick={() => sortBy("completed_at")}
@@ -368,7 +408,6 @@ export function TeacherSessionListClient() {
                     </td>
                     <td className="px-4 py-3">
                       <p className="max-w-64 font-medium text-ink">{session.assessment_title}</p>
-                      <p className="mt-1 text-xs text-muted">{session.assessment_public_id}</p>
                     </td>
                     <td className="px-4 py-3">{session.attempt_number}</td>
                     <td className="px-4 py-3">
@@ -383,14 +422,11 @@ export function TeacherSessionListClient() {
                         {session.workflow_mode_snapshot === "automatic" ? "Automatic" : "Manual review"}
                       </p>
                       <p className="mt-1 text-xs text-muted">
-                        Response collection:{" "}
-                        {session.response_collection_mode_snapshot === "llm_assisted"
-                          ? "LLM-assisted"
-                          : "Deterministic"}
+                        Answers: {label(session.response_collection_mode_snapshot)}
                       </p>
                       {session.failed_workflow_job_count > 0 || session.pending_workflow_job_count > 0 ? (
                         <p className="mt-1 text-xs text-muted">
-                          {session.pending_workflow_job_count} pending, {session.failed_workflow_job_count} failed
+                          Background steps: {session.pending_workflow_job_count} waiting, {session.failed_workflow_job_count} failed
                         </p>
                       ) : null}
                     </td>
@@ -420,7 +456,7 @@ export function TeacherSessionListClient() {
                         <div>
                           <StatusPill value="needs_review" tone="bad" />
                           <p className="mt-1 max-w-48 text-xs text-muted">
-                            {session.needs_review_reason}
+                            {plainReviewReason(session.needs_review_reason)}
                           </p>
                         </div>
                       ) : (

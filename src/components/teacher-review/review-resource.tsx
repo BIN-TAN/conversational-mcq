@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { errorFromUnknown } from "./api";
 import type { StructuredApiError } from "./types";
 import { ErrorState, LoadingState } from "./ui";
@@ -19,15 +19,24 @@ export function useReviewResource<T>(sessionPublicId: string, revision: number, 
     );
     return () => { current = false; };
   }, [enabled, key, loadedKey, load, sessionPublicId]);
+  // While a newer revision of the same session loads, the previous data stays on screen.
+  const stale = state !== null && state.key !== key && state.key.startsWith(`${sessionPublicId}:`) && state.data !== null;
+  const loading = enabled && loadedKey !== key;
   return {
-    data: state?.key === key ? state.data : null,
+    data: state?.key === key ? state.data : stale ? state.data : null,
     error: state?.key === key ? state.error : null,
-    loading: enabled && loadedKey !== key,
+    loading,
+    refreshing: loading && stale,
     retry: () => setState(null)
   };
 }
 
-export function ReviewResourceStatus({ resource }: { resource: { loading: boolean; error: StructuredApiError | null; retry: () => void } }) {
+export function ReviewResourceStatus({ resource }: { resource: { loading: boolean; refreshing?: boolean; error: StructuredApiError | null; retry: () => void } }) {
+  if (resource.refreshing) {
+    return <p className="flex items-center gap-2 text-sm text-muted" role="status">
+      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />Updating...
+    </p>;
+  }
   if (resource.loading) return <LoadingState />;
   if (!resource.error) return null;
   return <div className="space-y-3" role="alert">

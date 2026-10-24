@@ -5,6 +5,7 @@ import { ContentServiceError } from "@/lib/services/content/errors";
 import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
+import { sortStudentsToFollowUp, type StudentFollowUpRow } from "./follow-up";
 import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
 import { loadItemReviewDecisionsForAssessment } from "@/lib/services/item-review/service";
 import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
@@ -18,6 +19,8 @@ import {
   type V8AttemptGroupSummary,
   type V8StudentEntry
 } from "./interpretation-v8-summary";
+
+export type { StudentFollowUpRow } from "./follow-up";
 
 export const TEACHER_ASSESSMENT_DASHBOARD_VERSION = "teacher-assessment-dashboard-v3" as const;
 
@@ -74,6 +77,7 @@ const dashboardAssessmentSelect = {
           item_order: true,
           item_stem: true,
           options: true,
+          correct_option: true,
           administration_rules: true,
           included_in_published_set: true,
           status: true,
@@ -136,13 +140,17 @@ const dashboardSessionSelect = {
         },
         orderBy: [{ item: { item_order: "asc" } }, { created_at: "asc" }]
       },
+      // Only the earliest initial response package of each topic is read (by observeAttempts),
+      // so only that one is loaded, as loadAttemptObservations does.
       response_packages: {
+        where: { package_type: "initial_concept_unit_response_package" },
         select: {
           package_type: true,
           payload: true,
           created_at: true
         },
-        orderBy: [{ created_at: "desc" }]
+        orderBy: [{ created_at: "asc" }],
+        take: 1
       },
       latest_student_profile: { include: learningProfileInclude }
     }
@@ -190,6 +198,12 @@ export type TeacherAssessmentDashboard = {
   time_indicator: TimeIndicator;
   item_diagnostics: ItemDiagnosticSummary[];
   candidate_misconception_patterns: CandidateMisconceptionPattern[];
+  /**
+   * One row per student with an attempt, from values computed above for the overview charts
+   * (initial and latest understanding, conversation update, review flag). Sorted with the
+   * students who most need follow-up first. Not exported; no new measure.
+   */
+  students_to_follow_up: StudentFollowUpRow[];
   /** Interpretation v8 profiles in this mini test; null when there are none. */
   interpretation_v8: {
     version: string;
@@ -269,6 +283,10 @@ export type ItemDiagnosticSummary = {
   item_version: number | null;
   item_order: number;
   item_stem_preview: string;
+  /** Full item wording (the preview above is shortened). */
+  item_stem: string;
+  /** Answer key of the administered item, when recorded; marks the key in option_distribution. */
+  correct_option: string | null;
   response_count: number;
   correct_count: number;
   incorrect_count: number;
@@ -308,6 +326,7 @@ type ItemAccumulator = {
   item_order: number;
   item_stem: string;
   options: unknown;
+  correct_option: string | null;
   administration_rules: unknown;
   responses: CanonicalResponse[];
 };
@@ -655,6 +674,7 @@ function buildItemDiagnostics(items: DashboardItem[], responses: CanonicalRespon
       item_order: item.item_order,
       item_stem: item.item_stem,
       options: item.options,
+      correct_option: item.correct_option,
       administration_rules: item.administration_rules,
       responses: []
     });
@@ -671,6 +691,7 @@ function buildItemDiagnostics(items: DashboardItem[], responses: CanonicalRespon
       item_order: responseItemOrder(response),
       item_stem: responseItemStem(response),
       options: responseItemOptions(response),
+      correct_option: null,
       administration_rules: null,
       responses: []
     };
@@ -708,6 +729,9 @@ function buildItemDiagnostics(items: DashboardItem[], responses: CanonicalRespon
       item_version: entry.item_version,
       item_order: entry.item_order,
       item_stem_preview: itemStemPreview(entry.item_stem),
+      item_stem: entry.item_stem,
+      // The key the responses were scored against; the current key when nobody has answered.
+      correct_option: responses.find((response) => response.correct_option_snapshot)?.correct_option_snapshot ?? entry.correct_option,
       response_count: responses.length,
       correct_count: correct,
       incorrect_count: incorrect,
@@ -1114,6 +1138,7 @@ export async function getTeacherAssessmentDashboard(input: {
       },
       item_diagnostics: [],
       candidate_misconception_patterns: [],
+      students_to_follow_up: [],
       interpretation_v8: null,
       export_links: { dashboard_csv: null, assessment_summary_csv: null, detailed_process_bundle: null },
       notes: [
@@ -1160,6 +1185,7 @@ export async function getTeacherAssessmentDashboard(input: {
     ...assessment,
     concept_units: assessment.concept_units.filter(concept => concept.items.some(item => item.included_in_published_set))
   } })), chanceRecords);
+  const sessionByPublicId = new Map(sessions.map(session => [session.session_public_id, session]));
   const selected = selectSubmittedAttempts(observations, "latest");
   const submittedByStudent = new Map(selected.map(row => [row.student_key, row]));
   // First submitted (non-waived) attempt per student, in attempt order: the initial diagnosis,
@@ -1177,7 +1203,7 @@ export async function getTeacherAssessmentDashboard(input: {
   // The sealed initial submission of the chosen attempt (responses before any feedback).
   const sealedAttempts = (chosen: ReadonlyMap<string, (typeof observations)[number]>) => attempts.map(attempt => {
     const observation = chosen.get(attempt.student_key);
-    const source = observation && sessions.find(session => session.session_public_id === observation.session_public_id);
+    const source = observation && sessionByPublicId.get(observation.session_public_id);
     if (!source || !observation) return { student_key: attempt.student_key, session: null };
     const sealed = new Map(observation.items.map(item => [item.item_public_id, item]));
     return { student_key: attempt.student_key, session: { ...source, concept_unit_sessions: source.concept_unit_sessions.map(concept => ({
@@ -1213,7 +1239,7 @@ export async function getTeacherAssessmentDashboard(input: {
   );
   const initialUnderstandingValues = attempts.map((attempt) => {
     const first = firstSubmittedByStudent.get(attempt.student_key);
-    const source = first && sessions.find(session => session.session_public_id === first.session_public_id);
+    const source = first && sessionByPublicId.get(first.session_public_id);
     return source ? understandingCategoryFromProfile(miniTestProfile(source), itemDecisions) : "Unavailable / insufficient evidence";
   });
   const studentsWithLaterAttempt = attempts.filter((attempt) => {
@@ -1358,6 +1384,17 @@ export async function getTeacherAssessmentDashboard(input: {
     time_indicator: timeIndicator,
     item_diagnostics: buildItemDiagnostics(items, responses),
     candidate_misconception_patterns: buildCandidatePatterns(responses),
+    students_to_follow_up: sortStudentsToFollowUp(attempts.flatMap((attempt, index) => attempt.session ? [{
+      student_user_id: attempt.student_key,
+      student_name: attempt.session.user.display_name?.trim() || attempt.student_key,
+      session_public_id: attempt.session.session_public_id,
+      attempt_number: attempt.session.attempt_number,
+      initial_understanding: initialUnderstandingValues[index],
+      latest_understanding: understandingValues[index],
+      conversation_update: conversationUpdates[index]?.conversation_profile_update ?? "No profile update",
+      needs_review: Boolean(attempt.session.needs_review || attempt.session.status === "needs_review"),
+      needs_review_reason: attempt.session.needs_review_reason
+    }] : [])),
     interpretation_v8: interpretationV8,
     export_links: {
       dashboard_csv: `/api/teacher/dashboard/export?assessment_public_id=${encodeURIComponent(assessment.assessment_public_id)}`,

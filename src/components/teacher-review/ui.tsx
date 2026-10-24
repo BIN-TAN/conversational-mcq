@@ -2,7 +2,10 @@
 
 import type { ReactNode } from "react";
 import { AlertTriangle, Clipboard, Loader2 } from "lucide-react";
+import { plainLabel } from "@/lib/teacher-plain-labels";
 import type { StructuredApiError } from "./types";
+
+export { plainLabel, plainReviewReason } from "@/lib/teacher-plain-labels";
 
 export function formatDate(value?: string | null, includeSeconds = false) {
   if (!value) {
@@ -31,8 +34,9 @@ export function formatDuration(value?: number | null) {
   return `${minutes} min ${seconds} sec`;
 }
 
+/** Plain label for a stored code (see TEACHER_PLAIN_LABELS). */
 export function label(value: string) {
-  return value.replace(/_/g, " ");
+  return plainLabel(value);
 }
 
 export function StatusPill({ value, tone = "neutral" }: { value: string; tone?: "neutral" | "good" | "warn" | "bad" }) {
@@ -70,13 +74,18 @@ export function ErrorState({ error }: { error: StructuredApiError }) {
     <section className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900">
       <div className="flex gap-2">
         <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-        <div>
-          <p className="font-semibold">{error.message}</p>
-          <p className="mt-1 text-xs uppercase tracking-wide text-red-700">{error.code}</p>
-          {error.details ? (
-            <pre className="mt-3 max-h-64 overflow-auto rounded-md bg-white p-3 text-xs">
-              {JSON.stringify(error.details, null, 2)}
-            </pre>
+        <div className="min-w-0">
+          <p className="font-semibold">{error.message || "Something went wrong and the request was not completed. Try again in a moment."}</p>
+          {error.code || error.details ? (
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs font-semibold text-red-800">Technical details</summary>
+              {error.code ? <p className="mt-2 break-words text-xs text-red-800">Error code: {error.code}</p> : null}
+              {error.details ? (
+                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words rounded-md bg-white p-3 text-xs">
+                  {JSON.stringify(error.details, null, 2)}
+                </pre>
+              ) : null}
+            </details>
           ) : null}
         </div>
       </div>

@@ -38,9 +38,10 @@ function queryString(params: Record<string, string | number | boolean | undefine
   return query ? `?${query}` : "";
 }
 
-export function fetchTeacherSessions(params: Record<string, string | number | boolean | undefined>) {
+export function fetchTeacherSessions(params: Record<string, string | number | boolean | undefined>, signal?: AbortSignal) {
   return apiRequest<SessionListResponse>(`/api/teacher/sessions${queryString(params)}`, {
-    method: "GET"
+    method: "GET",
+    signal
   });
 }
 

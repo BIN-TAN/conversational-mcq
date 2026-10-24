@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { plainReviewReason } from "@/lib/teacher-plain-labels";
 import { AttemptComparisonPanel } from "./attempt-comparison-panel";
 import { InstructorReportPanel } from "./instructor-report-panel";
 import { InterpretationV8Panel } from "./interpretation-v8-panel";
@@ -10,8 +12,11 @@ import type {
   CandidateMisconceptionPattern,
   ChartDatum,
   ItemDiagnosticSummary,
+  StudentFollowUpRow,
   TeacherAssessmentDashboard
 } from "@/lib/services/teacher-dashboard/assessment-dashboard";
+import { followUpPriority } from "@/lib/services/teacher-dashboard/follow-up";
+
 
 type DashboardResponse = {
   dashboard: TeacherAssessmentDashboard;
@@ -164,20 +169,42 @@ function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDa
   );
 }
 
+/** Option counts with the answer key marked. Labels such as "B (not in administered option set)" stay as computed. */
+export function optionDistributionWithKey(item: Pick<ItemDiagnosticSummary, "option_distribution" | "correct_option">): ChartDatum[] {
+  return item.option_distribution.map((entry) => ({
+    ...entry,
+    label: item.correct_option && entry.label === item.correct_option ? `${entry.label} (answer key)` : entry.label
+  }));
+}
+
 function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
+  const stemShortened = item.item_stem.replace(/\s+/g, " ").trim() !== item.item_stem_preview;
   return (
     <article className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+        <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Question {item.item_order}</p>
-          <h3 className="mt-1 max-w-3xl text-base font-semibold leading-6 text-ink">
+          <h3 className="mt-1 max-w-3xl break-words text-base font-semibold leading-6 text-ink">
             {item.item_stem_preview}
           </h3>
+          {stemShortened ? (
+            <details className="mt-2 max-w-3xl text-sm">
+              <summary className="cursor-pointer font-semibold text-accent">Show the full question</summary>
+              <p className="mt-2 whitespace-pre-wrap break-words leading-6 text-ink">{item.item_stem}</p>
+            </details>
+          ) : null}
         </div>
+        <Link
+          className="inline-flex h-9 w-fit shrink-0 items-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:border-accent"
+          href={`/teacher/content/items/${encodeURIComponent(item.item_public_id)}`}
+        >
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+          Open question {item.item_order}
+        </Link>
       </div>
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+      <div className="mt-5 grid gap-5 lg:grid-cols-3">
         {item.response_count === 0 ? (
-          <div className="rounded-md border border-dashed border-line bg-slate-50 p-4 text-sm text-muted lg:col-span-2">
+          <div className="rounded-md border border-dashed border-line bg-slate-50 p-4 text-sm text-muted lg:col-span-3">
             No initial responses to this item yet.
           </div>
         ) : (
@@ -189,6 +216,16 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
                   data={item.correctness_distribution}
                   tone="green"
                   ariaLabel={`Question ${item.item_order} correct and incorrect initial responses`}
+                />
+              </div>
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-ink">Answers chosen</h4>
+              <div className="mt-3">
+                <BarChart
+                  data={optionDistributionWithKey(item)}
+                  tone="slate"
+                  ariaLabel={`Question ${item.item_order} answers chosen`}
                 />
               </div>
             </div>
@@ -209,13 +246,20 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
   );
 }
 
-function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPattern[] }) {
+export function candidatePatternRuleText(threshold: number) {
+  return `Shown when at least ${threshold} students chose this wrong answer with medium or high confidence and gave the same reasoning.`;
+}
+
+const CANDIDATE_PATTERN_GROUPING_TEXT =
+  "Reasons count as the same when their words match after ignoring capitalization, punctuation and openings such as \"I think\" or \"because\"; very short reasons are not grouped. Each student's first submitted attempt is counted once.";
+
+function CandidatePatterns({ patterns, threshold }: { patterns: CandidateMisconceptionPattern[]; threshold: number }) {
   if (patterns.length === 0) {
     return (
       <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
         <h2 className="text-lg font-semibold text-ualberta-green-dark">Candidate misconception patterns</h2>
         <p className="mt-2 text-sm leading-6 text-muted">
-          No repeated wrong-option, medium/high-confidence response patterns met the conservative unique-student threshold yet.
+          No wrong answer has yet been chosen by at least {threshold} students with medium or high confidence and the same reasoning.
         </p>
       </section>
     );
@@ -225,8 +269,8 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
     <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <h2 className="text-lg font-semibold text-ualberta-green-dark">Candidate misconception patterns</h2>
       <p className="mt-2 max-w-3xl text-sm leading-6 text-muted">
-        These are deterministic candidate patterns in students&apos; initial responses, for teacher review only. They are
-        not confirmed misconceptions and were not generated by an LLM.
+        Wrong answers that several students chose for the same reason in their first submitted attempt. They are
+        possible misconceptions for you to review, not confirmed ones, found by matching students&apos; answers and reasons.
       </p>
       <div className="mt-4 space-y-4">
         {patterns.map((pattern) => (
@@ -240,7 +284,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
                   Chosen by {pattern.unique_student_count} students with the same reasoning. {pattern.confidence_summary}.
                 </p>
                 <p className="mt-1 text-xs text-muted">
-                  Shown when at least {pattern.threshold_unique_student_count} students choose this option.
+                  {candidatePatternRuleText(pattern.threshold_unique_student_count)}
                 </p>
               </div>
               <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
@@ -248,7 +292,7 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
               </span>
             </div>
             <p className="mt-3 text-sm leading-6 text-ink">
-              Reasoning pattern: {pattern.reasoning_group_label}
+              Shared reasoning: {pattern.reasoning_group_label}
             </p>
             {pattern.representative_reasoning_snippets.length > 0 ? (
               <ul className="mt-3 space-y-2 text-sm leading-6 text-muted">
@@ -259,19 +303,81 @@ function CandidatePatterns({ patterns }: { patterns: CandidateMisconceptionPatte
                 ))}
               </ul>
             ) : null}
-            <p className="mt-3 text-xs leading-5 text-muted">
-              {pattern.review_note} Grouping: {pattern.reasoning_grouping_method}.
-            </p>
-            {pattern.limitations.length > 0 ? (
-              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs leading-5 text-muted">
-                {pattern.limitations.map((limitation) => (
-                  <li key={limitation}>{limitation}</li>
-                ))}
-              </ul>
-            ) : null}
+            <p className="mt-3 text-xs leading-5 text-muted">{CANDIDATE_PATTERN_GROUPING_TEXT}</p>
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+function understandingTone(value: string) {
+  if (value === "Need more work") return "text-red-800 font-semibold";
+  if (value === "Mostly understood") return "text-emerald-800";
+  return "text-ink";
+}
+
+function StudentsToFollowUp({ rows }: { rows: StudentFollowUpRow[] }) {
+  const [showAll, setShowAll] = useState(false);
+  if (rows.length === 0) return null;
+  const priorityCount = rows.filter((row) => followUpPriority(row) < 2).length;
+  const visible = showAll || priorityCount === 0 ? rows : rows.slice(0, priorityCount);
+  return (
+    <section className="rounded-lg border border-border-light bg-white p-5 shadow-soft" aria-labelledby="students-to-follow-up">
+      <h2 id="students-to-follow-up" className="text-lg font-semibold text-ualberta-green-dark">Students to follow up</h2>
+      <p className="mt-1 max-w-3xl text-sm leading-6 text-muted">
+        Students whose latest result is Need more work, or whose learning conversation recommended instructor
+        assistance, are listed first, then students flagged for review.
+        {priorityCount === 0 ? " No student needs follow-up right now." : ""}
+      </p>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-[640px] w-full text-left text-sm">
+          <caption className="sr-only">Students to follow up, most urgent first</caption>
+          <thead className="border-b border-line text-xs uppercase tracking-wide text-muted">
+            <tr>
+              <th scope="col" className="py-2 pr-3">Student</th>
+              <th scope="col" className="py-2 pr-3">Initial understanding</th>
+              <th scope="col" className="py-2 pr-3">Latest understanding</th>
+              <th scope="col" className="py-2 pr-3">Learning conversation</th>
+              <th scope="col" className="py-2 pr-3">Review</th>
+              <th scope="col" className="py-2"><span className="sr-only">Session</span></th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {visible.map((row) => (
+              <tr key={row.session_public_id} className="align-top">
+                <th scope="row" className="py-2 pr-3 font-semibold text-ink">
+                  <span className="block break-words">{row.student_name}</span>
+                  {row.student_name !== row.student_user_id ? <span className="block text-xs font-normal text-muted">{row.student_user_id}</span> : null}
+                  <span className="block text-xs font-normal text-muted">Attempt {row.attempt_number}</span>
+                </th>
+                <td className={`py-2 pr-3 ${understandingTone(row.initial_understanding)}`}>{row.initial_understanding}</td>
+                <td className={`py-2 pr-3 ${understandingTone(row.latest_understanding)}`}>{row.latest_understanding}</td>
+                <td className={`py-2 pr-3 ${row.conversation_update === "Instructor assistance recommended" ? "font-semibold text-amber-900" : "text-ink"}`}>{row.conversation_update}</td>
+                <td className="py-2 pr-3 text-ink">
+                  {row.needs_review ? (
+                    <>
+                      <span className="font-semibold text-red-800">Flagged for review</span>
+                      {plainReviewReason(row.needs_review_reason) ? <span className="mt-1 block max-w-64 text-xs text-muted">{plainReviewReason(row.needs_review_reason)}</span> : null}
+                    </>
+                  ) : <span className="text-muted">Not flagged</span>}
+                </td>
+                <td className="py-2">
+                  <Link className="inline-flex h-8 items-center whitespace-nowrap rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:border-accent"
+                    href={`/teacher/sessions/${encodeURIComponent(row.session_public_id)}`} aria-label={`Open the session of ${row.student_name}`}>
+                    Open session
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {priorityCount > 0 && rows.length > priorityCount ? (
+        <button type="button" className="mt-3 text-sm font-semibold text-accent" aria-expanded={showAll} onClick={() => setShowAll(!showAll)}>
+          {showAll ? "Show only students to follow up" : `Show all ${formatCount(rows.length)} students`}
+        </button>
+      ) : null}
     </section>
   );
 }
@@ -302,7 +408,13 @@ const dashboardTabs: ReadonlyArray<readonly [DashboardView, string]> = [
 ];
 
 export function AssessmentDashboardClient({ initialDashboard }: { initialDashboard: TeacherAssessmentDashboard }) {
-  const [view, setView] = useState<DashboardView>("overview");
+  const [view, setViewState] = useState<DashboardView>("overview");
+  // Panels stay mounted (hidden) once opened, so switching tabs does not reload them.
+  const [visited, setVisited] = useState<ReadonlySet<DashboardView>>(() => new Set<DashboardView>(["overview"]));
+  function setView(next: DashboardView) {
+    setViewState(next);
+    setVisited((current) => current.has(next) ? current : new Set([...current, next]));
+  }
   const [dashboard, setDashboard] = useState(initialDashboard);
   const [selectedAssessmentId, setSelectedAssessmentId] = useState(initialDashboard.selected_assessment_public_id ?? "");
   const [loading, setLoading] = useState(false);
@@ -323,6 +435,8 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
     setError(null);
     try {
       setDashboard(await fetchDashboard(nextAssessmentId));
+      // Other tabs load again for the new mini test only when opened.
+      setVisited(new Set<DashboardView>([view]));
     } catch (caught) {
       setSelectedAssessmentId(dashboard.selected_assessment_public_id ?? "");
       setError(caught instanceof Error ? caught.message : "Assessment dashboard could not be loaded.");
@@ -338,7 +452,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
           <div>
             <h2 className="text-2xl font-semibold text-ink">{selectedTitle}</h2>
           </div>
-          <label className="block min-w-[280px] text-sm font-semibold text-ink">
+          <label className="block w-full text-sm font-semibold text-ink sm:w-auto sm:min-w-[280px]">
             Assessment / mini test
             <select
               className="mt-2 w-full rounded-md border border-line bg-white px-3 py-2 text-sm font-normal text-ink"
@@ -373,7 +487,7 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
         </section>
       ) : null}
 
-      {hasAssessment && <div role="tablist" aria-label="Dashboard view" className="flex gap-5 border-b border-line">
+      {hasAssessment && <div role="tablist" aria-label="Dashboard view" className="-mx-1 flex gap-x-5 overflow-x-auto border-b border-line px-1">
         {dashboardTabs.map(([value, title], index) =>
           <button key={value} type="button" role="tab" id={`dashboard-tab-${value}`} aria-selected={view === value}
             aria-controls={`dashboard-panel-${value}`} tabIndex={view === value ? 0 : -1}
@@ -384,18 +498,18 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                 : event.key === "ArrowRight" ? (index === last ? 0 : index + 1) : (index === 0 ? last : index - 1);
               const next = dashboardTabs[nextIndex][0];
               setView(next); document.getElementById(`dashboard-tab-${next}`)?.focus();
-            } }} onClick={() => setView(value)} className={`border-b-2 px-1 py-3 text-sm font-semibold ${view === value ? "border-accent text-accent" : "border-transparent text-muted"}`}>{title}</button>)}
+            } }} onClick={() => setView(value)} className={`shrink-0 whitespace-nowrap border-b-2 px-1 py-3 text-sm font-semibold ${view === value ? "border-accent text-accent" : "border-transparent text-muted"}`}>{title}</button>)}
       </div>}
-      {hasAssessment && view === "report" && <div role="tabpanel" id="dashboard-panel-report" aria-labelledby="dashboard-tab-report">
+      {hasAssessment && visited.has("report") && <div role="tabpanel" id="dashboard-panel-report" aria-labelledby="dashboard-tab-report" hidden={view !== "report"}>
         <InstructorReportPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
-      {hasAssessment && view === "items" && <div role="tabpanel" id="dashboard-panel-items" aria-labelledby="dashboard-tab-items">
+      {hasAssessment && visited.has("items") && <div role="tabpanel" id="dashboard-panel-items" aria-labelledby="dashboard-tab-items" hidden={view !== "items"}>
         <ItemReviewPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
-      {hasAssessment && view === "attempts" && <div role="tabpanel" id="dashboard-panel-attempts" aria-labelledby="dashboard-tab-attempts">
+      {hasAssessment && visited.has("attempts") && <div role="tabpanel" id="dashboard-panel-attempts" aria-labelledby="dashboard-tab-attempts" hidden={view !== "attempts"}>
         <AttemptComparisonPanel key={dashboard.selected_assessment_public_id} assessmentPublicId={dashboard.selected_assessment_public_id!} />
       </div>}
-      {view === "overview" && <div role="tabpanel" id="dashboard-panel-overview" aria-labelledby="dashboard-tab-overview" className="space-y-6">
+      <div role="tabpanel" id="dashboard-panel-overview" aria-labelledby="dashboard-tab-overview" className="space-y-6" hidden={view !== "overview"}>
       {!hasAssessment ? (
         <section className="rounded-lg border border-dashed border-line bg-white p-6 text-sm text-muted">
           No mini tests are available yet.
@@ -426,6 +540,8 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
                 />
               </section>
 
+              <StudentsToFollowUp key={dashboard.selected_assessment_public_id} rows={dashboard.students_to_follow_up} />
+
               {dashboard.interpretation_v8 ? (
                 <InterpretationV8Panel data={dashboard.interpretation_v8} onOpenItemReview={() => setView("items")} />
               ) : null}
@@ -440,12 +556,12 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
             ))}
           </section>
 
-          <CandidatePatterns patterns={dashboard.candidate_misconception_patterns} />
+          <CandidatePatterns patterns={dashboard.candidate_misconception_patterns} threshold={dashboard.candidate_pattern_threshold} />
             </>
           )}
         </>
       )}
-      </div>}
+      </div>
     </div>
   );
 }

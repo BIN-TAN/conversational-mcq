@@ -1796,7 +1796,7 @@ async function main() {
     );
     assert(
       formativeOverviewMarkup.includes("Learning phase") &&
-        formativeOverviewMarkup.includes("conversation in progress") &&
+        formativeOverviewMarkup.includes("Conversation in progress") &&
         formativeOverviewMarkup.includes(">Conversation<"),
       "Conversation-backed sessions must use the current formative terminology."
     );

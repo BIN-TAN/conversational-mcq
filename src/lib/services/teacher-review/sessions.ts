@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { deriveAutomationState } from "@/lib/workflow/automation";
-import { serializeWorkflowJob } from "@/lib/workflow/jobs";
+import { serializeWorkflowJob, workflowJobSummarySelect } from "@/lib/workflow/jobs";
 import type { SessionListQuery } from "./filters";
 import { serializeDate } from "./serializers";
 
@@ -10,10 +10,10 @@ function sessionWhereFromQuery(query: SessionListQuery): Prisma.AssessmentSessio
     ...(query.search
       ? {
           user: {
-            user_id: {
-              contains: query.search,
-              mode: "insensitive"
-            }
+            OR: [
+              { user_id: { contains: query.search, mode: "insensitive" } },
+              { display_name: { contains: query.search, mode: "insensitive" } }
+            ]
           }
         }
       : {}),
@@ -77,7 +77,8 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       },
       workflow_jobs: {
         orderBy: [{ created_at: "desc" }],
-        take: 5
+        take: 5,
+        select: workflowJobSummarySelect
       }
     }
   });
@@ -121,14 +122,18 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
     });
   }
 
-  const assessmentFilters = await prisma.assessment.findMany({
-    where: { assessment_sessions: { some: {} } },
-    orderBy: [{ title: "asc" }, { assessment_public_id: "asc" }],
-    select: {
-      assessment_public_id: true,
-      title: true
-    }
-  });
+  // The list page asks for these options once and then omits them (include_filters=false).
+  // Like the session list itself, they are not limited to one instructor's assessments.
+  const assessmentFilters = query.include_filters === false
+    ? null
+    : await prisma.assessment.findMany({
+        where: { assessment_sessions: { some: {} } },
+        orderBy: [{ title: "asc" }, { assessment_public_id: "asc" }],
+        select: {
+          assessment_public_id: true,
+          title: true
+        }
+      });
 
   return {
     sessions: sessions.map((session) => {
@@ -175,8 +180,6 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
       total,
       total_pages: Math.max(1, Math.ceil(total / query.page_size))
     },
-    filters: {
-      assessments: assessmentFilters
-    }
+    filters: assessmentFilters ? { assessments: assessmentFilters } : null
   };
 }

@@ -39,12 +39,13 @@ export type SessionListResponse = {
     total: number;
     total_pages: number;
   };
+  /** Null when the request asked to omit the filter options (include_filters=false). */
   filters: {
     assessments: Array<{
       assessment_public_id: string;
       title: string;
     }>;
-  };
+  } | null;
 };
 
 export type SessionBatchDeletionCounts = {

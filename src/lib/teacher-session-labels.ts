@@ -1,3 +1,5 @@
+import { plainLabel } from "@/lib/teacher-plain-labels";
+
 const phases: Record<string, string> = {
   initial_item_administration: "Answering questions",
   initial_concept_unit_completed: "Questions submitted",
@@ -15,5 +17,5 @@ export function teacherPhaseLabel(phase: string, conversationStatus?: string | n
     if (conversationStatus === "paused") return "Learning conversation paused";
     if (["ended", "completed", "teacher_assistance_recommended"].includes(conversationStatus)) return "Conversation ended; assessment not finished";
   }
-  return phases[phase] ?? phase.replaceAll("_", " ");
+  return phases[phase] ?? plainLabel(phase);
 }

@@ -4,7 +4,10 @@ import { useState } from "react";
 import { RotateCcw } from "lucide-react";
 import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/server-unavailable-message";
 
-export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: string }) {
+export const RESTORE_CHANCE_HELP_TEXT =
+  "Describe the technical problem (at least 10 characters). The student gets this attempt back. Its answers will no longer count in class results; its records are kept.";
+
+export function RestoreAttemptChance({ sessionPublicId, onRestored }: { sessionPublicId: string; onRestored?: () => void }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
@@ -22,6 +25,8 @@ export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: str
       setRestored(true); setOpen(false); setReason("");
       const remaining = body.result.remaining_attempts;
       setMessage(`${body.result.status === "chance_already_restored" ? "This chance was already restored." : "One chance restored."} ${remaining} ${remaining === 1 ? "chance" : "chances"} remaining. The original attempt is preserved.`);
+      // Reload the session detail in place (the page keeps its content while it updates).
+      onRestored?.();
     } catch (error) { setMessage(requestErrorMessage(error, "The chance could not be restored. Try again in a moment.")); }
     finally { setBusy(false); }
   }
@@ -31,10 +36,11 @@ export function RestoreAttemptChance({ sessionPublicId }: { sessionPublicId: str
       <RotateCcw className="h-4 w-4" aria-hidden="true" />Restore a chance
     </button>
     {open && <div className="mt-3 max-w-xl space-y-3">
-      <label className="block text-sm font-semibold">Technical problem
-        <textarea value={reason} onChange={event => setReason(event.target.value)} minLength={10} maxLength={1000}
-          className="mt-1 block w-full rounded-md border border-line p-2 font-normal" rows={3} disabled={busy} />
-      </label>
+      <label className="block text-sm font-semibold" htmlFor={`restore-reason-${sessionPublicId}`}>Technical problem</label>
+      <p id={`restore-help-${sessionPublicId}`} className="text-sm text-muted">{RESTORE_CHANCE_HELP_TEXT}</p>
+      <textarea id={`restore-reason-${sessionPublicId}`} aria-describedby={`restore-help-${sessionPublicId}`}
+        value={reason} onChange={event => setReason(event.target.value)} minLength={10} maxLength={1000}
+        className="mt-1 block w-full rounded-md border border-line p-2 font-normal" rows={3} disabled={busy} />
       <button type="button" onClick={() => void restore()} disabled={busy || reason.trim().length < 10}
         className="rounded-md bg-accent px-3 py-2 text-sm font-semibold text-white disabled:opacity-60">
         {busy ? "Restoring..." : "Confirm restoration"}
