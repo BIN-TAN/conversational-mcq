@@ -99,7 +99,7 @@ async function assertStudentComponentShape() {
   assert(source.includes("Tempting option"), "Package review should display tempting-option evidence.");
   assert(source.includes("What made it tempting"), "Package review should display tempting-option reasoning.");
   assert(source.includes("Press Enter to send; Shift+Enter adds a new line."), "Follow-up Enter-to-send help is missing.");
-  assert(source.includes("event.key === \"Enter\" && !event.shiftKey"), "Enter-to-send handler is missing.");
+  assert(source.includes("enterKeySends(event, coarsePointer)"), "Pointer-aware Enter-to-send handler is missing.");
   assert(source.includes("Shift+Enter adds a new line"), "Shift+Enter newline help is missing.");
   assert(source.includes("shouldShowLearningProfile"), "Learning profile timing gate is missing.");
   assert(source.includes("\"FORMATIVE_ACTIVITY\""), "Learning profile should be allowed after formative stage.");

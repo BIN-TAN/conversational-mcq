@@ -126,7 +126,7 @@ function assertInitialPromptVariation() {
     selectedOption: "E"
   }).prompt_text;
   assert(
-    /answer options/.test(selectedETemptingPrompt) && /which one/.test(selectedETemptingPrompt) && /say No/.test(selectedETemptingPrompt),
+    /answer options/.test(selectedETemptingPrompt) && /If so, choose it\./.test(selectedETemptingPrompt) && /If not, choose No\./.test(selectedETemptingPrompt),
     "E-selected tempting prompt should ask about a possible answer option and allow No in plain language."
   );
 }
