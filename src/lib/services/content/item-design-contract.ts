@@ -6,7 +6,7 @@ export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-desi
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v5" as const;
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v6" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -419,9 +419,9 @@ export const ItemGenerationOutputSchema = z.object({
  * key, answers it as a well-prepared student would, and reports problems; items with a
  * different answer or problems are revised once and checked again.
  */
-export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v1" as const;
+export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v2" as const;
 export const ITEM_CHECK_SCHEMA_VERSION = "evidence-centered-mcq-item-check-output-v1" as const;
-export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v1" as const;
+export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v2" as const;
 export const ITEM_REVISION_SCHEMA_VERSION = "evidence-centered-mcq-revision-output-v1" as const;
 
 export const ItemCheckProblemSchema = z.enum([

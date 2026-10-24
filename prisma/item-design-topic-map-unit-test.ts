@@ -83,10 +83,10 @@ const blueprint: ItemDesignBlueprint = {
   generation_settings: { target_item_count: 4, option_count: 4, difficulty_mix: ["foundational", "analyzing"], context_notes: null }
 };
 
-check("Versions: assistant v9 with output v3, generation v5", () => {
+check("Versions: assistant v9 with output v3, generation v6", () => {
   assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v9");
   assert.equal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, "evidence-centered-item-design-assistant-output-v3");
-  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v5");
+  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v6");
 });
 
 check("The reply carries the topic bank: knowledge points, notes and quiz items per topic, and templates", () => {
