@@ -240,10 +240,10 @@ async function main() {
     const adjusted = (item: Record<string, unknown>) => contract.parseMiniTestJsonWithChanges(jsonDocument(item));
     const both = adjusted({ strong_reasoning_should_mention: "Both" });
     assert.equal(both.document.items[0].strong_reasoning_should_mention, undefined);
-    assert.match(both.changes.join(" "), /kept essential_elements and ignored strong_reasoning_should_mention/);
+    assert.match(both.changes.join(" "), /kept the essential elements and ignored the older "strong_reasoning_should_mention" field/);
     const keyNote = adjusted({ distractor_rationales: { ...sample.items[0].distractor_rationales, B: "The key" } });
     assert.equal(keyNote.document.items[0].distractor_rationales?.B, undefined);
-    assert.match(keyNote.changes.join(" "), /ignored the note for the key \(B\)/);
+    assert.match(keyNote.changes.join(" "), /ignored the note on the correct option \(B\)/);
     const missing = adjusted({ distractor_rationales: { ...sample.items[0].distractor_rationales, F: "Missing option" } });
     assert.equal(missing.document.items[0].distractor_rationales?.F, undefined);
     assert.match(missing.changes.join(" "), /ignored the note for option F, which the item does not have/);

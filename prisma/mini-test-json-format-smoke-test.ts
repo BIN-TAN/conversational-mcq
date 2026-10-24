@@ -81,7 +81,7 @@ async function main() {
     assert(input.includes("Lecture 4 quiz") && !input.includes(userId) && !input.includes(teacher.id), "The file reaches the model; account identifiers do not.");
 
     const calls = await prisma.agentCall.findMany({ where: { agent_invocation_key: { startsWith: "mini_test_json_format:" }, input_payload: { path: ["file_text"], string_contains: suffix } } });
-    assert(calls.length === 1 && calls[0]!.call_status === "succeeded" && calls[0]!.prompt_version === "mini-test-json-format-v1", "The call is audited.");
+    assert(calls.length === 1 && calls[0]!.call_status === "succeeded" && calls[0]!.prompt_version === "mini-test-json-format-v2", "The call is audited.");
 
     const replay = await run();
     assert(replay.replayed && provider.requests.length === 1 && replay.json_text === result.json_text, "The same file is not formatted twice.");
@@ -100,7 +100,7 @@ async function main() {
     assert(candidate.stem === "Which is a person parameter?" && candidate.imported_key === "B" && candidate.options[1]!.text === "theta", "Read with its changes.");
     const stored = await prisma.mcqItemImportBatch.findUniqueOrThrow({ where: { batch_public_id: stagedLenient.batch_public_id } });
     const changes = (stored.validation_summary as { source_context?: { format_changes?: string[] } }).source_context?.format_changes ?? [];
-    assert(changes.some((change) => change.includes("\"difficulty\"")) && changes.includes("Read \"questions\" as \"items\"."), "The changes are kept with the review.");
+    assert(changes.some((change) => change.includes("\"difficulty\"")) && changes.includes("Used \"questions\" as the items."), "The changes are kept with the review.");
 
     provider.items = 0;
     let rejected: unknown = null;

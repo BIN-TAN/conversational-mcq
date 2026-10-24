@@ -185,7 +185,7 @@ async function main() {
       assert.match(sentence, /^[A-Z].*\.$/, "A sentence");
     }
     const client = source("src/components/teacher-content/mcq-import-client.tsx");
-    assert(client.includes("candidateStatusLabel(candidate.status)") && client.includes("issueFlagDescriptions(candidate.issue_flags)"));
+    assert(client.includes("candidateStatusLabel(candidate.status, { key_confirmed: Boolean(candidate.teacher_confirmed_key) })") && client.includes("issueFlagDescriptions(candidate.issue_flags)"));
     assert(!client.includes("Issues: {candidate.issue_flags.join") && !client.includes("Unofficial key suggestion"));
   });
 

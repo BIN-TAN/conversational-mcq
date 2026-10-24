@@ -18,6 +18,7 @@ import {
   MiniTestJsonFormatOutputSchema,
   miniTestJsonFromFormatOutput
 } from "../src/lib/services/content/mini-test-json-format";
+import { candidateStatusLabel, sourceLocationLabel } from "../src/components/teacher-content/mcq-review";
 
 let passed = 0;
 function check(name: string, run: () => void) {
@@ -84,17 +85,17 @@ check("Another structure with other field names is read, and each change is one 
   assert(!("teacher_confirmed_key" in first!) && !("status" in read.document), "Protected fields are never applied");
   const text = read.changes.join("\n");
   for (const sentence of [
-    'Read "questions" as "items".',
-    'Moved "title" into assessment.',
-    'Read "question" as "stem" (items 1, 2 and 3).',
-    'Items 1, 2 and 3: turned the options from letter and text pairs into the format\'s option list.',
+    'Used "questions" as the items.',
+    'Used "title" as the mini test\'s title.',
+    'Used "question" as the question text (items 1, 2 and 3).',
+    'Items 1, 2 and 3: read the answer options from letter and text pairs.',
     'Item 1: read the key "b" as B.',
     'Item 3: the key "7" does not match an option, so it is left blank for you to confirm in review.',
     'Items 1, 2 and 3: split the essential elements into a list.',
     'Items 1, 2 and 3: removed the link to "not_in_design", which is not an objective in the file\'s design.',
     'Items 1, 2 and 3: read the cognitive demand "Analysis" as "analyze".',
     'Ignored the field "teacher_confirmed_key" (items 1, 2 and 3); the import format does not use it.',
-    'Ignored the field "status" (top level); the import format does not use it.'
+    'Ignored the field "status" (outside the items); the import format does not use it.'
   ]) assert(text.includes(sentence), sentence);
   for (const change of read.changes) assert.match(change, /^[A-Z].*\.$/, `A complete sentence: ${change}`);
 });
@@ -165,7 +166,7 @@ check("The assistant's output becomes the import format: keys only as stated, no
 });
 
 check("The formatting prompt keeps wording and never adds a key; the service replays the same file", () => {
-  assert.equal(MINI_TEST_JSON_FORMAT_PROMPT_VERSION, "mini-test-json-format-v1");
+  assert.equal(MINI_TEST_JSON_FORMAT_PROMPT_VERSION, "mini-test-json-format-v2");
   for (const part of [
     "Copy every title, stem, option, key, note and design entry word for word.",
     "key is the letter of the correct option only when the file states it",
@@ -184,6 +185,22 @@ check("The formatting prompt keeps wording and never adds a key; the service rep
   }
   const staging = source("src/lib/services/content/mini-test-json-import.ts");
   assert(staging.includes("source_text: read.normalized_text") && staging.includes("format_changes: read.changes"));
+});
+
+check("Review and builder labels read as words (acceptance test of 21 Oct)", () => {
+  assert.equal(sourceLocationLabel("items[0]"), "Item 1 in the file");
+  assert.equal(sourceLocationLabel("json item 3"), "Item 3 in the file");
+  assert.equal(sourceLocationLabel("row 4"), "Row 4 of the file");
+  assert.equal(sourceLocationLabel("lines 3-9"), "Lines 3 to 9 of the file");
+  assert.equal(sourceLocationLabel("Generated draft 2"), "Generated draft 2");
+  assert.equal(candidateStatusLabel("ready_as_draft", { key_confirmed: false }), "Confirm the key to add");
+  assert.equal(candidateStatusLabel("ready_as_draft", { key_confirmed: true }), "Ready to add");
+  const review = source("src/components/teacher-content/mcq-import-client.tsx");
+  assert(!review.includes("Parse confidence") && review.includes("sourceLocationLabel(candidate.source_location)"));
+  const builder = source("src/components/teacher-content/item-design-client.tsx");
+  for (const part of ["Planned items", "Example items", "Drafts come after the design"]) assert(builder.includes(part), part);
+  assert(!builder.includes(">Exemplars<") && !builder.includes("Draft target"));
+  assert(MINI_TEST_JSON_FORMAT_INSTRUCTIONS.includes('never write the format\'s own field names, "null", "unkeyed" or other codes'));
 });
 
 console.log(`\n${passed} lenient JSON import checks passed; no database or provider calls.`);

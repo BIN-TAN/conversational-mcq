@@ -163,9 +163,22 @@ const STATUS_LABELS: Record<string, string> = {
   blocked: "Blocked"
 };
 
-/** The review status in plain words. */
-export function candidateStatusLabel(status: string) {
+/** The review status in plain words. An item that is otherwise ready still waits for its key to be confirmed. */
+export function candidateStatusLabel(status: string, options: { key_confirmed?: boolean } = {}) {
+  if (status === "ready_as_draft" && options.key_confirmed === false) return "Confirm the key to add";
   return STATUS_LABELS[status] ?? status.replaceAll("_", " ");
+}
+
+/** Where an item came from, in words: "items[0]" becomes "Item 1 in the file". */
+export function sourceLocationLabel(location: string | null | undefined) {
+  if (!location) return "";
+  const json = location.match(/^items\[(\d+)\]$/) ?? location.match(/^json item (\d+)$/);
+  if (json) return `Item ${Number(json[1]) + (location.startsWith("items[") ? 1 : 0)} in the file`;
+  const row = location.match(/^row (\d+)$/);
+  if (row) return `Row ${row[1]} of the file`;
+  const lines = location.match(/^lines (\d+)-(\d+)$/);
+  if (lines) return lines[1] === lines[2] ? `Line ${lines[1]} of the file` : `Lines ${lines[1]} to ${lines[2]} of the file`;
+  return location;
 }
 
 const ISSUE_DESCRIPTIONS: Record<string, string | null> = {

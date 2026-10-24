@@ -47,6 +47,16 @@ Object.assign(BANDS, { foundational: "foundational", foundation: "foundational",
   reasoning: "analyzing", evaluating: "evaluating", creating: "creating" });
 
 type Json = Record<string, unknown>;
+
+/** How the change sentences name the parts of a mini test, in an instructor's words. */
+const PART_NAMES: Record<string, string> = {
+  item_label: "the item label", stem: "the question text", options: "the answer options", key: "the answer key",
+  target_reasoning_note: "the target reasoning", essential_elements: "the essential elements",
+  distractor_rationales: "the notes on incorrect options", idea_labels: "the idea labels",
+  cognitive_demand: "the cognitive demand", source_reference: "the source reference", items: "the items",
+  title: "the mini test's title", diagnostic_focus: "the diagnostic focus", folder_label: "the folder"
+};
+const partName = (field: string) => PART_NAMES[field] ?? `"${field}"`;
 const isRecord = (value: unknown): value is Json => Boolean(value) && typeof value === "object" && !Array.isArray(value);
 const text = (value: unknown) => typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : null;
 const list = (values: string[]) => values.length <= 1 ? values.join("") : `${values.slice(0, -1).join(", ")} and ${values.at(-1)}`;
@@ -136,7 +146,7 @@ function renameSynonyms(record: Json, synonyms: Record<string, string[]>, number
     if (!found) continue;
     record[field] = record[found];
     delete record[found];
-    changes.item(`Read "${found}" as "${field}" ({where}).`, number);
+    changes.item(`Used "${found}" as ${partName(field)} ({where}).`, number);
   }
 }
 
@@ -150,7 +160,7 @@ function normalizeOptions(raw: unknown, number: number, changes: Changes): { opt
   let entries: Array<{ label: unknown; text: unknown }> | null = null;
   if (isRecord(raw)) {
     entries = Object.entries(raw).map(([label, value]) => ({ label, text: value }));
-    changes.item("{where}: turned the options from letter and text pairs into the format's option list.", number);
+    changes.item("{where}: read the answer options from letter and text pairs.", number);
   } else if (Array.isArray(raw)) {
     entries = raw.map((entry) => isRecord(entry)
       ? { label: entry.label ?? entry.letter ?? entry.option ?? entry.id, text: entry.text ?? entry.content ?? entry.option_text ?? entry.value }
@@ -193,7 +203,7 @@ function letterRecord(raw: unknown, field: string, number: number, relabel: Map<
         (record as Json)[`__idea_${label}`] = entry.idea_label;
       }
     }
-    changes.item(`{where}: turned ${field} from a list into the format's letter-keyed record.`, number);
+    changes.item(`{where}: matched ${partName(field)} to their option letters.`, number);
     return record;
   }
   if (!isRecord(raw)) return raw;
@@ -204,7 +214,7 @@ function letterRecord(raw: unknown, field: string, number: number, relabel: Map<
     if (letter && letter !== label) relettered = true;
     record[letter ?? label] = value;
   }
-  if (relettered) changes.item(`{where}: wrote the option letters in ${field} as capital letters.`, number);
+  if (relettered) changes.item(`{where}: wrote the option letters in ${partName(field)} as capital letters.`, number);
   return record;
 }
 
@@ -246,7 +256,7 @@ function normalizeItem(raw: unknown, index: number, design: { objectives: Set<st
   if (Array.isArray(item.essential_elements) && item.essential_elements.length === 0) delete item.essential_elements;
   if (item.essential_elements !== undefined && item.strong_reasoning_should_mention) {
     delete item.strong_reasoning_should_mention;
-    changes.item("{where}: kept essential_elements and ignored strong_reasoning_should_mention, which says the same thing in the older format.", number);
+    changes.item("{where}: kept the essential elements and ignored the older \"strong_reasoning_should_mention\" field, which says the same thing.", number);
   }
 
   for (const field of ["distractor_rationales", "idea_labels"] as const) {
@@ -267,9 +277,9 @@ function normalizeItem(raw: unknown, index: number, design: { objectives: Set<st
       } else if (field === "distractor_rationales" && item.key === key) {
         if (!item.target_reasoning_note) {
           item.target_reasoning_note = record[key];
-          changes.add(`Item ${number}: the note for the key (${key}) became the target reasoning note.`);
+          changes.add(`Item ${number}: the note on the correct option (${key}) became the target reasoning.`);
         } else {
-          changes.add(`Item ${number}: ignored the note for the key (${key}); the target reasoning note covers the correct option.`);
+          changes.add(`Item ${number}: ignored the note on the correct option (${key}); the target reasoning already explains it.`);
         }
         delete record[key];
       } else if (typeof record[key] === "string" && !(record[key] as string).trim()) {
@@ -332,7 +342,7 @@ function normalizeDesign(raw: unknown, changes: Changes): unknown {
   if (isRecord(design.generation_settings)) {
     const settings: Json = { ...design.generation_settings };
     for (const field of Object.keys(settings)) {
-      if (!SETTINGS_FIELDS.has(field)) { delete settings[field]; changes.ignore(field, "design.generation_settings"); }
+      if (!SETTINGS_FIELDS.has(field)) { delete settings[field]; changes.ignore(field, "draft settings"); }
     }
     for (const [field, min, max, name] of [["target_item_count", 3, 12, "number of items"], ["option_count", 3, 5, "number of options"]] as const) {
       const value = typeof settings[field] === "string" ? Number(settings[field]) : settings[field];
@@ -368,10 +378,10 @@ export function normalizeMiniTestJson(input: unknown): { value: unknown; changes
   const document: Json = { ...value };
   if (document.items === undefined) {
     const found = ["questions", "mcqs", "item_list"].find((name) => Array.isArray(document[name]));
-    if (found) { document.items = document[found]; delete document[found]; changes.add(`Read "${found}" as "items".`); }
+    if (found) { document.items = document[found]; delete document[found]; changes.add(`Used "${found}" as the items.`); }
   }
   if (document.schema_version !== FORMAT_VERSION) {
-    if (document.schema_version !== undefined) changes.add(`Set schema_version to "${FORMAT_VERSION}" (the file had "${String(document.schema_version)}").`);
+    if (document.schema_version !== undefined) changes.add(`Read the file as the current import format (it named the version "${String(document.schema_version)}").`);
     document.schema_version = FORMAT_VERSION;
   }
   const assessment: Json = isRecord(document.assessment) ? { ...document.assessment } : {};
@@ -379,11 +389,11 @@ export function normalizeMiniTestJson(input: unknown): { value: unknown; changes
     if (assessment[field] === undefined && typeof document[field] === "string") {
       assessment[field] = document[field];
       delete document[field];
-      changes.add(`Moved "${field}" into assessment.`);
+      changes.add(`Used "${field}" as ${partName(field)}.`);
     }
   }
   for (const field of Object.keys(assessment)) {
-    if (!ASSESSMENT_FIELDS.has(field)) { delete assessment[field]; changes.ignore(field, "assessment"); }
+    if (!ASSESSMENT_FIELDS.has(field)) { delete assessment[field]; changes.ignore(field, "mini test details"); }
   }
   document.design = normalizeDesign(document.design, changes);
   if (!text(assessment.title)) {
@@ -404,7 +414,7 @@ export function normalizeMiniTestJson(input: unknown): { value: unknown; changes
     document.items = document.items.map((item, index) => normalizeItem(item, index, design, changes));
   }
   for (const field of Object.keys(document)) {
-    if (!TOP_FIELDS.has(field)) { delete document[field]; changes.ignore(field, "top level"); }
+    if (!TOP_FIELDS.has(field)) { delete document[field]; changes.ignore(field, "outside the items"); }
   }
   return { value: document, changes: changes.sentences() };
 }

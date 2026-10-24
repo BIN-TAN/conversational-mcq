@@ -345,6 +345,13 @@ function ItemDesignAssistantWorkspace({
         <p className="mt-2 text-xs leading-5 text-muted" role="status">This takes a few minutes. Keep this page open.</p>
       ) : null}
     </div>
+  ) : path === "new" && design.assessment.is_editable ? (
+    <div className="rounded-md border border-line bg-[#F8FAF9] p-3">
+      <p className="text-sm font-medium text-ink">Drafts come after the design</p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        Send your course materials to the assistant first. Once the design panel is filled in and has no open questions, a Generate drafts button appears here.
+      </p>
+    </div>
   ) : null;
 
   return (
@@ -619,12 +626,12 @@ function ItemDesignAssistantWorkspace({
                 <dd className="mt-1 text-lg font-semibold text-ink">{blueprint.misconception_hypotheses.length}</dd>
               </div>
               <div>
-                <dt className="text-muted">Exemplars</dt>
+                <dt className="text-muted">Example items</dt>
                 <dd className="mt-1 text-lg font-semibold text-ink">{blueprint.exemplar_items.length}</dd>
               </div>
             </dl>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Draft target</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted">Planned items</p>
               <p className="mt-1 text-sm leading-6 text-ink">
                 {blueprint.generation_settings.target_item_count} items, {blueprint.generation_settings.option_count} options each
               </p>

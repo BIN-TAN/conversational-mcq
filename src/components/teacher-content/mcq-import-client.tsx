@@ -13,6 +13,7 @@ import {
   assistantCheckOf,
   blankNoteSuggestions,
   candidateStatusLabel,
+  sourceLocationLabel,
   incorrectOptionLabels,
   isImported,
   issueFlagDescriptions,
@@ -604,12 +605,12 @@ export function McqImportClient({
                           Select item
                         </label>
                         <span className={`rounded-md border px-2 py-1 text-xs font-semibold ${statusTone(candidate.status)}`}>
-                          {candidateStatusLabel(candidate.status)}
+                          {candidateStatusLabel(candidate.status, { key_confirmed: Boolean(candidate.teacher_confirmed_key) })}
                         </span>
-                        <span className="text-xs text-muted">{candidate.source_location}</span>
-                        <span className="text-xs text-muted">
-                          {!assistantBatch ? `Parse confidence ${Math.round(candidate.parsing_confidence * 100)}%` : null}
-                        </span>
+                        <span className="text-xs text-muted">{sourceLocationLabel(candidate.source_location)}</span>
+                        {!assistantBatch && candidate.parsing_confidence < 0.95 ? (
+                          <span className="text-xs text-amber-800">The layout of this item was hard to read; compare it with your file.</span>
+                        ) : null}
                       </div>
                       {issueFlagDescriptions(candidate.issue_flags).length > 0 ? (
                         <ul className="list-disc space-y-1 pl-4 text-xs text-amber-800">
