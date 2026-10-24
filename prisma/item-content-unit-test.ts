@@ -218,7 +218,7 @@ async function main() {
     assert(ItemMediaAssetInputSchema.safeParse({ ...base, placement: "explanation" }).success);
     assert(!ItemMediaAssetInputSchema.safeParse({ ...base, placement: "explanation", option_label: "B" }).success);
     assert(!ItemMediaAssetInputSchema.safeParse({ ...base, placement: "answer" }).success);
-    const schema = source("prisma/schema.prisma");
+    const schema = source("prisma/schema.prisma").replace(/\r\n/g, "\n");
     assert.match(schema, /enum ItemMediaPlacement \{\n  item_stem\n  option\n  explanation\n\}/);
     const migrations = readdirSync(path.join(process.cwd(), "prisma/migrations")).filter((name) => name.includes("item_media_explanation_placement"));
     assert.equal(migrations.length, 1);
