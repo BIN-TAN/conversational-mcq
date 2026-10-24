@@ -240,6 +240,9 @@ const serverEnvSchema = z.object({
   WORKFLOW_JOB_MAX_RETRY_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_LEASE_TIMEOUT_MS: positiveIntWithDefault(300000),
   WORKFLOW_JOB_POLL_INTERVAL_MS: positiveIntWithDefault(2000),
+  // Lease for initial-preparation jobs only (renewed every third of it while the job runs), so a
+  // restarted worker hands an interrupted preparation to another worker within about this long.
+  INITIAL_PREPARATION_LEASE_TIMEOUT_MS: positiveIntWithDefault(90000),
   INITIAL_PREPARATION_CONCURRENCY: positiveIntWithDefault(2).refine((value) => value <= 8, "Must be at most 8."),
   EVAL_PROVIDER: z.enum(["mock", "openai"]).default("mock"),
   EVAL_TARGET_MODEL: z.string().min(1).default("gpt-5.4-mini-2026-03-17"),

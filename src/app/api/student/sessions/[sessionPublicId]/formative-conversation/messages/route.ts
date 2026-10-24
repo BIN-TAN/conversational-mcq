@@ -5,9 +5,10 @@ import {
   studentAssessmentRouteError
 } from "@/lib/services/student-assessment/api";
 import {
-  formativeConversationReplyRunnerFactory,
-  formativeConversationRuntimeSeed,
+  FormativeConversationFoundationError,
+  formativeConversationReplyDependencies,
   FormativeConversationResponseGenerationError,
+  getStudentFormativeConversationMessageGate,
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
 } from "@/lib/services/student-assessment/formative-conversation";
@@ -54,10 +55,21 @@ export async function POST(
   try {
     const { sessionPublicId } = await context.params;
     const body = messageSchema.parse(await request.json());
-    const owned = await getStudentFormativeConversationProjection({
+    // A narrow check first; the full projection is loaded only when it is needed: the opening
+    // receipt has no tutor turn yet (to report the opening's status, or to find a legacy
+    // opening), or a reply has waited long enough to be marked failed by the projection.
+    const gate = await getStudentFormativeConversationMessageGate({
       student_user_db_id: auth.user.user_db_id,
       session_public_id: sessionPublicId
     });
+    const owned = gate && gate.needs_full_projection
+      ? await getStudentFormativeConversationProjection({
+          student_user_db_id: auth.user.user_db_id,
+          session_public_id: sessionPublicId
+        })
+      : gate
+        ? { conversation_public_id: gate.conversation_public_id, status: gate.status, opening_status: "ready" as const, can_retry_opening: false }
+        : null;
     if (
       !owned ||
       owned.conversation_public_id !== body.conversation_public_id
@@ -86,7 +98,7 @@ export async function POST(
       );
     }
     // Reservation serializes new messages and permits exact replays of saved ones.
-    const seed = await formativeConversationRuntimeSeed({
+    const { seed, runner_factory } = await formativeConversationReplyDependencies({
       conversation_public_id: body.conversation_public_id,
       student_user_db_id: auth.user.user_db_id
     });
@@ -126,9 +138,18 @@ export async function POST(
               }
             : undefined
         },
-        { runner_factory: await formativeConversationReplyRunnerFactory(body.conversation_public_id) }
+        { runner_factory }
       );
     } catch (error) {
+      // The same message ID with different text: the student's earlier message (sent with
+      // this ID) was saved, and the page has not caught up yet.
+      if (error instanceof FormativeConversationFoundationError && error.code === "idempotency_hash_mismatch") {
+        throw new StudentAssessmentServiceError(
+          "conflict",
+          "Your earlier message was already sent. Refresh the page to see it.",
+          409
+        );
+      }
       if (!(error instanceof FormativeConversationResponseGenerationError)) {
         throw error;
       }

@@ -165,6 +165,67 @@ async function failStaleFormativeConversationResponses<T extends ReceiptForStale
   }
 }
 
+/**
+ * The cheap check made before a student message is processed: it finds the conversation the
+ * same way as the projection (the session's latest one, owned by this student), its projected
+ * status, and whether the opening receipt already holds its tutor turn. When that turn is
+ * missing (an opening still being prepared, failed, or a legacy opening stored without a
+ * receipt turn) the caller loads the full projection to decide. The same applies when a
+ * tutor reply has been waiting longer than FORMATIVE_CONVERSATION_STALE_RESPONSE_MS: only the
+ * full projection marks it failed (stale_reply_sweep_v1), so it still runs first, as before.
+ * The reservation re-checks the conversation status under the conversation lock, so this
+ * check only gives an early answer.
+ */
+export async function getStudentFormativeConversationMessageGate(input: {
+  student_user_db_id: string;
+  session_public_id: string;
+}) {
+  const conversation = await prisma.formativeConversationSession.findFirst({
+    where: {
+      assessment_session: {
+        user_db_id: input.student_user_db_id,
+        session_public_id: input.session_public_id
+      }
+    },
+    orderBy: { started_at: "desc" },
+    select: {
+      conversation_public_id: true,
+      status: true,
+      assessment_session: { select: { status: true, current_phase: true, completed_at: true, resume_phase: true, resume_context: true } },
+      message_receipts: {
+        where: {
+          OR: [
+            { client_message_id: FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID },
+            {
+              student_turn_db_id: { not: null },
+              assistant_turn_db_id: null,
+              assistant_response_status: { in: ["pending", "retrying"] },
+              updated_at: { lt: new Date(Date.now() - FORMATIVE_CONVERSATION_STALE_RESPONSE_MS) }
+            }
+          ]
+        },
+        select: { client_message_id: true, assistant_turn_db_id: true }
+      }
+    }
+  });
+  if (!conversation) return null;
+  const attempt = resolveCanonicalAttemptLifecycle(conversation.assessment_session);
+  const opening = conversation.message_receipts.find(
+    (receipt) => receipt.client_message_id === FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+  );
+  const staleReply = conversation.message_receipts.some(
+    (receipt) => receipt.client_message_id !== FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID
+  );
+  return {
+    conversation_public_id: conversation.conversation_public_id,
+    status: attempt.terminal && ["active", "paused"].includes(conversation.status)
+      ? "ended" as const : conversation.status,
+    opening_ready: Boolean(opening?.assistant_turn_db_id),
+    stale_reply: staleReply,
+    needs_full_projection: !opening?.assistant_turn_db_id || staleReply
+  };
+}
+
 export async function getStudentFormativeConversationProjection(input: {
   student_user_db_id: string;
   session_public_id: string;

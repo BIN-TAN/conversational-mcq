@@ -16,6 +16,7 @@ import {
   processFormativeConversationOpening
 } from "./runtime";
 import { buildFormativeConversationRuntimeContextSeedForInternalOpening } from "./runtime-context";
+import { feedbackV8PlaceholderRuntimeSeed } from "./runner-selection";
 
 export async function ensureFormativeConversationOpeningForConceptUnitSession(input: {
   concept_unit_session_db_id: string;
@@ -85,10 +86,13 @@ export async function ensureFormativeConversationOpeningForConceptUnitSession(in
   }
 
   await input.assert_preparation_active?.();
-  const context =
-    await buildFormativeConversationRuntimeContextSeedForInternalOpening({
-      conversation_public_id: conversation.conversation_public_id
-    });
+  // Feedback v8 compiles its own context from stored records and never reads the legacy
+  // seed, so the seed is built only for conversations that use it.
+  const context = feedbackV8
+    ? feedbackV8PlaceholderRuntimeSeed()
+    : await buildFormativeConversationRuntimeContextSeedForInternalOpening({
+        conversation_public_id: conversation.conversation_public_id
+      });
   try {
     const opening = await processFormativeConversationOpening(
       {

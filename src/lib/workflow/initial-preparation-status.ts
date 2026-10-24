@@ -32,6 +32,15 @@ export async function getInitialPreparationStatus(session: {
   const automationPaused = session.status === "active" && Boolean(session.automation_paused_at) && job.status !== "completed";
   const waitingTooLong = session.status === "active" && preparationOverdue(job);
   const recoverable = failed && job.last_error_category !== "preparation_source_conflict";
+  // While preparation runs, the student sees which of its two steps it is on: the profile
+  // and the conversation are saved together, so once the conversation exists only the
+  // opening (the feedback) is left. Nothing about the answers is revealed.
+  const inProgress = !terminal && !continued && ["pending", "running", "retryable"].includes(job.status);
+  const conversationSaved = inProgress && job.concept_unit_session_db_id
+    ? Boolean(await prisma.formativeConversationSession.findUnique({
+        where: { concept_unit_session_db_id: job.concept_unit_session_db_id }, select: { id: true }
+      }))
+    : false;
   return {
     status: continued ? "skipped" as const : terminal ? "cancelled" as const : job.status === "completed" ? "ready" as const
       : paused ? "paused" as const : job.status === "pending" ? "queued" as const
@@ -45,7 +54,9 @@ export async function getInitialPreparationStatus(session: {
     taking_long: !terminal && !continued && !failed && (waitingTooLong || automationPaused),
     failure_reason: failed ? job.last_error_category === "output_token_limit" ? "output_token_limit" as const
       : job.last_error_category === "preparation_source_conflict" ? "source_conflict" as const
-      : "unavailable" as const : null
+      : "unavailable" as const : null,
+    stage: inProgress ? conversationSaved ? "writing_feedback" as const : "reading_answers" as const : null,
+    waiting_since: inProgress ? job.created_at.toISOString() : null
   };
 }
 

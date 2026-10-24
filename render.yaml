@@ -105,6 +105,10 @@ services:
         value: "300000"
       - key: WORKFLOW_JOB_LEASE_TIMEOUT_MS
         value: "600000"
+      # Initial-preparation jobs only: renewed every 30 s while running, so a worker restart
+      # leaves a student waiting at most about 90 s before another worker takes the job.
+      - key: INITIAL_PREPARATION_LEASE_TIMEOUT_MS
+        value: "90000"
       - key: WORKFLOW_JOB_POLL_INTERVAL_MS
         value: "5000"
       # Feedback preparation jobs run at the same time; 2 queued a whole class that submits together.

@@ -80,6 +80,15 @@ import {
   temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
+import {
+  formativeOutgoingMessageFor,
+  formativeReplyWaitingMessage,
+  preparationPollDelayMs,
+  preparationStageLabel,
+  preparationWaitingLabel,
+  sentFormativeMessageWasSaved,
+  type FormativeOutgoingMessage
+} from "./formative-chat-ux";
 
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
@@ -89,7 +98,6 @@ const ANSWERING_STATES = new Set(["SESSION_START", "ITEM_PRESENTED", "AWAIT_ANSW
   "AWAIT_TEMPTING_OPTION", "AWAIT_TEMPTING_REASON", "TRANSFER_ITEM"]);
 
 const STUDENT_FACING_TUTOR_LABEL = "Tutor";
-const FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000;
 const FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000;
 
 type FailedAction = {
@@ -377,45 +385,29 @@ export function FormativeOpeningStatus({
 
 function FormativeResponseWaitingStatus({
   onReviewAnswers,
-  messageSaved,
   onEnd,
   endLabel
 }: {
   onReviewAnswers?: () => void;
-  messageSaved: boolean;
   onEnd?: () => void;
   endLabel?: string;
 }) {
-  const [stage, setStage] = useState<"preparing" | "saved" | "delayed">(
-    "preparing"
-  );
+  const [stage, setStage] = useState<"waiting" | "delayed">("waiting");
 
   useEffect(() => {
-    const savedTimer = window.setTimeout(
-      () => setStage("saved"),
-      FORMATIVE_RESPONSE_SAVED_NOTICE_MS
-    );
     const delayedTimer = window.setTimeout(
       () => setStage("delayed"),
       FORMATIVE_RESPONSE_DELAY_NOTICE_MS
     );
 
     return () => {
-      window.clearTimeout(savedTimer);
       window.clearTimeout(delayedTimer);
     };
   }, []);
 
-  const message =
-    !messageSaved
-      ? stage === "delayed"
-        ? "We are still confirming that your message arrived. You can read earlier messages while you wait."
-        : "Sending your message..."
-      : stage === "preparing"
-      ? "Preparing a response..."
-      : stage === "saved"
-        ? "Still preparing a response. Your message is saved."
-        : "This is taking a little longer than usual. You can review your answers or earlier messages while you wait.";
+  // Honest wording only: whether the message is saved is shown on the student's own
+  // message once the server confirms it, never assumed here.
+  const message = formativeReplyWaitingMessage(stage === "delayed");
 
   return (
     <div className="flex justify-start" data-testid="formative-conversation-response-pending">
@@ -494,7 +486,6 @@ function FormativeConversationControls(input: {
     return (
       <FormativeResponseWaitingStatus
         onReviewAnswers={input.onReviewAnswers}
-        messageSaved={!input.isAwaitingTutorResponse && (response?.status === "pending" || response?.status === "retrying")}
         // D2: the student can end the conversation even while a reply is pending.
         onEnd={conversation.can_end ? input.onEnd : undefined}
         endLabel={input.finishLabel}
@@ -2579,7 +2570,12 @@ export function AssessmentSessionClient({
     useState(false);
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
   const packageResultsRef = useRef<HTMLDivElement | null>(null);
-  const formativeMessageIdRef = useRef<string | null>(null);
+  // The last message sent with its client_message_id (kept after a failed send, so resending
+  // the same text reuses the id; changed text gets a new id).
+  const formativeMessageIdRef = useRef<FormativeOutgoingMessage | null>(null);
+  // The text of the message being sent, shown as the student's own message until the reply
+  // arrives or the send fails.
+  const [pendingFormativeMessage, setPendingFormativeMessage] = useState<string | null>(null);
   /** D2: set when the student ends the conversation; a concurrent send then yields. */
   const conversationEndRequestedRef = useRef(false);
   // True while a conversation message send or reply retry is in flight, so ending the
@@ -2686,6 +2682,7 @@ export function AssessmentSessionClient({
     let disposed = false;
     let timer: ReturnType<typeof setTimeout>;
     let failures = 0;
+    const pollStartedAt = Date.now();
     const controller = new AbortController();
     async function poll() {
       let again = true;
@@ -2719,12 +2716,24 @@ export function AssessmentSessionClient({
         failures += 1;
         setPreparationConnectionLost(true);
       } finally {
-        if (!disposed && again) timer = setTimeout(poll, Math.min(15_000, 2000 * 2 ** Math.min(failures, 3)));
+        // Every 2 s for the first 30 s, then every 4 s; failures back off further.
+        if (!disposed && again) timer = setTimeout(poll, preparationPollDelayMs(Date.now() - pollStartedAt, failures));
       }
     }
     timer = setTimeout(poll, 1000);
     return () => { disposed = true; controller.abort(); clearTimeout(timer); };
   }, [activeSessionPublicId, preparationPending, readOnlyReview, isBusy, router]);
+
+  // How long the student has waited for feedback: from the preparation job's start when the
+  // server reports it, otherwise from when this page first saw the wait. Updated every 15 s.
+  const [preparationClock, setPreparationClock] = useState<{ seen_at: number; now: number } | null>(null);
+  useEffect(() => {
+    if (!preparationPending) { setPreparationClock(null); return; }
+    const seenAt = Date.now();
+    setPreparationClock({ seen_at: seenAt, now: seenAt });
+    const timer = window.setInterval(() => setPreparationClock((current) => current ? { ...current, now: Date.now() } : current), 15_000);
+    return () => window.clearInterval(timer);
+  }, [preparationPending]);
 
   // Never wait on a spinner that nothing will update: while the opening is being prepared
   // or a tutor reply is pending (for example after a reload or a dropped connection), the
@@ -2909,13 +2918,18 @@ export function AssessmentSessionClient({
     if (!state || !conversation || !conversation.can_send || !message || isBusy) {
       return;
     }
-    const clientMessageId =
-      formativeMessageIdRef.current ??
-      newClientActionId("formative-conversation-message");
-    formativeMessageIdRef.current = clientMessageId;
+    const outgoing = formativeOutgoingMessageFor(
+      formativeMessageIdRef.current,
+      message,
+      () => newClientActionId("formative-conversation-message")
+    );
+    formativeMessageIdRef.current = outgoing;
+    const clientMessageId = outgoing.client_message_id;
+    const studentTurnCountBeforeSend = conversation.transcript.filter((turn) => turn.actor === "student").length;
     const inputTiming = formativeInputTimingRef.current!.submit(clientMessageId);
     setIsBusy(true);
     setIsAwaitingFormativeTutorResponse(true);
+    setPendingFormativeMessage(message);
     setError(null);
     setFailedAction(null);
     conversationEndRequestedRef.current = false;
@@ -2958,12 +2972,36 @@ export function AssessmentSessionClient({
           // The next poll or refresh shows the authoritative state.
         }
       } else {
-        handleError(errorValue, "message", () => {
-          void handleSendFormativeConversationMessage();
-        });
+        // The message may have been saved even though the response was lost: read the
+        // conversation again and show it. A saved message clears the draft and its id.
+        let refreshed: StudentFormativeConversation | null = null;
+        try {
+          refreshed = await fetchFormativeConversation(state.session_public_id);
+        } catch {
+          // Keep the draft; the error below lets the student try again.
+        }
+        const saved = sentFormativeMessageWasSaved(studentTurnCountBeforeSend, refreshed, message);
+        if (saved) {
+          setFormativeConversationDraft("");
+          formativeMessageIdRef.current = null;
+          resetFormativeInputTelemetry();
+        }
+        if (refreshed && !conversationEndRequestedRef.current) {
+          setState((current) =>
+            current
+              ? { ...current, formative_conversation: refreshed }
+              : current
+          );
+        }
+        if (!saved) {
+          handleError(errorValue, "message", () => {
+            void handleSendFormativeConversationMessage();
+          });
+        }
       }
     } finally {
       formativeSendInFlightRef.current = false;
+      setPendingFormativeMessage(null);
       setIsAwaitingFormativeTutorResponse(false);
       setIsBusy(false);
     }
@@ -3909,6 +3947,17 @@ export function AssessmentSessionClient({
           Your feedback may take a minute or more to prepare. You can look over your answers while you wait.
         </p>
       ) : null}
+      {preparationPending && preparationStageLabel(state.preparation.stage) ? (
+        <p className="mt-2 text-sm font-medium text-ink" data-testid="initial-preparation-stage">
+          {preparationStageLabel(state.preparation.stage)}
+        </p>
+      ) : null}
+      {preparationPending && preparationClock ? (
+        <p className="mt-1 text-sm text-muted" data-testid="initial-preparation-elapsed">
+          {preparationWaitingLabel(preparationClock.now - (Number.isFinite(Date.parse(state.preparation.waiting_since ?? ""))
+            ? Date.parse(state.preparation.waiting_since ?? "") : preparationClock.seen_at))}
+        </p>
+      ) : null}
       {preparationConnectionLost && preparationPending ? (
         <p className="mt-2 text-sm text-muted">Your connection was interrupted. We will check again in a few seconds.</p>
       ) : null}
@@ -4122,6 +4171,16 @@ export function AssessmentSessionClient({
               <FormativeConversationBubble turn={turn} />
             </ObservedFeedback></div>
           ))}
+          {!readOnlyReview && pendingFormativeMessage ? (
+            // The message being sent, shown at once as the student's own message. It is not
+            // described as saved: the server-confirmed transcript replaces it.
+            <div className="flex justify-end" data-testid="formative-conversation-pending-student-message">
+              <div className="max-w-[72%] rounded-2xl rounded-br-md bg-[#23312d] px-3 py-2 text-white shadow-sm sm:max-w-[62%]">
+                <p className="mb-1 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-white/65">You</p>
+                <p className="whitespace-pre-wrap text-sm leading-6">{pendingFormativeMessage}</p>
+              </div>
+            </div>
+          ) : null}
           <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
             if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recordInput(event.target.value.length);
           }}>{activePrompt}</div>

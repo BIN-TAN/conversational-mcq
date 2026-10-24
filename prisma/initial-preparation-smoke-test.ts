@@ -85,6 +85,7 @@ async function main() {
   assert.equal(await claimInitialPreparationJob("other-worker"), null);
   pass("two workers cannot claim the same job");
   process.env.WORKFLOW_JOB_LEASE_TIMEOUT_MS = "1000";
+  process.env.INITIAL_PREPARATION_LEASE_TIMEOUT_MS = "1000";
   let finish!: () => void;
   let entered!: () => void;
   const active = new Promise<void>((resolve) => { entered = resolve; });
@@ -285,6 +286,7 @@ async function main() {
   const full = await fixture("full_pipeline");
   await submitInitialConceptUnitForPreparation(full.input);
   process.env.WORKFLOW_JOB_LEASE_TIMEOUT_MS = "300000";
+  process.env.INITIAL_PREPARATION_LEASE_TIMEOUT_MS = "90000";
   // Start the same standalone worker used alongside Next, without a browser or an open request.
   const child = spawn(process.execPath, ["--import", "tsx", "prisma/initial-preparation-worker.ts"], { env: process.env, stdio: ["ignore", "pipe", "pipe"] });
   let logs = "";

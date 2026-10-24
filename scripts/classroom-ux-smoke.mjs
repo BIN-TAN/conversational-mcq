@@ -216,7 +216,7 @@ try {
     await page.getByRole("button", { name: "Cancel", exact: true }).click();
     await page.waitForURL(base + "/teacher/content/assessments");
   });
-  await check("student waiting notices distinguish sending from confirmed saving; IME and cancellation work", async () => {
+  await check("student waiting notices claim saving only once confirmed; IME and cancellation work", async () => {
     const studentContext = await context(fixture.student, { width: 390, height: 844 });
     const student = await studentContext.newPage();
     await student.clock.install();
@@ -239,7 +239,10 @@ try {
     const incoming = new Promise(done => { received = done; });
     await student.route(base + sessionApi + "/formative-conversation/messages", async route => {
       sends++; received(); await pending;
-      conversation = { ...conversation, can_send: false, assistant_response: { receipt_public_id: "synthetic-receipt", status: "pending", retry_count: 0, can_retry: false } };
+      conversation = { ...conversation, can_send: false, assistant_response: { receipt_public_id: "synthetic-receipt", status: "pending", retry_count: 0, can_retry: false },
+        transcript: [{ turn_id: "synthetic-student-turn", sequence_index: 1, actor: "student", message_text: "I think reliability is consistency.",
+          created_at: now, agent_name: null, generation_source: null, validator_status: null, fallback_used: false,
+          response_receipt_public_id: "synthetic-receipt", assistant_response_status: "pending", assistant_response_retry_count: 0 }] };
       await route.fulfill({ json: { formative_conversation: conversation } });
     });
     await student.goto(base + `/student/assessment/${fixture.activeSession}`, { waitUntil: "networkidle" });
@@ -255,15 +258,16 @@ try {
     const notice = student.getByTestId("formative-conversation-response-pending");
     await notice.waitFor();
     await student.clock.fastForward(11000);
-    assert.match(await notice.innerText(), /Sending your message/);
+    assert.match(await notice.innerText(), /Waiting for the tutor's reply/);
     assert.doesNotMatch(await notice.innerText(), /message is saved/);
+    await student.getByTestId("formative-conversation-pending-student-message").waitFor();
     await student.clock.fastForward(15000);
-    assert.match(await notice.innerText(), /Waiting for confirmation/);
+    assert.match(await notice.innerText(), /Still waiting\. You can read the earlier messages/);
     release(); await send;
     await student.reload({ waitUntil: "networkidle" });
     await notice.waitFor();
     await student.clock.fastForward(11000);
-    assert.match(await notice.innerText(), /Your message is saved/);
+    assert.match(await student.getByTestId("formative-response-pending").innerText(), /Your message is saved/);
     assert.equal(sends, 1);
     await student.screenshot({ path: join(output, "student-waiting-mobile.png") });
   });

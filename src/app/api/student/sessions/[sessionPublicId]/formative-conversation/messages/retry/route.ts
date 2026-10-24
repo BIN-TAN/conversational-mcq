@@ -5,10 +5,10 @@ import {
   studentAssessmentRouteError
 } from "@/lib/services/student-assessment/api";
 import {
-  formativeConversationReplyRunnerFactory,
-  formativeConversationRuntimeSeed,
+  formativeConversationReplyDependencies,
   FormativeConversationResponseGenerationError,
   getFormativeConversationStudentMessageForRetry,
+  getStudentFormativeConversationMessageGate,
   getStudentFormativeConversationProjection,
   processFormativeConversationStudentMessage
 } from "@/lib/services/student-assessment/formative-conversation";
@@ -33,10 +33,19 @@ export async function POST(
   try {
     const { sessionPublicId } = await context.params;
     const body = retrySchema.parse(await request.json());
-    const owned = await getStudentFormativeConversationProjection({
+    // A narrow ownership check first. The full projection runs first only when a reply has
+    // waited long enough for the projection to mark it failed; otherwise it is loaded only
+    // for the response.
+    const gate = await getStudentFormativeConversationMessageGate({
       student_user_db_id: auth.user.user_db_id,
       session_public_id: sessionPublicId
     });
+    const owned = gate?.stale_reply
+      ? await getStudentFormativeConversationProjection({
+          student_user_db_id: auth.user.user_db_id,
+          session_public_id: sessionPublicId
+        })
+      : gate;
     if (
       !owned ||
       owned.conversation_public_id !== body.conversation_public_id
@@ -55,7 +64,12 @@ export async function POST(
       });
     if (storedMessage.receipt.assistant_turn) {
       return NextResponse.json({
-        formative_conversation: owned
+        formative_conversation: gate?.stale_reply
+          ? owned
+          : await getStudentFormativeConversationProjection({
+              student_user_db_id: auth.user.user_db_id,
+              session_public_id: sessionPublicId
+            })
       });
     }
     if (
@@ -68,7 +82,7 @@ export async function POST(
       );
     }
 
-    const seed = await formativeConversationRuntimeSeed({
+    const { seed, runner_factory } = await formativeConversationReplyDependencies({
       conversation_public_id: body.conversation_public_id,
       student_user_db_id: auth.user.user_db_id
     });
@@ -80,7 +94,7 @@ export async function POST(
           message_text: storedMessage.message_text,
           context: seed
         },
-        { runner_factory: await formativeConversationReplyRunnerFactory(body.conversation_public_id) }
+        { runner_factory }
       );
     } catch (error) {
       if (!(error instanceof FormativeConversationResponseGenerationError)) {

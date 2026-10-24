@@ -8,6 +8,7 @@ export function getWorkflowJobConfig() {
     base_retry_ms: env.WORKFLOW_JOB_BASE_RETRY_MS,
     max_retry_ms: env.WORKFLOW_JOB_MAX_RETRY_MS,
     lease_timeout_ms: env.WORKFLOW_JOB_LEASE_TIMEOUT_MS,
+    initial_preparation_lease_timeout_ms: env.INITIAL_PREPARATION_LEASE_TIMEOUT_MS,
     poll_interval_ms: env.WORKFLOW_JOB_POLL_INTERVAL_MS
   };
 }

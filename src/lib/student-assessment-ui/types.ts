@@ -272,7 +272,9 @@ export const StudentSessionStateSchema = z.object({
     can_continue: z.boolean().default(false),
     can_finish: z.boolean().default(false),
     taking_long: z.boolean().default(false),
-    failure_reason: z.enum(["output_token_limit", "source_conflict", "unavailable"]).nullable().default(null)
+    failure_reason: z.enum(["output_token_limit", "source_conflict", "unavailable"]).nullable().default(null),
+    stage: z.enum(["reading_answers", "writing_feedback"]).nullable().optional(),
+    waiting_since: z.string().nullable().optional()
   }).nullable().optional(),
   next_step: z.enum([
     "concept_unit_intro",

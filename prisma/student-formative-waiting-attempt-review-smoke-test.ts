@@ -58,17 +58,14 @@ const reviewRoute = readFileSync(
   "utf8"
 );
 
-assert.match(assessmentClient, /Preparing a response\.\.\./);
-assert.match(
-  assessmentClient,
-  /Still preparing a response\. Your message is saved\./
-);
-assert.match(
-  assessmentClient,
-  /This is taking a little longer than usual\. You can review your answers or earlier messages while you wait\./
-);
+// The waiting text is honest: it never claims the message is saved (the student's own
+// message says so once the server confirms it).
+const chatUx = readFileSync("src/components/student-assessment/formative-chat-ux.ts", "utf8");
+assert.match(chatUx, /Waiting for the tutor's reply\.\.\./);
+assert.match(chatUx, /Still waiting\. You can read the earlier messages while you wait\./);
+assert.match(assessmentClient, /formativeReplyWaitingMessage\(stage === "delayed"\)/);
+assert.doesNotMatch(assessmentClient, /Still preparing a response\. Your message is saved\./);
 assert.doesNotMatch(assessmentClient, /Thinking about your question/);
-assert.match(assessmentClient, /FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000/);
 assert.match(assessmentClient, /FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000/);
 assert.match(assessmentClient, /readOnlyReview && state\.attempt_lifecycle\?\.terminal === true/);
 assert.match(assessmentClient, /enabled: !readOnlyReview/);

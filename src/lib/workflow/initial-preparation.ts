@@ -22,8 +22,31 @@ function leaseWhere(job: WorkflowJob) {
   return { id: job.id, status: "running" as const, locked_by: job.locked_by, attempt_count: job.attempt_count };
 }
 
+/**
+ * Initial-preparation jobs have their own, shorter lease (INITIAL_PREPARATION_LEASE_TIMEOUT_MS),
+ * renewed every third of it while the job runs, so a worker restart hands an interrupted job
+ * to another worker within about that long instead of the legacy queue's lease.
+ */
+export function initialPreparationLeaseTimeoutMs() {
+  return getWorkflowJobConfig().initial_preparation_lease_timeout_ms;
+}
+
+/**
+ * The opening alone failed and the profile is already saved (the next attempt reuses it and
+ * makes no new profiling call), so the job tries the opening again after a short wait
+ * instead of the full backoff. A provider's retry-after still applies (see run_after).
+ */
+export const OPENING_ONLY_RETRY_DELAY_MS = 5_000;
+
+export function initialPreparationRetryRunAfterMs(input: {
+  now: number; attempt_count: number; opening_only_retry: boolean; retry_not_before: number;
+}) {
+  const delay = input.opening_only_retry ? OPENING_ONLY_RETRY_DELAY_MS : retryDelayMs(input.attempt_count);
+  return Math.max(input.now + delay, input.retry_not_before);
+}
+
 export async function claimInitialPreparationJob(workerId: string) {
-  const cutoff = new Date(Date.now() - getWorkflowJobConfig().lease_timeout_ms);
+  const cutoff = new Date(Date.now() - initialPreparationLeaseTimeoutMs());
   return prisma.$transaction(async (tx) => {
     await tx.workflowJob.updateMany({
       where: { job_type: INITIAL_PREPARATION_JOB, status: { in: ["pending", "retryable", "running"] }, assessment_session: { OR: [
@@ -122,7 +145,7 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
   const timer = setInterval(() => {
     if (heartbeat) return;
     heartbeat = renewInitialPreparationLease(job).catch(() => { heartbeatFailure = true; }).finally(() => { heartbeat = null; });
-  }, Math.max(100, Math.floor(getWorkflowJobConfig().lease_timeout_ms / 3)));
+  }, Math.max(100, Math.floor(initialPreparationLeaseTimeoutMs() / 3)));
   timer.unref();
   const assertActive = async () => {
     if (heartbeatFailure) throw new PreparationInterrupted("lost_lease");
@@ -132,6 +155,8 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
   let errorCategory: string | null = null;
   let retryNotBefore = 0;
   let paused = false;
+  // Set only when the profile and conversation are saved and just the opening is not ready.
+  let openingOnlyRetry = false;
   try {
     await assertActive();
     const payload = payloadSchema.parse(job.payload);
@@ -181,12 +206,14 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
       const handOverToConversation = Boolean(conversation) &&
         (job.attempt_count >= job.max_attempts || retryCannotHelp);
       if (conversation?.opening_status !== "ready" && !handOverToConversation) {
+        openingOnlyRetry = Boolean(conversation);
         throw new Error("preparation_opening_not_ready");
       }
     }
     await assertActive();
   } catch (error) {
     if (error instanceof PreparationInterrupted && error.disposition === "lost_lease") return "lost_lease";
+    if (!(error instanceof Error && error.message === "preparation_opening_not_ready")) openingOnlyRetry = false;
     paused = error instanceof PreparationInterrupted && error.disposition === "paused";
     status = error instanceof PreparationInterrupted && error.disposition === "cancelled" ? "cancelled"
       : paused || job.attempt_count < job.max_attempts ? "retryable" : "failed";
@@ -246,7 +273,10 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
     const updated = await tx.workflowJob.updateMany({ where: leaseWhere(job), data: {
       status: outcome, locked_by: null, locked_at: null,
       ...(paused ? { max_attempts: { increment: 1 } } : {}),
-      run_after: new Date(Math.max(Date.now() + retryDelayMs(job.attempt_count), retryNotBefore)),
+      run_after: new Date(initialPreparationRetryRunAfterMs({
+        now: Date.now(), attempt_count: job.attempt_count,
+        opening_only_retry: openingOnlyRetry && outcome === "retryable" && !paused, retry_not_before: retryNotBefore
+      })),
       completed_at: outcome === "completed" || outcome === "cancelled" ? new Date() : null,
       last_error_category: errorCategory,
       last_error_message: errorCategory ? "Learning support preparation did not finish. Saved responses are unchanged." : null
