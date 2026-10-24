@@ -2991,6 +2991,9 @@ function prismaFieldRelationRole(field: string) {
 }
 
 function schemaFieldPurpose(modelName: string, field: string) {
+  if (modelName === "ItemMediaAsset" && field === "placement") {
+    return "Where the media asset is shown. Allowed values: item_stem (with the question text); option (with the answer option named in option_label); explanation (with the item's explanation: students see it only in the answer review, after their answers are sealed, and only when the explanation is shown; instructors see it in previews). explanation was added in release CMCQ-20261024-11; earlier rows hold item_stem or option and are unchanged.";
+  }
   if (modelName === "AgentCall" && /token_usage|input_tokens|output_tokens|total_tokens|max_output_tokens/i.test(field)) {
     return "Source field for LLM provider usage, token-limit, and cost-audit lineage; it is not a credential or secret.";
   }

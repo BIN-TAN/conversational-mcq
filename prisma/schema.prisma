@@ -58,6 +58,7 @@ enum ItemReviewDecisionType {
 enum ItemMediaPlacement {
   item_stem
   option
+  explanation
 }
 
 enum ItemMediaType {

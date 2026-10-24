@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ITEM_MEDIA_PLACEMENTS } from "@/lib/item-content/media-placement";
 import { ItemDesignBlueprintSchema } from "./item-design-contract";
 import { normalizeMiniTestJson, relaxedJsonText } from "./mini-test-json-normalize";
 
@@ -17,7 +18,8 @@ const mediaSchema = z.object({
   media_type: z.enum(["image", "video", "reference_link"]),
   source_type: z.literal("external_url"),
   external_url: z.string().url().max(2000),
-  placement: z.enum(["item_stem", "option"]).default("item_stem"),
+  // item_stem, option, or explanation (shown with the explanation in the answer review).
+  placement: z.enum(ITEM_MEDIA_PLACEMENTS).default("item_stem"),
   option_label: z.string().regex(/^[A-F]$/).nullable().optional(),
   alt_text_or_description: z.string().trim().min(1).max(4000),
   student_alt_text: note,
@@ -65,7 +67,7 @@ const itemSchema = z.object({
   }
   item.media_assets.forEach((media, index) => {
     if (media.placement === "option" ? !media.option_label || !labels.has(media.option_label) : Boolean(media.option_label)) {
-      ctx.addIssue({ code: "custom", path: ["media_assets", index, "option_label"], message: "Media must reference an existing option, or the item stem without an option label." });
+      ctx.addIssue({ code: "custom", path: ["media_assets", index, "option_label"], message: "Media must reference an existing option, or the item stem or explanation without an option label." });
     }
   });
 });

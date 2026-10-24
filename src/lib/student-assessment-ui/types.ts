@@ -19,7 +19,8 @@ export type StudentSafeOption = z.infer<typeof StudentSafeOptionSchema>;
 
 export const StudentSafeMediaAssetSchema = z.object({
   media_public_id: z.string(),
-  placement: z.enum(["item_stem", "option"]),
+  // explanation media (release CMCQ-20261024-11) arrives only in package_results, after answers are sealed.
+  placement: z.enum(["item_stem", "option", "explanation"]),
   option_label: z.string().nullable(),
   media_type: z.enum(["image", "video", "reference_link"]),
   url: z.string().nullable(),
@@ -172,7 +173,8 @@ export const PackageResultsSchema = z.object({
     student_answer: z.string().nullable(),
     answer_explanation_revealed: z.boolean(),
     answer_explanation: z.string().nullable(),
-    distractor_boundary: z.string().nullable()
+    distractor_boundary: z.string().nullable(),
+    explanation_media: z.array(StudentSafeMediaAssetSchema).optional()
   }))
 });
 export type PackageResults = z.infer<typeof PackageResultsSchema>;

@@ -167,7 +167,8 @@ async function main() {
       "Same builder as the stored answer_review_v2");
     assert(service.includes('const waitingAnswerReview = packageResultsExposed && assessmentState !== "PACKAGE_REVIEW" &&'),
       "Never while the student can still change answers");
-    assert(/package_results: packageResultsExposed\n\s+\? latestEvidenceIntegratedProfile\n\s+\? packageResultsForStudent\(latestEvidenceIntegratedProfile\)\n\s+: waitingAnswerReview\n\s+: null,/.test(service));
+    // Release CMCQ-20261024-11: the same choice, with explanation media added for display.
+    assert(/package_results: packageResultsExposed\n\s+\? withExplanationMedia\(\n\s+latestEvidenceIntegratedProfile\n\s+\? packageResultsForStudent\(latestEvidenceIntegratedProfile\)\n\s+: waitingAnswerReview,\n\s+items\n\s+\)\n\s+: null,/.test(service));
   });
 
   console.log(`\n${passed} research-decision checks passed; no database or provider calls.`);
