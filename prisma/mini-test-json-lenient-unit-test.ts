@@ -166,7 +166,7 @@ check("The assistant's output becomes the import format: keys only as stated, no
 });
 
 check("The formatting prompt keeps wording and never adds a key; the service replays the same file", () => {
-  assert.equal(MINI_TEST_JSON_FORMAT_PROMPT_VERSION, "mini-test-json-format-v2");
+  assert.equal(MINI_TEST_JSON_FORMAT_PROMPT_VERSION, "mini-test-json-format-v3");
   for (const part of [
     "Copy every title, stem, option, key, note and design entry word for word.",
     "key is the letter of the correct option only when the file states it",

@@ -79,7 +79,7 @@ item or field. Examples are repeated option letters, a missing stem, fewer than 
 over-long text and invalid JSON beyond trailing commas.
 
 For those files, **Let the assistant format this file** sends the text to the item-preparation
-model (`mini-test-json-format-v2`, `formatMiniTestJsonWithAssistant` in `item-design.ts`, route
+model (`mini-test-json-format-v3`, `formatMiniTestJsonWithAssistant` in `item-design.ts`, route
 `POST /api/teacher/content/import-json/format`).
 
 - The model copies every title, stem, option, note and design entry word for word.
