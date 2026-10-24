@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+// KaTeX styles for formulas in item content and tutor messages (release CMCQ-20261024-11).
+import "katex/dist/katex.min.css";
 import "./globals.css";
 
 export const metadata: Metadata = {

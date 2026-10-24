@@ -65,3 +65,77 @@
     outline-offset: 2px;
   }
 }
+
+/* Rich item content (src/components/item-content.tsx): tables scroll sideways on phones,
+ * long formulas scroll inside their own line, and two paragraphs inside an option line
+ * stack. Plain item text does not use these classes. */
+@layer components {
+  .item-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .item-content-table {
+    display: block;
+    max-width: 100%;
+    margin: 0.5rem 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .item-content-table table {
+    border-collapse: collapse;
+    font-size: 0.9em;
+    line-height: 1.4;
+  }
+
+  .item-content-table th,
+  .item-content-table td {
+    border: 1px solid var(--border-light);
+    padding: 0.25rem 0.5rem;
+    text-align: left;
+    vertical-align: top;
+    overflow-wrap: normal;
+    white-space: pre-wrap;
+  }
+
+  .item-content-table th {
+    background: var(--panel-gray);
+    font-weight: 600;
+  }
+
+  .item-content .katex-display,
+  .tutor-message-math .katex-display {
+    margin: 0.5rem 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.125rem 0;
+  }
+
+  .item-content .katex {
+    font-size: 1.05em;
+  }
+
+  .item-content-inline .item-content-p + .item-content-p {
+    display: block;
+    margin-top: 0.5rem;
+  }
+
+  .item-media-embed {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+    border-radius: 0.5rem;
+    background: #000;
+  }
+
+  .item-media-embed iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
