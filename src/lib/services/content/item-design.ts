@@ -188,6 +188,7 @@ WRITING GOOD ITEMS
 - Avoid cues: the key does not repeat the stem's wording, is not the longest or most qualified option, and its position varies across the set.
 - Items are independent: no item gives away the answer to another.
 - Treat the teacher's exemplar items as templates: follow their format, structure and level, and write new content instead of copying them.
+- Formulas may be written in LaTeX between $ signs (for example $\\sigma = F/A$) and tables as Markdown pipe tables; students see them rendered.
 
 PLAIN, NATURAL LANGUAGE
 Write stems, options, the target reasoning note and the essential elements (strong_reasoning_should_mention) in complete, natural, plain language that a student in this course understands on first reading: common words, short sentences, active voice, and no unexplained abbreviations. Students read the target reasoning note and the essential elements in their answer review, so write them to the student as a clear explanation. Write the teacher notes (option rationales, the explanation of the key, limitations) as short complete sentences a teacher understands at a glance. Do not use stock phrases or sentence fragments. Give each incorrect option an idea_label of two to six plain words that names its incorrect idea, using the same label for the same idea across items; the key's idea_label is null.
@@ -247,6 +248,7 @@ READING THE ITEMS
 - Find every complete item: a question or stem with at least two lettered options. Give each its label in the source (for example "D1" or "Question 3") as source_label, and the heading of the section or cluster it sits under as source_topic.
 - Set belongs_to_selected_topic to true only for items that assess the mini test's course_topic (or, when there is no course topic, the mini test's title and objectives).
 - Copy the stem and the options word for word. Do not correct, shorten, reorder or improve them. Use the letters A to E in the source's order.
+- Formulas may be written in LaTeX between $ signs and tables as Markdown pipe tables, so that students see them as in the source.
 - stated_key is the correct option only when the source states it (for example "Key B" or "Answer: B"). Otherwise stated_key is null and suggested_key is the option a well-prepared student would choose, or null when you cannot tell.
 - List in skipped, with a short reason, anything that looks like an item but is incomplete (for example a stem without options).
 

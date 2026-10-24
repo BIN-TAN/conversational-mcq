@@ -162,7 +162,7 @@ async function main() {
 
     const calls = await prisma.agentCall.findMany({ where: { agent_invocation_key: { startsWith: `existing_item_import:${assessmentPublicId}:` } } });
     assert(calls.length === 2 && calls.every((call) => call.call_status === "succeeded"), "Both calls are audited.");
-    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v2"), "The read call records its prompt version.");
+    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v3"), "The read call records its prompt version.");
     assert(!calls.some((call) => JSON.stringify(call.input_payload).includes(userId)), "No account identifiers reach the provider context.");
 
     const replay = await run();

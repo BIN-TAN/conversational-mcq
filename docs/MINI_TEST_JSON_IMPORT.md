@@ -79,7 +79,7 @@ item or field. Examples are repeated option letters, a missing stem, fewer than 
 over-long text and invalid JSON beyond trailing commas.
 
 For those files, **Let the assistant format this file** sends the text to the item-preparation
-model (`mini-test-json-format-v3`, `formatMiniTestJsonWithAssistant` in `item-design.ts`, route
+model (`mini-test-json-format-v4`, `formatMiniTestJsonWithAssistant` in `item-design.ts`, route
 `POST /api/teacher/content/import-json/format`).
 
 - The model copies every title, stem, option, note and design entry word for word.
@@ -128,6 +128,11 @@ low reading load. The file contains:
   (`{ "B": "..." }`, one per incorrect option, never for the key) and `idea_labels`
   (`{ "B": "reliability = validity" }`, at most 60 characters). The older single
   `distractor_diagnostic_notes` is still accepted.
+  Each `media_assets` entry has a `placement`: `item_stem` (default), `option` (with
+  `option_label`), or `explanation` (shown with the explanation in the answer review only).
+  Stems, options and notes may contain formulas in LaTeX between `$` signs (`$\\sigma = F/A$`
+  in JSON, since a backslash is written twice) and Markdown pipe tables; they are stored as
+  written and rendered for students and instructors.
 
 Every published item needs one to three essential elements; publishing is blocked
 without them. An incorrect option without its own rationale is a publishing warning.
