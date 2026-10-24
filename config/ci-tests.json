@@ -176,7 +176,8 @@
     {
       "path": "prisma/provider-recovery-smoke-test.ts",
       "allowFailure": "Not yet verified: failed in the database-free baseline only because the sandbox lacked a real dependency (openai APIError). Expected to pass with real node_modules; remove allowFailure once CI shows it passing."
-    }
+    },
+    "prisma/item-content-unit-test.ts"
   ],
   "database": [
     "prisma/assessment-availability-smoke-test.ts",
