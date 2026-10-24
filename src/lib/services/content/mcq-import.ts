@@ -6,6 +6,7 @@ import { readBoundedOfficeArchive } from "./office-archive";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
+import { ITEM_MEDIA_PLACEMENTS } from "@/lib/item-content/media-placement";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   extractDocxForMcqImport,
@@ -127,7 +128,7 @@ const CandidateMediaAssetSchema = z.object({
   media_type: z.enum(["image", "video", "reference_link"]),
   source_type: z.literal("external_url"),
   external_url: z.string(),
-  placement: z.enum(["item_stem", "option"]).default("item_stem"),
+  placement: z.enum(ITEM_MEDIA_PLACEMENTS).default("item_stem"),
   option_label: z.string().nullable().optional(),
   alt_text_or_description: z.string(),
   student_alt_text: z.string().nullable().optional(),

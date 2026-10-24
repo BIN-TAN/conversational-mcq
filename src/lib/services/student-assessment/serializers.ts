@@ -9,6 +9,7 @@ import type {
   SessionStatus
 } from "@prisma/client";
 import { containsChineseText, studentDisplayText } from "@/lib/student-visible-safety";
+import { isAnsweringMediaPlacement } from "@/lib/item-content/media-placement";
 
 type SafeOptions = Array<{ label: string; text: string }>;
 
@@ -91,7 +92,7 @@ export type StudentSafeItem = {
 
 export type StudentSafeMediaAsset = {
   media_public_id: string;
-  placement: "item_stem" | "option";
+  placement: "item_stem" | "option" | "explanation";
   option_label: string | null;
   media_type: "image" | "video" | "reference_link";
   url: string | null;
@@ -115,6 +116,19 @@ function serializeStudentSafeMediaAsset(asset: ItemMediaAsset): StudentSafeMedia
     transcript_or_content_summary: asset.transcript_or_content_summary,
     source_attribution: asset.source_attribution
   };
+}
+
+/**
+ * Media shown with an item's explanation in the answer review (placement explanation,
+ * release CMCQ-20261024-11). Callers attach it only to an explanation the student may see.
+ */
+export function studentSafeExplanationMedia(
+  item: { media_assets?: ItemMediaAsset[] } | null | undefined
+): StudentSafeMediaAsset[] {
+  return (item?.media_assets ?? [])
+    .filter((asset) => asset.active && (asset.placement as string) === "explanation")
+    .sort((left, right) => left.order_index - right.order_index)
+    .map(serializeStudentSafeMediaAsset);
 }
 
 export function itemSubmissionState(
@@ -164,7 +178,11 @@ export function serializeStudentSafeItem(
     initial_item_total: initialItemMeta?.total ?? null,
     item_stem: item.item_stem,
     options: safeOptions(item.options),
-    media_assets: item.media_assets?.map(serializeStudentSafeMediaAsset) ?? [],
+    // Explanation media can reveal the key: never part of the item a student answers.
+    media_assets:
+      item.media_assets
+        ?.filter((asset) => isAnsweringMediaPlacement(asset.placement))
+        .map(serializeStudentSafeMediaAsset) ?? [],
     item_version: item.version,
     existing_selected_option: response?.selected_option ?? null,
     existing_reasoning_text: response?.reasoning_text ?? null,

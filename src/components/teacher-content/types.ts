@@ -140,7 +140,7 @@ export type ItemOption = {
 
 export type ItemMediaAsset = {
   media_public_id: string;
-  placement: "item_stem" | "option";
+  placement: "item_stem" | "option" | "explanation";
   option_label: string | null;
   media_type: "image" | "video" | "reference_link";
   source_type: "uploaded" | "external_url";

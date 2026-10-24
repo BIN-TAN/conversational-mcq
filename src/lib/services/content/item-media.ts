@@ -9,6 +9,7 @@ import type {
 } from "@prisma/client";
 import { z } from "zod";
 import { generatePublicId } from "@/lib/services/ids";
+import { ITEM_MEDIA_PLACEMENTS } from "@/lib/item-content/media-placement";
 import { ContentServiceError } from "./errors";
 
 export const ITEM_MEDIA_CONTEXT_VERSION = "item-media-context-v1" as const;
@@ -18,7 +19,8 @@ export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024;
 
 const ImageMimeTypeSchema = z.enum(["image/png", "image/jpeg", "image/webp"]);
 const MediaTypeSchema = z.enum(["image", "video", "reference_link"]);
-const MediaPlacementSchema = z.enum(["item_stem", "option"]);
+// item_stem, option and (release CMCQ-20261024-11) explanation: media-placement.ts.
+const MediaPlacementSchema = z.enum(ITEM_MEDIA_PLACEMENTS);
 const MediaSourceTypeSchema = z.enum(["uploaded", "external_url"]);
 
 export const ItemMediaAssetInputSchema = z
@@ -56,6 +58,14 @@ export const ItemMediaAssetInputSchema = z
         code: z.ZodIssueCode.custom,
         path: ["option_label"],
         message: "Stem media must not be attached to an option label."
+      });
+    }
+
+    if (value.placement === "explanation" && value.option_label) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["option_label"],
+        message: "Explanation media must not be attached to an option label."
       });
     }
 
