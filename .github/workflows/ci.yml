@@ -1,0 +1,257 @@
+# Continuous integration for the conversational MCQ assessment system. See docs/CI.md.
+#
+# Every job uses the mock LLM provider and placeholder secrets. No job has an OpenAI key, and the
+# test runner (scripts/ci-run-tests.mjs) loads scripts/classroom-audit-network-guard.mjs into every
+# test so a request to any host other than localhost fails. CI never makes a live model call.
+# The test lists live in config/ci-tests.json.
+
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "22"
+  NEXT_TELEMETRY_DISABLED: "1"
+  CHECKPOINT_DISABLE: "1"
+  # Placeholders only. They are not secrets and are used nowhere else.
+  SESSION_SECRET: ci-placeholder-session-secret-not-a-real-secret-0001
+  LLM_PROVIDER: mock
+  LLM_LIVE_CALLS_ENABLED: "false"
+  OPENAI_API_KEY: ""
+  OPENAI_API_KEY_FILE: ""
+  ALLOW_LOCAL_MOCK_RUNTIME: "true"
+
+jobs:
+  checks:
+    name: Install, lint, unit tests, build, typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # No database runs in this job. The URL only satisfies environment validation; the unit list
+      # holds tests that never query.
+      DATABASE_URL: postgresql://cmcq:cmcq@localhost:5432/conversational_mcq_classroom_audit_ci?schema=public
+      OPERATIONAL_AGENT_MODE: mock
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        id: generate
+        run: npx prisma generate
+
+      # The steps below run even when an earlier one fails, so one run reports every problem.
+      - name: Lint
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: npm run lint
+
+      - name: Database-free tests (config/ci-tests.json "unit")
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: npm run ci:unit
+
+      - name: Redesign v8 suites (npm run test:redesign-v8)
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: npm run test:redesign-v8
+
+      - name: Production build
+        id: build
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: npm run build
+
+      # next-env.d.ts references .next/types/routes.d.ts, which the build writes, so the typecheck
+      # runs after the build. If the build failed, generate only the route types and still typecheck.
+      - name: Route types when the build failed
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' && steps.build.outcome != 'success' }}
+        continue-on-error: true
+        run: npx next typegen
+
+      - name: Typecheck
+        if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
+        run: npm run typecheck
+
+      - name: Upload test logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: checks-logs
+          path: ci-logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  database:
+    name: Database smoke tests (PostgreSQL 16)
+    needs: checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          # The service user is the superuser, so tests and the runner can CREATE DATABASE.
+          POSTGRES_USER: cmcq
+          POSTGRES_PASSWORD: cmcq
+          POSTGRES_DB: conversational_mcq_classroom_audit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cmcq -d conversational_mcq_classroom_audit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      # Test guards require a local database whose name starts with conversational_mcq_classroom_audit_.
+      DATABASE_URL: postgresql://cmcq:cmcq@localhost:5432/conversational_mcq_classroom_audit_ci?schema=public
+      E2E_DATABASE_URL: postgresql://cmcq:cmcq@localhost:5432/conversational_mcq_classroom_audit_ci?schema=public
+      # The same settings as the repository's own database harness, scripts/classroom-audit.mjs.
+      NODE_ENV: test
+      APP_ENV: development
+      RESEARCH_PSEUDONYMIZATION_KEY: ci-placeholder-pseudonymization-key-not-a-secret
+      ITEM_ADMIN_TUTOR_MODE: mock
+      OPERATIONAL_AGENT_MODE: disabled
+      OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: "false"
+      FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: "false"
+      COURSE_TIMEZONE: America/Edmonton
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Apply migrations to the fresh database
+        run: npx prisma migrate deploy
+
+      - name: Seed demo data
+        run: npm run prisma:seed
+
+      - name: Database smoke tests (config/ci-tests.json "database")
+        run: npm run ci:db
+
+      - name: Upload test logs
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-logs
+          path: ci-logs/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  browser:
+    name: Browser scripts (Playwright, mock provider)
+    needs: checks
+    runs-on: ubuntu-latest
+    # Allowed to fail while the browser scripts settle in CI; see docs/CI.md.
+    continue-on-error: true
+    timeout-minutes: 75
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: cmcq
+          POSTGRES_PASSWORD: cmcq
+          POSTGRES_DB: conversational_mcq_classroom_audit_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U cmcq -d conversational_mcq_classroom_audit_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgresql://cmcq:cmcq@localhost:5432/conversational_mcq_classroom_audit_ci?schema=public
+      E2E_DATABASE_URL: postgresql://cmcq:cmcq@localhost:5432/conversational_mcq_classroom_audit_ci?schema=public
+      # NODE_ENV is deliberately unset: next build and next start set it themselves.
+      APP_ENV: development
+      RESEARCH_PSEUDONYMIZATION_KEY: ci-placeholder-pseudonymization-key-not-a-secret
+      ITEM_ADMIN_TUTOR_MODE: mock
+      OPERATIONAL_AGENT_MODE: disabled
+      OPERATIONAL_LIVE_CANARY_DATABASE_URL_ACTIVE: "false"
+      FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED: "false"
+      COURSE_TIMEZONE: America/Edmonton
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Install Chromium for Playwright
+        run: npx playwright install --with-deps chromium
+
+      - name: Apply migrations to the fresh database
+        run: npx prisma migrate deploy
+
+      - name: Seed demo data
+        run: npm run prisma:seed
+
+      - name: Production build
+        run: npm run build
+
+      # The browser scripts start their own server on a free port against their own database.
+      # This step checks the production start command itself (web server and preparation worker)
+      # with the mock provider, then stops it.
+      - name: Start the app and check /api/health
+        run: |
+          mkdir -p ci-logs
+          setsid node scripts/start-app.mjs start -H 127.0.0.1 -p 3000 > ci-logs/app-start.log 2>&1 &
+          app=$!
+          healthy=""
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:3000/api/health -o ci-logs/health.json; then healthy=yes; break; fi
+            if ! kill -0 "$app" 2>/dev/null; then echo "The app exited during start-up."; break; fi
+            sleep 2
+          done
+          kill -TERM -- "-$app" 2>/dev/null || true
+          sleep 3
+          kill -KILL -- "-$app" 2>/dev/null || true
+          cat ci-logs/health.json 2>/dev/null || true
+          echo
+          if [ -z "$healthy" ]; then tail -n 100 ci-logs/app-start.log; exit 1; fi
+
+      - name: Browser scripts (config/ci-tests.json "browser")
+        if: ${{ !cancelled() }}
+        run: npm run ci:browser
+
+      - name: Upload test logs and screenshots
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-logs
+          path: |
+            ci-logs/
+            .data/student-usability-smoke/
+            /tmp/cmcq-*/
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 14
