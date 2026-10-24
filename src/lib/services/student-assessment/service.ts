@@ -117,7 +117,8 @@ import {
   serializeStudentAssessment,
   serializeStudentConceptUnit,
   serializeStudentSafeItem,
-  serializeStudentSessionSummary
+  serializeStudentSessionSummary,
+  studentSafeExplanationMedia
 } from "./serializers";
 import { StudentAssessmentServiceError } from "./errors";
 
@@ -411,6 +412,25 @@ async function answerReviewFromSealedPackage(conceptUnitSessionDbId: string) {
     logProductionError(error, { safe_error_code: "waiting_answer_review_failed" });
     return null;
   }
+}
+
+/**
+ * Media placed with an item's explanation (release CMCQ-20261024-11), added to the answer
+ * review only for items whose explanation the student may see. Display only: the stored
+ * profile and response package are unchanged.
+ */
+function withExplanationMedia<
+  T extends { items: Array<{ item_public_id: string; answer_explanation_revealed: boolean; answer_explanation: string | null }> }
+>(results: T | null, items: ItemWithMedia[]): T | null {
+  if (!results) return results;
+  return {
+    ...results,
+    items: results.items.map((entry) => {
+      if (!entry.answer_explanation_revealed || !entry.answer_explanation) return entry;
+      const media = studentSafeExplanationMedia(items.find((item) => item.item_public_id === entry.item_public_id));
+      return media.length > 0 ? { ...entry, explanation_media: media } : entry;
+    })
+  };
 }
 
 async function getOrCreateInitialResponsePackage(conceptUnitSessionDbId: string, db: Prisma.TransactionClient = prisma) {
@@ -3405,9 +3425,12 @@ export async function getStudentSessionState(input: {
     activity_runtime: activityRuntime,
     formative_conversation: formativeConversation,
     package_results: packageResultsExposed
-      ? latestEvidenceIntegratedProfile
-        ? packageResultsForStudent(latestEvidenceIntegratedProfile)
-        : waitingAnswerReview
+      ? withExplanationMedia(
+          latestEvidenceIntegratedProfile
+            ? packageResultsForStudent(latestEvidenceIntegratedProfile)
+            : waitingAnswerReview,
+          items
+        )
       : null,
     progression: formativeConversation ? null : progression,
     // D3 (DESIGN_ALIGNMENT_2026-10-17.md): understanding profiles inform instructors

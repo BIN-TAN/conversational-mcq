@@ -1372,6 +1372,15 @@ status, media version, and a media-context hash. The legacy
 records, but new student payloads should read `student_alt_text` while
 LLM-facing context may read `teacher_llm_media_description`.
 
+`placement` takes `item_stem`, `option` (with `option_label`) or, from release
+CMCQ-20261024-11, `explanation`: media shown with the item's explanation.
+Students receive explanation media only in the answer review, after their
+answers are sealed and only for an explanation that is shown; it is never part
+of the item a student answers. Earlier rows keep `item_stem` or `option`.
+Stored stems, options and explanations remain the authored strings; formulas
+(LaTeX between `$` signs) and Markdown tables in them are rendered at display
+time only, and exports carry the strings unchanged.
+
 Image uploads are stored through a provider-neutral storage boundary only when
 server-side storage is configured. Local/course URLs must be HTTPS and must
 pass URL safety checks. Student-facing payloads and default exports must not
