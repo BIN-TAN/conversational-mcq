@@ -84,6 +84,10 @@ import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdo
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
 const IDK_OPTION_TEXT = "I don't know yet.";
+/** States in which the student is answering questions and the response review is not shown. */
+const ANSWERING_STATES = new Set(["SESSION_START", "ITEM_PRESENTED", "AWAIT_ANSWER", "AWAIT_REASON", "AWAIT_CONFIDENCE",
+  "AWAIT_TEMPTING_OPTION", "AWAIT_TEMPTING_REASON", "TRANSFER_ITEM"]);
+
 const STUDENT_FACING_TUTOR_LABEL = "Tutor";
 const FORMATIVE_RESPONSE_SAVED_NOTICE_MS = 10_000;
 const FORMATIVE_RESPONSE_DELAY_NOTICE_MS = 25_000;
@@ -2851,10 +2855,13 @@ export function AssessmentSessionClient({
     readOnlyReview
   ]);
 
-  async function refreshSecondaryData(sessionPublicId: string) {
+  async function refreshSecondaryData(sessionPublicId: string, nextAssessmentState?: string) {
+    // While the student answers questions, the response review is not shown, and rebuilding it
+    // costs a full state build on the server: fetch it only once the attempt reaches the review.
+    const reviewNeeded = !nextAssessmentState || !ANSWERING_STATES.has(nextAssessmentState);
     const [transcriptResult, reviewResult] = await Promise.allSettled([
       fetchStudentTranscript(sessionPublicId),
-      fetchStudentReview(sessionPublicId)
+      reviewNeeded ? fetchStudentReview(sessionPublicId) : Promise.reject(new Error("not_needed"))
     ]);
 
     if (transcriptResult.status === "fulfilled") {
@@ -3088,7 +3095,7 @@ export function AssessmentSessionClient({
       tracked?.finish();
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       tracked?.finish(true);
       handleError(errorValue, label, () => {
@@ -3145,7 +3152,7 @@ export function AssessmentSessionClient({
 
         setState(nextState);
         setActivityRuntime(nextState.activity_runtime ?? null);
-        await refreshSecondaryData(nextState.session_public_id);
+        await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
       } catch (errorValue) {
         if (mounted) {
           handleError(errorValue, "Load assessment", () => {
@@ -3395,7 +3402,7 @@ export function AssessmentSessionClient({
             ...current, locked: true, items: current.items.map((item) => ({ ...item, can_edit: false }))
           } : current);
         } else {
-          await refreshSecondaryData(result.state.session_public_id);
+          await refreshSecondaryData(result.state.session_public_id, result.state.assessment_state);
         }
       } catch (errorValue) {
         try {
@@ -3415,7 +3422,7 @@ export function AssessmentSessionClient({
           if (recovered) {
             setState(canonicalState);
             setActivityRuntime(canonicalState.activity_runtime ?? null);
-            await refreshSecondaryData(canonicalState.session_public_id);
+            await refreshSecondaryData(canonicalState.session_public_id, canonicalState.assessment_state);
             return;
           }
         } catch {
@@ -3573,7 +3580,7 @@ export function AssessmentSessionClient({
       const nextState = await fetchSessionState(result.state.session_public_id);
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Send follow-up response", () => {
         void handleSendFollowup();
@@ -3597,7 +3604,7 @@ export function AssessmentSessionClient({
       setActivityRuntime(nextActivityRuntime);
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Prepare activity", () => {
         void handleStartActivityRuntime();
@@ -3629,7 +3636,7 @@ export function AssessmentSessionClient({
       setActivityRuntime(nextActivityRuntime);
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
       if (choiceState === "finish_assessment") {
         setEndAssessmentDialogOpen(false);
       }
@@ -3683,7 +3690,7 @@ export function AssessmentSessionClient({
         setActivityRuntime(nextActivityRuntime);
         const nextState = await fetchSessionState(state.session_public_id);
         setState(nextState);
-        await refreshSecondaryData(nextState.session_public_id);
+        await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
         return;
       }
 
@@ -3704,7 +3711,7 @@ export function AssessmentSessionClient({
       setActivityRuntime(nextActivityRuntime);
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Send activity response", () => {
         void handleSendFormativeActivityResponse();
@@ -3745,7 +3752,7 @@ export function AssessmentSessionClient({
       setRevisionDraft("");
       setState(result.state);
       setActivityRuntime(result.state.activity_runtime ?? null);
-      await refreshSecondaryData(result.state.session_public_id);
+      await refreshSecondaryData(result.state.session_public_id, result.state.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Send revision", () => {
         void handleSendRevision();
@@ -3772,7 +3779,7 @@ export function AssessmentSessionClient({
       });
       setState(result.state);
       setActivityRuntime(result.state.activity_runtime ?? null);
-      await refreshSecondaryData(result.state.session_public_id);
+      await refreshSecondaryData(result.state.session_public_id, result.state.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Choose next step", () => {
         void handleNextChoice(choice);
@@ -3807,7 +3814,7 @@ export function AssessmentSessionClient({
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Show next choice", () => {
         void handleRequestProgression();
@@ -3843,7 +3850,7 @@ export function AssessmentSessionClient({
       const nextState = await fetchSessionState(state.session_public_id);
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
-      await refreshSecondaryData(nextState.session_public_id);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
     } catch (errorValue) {
       handleError(errorValue, "Choose next step", () => {
         void handleProgressionChoice(choice);

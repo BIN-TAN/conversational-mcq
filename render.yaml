@@ -107,6 +107,9 @@ services:
         value: "600000"
       - key: WORKFLOW_JOB_POLL_INTERVAL_MS
         value: "5000"
+      # Feedback preparation jobs run at the same time; 2 queued a whole class that submits together.
+      - key: INITIAL_PREPARATION_CONCURRENCY
+        value: "6"
 
 databases:
   - name: conversational-mcq-staging-db

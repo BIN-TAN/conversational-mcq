@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useDeferredValue, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, FileDown, FileJson, Sparkles, Upload } from "lucide-react";
 import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
@@ -22,7 +22,10 @@ export function ImportJsonClient() {
   const [formatting, setFormatting] = useState(false);
   const [assistantResult, setAssistantResult] = useState<{ changes: string[]; could_not_read: string[]; remaining_problems: string[] } | null>(null);
   const { allowNavigation } = useUnsavedChanges(Boolean(jsonText) && !submitted);
+  // Large files are read while typing pauses, not on every keystroke.
+  const deferredText = useDeferredValue(jsonText);
   const parsed = useMemo(() => {
+    const jsonText = deferredText;
     if (!jsonText.trim()) return { document: null, changes: [] as string[], message: null };
     try {
       const read = parseMiniTestJsonWithChanges(jsonText);
@@ -30,7 +33,7 @@ export function ImportJsonClient() {
     } catch (caught) {
       return { document: null, changes: [] as string[], message: caught instanceof Error ? caught.message : "This file could not be read." };
     }
-  }, [jsonText]);
+  }, [deferredText]);
   const document = parsed.document;
 
   function canReplace() {
@@ -175,7 +178,7 @@ export function ImportJsonClient() {
           </div>
         ) : null}
         <div className="flex flex-wrap items-center gap-3 border-t border-line pt-5">
-          <Button disabled={!document || busy} type="submit"><ArrowRight className="h-4 w-4" aria-hidden="true" />{busy ? "Preparing review..." : "Continue to item review"}</Button>
+          <Button disabled={!document || busy || deferredText !== jsonText} type="submit"><ArrowRight className="h-4 w-4" aria-hidden="true" />{busy ? "Preparing review..." : "Continue to item review"}</Button>
         </div>
       </form>
       </div>

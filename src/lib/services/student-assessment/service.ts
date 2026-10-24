@@ -1929,6 +1929,36 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
   }
 }
 
+/**
+ * Whether the guarded agent integration is ready, for the student state's display only. The
+ * readiness check reads and hashes the approval files, which change only at deploy, so the answer is
+ * kept for 60 seconds per process instead of being recomputed on every state build (several per
+ * student action). The database itself is not pinged here: the state build has just queried it.
+ * Gates on actual model calls do their own checks and are not affected.
+ */
+const AGENT_READINESS_TTL_MS = 60_000;
+let agentReadinessCache: { allowed: boolean; at: number } | null = null;
+async function cachedAutomaticAgentIntegrationReady() {
+  const now = Date.now();
+  // Only the production server keeps the answer; tests and local runs change settings between calls.
+  const cacheable = process.env.NODE_ENV === "production";
+  if (cacheable && agentReadinessCache && now - agentReadinessCache.at < AGENT_READINESS_TTL_MS) return agentReadinessCache.allowed;
+  // A readiness check that throws must never take down the student's state.
+  const allowed = (await getGuardedOperationalAgentIntegrationReadiness({ checkDatabase: false })
+    .catch(() => ({ allowed: false }))).allowed;
+  if (cacheable) agentReadinessCache = { allowed, at: now };
+  return allowed;
+}
+
+const START_ATTEMPT_TRIES = 5;
+
+/** Runs the work in groups of a few at a time, to bound concurrent database connections. */
+async function inGroups<T>(values: T[], size: number, work: (value: T) => Promise<void>) {
+  for (let index = 0; index < values.length; index += size) {
+    await Promise.all(values.slice(index, index + size).map(work));
+  }
+}
+
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   const student = await assertActiveStudentAccount(input.student_user_db_id);
   const assessments = await prisma.assessment.findMany({
@@ -1951,30 +1981,46 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
     }
   });
   const availability = [];
+  // One query for the student's sessions across the catalog, and the per-mini-test reads in
+  // small parallel groups, instead of several sequential round trips per mini test.
+  const allSessions = assessments.length === 0 ? [] : await prisma.assessmentSession.findMany({
+    where: {
+      user_db_id: input.student_user_db_id,
+      assessment_db_id: { in: assessments.map((assessment) => assessment.id) }
+    },
+    select: {
+      assessment_db_id: true,
+      session_public_id: true,
+      status: true,
+      current_phase: true,
+      resume_phase: true,
+      resume_context: true,
+      completed_at: true,
+      attempt_number: true,
+      created_at: true,
+      updated_at: true
+    },
+    orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
+  });
+  const sessionsByAssessment = new Map<string, typeof allSessions>();
+  for (const session of allSessions) {
+    const list = sessionsByAssessment.get(session.assessment_db_id) ?? [];
+    list.push(session);
+    sessionsByAssessment.set(session.assessment_db_id, list);
+  }
+  const validContent = new Map<string, boolean>();
+  const chancesByFamily = new Map<string, Awaited<ReturnType<typeof readAttemptChances>>>();
+  const families = [...new Set(assessments.map((assessment) => assessmentFamily(assessment)))];
+  await inGroups(assessments, 4, async (assessment) => {
+    validContent.set(assessment.id, await assessmentHasValidPublishedContent(prisma, assessment.id));
+  });
+  await inGroups(families, 4, async (family) => {
+    chancesByFamily.set(family, await readAttemptChances(input.student_user_db_id, family));
+  });
 
   for (const assessment of assessments) {
-    const hasValidContent = await prisma.$transaction((tx) =>
-      assessmentHasValidPublishedContent(tx, assessment.id)
-    );
-
-    const sessions = await prisma.assessmentSession.findMany({
-      where: {
-        user_db_id: input.student_user_db_id,
-        assessment_db_id: assessment.id
-      },
-      select: {
-        session_public_id: true,
-        status: true,
-        current_phase: true,
-        resume_phase: true,
-        resume_context: true,
-        completed_at: true,
-        attempt_number: true,
-        created_at: true,
-        updated_at: true
-      },
-      orderBy: [{ attempt_number: "desc" }, { created_at: "desc" }]
-    });
+    const hasValidContent = validContent.get(assessment.id) ?? false;
+    const sessions = (sessionsByAssessment.get(assessment.id) ?? []).map(({ assessment_db_id: _assessment, ...session }) => session);
     const existingSession = findResumableAssessmentSession(sessions);
     const existingLifecycle = existingSession
       ? resolveCanonicalAttemptLifecycle(existingSession)
@@ -2001,7 +2047,8 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       assessment.workflow_mode === "manual_review" &&
       !existingSession &&
       !getServerEnv().ALLOW_MANUAL_REVIEW_STUDENT_STARTS;
-    const chances = await readAttemptChances(input.student_user_db_id, assessmentFamily(assessment));
+    const chances = chancesByFamily.get(assessmentFamily(assessment)) ??
+      await readAttemptChances(input.student_user_db_id, assessmentFamily(assessment));
     const anotherFamilyAttemptOpen = Boolean(chances.family_resumable_session_public_id &&
       chances.family_resumable_session_public_id !== existingSession?.session_public_id);
     const attemptPolicy = {
@@ -2093,7 +2140,10 @@ export async function startOrResumeStudentAssessmentSession(
   resolveTopicDialogueExecutionPlan(input.execution_mode ?? "production");
   let lastError: unknown = null;
 
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  // When a class starts together, serializable transactions can conflict even between students:
+  // retry a few times with a short random wait instead of failing on the second conflict.
+  for (let attempt = 0; attempt < START_ATTEMPT_TRIES; attempt += 1) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 40 * attempt + Math.floor(Math.random() * 120)));
     try {
       const result = await prisma.$transaction(
         async (tx) => {
@@ -2987,10 +3037,7 @@ export async function getStudentSessionState(input: {
       automaticJobs.some((job) => job.status === "failed"));
   const automaticAgentIntegrationReady =
     session.workflow_mode_snapshot === "automatic"
-      ? // A readiness check that throws must never take down the student's state.
-        (await getGuardedOperationalAgentIntegrationReadiness({
-          checkDatabase: true
-        }).catch(() => ({ allowed: false }))).allowed
+      ? await cachedAutomaticAgentIntegrationReady()
       : false;
   const phaseFiveFormativeRound =
     conceptUnitSession && ["planning_completed", "followup_active", "followup_stopped"].includes(effectivePhase)
@@ -3214,13 +3261,8 @@ export async function getStudentSessionState(input: {
         }
       })
     : null;
-  const currentTemptingOptionEvidence =
-    currentItem && conceptUnitSession
-      ? await getLatestTemptingOptionEvidence({
-          concept_unit_session_db_id: conceptUnitSession.id,
-          item_db_id: currentItem.id
-        })
-      : null;
+  // Read once above with the same item and session; the state build writes nothing in between.
+  const currentTemptingOptionEvidence = temptingOptionEvidence;
   const formativeConversation = latestStudentProfile
     ? await getStudentFormativeConversationProjection({
         student_user_db_id: input.student_user_db_id,
