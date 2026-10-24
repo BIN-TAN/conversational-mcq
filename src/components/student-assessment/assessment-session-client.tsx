@@ -89,6 +89,15 @@ import {
   sentFormativeMessageWasSaved,
   type FormativeOutgoingMessage
 } from "./formative-chat-ux";
+import {
+  STAGE_FIRST_CONTROL_SELECTOR,
+  answeringStageKey,
+  displayQuestionPositionLabel,
+  isStaleStepError,
+  shouldRestoreStageFocus,
+  staleStepNotice,
+  studentDraftIdentity
+} from "@/lib/student-assessment-ui/answering-ux";
 
 const MAX_REASONING_LENGTH = 5000;
 const IDK_OPTION_LABEL = "E";
@@ -217,7 +226,8 @@ function ErrorNotice({ error }: { error: StructuredStudentApiError | null }) {
 
 function displayTranscriptText(entry: StudentTranscriptEntry) {
   if (entry.actor !== "student") {
-    return entry.message_text;
+    // Display only: the stored item turn says "Item N of M"; the live card says "Question N of M".
+    return displayQuestionPositionLabel(entry.message_text);
   }
 
   if (entry.interaction_type === "option_selected" || entry.interaction_type === "transfer_option_selected") {
@@ -711,7 +721,7 @@ function OptionChip({
 }) {
   return (
     <button
-      className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex min-h-10 items-center gap-2 rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
       data-testid={testId}
       disabled={disabled}
       onClick={onSelect}
@@ -885,7 +895,7 @@ function ConfidenceMessage({
       <div className="mt-3 flex flex-wrap gap-2">
         {levels.map((level) => (
           <button
-            className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+            className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
             data-testid={`chat-confidence-${level}`}
             disabled={disabled}
             key={level}
@@ -939,7 +949,7 @@ function TemptingOptionMessage({
           </button>
         ))}
         <button
-          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
           data-testid="chat-no-tempting"
           disabled={disabled}
           onClick={onNo}
@@ -961,8 +971,10 @@ function TemptingOptionMessage({
  */
 const EXPLANATION_PASTE_BLOCKED_EVENT = "cmcq:explanation-paste-blocked";
 
-function blockExplanationPaste(event: { preventDefault: () => void }) {
+function blockExplanationPaste(event: { preventDefault: () => void; currentTarget?: EventTarget | null }) {
   event.preventDefault();
+  // A box that is read-only while its answer is saved accepts no text; no notice is needed.
+  if ((event.currentTarget as HTMLTextAreaElement | null | undefined)?.readOnly) return;
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event(EXPLANATION_PASTE_BLOCKED_EVENT));
   }
@@ -1014,13 +1026,19 @@ function TextComposer({
   onChange,
   onSend,
   sendLabel = "Send",
-  blockPaste = false
+  blockPaste = false,
+  busy = false
 }: {
   label: string;
   placeholder: string;
   value: string;
   maxLength: number;
   disabled: boolean;
+  /**
+   * While the answer is being saved the box becomes read-only (not disabled), so it keeps
+   * keyboard focus; the send button stays disabled.
+   */
+  busy?: boolean;
   testId: string;
   sendTestId?: string;
   onChange: (value: string) => void;
@@ -1035,17 +1053,19 @@ function TextComposer({
         {label}
       </label>
       <textarea
-        className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
+        aria-disabled={busy || undefined}
+        className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3] aria-disabled:bg-[#f4f6f3]"
         data-testid={testId}
         disabled={disabled}
         id={testId}
         maxLength={maxLength}
         onChange={(event) => onChange(event.target.value)}
+        readOnly={busy}
         {...(blockPaste ? explanationPasteBlockProps : {})}
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing && event.keyCode !== 229) {
             event.preventDefault();
-            onSend();
+            if (!busy && !disabled) onSend();
           }
         }}
         placeholder={placeholder}
@@ -1058,7 +1078,7 @@ function TextComposer({
         <button
           className="inline-flex items-center gap-2 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:bg-accent-strong disabled:cursor-not-allowed disabled:opacity-60"
           data-testid={sendTestId ?? `${testId}-send`}
-          disabled={disabled || !value.trim()}
+          disabled={disabled || busy || !value.trim()}
           onClick={onSend}
           type="button"
         >
@@ -1112,7 +1132,7 @@ function PackageReviewMessage({
               <div className="rounded-xl border border-line bg-[#fbfcfa] px-3 py-2.5" key={item.item_public_id}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <details className="min-w-0 flex-1 group" open={isEditing}>
-                    <summary className="cursor-pointer list-none rounded-lg px-1 py-1 focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                    <summary className="cursor-pointer list-none rounded-lg px-1 py-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                       <span className="block text-xs font-semibold uppercase tracking-wide text-muted">
                         Question {item.initial_item_position ?? item.item_order}
                       </span>
@@ -1160,7 +1180,7 @@ function PackageReviewMessage({
                   </details>
                   {item.can_edit && !isEditing ? (
                     <button
-                      className="w-fit rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                      className="w-fit rounded-full border border-line bg-white px-3 py-1.5 text-xs font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                       data-testid={`package-review-edit-${item.item_public_id}`}
                       disabled={isBusy}
                       onClick={() => onStartEdit(item)}
@@ -1261,7 +1281,7 @@ function PackageReviewMessage({
                           />
                         ))}
                         <button
-                          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                          className="rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink transition hover:border-accent hover:bg-accent-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:cursor-not-allowed disabled:opacity-60"
                           data-testid={`package-review-edit-no-tempting-${item.item_public_id}`}
                           disabled={isBusy}
                           onClick={() =>
@@ -1459,6 +1479,7 @@ function InFlowEditPanel({
           ) : null}
           {draft.field === "reasoning" ? (
             <textarea
+              aria-label="Your reason"
               className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
               data-testid="in-flow-edit-reasoning-input"
               {...explanationPasteBlockProps}
@@ -1526,6 +1547,7 @@ function InFlowEditPanel({
               </div>
               {!draft.noTemptingOption ? (
                 <textarea
+                  aria-label="What made the other option tempting"
                   className="min-h-20 w-full resize-none rounded-xl border border-line px-3 py-2 text-sm leading-6 text-ink focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:bg-[#f4f6f3]"
                   data-testid="in-flow-edit-tempting-reason-input"
                   {...explanationPasteBlockProps}
@@ -2001,7 +2023,7 @@ function PackageResultsChatCard({
         data-testid="package-results-chat-card"
         open
       >
-        <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
+        <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
           Review your answers
         </summary>
         <div className="mt-3 rounded-xl bg-[#f7f9f6] px-3 py-3 text-sm leading-5 text-ink">
@@ -2020,7 +2042,7 @@ function PackageResultsChatCard({
                   data-testid="initial-answer-review-item"
                   open
                 >
-                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus:ring-2 focus:ring-accent-soft">
+                  <summary className="cursor-pointer list-none text-sm font-semibold text-ink focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">
                     {item.item_position ? `Question ${item.item_position}: ` : ""}{item.status_label}
                   </summary>
                   <div className="mt-2 space-y-1 text-sm text-muted">
@@ -2351,7 +2373,8 @@ function activeItemPrompt(input: {
         </AgentMessage>
         <TextComposer
           blockPaste
-          disabled={isBusy}
+          busy={isBusy}
+          disabled={false}
           label="Reason for answer"
           maxLength={MAX_REASONING_LENGTH}
           onChange={input.setReasoningDraft}
@@ -2411,7 +2434,8 @@ function activeItemPrompt(input: {
         </AgentMessage>
         <TextComposer
           blockPaste
-          disabled={isBusy}
+          busy={isBusy}
+          disabled={false}
           label="Tempting option reason"
           maxLength={MAX_REASONING_LENGTH}
           onChange={input.setTemptingReasonDraft}
@@ -2602,10 +2626,12 @@ export function AssessmentSessionClient({
     state?.session_public_id ?? resolvedInitialSessionPublicId ?? null;
   const draftKey = (field: string, identity: string | null | undefined) =>
     state && !readOnlyReview && identity ? `${state.session_public_id}:${identity}:${field}` : null;
-  const itemIdentity = state?.current_item ? `${state.current_item.item_public_id}:${state.current_item.existing_selected_option ?? ""}` : null;
+  // Drafts are keyed by question and stage only (the field name), so editing the answer or
+  // the tempting option keeps a reason that is still being typed. Drafts are local to this tab.
+  const itemIdentity = studentDraftIdentity(state?.current_item);
   const lastConversationStudentTurn = state?.formative_conversation?.transcript.filter((turn) => turn.actor === "student").at(-1)?.turn_id ?? "opening";
   const [reasoningDraft, setReasoningDraft, reasonUnsafe] = useStudentDraft(draftKey("reasoning", itemIdentity));
-  const [temptingReasonDraft, setTemptingReasonDraft, temptingUnsafe] = useStudentDraft(draftKey("tempting", itemIdentity && `${itemIdentity}:${state?.current_item?.tempting_option ?? ""}`));
+  const [temptingReasonDraft, setTemptingReasonDraft, temptingUnsafe] = useStudentDraft(draftKey("tempting", itemIdentity));
   const [followupDraft, setFollowupDraft, followupUnsafe] = useStudentDraft(draftKey("followup", state?.current_concept_unit && `${state.current_concept_unit.concept_unit_public_id}:${state.followup?.round_index}`));
   const [formativeActivityDraft, setFormativeActivityDraft, activityUnsafe] = useStudentDraft(draftKey("activity", state?.current_concept_unit && `${state.current_concept_unit.concept_unit_public_id}:${state.formative_activity?.round_index}`));
   const [revisionDraft, setRevisionDraft, revisionUnsafe] = useStudentDraft(draftKey("revision", itemIdentity));
@@ -2864,12 +2890,20 @@ export function AssessmentSessionClient({
     readOnlyReview
   ]);
 
-  async function refreshSecondaryData(sessionPublicId: string, nextAssessmentState?: string) {
+  /** Raised when the student stays on the same step after a request (see the focus effect). */
+  const [stageFocusRequest, setStageFocusRequest] = useState(0);
+  const handledStageFocusRequestRef = useRef(0);
+
+  async function refreshSecondaryData(
+    sessionPublicId: string,
+    nextAssessmentState?: string,
+    transcriptRead?: ReturnType<typeof fetchStudentTranscript>
+  ) {
     // While the student answers questions, the response review is not shown, and rebuilding it
     // costs a full state build on the server: fetch it only once the attempt reaches the review.
     const reviewNeeded = !nextAssessmentState || !ANSWERING_STATES.has(nextAssessmentState);
     const [transcriptResult, reviewResult] = await Promise.allSettled([
-      fetchStudentTranscript(sessionPublicId),
+      transcriptRead ?? fetchStudentTranscript(sessionPublicId),
       reviewNeeded ? fetchStudentReview(sessionPublicId) : Promise.reject(new Error("not_needed"))
     ]);
 
@@ -2882,7 +2916,12 @@ export function AssessmentSessionClient({
     }
   }
 
-  function handleError(errorValue: unknown, label: string, retry: () => void) {
+  function handleError(
+    errorValue: unknown,
+    label: string,
+    retry: () => void,
+    options?: { answeringStep?: boolean }
+  ) {
     const apiError =
       errorValue && typeof errorValue === "object" && "code" in errorValue && "message" in errorValue
         ? (errorValue as StructuredStudentApiError)
@@ -2892,8 +2931,42 @@ export function AssessmentSessionClient({
             status: 500
           };
 
+    if (options?.answeringStep && isStaleStepError(apiError)) {
+      // The attempt has already moved past this step (another tab, a double click, or a
+      // reply that arrived late). Replaying would fail again: show where they left off.
+      setError({ ...apiError, message: staleStepNotice() });
+      setFailedAction(null);
+      void showWhereTheStudentLeftOff();
+      return;
+    }
+
     setError(apiError);
     setFailedAction({ label, retry });
+    // After an error the student stays on the same step: give its first control focus back.
+    setStageFocusRequest((request) => request + 1);
+  }
+
+  async function showWhereTheStudentLeftOff() {
+    const sessionPublicId = activeSessionPublicId;
+    if (!sessionPublicId) return;
+    try {
+      const nextState = await fetchSessionState(sessionPublicId);
+      setState(nextState);
+      setActivityRuntime(nextState.activity_runtime ?? null);
+      const notice = staleStepNotice({
+        terminal: nextState.attempt_lifecycle?.terminal === true,
+        paused: nextState.attempt_lifecycle?.canonical_status === "paused"
+      });
+      setError((current) => current ? { ...current, message: notice } : current);
+      await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
+    } catch {
+      setError({ code: "request_failed", message: staleStepNotice(null), status: 409 });
+      setFailedAction({ label: "Load assessment", retry: () => {
+        setError(null);
+        setFailedAction(null);
+        void showWhereTheStudentLeftOff();
+      } });
+    }
   }
 
   function handleFormativeConversationDraft(value: string) {
@@ -3124,6 +3197,7 @@ export function AssessmentSessionClient({
       tracked: ["Record answer", "Record reason", "Record confidence", "Record tempting option", "Record no tempting option", "Record tempting reason", "Save response edit", "Save response edits"].includes(label)
         ? stageObservation.recordSubmission() : null };
     const tracked = attempt.tracked;
+    const stageBefore = answeringStageKey(state);
     setIsBusy(true);
     setError(null);
     setFailedAction(null);
@@ -3131,6 +3205,9 @@ export function AssessmentSessionClient({
     try {
       const nextState = await action(tracked?.link, attempt.id);
       tracked?.finish();
+      // A result that keeps the student on the same step (for example a request to say a
+      // little more) gives the step's first control focus back once it is enabled again.
+      if (answeringStageKey(nextState) === stageBefore) setStageFocusRequest((request) => request + 1);
       setState(nextState);
       setActivityRuntime(nextState.activity_runtime ?? null);
       await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
@@ -3138,7 +3215,7 @@ export function AssessmentSessionClient({
       tracked?.finish(true);
       handleError(errorValue, label, () => {
         void runAction(label, action, attempt);
-      });
+      }, { answeringStep: true });
     } finally {
       actionPendingRef.current = false;
       setIsBusy(false);
@@ -3168,9 +3245,16 @@ export function AssessmentSessionClient({
 
       try {
         let nextState: StudentSessionState;
+        // Both reads are GETs: when the attempt is known, read the transcript alongside the state.
+        let transcriptRead: ReturnType<typeof fetchStudentTranscript> | undefined;
 
         if (resolvedInitialSessionPublicId) {
+          transcriptRead = fetchStudentTranscript(resolvedInitialSessionPublicId);
+          transcriptRead.catch(() => undefined);
           nextState = await fetchSessionState(resolvedInitialSessionPublicId);
+          // Reading an activity's state can add its opening message to the transcript; read
+          // the transcript again after the state so that message is never missing.
+          if (nextState.activity_runtime) transcriptRead = undefined;
         } else if (assessmentPublicId) {
           const started = await startAssessmentSession(assessmentPublicId);
           nextState =
@@ -3190,7 +3274,8 @@ export function AssessmentSessionClient({
 
         setState(nextState);
         setActivityRuntime(nextState.activity_runtime ?? null);
-        await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state);
+        await refreshSecondaryData(nextState.session_public_id, nextState.assessment_state,
+          nextState.session_public_id === resolvedInitialSessionPublicId ? transcriptRead : undefined);
       } catch (errorValue) {
         if (mounted) {
           handleError(errorValue, "Load assessment", () => {
@@ -3209,12 +3294,47 @@ export function AssessmentSessionClient({
     return () => {
       mounted = false;
     };
-  }, [assessmentPublicId, readOnlyReview, resolvedInitialSessionPublicId]);
+    // The requested view, not the derived one: finishing the attempt on this page makes it
+    // read-only without reloading (and blanking) the page. See the effect below.
+  }, [assessmentPublicId, requestedReadOnlyReview, resolvedInitialSessionPublicId]);
+
+  // When the attempt ends on this page, the page turns into its read-only review in place;
+  // the transcript and review are read again so the review shows the final messages.
+  const attemptWasOpenHereRef = useRef(false);
+  const endedOnThisPageRef = useRef(false);
+  useEffect(() => {
+    if (state && !readOnlyReview) attemptWasOpenHereRef.current = true;
+  }, [state, readOnlyReview]);
+  useEffect(() => {
+    if (requestedReadOnlyReview || !readOnlyReview || isLoading || !state ||
+        !attemptWasOpenHereRef.current || endedOnThisPageRef.current) return;
+    endedOnThisPageRef.current = true;
+    void refreshSecondaryData(state.session_public_id, state.assessment_state);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnlyReview, requestedReadOnlyReview, isLoading, state?.session_public_id]);
 
   const navigation = useChatNavigation({ sessionId: activeSessionPublicId, ready: !isLoading && Boolean(state) && !readOnlyReview,
     stageKey: state?.formative_conversation ? `conversation:${state.formative_conversation.status}` : `${state?.assessment_state}:${state?.current_item?.item_public_id}`,
     tutorTurnId: state?.formative_conversation?.transcript.filter((turn) => turn.actor === "tutor").at(-1)?.turn_id ?? null,
     root: stageObservation.root, busy: isBusy });
+
+  // Saving disables the step's buttons, which drops keyboard focus. When the student stays
+  // on the same step (an error, or a request to say more), focus returns to the step's first
+  // control once it is enabled again. preventScroll keeps the page (and therefore when the
+  // step is seen) exactly where it was.
+  useEffect(() => {
+    if (isBusy || stageFocusRequest === handledStageFocusRequestRef.current) return;
+    handledStageFocusRequestRef.current = stageFocusRequest;
+    const root = stageObservation.root.current;
+    if (!root || readOnlyReview) return;
+    const active = document.activeElement as (HTMLElement & { disabled?: boolean }) | null;
+    if (!shouldRestoreStageFocus({
+      activeIsBody: !active || active === document.body,
+      activeInsideStage: Boolean(active && root.contains(active)),
+      activeUsable: Boolean(active && !active.disabled)
+    })) return;
+    root.querySelector<HTMLElement>(STAGE_FIRST_CONTROL_SELECTOR)?.focus({ preventScroll: true });
+  }, [isBusy, stageFocusRequest, readOnlyReview, stageObservation.root]);
 
   useEffect(() => {
     setInFlowEditDraft(null);
@@ -3469,7 +3589,7 @@ export function AssessmentSessionClient({
 
         handleError(errorValue, "Finish review", () => {
           void handleCompletePackage();
-        });
+        }, { answeringStep: true });
       } finally {
         setIsCompletingPackage(false);
         setIsBusy(false);
@@ -4118,7 +4238,6 @@ export function AssessmentSessionClient({
       <ExplanationPasteNotice />
       <div className="flex flex-1">
         <ChatTranscript>
-          <ErrorNotice error={error} />
           {readOnlyReview ? (
             <AgentMessage>
               <p className="font-medium text-ink">
@@ -4136,17 +4255,6 @@ export function AssessmentSessionClient({
                   : "Go back to your assessments to continue or end this attempt."}
               </p>
             </AgentMessage>
-          ) : null}
-          {!readOnlyReview && failedAction ? (
-            <button
-              className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent"
-              data-testid="retry-save-action"
-              disabled={isBusy}
-              onClick={failedAction.retry}
-              type="button"
-            >
-              Try again
-            </button>
           ) : null}
           {beforePackageResults.map((entry) => (
             <ChatBubble entry={entry} key={entry.turn_id} />
@@ -4180,6 +4288,19 @@ export function AssessmentSessionClient({
                 <p className="whitespace-pre-wrap text-sm leading-6">{pendingFormativeMessage}</p>
               </div>
             </div>
+          ) : null}
+          {/* The notice and Try again sit right above the step the student is working on. */}
+          <ErrorNotice error={error} />
+          {!readOnlyReview && failedAction ? (
+            <button
+              className="w-fit rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-ink hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              data-testid="retry-save-action"
+              disabled={isBusy}
+              onClick={failedAction.retry}
+              type="button"
+            >
+              Try again
+            </button>
           ) : null}
           <div ref={stageObservation.root} data-testid="active-response-stage" onInputCapture={(event) => {
             if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLInputElement) stageObservation.recordInput(event.target.value.length);

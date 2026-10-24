@@ -281,14 +281,48 @@ export function normalizeStudentApiError(
 
 const STUDENT_POST_TIMEOUT_MS = 6 * 60_000;
 
-async function get<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal) {
-  const response = await fetch(path, {
-    signal,
-    method: "GET",
-    headers: { Accept: "application/json" }
-  });
+// Reads (state, transcript, review, conversation, preparation) are short. A read that never
+// settles would leave the page busy with its controls disabled, so it gives up after this.
+export const STUDENT_GET_TIMEOUT_MS = 15_000;
 
-  return parseResponse(response, parse);
+/** The caller's signal (if any) plus a timeout, without AbortSignal.any (missing on older Safari). */
+function readSignal(signal?: AbortSignal) {
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, STUDENT_GET_TIMEOUT_MS);
+  const forward = () => controller.abort();
+  if (signal?.aborted) controller.abort();
+  else signal?.addEventListener("abort", forward, { once: true });
+  return {
+    signal: controller.signal,
+    timedOut: () => timedOut,
+    dispose: () => { clearTimeout(timer); signal?.removeEventListener("abort", forward); }
+  };
+}
+
+async function get<T>(path: string, parse: (value: unknown) => T, signal?: AbortSignal) {
+  const read = readSignal(signal);
+  try {
+    const response = await fetch(path, {
+      signal: read.signal,
+      method: "GET",
+      headers: { Accept: "application/json" }
+    });
+
+    return await parseResponse(response, parse);
+  } catch (error) {
+    if (read.timedOut() && !signal?.aborted) {
+      const timeout: StructuredStudentApiError = {
+        code: "request_timeout",
+        message: "This is taking longer than expected. Check your connection, then try again.",
+        status: 408
+      };
+      throw timeout;
+    }
+    throw error;
+  } finally {
+    read.dispose();
+  }
 }
 
 /**
@@ -982,6 +1016,7 @@ export function sendProcessEvents(
     signal: controller.signal,
     keepalive: useBeacon
   }).then((response) => {
-    if (!response.ok) throw new Error(`process_event_delivery_failed:${response.status}`);
+    // The status lets the delivery queue tell a rejected batch (4xx) from a lost connection.
+    if (!response.ok) throw Object.assign(new Error(`process_event_delivery_failed:${response.status}`), { status: response.status });
   }).finally(() => clearTimeout(timeout));
 }

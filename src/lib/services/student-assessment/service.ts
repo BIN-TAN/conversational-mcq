@@ -1897,7 +1897,7 @@ async function withActionIdempotency<T extends Record<string, unknown>>(
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       // Another tab or a rapid retry claimed this operation between read and insert.
       throw new StudentAssessmentServiceError(
-        "session_start_conflict", "We are still saving your last step. Wait a few seconds, then try again. Please retry shortly.", 409
+        "session_start_conflict", "We are still saving your last step. Wait a few seconds, then try again.", 409
       );
     }
     throw error;
@@ -6707,7 +6707,11 @@ export async function ingestFrontendProcessEvents(input: {
   const events = "events" in parsed ? parsed.events : [parsed];
   const owned = await getOwnedSession(input);
   return prisma.$transaction(async (tx) => {
-    // Serialize acknowledgement deduplication and keep each batch atomic.
+    // Serialize acknowledgement deduplication and keep each batch atomic. This stays a row
+    // lock (not an advisory lock): sealing the initial response package takes the same lock
+    // and copies process-event counts into the sealed package (createResponsePackage), and
+    // feedback release takes it before display acknowledgements update item_responses, so a
+    // batch must commit wholly before or after those transactions.
     await tx.$queryRaw(Prisma.sql`SELECT id FROM assessment_sessions WHERE id = ${owned.id}::uuid FOR UPDATE`);
     const session = await tx.assessmentSession.findUniqueOrThrow({
       where: { id: owned.id },
@@ -6718,6 +6722,10 @@ export async function ingestFrontendProcessEvents(input: {
       }
     });
     const created = [];
+    // Within one batch the same question and topic are looked up once. Only rows that were
+    // found are remembered; a missing row rejects the whole batch, exactly as before.
+    const itemLookups = new Map<string, { id: string; concept_unit_db_id: string }>();
+    const conceptUnitSessionLookups = new Map<string, { id: string }>();
 
     for (const event of events) {
       if (event.event_type === "response_stage_observation") {
@@ -6737,33 +6745,43 @@ export async function ingestFrontendProcessEvents(input: {
         });
         if (existing) continue;
       }
-      const item = event.item_public_id
-        ? await tx.item.findFirst({
-            where: {
-              item_public_id: event.item_public_id,
-              concept_unit: {
-                assessment_db_id: session.assessment_db_id,
-                concept_unit_public_id: event.concept_unit_public_id
-              }
-            },
-            select: { id: true, concept_unit_db_id: true }
-          })
-        : null;
+      const itemLookupKey = JSON.stringify([event.item_public_id ?? null, event.concept_unit_public_id ?? null]);
+      let item = event.item_public_id ? itemLookups.get(itemLookupKey) ?? null : null;
+      if (event.item_public_id && !item) {
+        item = await tx.item.findFirst({
+          where: {
+            item_public_id: event.item_public_id,
+            concept_unit: {
+              assessment_db_id: session.assessment_db_id,
+              concept_unit_public_id: event.concept_unit_public_id
+            }
+          },
+          select: { id: true, concept_unit_db_id: true }
+        });
+        if (item) itemLookups.set(itemLookupKey, item);
+      }
       if (event.item_public_id && !item) {
         throw new StudentAssessmentServiceError("validation_failed", "The process event item does not belong to this assessment context.", 400);
       }
       const conceptUnitDbId = item?.concept_unit_db_id ?? session.current_concept_unit_db_id;
-      const eventConceptUnitSession = event.concept_unit_public_id || conceptUnitDbId
-        ? await tx.conceptUnitSession.findFirst({
-            where: {
-              assessment_session_db_id: session.id,
-              ...(event.concept_unit_public_id
-                ? { concept_unit: { concept_unit_public_id: event.concept_unit_public_id } }
-                : { concept_unit_db_id: conceptUnitDbId! })
-            },
-            select: { id: true }
-          })
+      const conceptUnitSessionLookupKey = event.concept_unit_public_id
+        ? `public:${event.concept_unit_public_id}`
+        : `db:${conceptUnitDbId ?? ""}`;
+      let eventConceptUnitSession = event.concept_unit_public_id || conceptUnitDbId
+        ? conceptUnitSessionLookups.get(conceptUnitSessionLookupKey) ?? null
         : null;
+      if ((event.concept_unit_public_id || conceptUnitDbId) && !eventConceptUnitSession) {
+        eventConceptUnitSession = await tx.conceptUnitSession.findFirst({
+          where: {
+            assessment_session_db_id: session.id,
+            ...(event.concept_unit_public_id
+              ? { concept_unit: { concept_unit_public_id: event.concept_unit_public_id } }
+              : { concept_unit_db_id: conceptUnitDbId! })
+          },
+          select: { id: true }
+        });
+        if (eventConceptUnitSession) conceptUnitSessionLookups.set(conceptUnitSessionLookupKey, eventConceptUnitSession);
+      }
       if ((event.concept_unit_public_id || event.item_public_id) && !eventConceptUnitSession) {
         throw new StudentAssessmentServiceError("validation_failed", "The process event topic has not been administered in this session.", 400);
       }

@@ -169,7 +169,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
 
     try {
       const result = await startAssessmentSession(assessment.assessment_public_id, options);
-      void loadAssessments();
+      // The page is navigating to the attempt; the list is read again when the student returns.
       startTransition(() => {
         router.push(`/student/assessment/${result.session.session_public_id}`);
       });
@@ -255,7 +255,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               onClick={() => void loadAssessments()}
               type="button"
             >
@@ -263,7 +263,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
               Refresh
             </button>
             <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
               onClick={() => void handleLogout()}
               type="button"
             >
@@ -289,7 +289,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                   <p className="font-semibold">{error.message}</p>
                   {startErrorRecoverySessionPublicId(error) ? (
                     <button
-                      className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-red-900 px-3 text-xs font-semibold text-white transition hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-300"
+                      className="mt-3 inline-flex h-9 items-center justify-center rounded-md bg-red-900 px-3 text-xs font-semibold text-white transition hover:bg-red-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2"
                       onClick={() => {
                         const sessionPublicId = startErrorRecoverySessionPublicId(error);
 
@@ -365,7 +365,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       {recentAttempts.length > 0 ? (
                         <button
                           aria-expanded={attemptHistoryOpen}
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-line bg-white px-4 text-sm font-semibold text-ink transition hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                           data-testid={`review-attempt-history-${assessment.assessment_public_id}`}
                           onClick={() =>
                             setExpandedAttemptHistory((current) =>
@@ -382,7 +382,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       ) : null}
                       {canStartNew ? (
                         <button
-                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                          className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                           data-testid={`start-assessment-${assessment.assessment_public_id}`}
                           disabled={isBusy}
                           onClick={() =>
@@ -403,7 +403,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                       {canOpen ? (
                         <>
                           <button
-                            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus:ring-2 focus:ring-accent-soft disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-accent px-4 text-sm font-semibold text-white transition hover:bg-[#176350] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`resume-assessment-${assessment.assessment_public_id}`}
                             disabled={isBusy}
                             onClick={() => void handleStart(assessment)}
@@ -417,7 +417,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                             Resume assessment
                           </button>
                           <button
-                            className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-200 disabled:cursor-not-allowed disabled:opacity-60"
+                            className="inline-flex h-10 items-center justify-center rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-800 transition hover:bg-red-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                             data-testid={`end-current-attempt-${assessment.assessment_public_id}`}
                             disabled={isBusy || !assessment.attempt_policy?.student_may_end_attempt}
                           onClick={() => void handleEndCurrentAttempt(assessment)}
@@ -453,7 +453,7 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
                               </p>
                             </div>
                             <button
-                              className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-accent focus:outline-none focus:ring-2 focus:ring-accent-soft"
+                              className="inline-flex h-9 w-fit items-center justify-center gap-2 rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink transition hover:border-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
                               data-testid={`review-attempt-${attempt.session_public_id}`}
                               onClick={() =>
                                 router.push(

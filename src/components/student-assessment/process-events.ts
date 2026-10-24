@@ -8,6 +8,12 @@ const LONG_PAUSE_MS = Number(process.env.NEXT_PUBLIC_LONG_PAUSE_MS ?? 120000);
 const INACTIVITY_MS = Number(process.env.NEXT_PUBLIC_INACTIVITY_MS ?? 300000);
 const documentCapture = new WeakMap<Document, { tabId: string; reloadSessions: Set<string> }>();
 
+/** A text box made read-only while its answer is being saved (see TextComposer). */
+export function inertWhileSaving(target: EventTarget | null) {
+  return (typeof HTMLTextAreaElement !== "undefined" && target instanceof HTMLTextAreaElement) &&
+    target.readOnly && target.getAttribute("aria-disabled") === "true";
+}
+
 export function useStudentProcessEvents(input: {
   sessionPublicId: string;
   currentItemPublicId?: string | null;
@@ -32,10 +38,15 @@ export function useStudentProcessEvents(input: {
     delivery.enqueue({ event_type: "navigation_event", client_occurred_at: new Date().toISOString(),
       payload: { reason: "assessment_view_entered" } });
     const retry = () => { void delivery.retry(); };
+    // Coming back to the page starts delivery afresh (the attempt count resets), so a
+    // laptop that slept through the slow retry sends its queued events at once.
+    const retryWhenVisible = () => { if (document.visibilityState === "visible") retry(); };
     retry();
     window.addEventListener("online", retry);
+    document.addEventListener("visibilitychange", retryWhenVisible);
     return () => {
       window.removeEventListener("online", retry);
+      document.removeEventListener("visibilitychange", retryWhenVisible);
       // React cleans up this effect before the listener effect below.
       flushTypingRef.current?.(true);
       delivery.enqueue({ event_type: "navigation_event", client_occurred_at: new Date().toISOString(),
@@ -87,6 +98,10 @@ export function useStudentProcessEvents(input: {
 
     function targetKind(target: EventTarget | null) {
       if (!(target instanceof HTMLElement)) return "unknown";
+      // A response box is read-only while its answer is being saved (it keeps focus instead
+      // of being disabled). Keys and pastes there reach no field, exactly as when the box
+      // was disabled, so they are classified as they were then.
+      if (inertWhileSaving(target)) return "other";
       if (target instanceof HTMLTextAreaElement) return "textarea";
       if (target instanceof HTMLInputElement) return "input";
       if (target.isContentEditable) return "contenteditable";
@@ -223,7 +238,7 @@ export function useStudentProcessEvents(input: {
           clipboard_type_count: event.clipboardData?.types.length ?? 0,
           includes_plain_text: event.clipboardData?.types.includes("text/plain") ?? false,
           // D10: true when the paste was blocked (written explanation fields).
-          paste_blocked: event.target instanceof Element && event.target.closest("[data-paste-blocked]") !== null
+          paste_blocked: event.target instanceof Element && !inertWhileSaving(event.target) && event.target.closest("[data-paste-blocked]") !== null
         }
       });
     }
