@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v8" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v9" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v3" as const;
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
