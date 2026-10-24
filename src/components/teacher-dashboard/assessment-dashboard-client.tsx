@@ -340,7 +340,7 @@ function StudentsToFollowUp({ rows }: { rows: StudentFollowUpRow[] }) {
                 <td className="py-2 pr-3 text-ink">
                   {row.needs_review ? (
                     <>
-                      <span className="font-semibold text-red-800">Flagged for review</span>
+                      <span className="font-semibold text-red-800">Needs review</span>
                       {plainReviewReason(row.needs_review_reason) ? <span className="mt-1 block max-w-64 text-xs text-muted">{plainReviewReason(row.needs_review_reason)}</span> : null}
                     </>
                   ) : <span className="text-muted">Not flagged</span>}
