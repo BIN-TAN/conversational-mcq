@@ -157,9 +157,9 @@ async function main() {
     assert(revisionPrompt.includes("exactly one option is defensible") && revisionPrompt.includes("in the same order"));
   });
 
-  await check("Item preparation v8.2 (import suggestions, layout repair, pre-publish check) follows the same writing rules", async () => {
+  await check("Item preparation v8.3 (import suggestions, layout repair, pre-publish check) follows the same writing rules", async () => {
     const prep = await import("../src/lib/services/content/item-preparation/contract");
-    assert.equal(prep.ITEM_PREPARATION_PROMPT_VERSION, "item-preparation-v8.2");
+    assert.equal(prep.ITEM_PREPARATION_PROMPT_VERSION, "item-preparation-v8.3");
     assert.equal(prep.ITEM_PREPARATION_SCHEMA_VERSION, "item-preparation-output-v8.1");
     for (const part of ["WRITING GOOD ITEMS", "answer the stem before reading the options", "exactly one is fully correct",
       "Keep the reading load low", "keep the instructor's wording even where it breaks these rules", "write it to the student as a clear explanation",
