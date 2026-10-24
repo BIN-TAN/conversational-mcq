@@ -1,6 +1,10 @@
 import React from "react";
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
+import remarkMath from "remark-math";
+import { prepareItemContentMarkdown } from "@/lib/item-content/rich-text";
+import { ITEM_CONTENT_KATEX_OPTIONS, KATEX_ELEMENTS } from "./item-content";
 
 const allowedTutorMessageElements = [
   "p",
@@ -11,8 +15,11 @@ const allowedTutorMessageElements = [
   "li",
   "blockquote",
   "code",
-  "br"
-] as const;
+  "br",
+  // Formulas (release CMCQ-20261024-11): the tutor may write LaTeX between $ signs. Tables,
+  // links, images and headings stay unsupported (the output boundary rejects tables).
+  ...KATEX_ELEMENTS
+];
 
 const tutorMessageComponents: Components = {
   p: ({ children }) => (
@@ -46,7 +53,7 @@ export function SafeTutorMessageMarkdown({
 }) {
   return (
     <div
-      className={["min-w-0 text-sm leading-6", className]
+      className={["tutor-message-math min-w-0 text-sm leading-6", className]
         .filter(Boolean)
         .join(" ")}
       data-testid="safe-tutor-message-markdown"
@@ -54,11 +61,13 @@ export function SafeTutorMessageMarkdown({
       <ReactMarkdown
         allowedElements={allowedTutorMessageElements}
         components={tutorMessageComponents}
+        rehypePlugins={[[rehypeKatex, ITEM_CONTENT_KATEX_OPTIONS]]}
+        remarkPlugins={[remarkMath]}
         skipHtml
         unwrapDisallowed
         urlTransform={() => null}
       >
-        {message}
+        {prepareItemContentMarkdown(message, { tables: false })}
       </ReactMarkdown>
     </div>
   );
