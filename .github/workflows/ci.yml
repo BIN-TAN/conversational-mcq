@@ -62,6 +62,14 @@ jobs:
         run: npx prisma generate
 
       # The steps below run even when an earlier one fails, so one run reports every problem.
+      # The Render build (Dockerfile) runs the same audit and stops on any finding, so CI reports
+      # a new advisory before a deploy fails. npm audit prints the details; the script decides.
+      - name: Dependency audit (the check the Render build runs)
+        if: ${{ !cancelled() }}
+        run: |
+          npm audit --omit=dev || true
+          npm run security:dependencies
+
       - name: Lint
         if: ${{ !cancelled() && steps.generate.outcome == 'success' }}
         run: npm run lint

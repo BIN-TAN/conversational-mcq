@@ -16,7 +16,7 @@ decision runs (`interpretation-v8-evaluation-cli.ts run --engine live`,
 
 | Job | Needs | What it does |
 | --- | --- | --- |
-| `checks` | | `npm ci`, `npx prisma generate`, `npm run lint`, the `unit` list, `npm run test:redesign-v8`, `npm run build`, `npm run typecheck` |
+| `checks` | | `npm ci`, `npx prisma generate`, `npm run security:dependencies` (the dependency audit the Render build runs), `npm run lint`, the `unit` list, `npm run test:redesign-v8`, `npm run build`, `npm run typecheck` |
 | `database` | `checks` | PostgreSQL 16 service, `npx prisma migrate deploy` on a fresh database, `npm run prisma:seed`, the `database` list |
 | `browser` | `checks` | PostgreSQL 16, Chromium, migrations, seed, `npm run build`, starts the app (web server and preparation worker) and checks `/api/health`, then the `browser` list |
 
