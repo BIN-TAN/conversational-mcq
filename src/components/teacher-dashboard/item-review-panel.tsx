@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import type { FlaggedItemReview } from "@/lib/services/item-review/service";
+import { ItemContent } from "@/components/item-content";
 
 type ItemReviewResponse = {
   item_review: {
@@ -81,10 +82,10 @@ export function ItemReviewPanel({ assessmentPublicId }: { assessmentPublicId: st
                 <Link className="ml-3 normal-case tracking-normal text-accent underline-offset-2 hover:underline"
                   href={`/teacher/content/items/${encodeURIComponent(item.item_public_id)}`}>Open the question</Link>
               </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+              <ItemContent className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink" text={item.item_stem} />
               <ul className="mt-2 space-y-1 text-sm text-muted">
                 {item.options.map((option) => (
-                  <li key={option.label}>{option.label}. {option.text}{option.label === item.correct_option ? " (answer key)" : ""}</li>
+                  <ItemContent as="li" key={option.label} prefix={`${option.label}.`} suffix={option.label === item.correct_option ? " (answer key)" : ""} text={option.text} />
                 ))}
               </ul>
             </div>

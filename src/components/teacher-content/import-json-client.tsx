@@ -9,6 +9,8 @@ import { apiRequest, errorFromUnknown } from "./api";
 import type { StructuredApiError } from "./types";
 import { Button, ErrorPanel, PageHeader } from "./ui";
 import { WorkbookImportClient } from "./workbook-import-client";
+import { ItemContent } from "@/components/item-content";
+import { ITEM_CONTENT_AUTHORING_HINT, hasRichItemContent } from "@/lib/item-content/rich-text";
 
 export function ImportJsonClient() {
   const router = useRouter();
@@ -123,6 +125,7 @@ export function ImportJsonClient() {
               value={jsonText} disabled={busy} spellCheck={false} placeholder="Paste mini-test JSON..."
               onChange={event => { setJsonText(event.target.value); setError(null); }}
               aria-invalid={Boolean(parsed.message)} aria-describedby={parsed.message ? "json-validation" : undefined} />
+            <span className="text-xs font-normal text-muted">{ITEM_CONTENT_AUTHORING_HINT} In JSON, write each backslash twice (\\frac).</span>
           </label>
           <aside className="min-w-0 space-y-5 border-t border-line pt-5 lg:border-l lg:border-t-0 lg:pl-6 lg:pt-0" aria-label="Import summary" aria-live="polite">
             <h2 className="text-lg font-semibold text-ink">Mini-test summary</h2>
@@ -144,6 +147,7 @@ export function ImportJsonClient() {
                   <ul className="mt-2 list-disc space-y-1 pl-5 text-muted">{parsed.changes.map(change => <li key={change}>{change}</li>)}</ul>
                 </details>
               ) : null}
+              <RichItemPreview items={document.items} />
               <p className="text-sm text-muted">Draft only. Answer keys require your confirmation before items are added.</p>
               {document.items.length > 12 ? <p className="text-sm text-amber-800">Select 3-12 items for this mini test during review.</p> : null}
             </> : <p className="text-sm text-muted">{jsonText.trim() ? "This file cannot be imported as it is. Fix the problems below, or let the assistant format it." : "No file selected."}</p>}
@@ -183,5 +187,34 @@ export function ImportJsonClient() {
       </form>
       </div>
     </div>
+  );
+}
+
+/** Items whose wording uses formulas, tables, bold text or links, drawn as students will see them. */
+function RichItemPreview({ items }: { items: Array<{ stem: string; options: Array<{ label: string; text: string }>; target_reasoning_note?: string | null }> }) {
+  const rich = items
+    .map((item, index) => ({ item, index }))
+    .filter(({ item }) => hasRichItemContent(item.stem) || item.options.some((option) => hasRichItemContent(option.text)) || hasRichItemContent(item.target_reasoning_note));
+  if (rich.length === 0) return null;
+  return (
+    <details className="border-t border-line pt-4 text-sm" data-testid="json-import-rich-preview">
+      <summary className="cursor-pointer font-semibold text-ink">Formulas and tables ({rich.length} {rich.length === 1 ? "item" : "items"})</summary>
+      <div className="mt-2 space-y-4">
+        {rich.slice(0, 20).map(({ item, index }) => (
+          <div className="space-y-1" key={index}>
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Item {index + 1}</p>
+            <ItemContent as="div" className="leading-6 text-ink" text={item.stem} />
+            <ul className="space-y-1">
+              {item.options.map((option) => (
+                <ItemContent as="li" key={option.label} prefix={<span className="font-semibold">{option.label}.</span>} text={option.text} />
+              ))}
+            </ul>
+            {hasRichItemContent(item.target_reasoning_note) ? (
+              <ItemContent as="div" className="text-muted" prefix={<span className="font-semibold">Target reasoning:</span>} text={item.target_reasoning_note} />
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }

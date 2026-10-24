@@ -69,6 +69,7 @@ import { processEventLabel } from "@/lib/services/teacher-review/process-data-su
 import { profileCodeReadableLabel } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { ReviewResourceStatus, useReviewResource } from "./review-resource";
 import { readStoredSessionListQuery, sessionListHref } from "./session-list-query";
+import { ItemContent } from "@/components/item-content";
 
 const tabs = [
   "overview",
@@ -974,9 +975,7 @@ export function FormativeConversationEvidenceSection({
                           tone={correctnessTone(response.correctness)}
                         />
                       </div>
-                      <p className="mt-3 text-sm leading-6 text-ink">
-                        {readableItemStem(response.item_stem_snapshot)}
-                      </p>
+                      <ItemContent className="mt-3 text-sm leading-6 text-ink" text={readableItemStem(response.item_stem_snapshot)} />
                       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
                         <div>
                           <dt className="text-xs font-semibold uppercase tracking-wide text-muted">
@@ -1672,9 +1671,7 @@ function ItemResponsesSection({ data }: { data: ItemResponsesResponse }) {
                     <p className="text-xs font-semibold uppercase tracking-wide text-muted">
                       Item {response.item_order} · {response.item_public_id}
                     </p>
-                    <p className="mt-2 text-sm leading-6 text-ink">
-                      {String(response.item_stem_snapshot)}
-                    </p>
+                    <ItemContent className="mt-2 text-sm leading-6 text-ink" text={String(response.item_stem_snapshot)} />
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <StatusPill

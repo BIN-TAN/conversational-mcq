@@ -6,6 +6,8 @@ import { apiRequest, errorFromUnknown } from "./api";
 import { normalizeOptions } from "./form-utils";
 import type { AssessmentDetail, ItemDetail, ItemMediaAsset, StructuredApiError } from "./types";
 import { Button, ErrorPanel, LoadingRow, PageHeader, SecondaryLink, StatusBadge } from "./ui";
+import { ItemContent } from "@/components/item-content";
+import { ItemVideoEmbed } from "@/components/item-media-video";
 
 function isIncluded(item: ItemDetail) {
   return item.included_in_published_set && item.status !== "archived" && item.concept_unit_status !== "archived";
@@ -32,9 +34,12 @@ function PreviewMedia({ assets }: { assets: ItemMediaAsset[] }) {
           // eslint-disable-next-line @next/next/no-img-element
           <img alt={alt} className="max-h-80 max-w-full object-contain" src={url} />
         ) : url ? (
+          <>
+          {asset.media_type === "video" ? <ItemVideoEmbed title={asset.title || alt || "Item video"} url={url} /> : null}
           <a className="font-semibold text-accent underline" href={url} rel="noreferrer" target="_blank">
             {asset.title || (asset.media_type === "video" ? "Open video" : "Open reference")}
           </a>
+          </>
         ) : <p>Media unavailable</p>}
         {asset.media_type === "image" && asset.title ? <figcaption>{asset.title}</figcaption> : null}
         {alt ? <p>{alt}</p> : null}
@@ -93,19 +98,20 @@ function AssessmentPreview({ assessment }: { assessment: AssessmentDetail }) {
                 {!isIncluded(item) ? <span className="text-sm font-semibold text-amber-800">Not included</span> : null}
               </div>
               {topic && assessment.concept_units.length > 1 ? <p className="mb-2 text-sm text-muted">{topic}</p> : null}
-              <p className="whitespace-pre-wrap leading-7 text-ink">{item.item_stem || "No item wording yet."}</p>
+              <ItemContent className="whitespace-pre-wrap leading-7 text-ink" text={item.item_stem || "No item wording yet."} />
               <PreviewMedia assets={media.filter((asset) => asset.placement === "item_stem")} />
               {options.length === 0 ? <p className="mt-4 text-muted">No answer options yet.</p> : (
                 <ol aria-label={`Options for item ${index + 1}`} className="mt-4 grid gap-2">
                   {options.map((option, optionIndex) => (
                     <li className={`rounded-md border p-3 ${showAnswers && option.label === item.correct_option ? "border-accent bg-accent-soft" : "border-line"}`} key={`${option.label}-${optionIndex}`}>
-                      <p className="whitespace-pre-wrap leading-6"><span className="font-semibold">{option.label}.</span> {option.text}</p>
+                      <ItemContent className="whitespace-pre-wrap leading-6" prefix={<span className="font-semibold">{option.label}.</span>} text={option.text} />
                       <PreviewMedia assets={media.filter((asset) => asset.placement === "option" && asset.option_label === option.label)} />
                     </li>
                   ))}
                 </ol>
               )}
               {showAnswers ? <p className="mt-3 font-semibold text-accent" data-testid="preview-answer-key">Answer key: {options.some((option) => option.label === item.correct_option) ? item.correct_option : "Not set"}</p> : null}
+              {showAnswers ? <PreviewMedia assets={media.filter((asset) => asset.placement === "explanation")} /> : null}
             </article>
           );
         })}

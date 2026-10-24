@@ -39,6 +39,7 @@ import {
   SuccessPanel,
   formatDate
 } from "./ui";
+import { ItemContent } from "@/components/item-content";
 
 type ConceptUnitResponse = {
   concept_unit: ConceptUnitDetail;
@@ -771,12 +772,15 @@ export function ConceptUnitDetailClient({
                             Preview student view
                           </summary>
                           <div className="mt-3 rounded-md border border-line bg-white p-3 text-sm leading-6 text-ink">
-                            <p className="font-semibold">{item.item_stem}</p>
+                            <ItemContent className="font-semibold" text={item.item_stem} />
                             <ol className="mt-2 space-y-1">
                               {options.map((option) => (
-                                <li key={option.label}>
-                                  <span className="font-semibold">{option.label}.</span> {option.text}
-                                </li>
+                                <ItemContent
+                                  as="li"
+                                  key={option.label}
+                                  prefix={<span className="font-semibold">{option.label}.</span>}
+                                  text={option.text}
+                                />
                               ))}
                             </ol>
                           </div>
