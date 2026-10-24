@@ -29,10 +29,12 @@ function check(name: string, run: () => void) {
 }
 const source = (file: string) => readFileSync(path.join(process.cwd(), file), "utf8");
 
-check("Feedback v8.2 and profiling v8.2 ask for complete, natural, plain language", () => {
+check("The feedback and profiling prompts ask for complete, natural, plain language", () => {
+  // Each prompt family's version is checked on its own line, apart from the others, so that one
+  // family's prompt commit can be reverted without touching another's.
   assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.2");
   assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.3");
-  assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.2");
+
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
     assert.match(prompt, /Write the way a knowledgeable, friendly tutor speaks: complete, natural sentences/);
     assert.match(prompt, /Do not use stock phrases \(such as "Great question!" or "I hope this helps"\), empty praise or sentence fragments\./);
@@ -40,6 +42,8 @@ check("Feedback v8.2 and profiling v8.2 ask for complete, natural, plain languag
   }
   assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Length is fine when it serves the focus\./);
   assert.match(interpretation.INTERPRETATION_V8_INSTRUCTIONS, /write rationales and notes as complete sentences\./);
+
+  assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.2");
 });
 
 check("Conversation v8.3 defines every focus type and strategy its turn record allows, and limits questions", () => {
