@@ -170,13 +170,6 @@ function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDa
 }
 
 /** Option counts with the answer key marked. Labels such as "B (not in administered option set)" stay as computed. */
-export function optionDistributionWithKey(item: Pick<ItemDiagnosticSummary, "option_distribution" | "correct_option">): ChartDatum[] {
-  return item.option_distribution.map((entry) => ({
-    ...entry,
-    label: item.correct_option && entry.label === item.correct_option ? `${entry.label} (answer key)` : entry.label
-  }));
-}
-
 function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
   const stemShortened = item.item_stem.replace(/\s+/g, " ").trim() !== item.item_stem_preview;
   return (
@@ -216,16 +209,6 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
                   data={item.correctness_distribution}
                   tone="green"
                   ariaLabel={`Question ${item.item_order} correct and incorrect initial responses`}
-                />
-              </div>
-            </div>
-            <div>
-              <h4 className="text-sm font-semibold text-ink">Answers chosen</h4>
-              <div className="mt-3">
-                <BarChart
-                  data={optionDistributionWithKey(item)}
-                  tone="slate"
-                  ariaLabel={`Question ${item.item_order} answers chosen`}
                 />
               </div>
             </div>
