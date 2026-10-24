@@ -1,8 +1,8 @@
 # Continuous integration (GitHub Actions)
 
-The workflow `.github/workflows/ci.yml` runs on every push to any branch, on pull requests, and on
-demand (Actions tab, "CI", "Run workflow"). A newer push to the same branch or pull request cancels
-the run still in progress.
+The workflow `.github/workflows/ci.yml` runs on every push to `main` or a `release/**` branch
+(except pushes that only change `docs/release-records/`), on pull requests, and on manual
+`workflow_dispatch`.
 
 CI never makes a live model call. Every job uses `LLM_PROVIDER=mock` with
 `LLM_LIVE_CALLS_ENABLED=false`, no job has an OpenAI key, and the test runner loads
