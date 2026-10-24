@@ -30,7 +30,7 @@ export const ENGAGEMENT_RULE_CONFIG_V1 = {
   long_inactivity_ms: 60_000
 } as const;
 
-const EventCountSchema = z.record(z.number().int().nonnegative());
+const EventCountSchema = z.record(z.string(), z.number().int().nonnegative());
 const EvidenceConfidenceSchema = z.enum(["high", "medium", "low"]);
 const EngagementCategorySchema = z.enum([
   "engaged",
@@ -183,8 +183,8 @@ const EngagementDecisionTraceSchema = z.object({
 const SessionEngagementDecisionTraceSchema = z.object({
   engagement_category: EngagementCategorySchema,
   category_confidence: EvidenceConfidenceSchema,
-  item_category_counts: z.record(z.number().int().nonnegative()),
-  dominant_signal_counts: z.record(z.number().int().nonnegative()),
+  item_category_counts: z.record(z.string(), z.number().int().nonnegative()),
+  dominant_signal_counts: z.record(z.string(), z.number().int().nonnegative()),
   package_duration_band: PackageTimingBandSchema,
   package_duration_thresholds_used: z.array(ThresholdUsageSchema),
   package_timing: z.object({
@@ -213,7 +213,7 @@ const SessionEngagementDecisionTraceSchema = z.object({
   package_rapid_rule_matched: z.boolean(),
   sparse_item_count: z.number().int().nonnegative(),
   substantive_item_count: z.number().int().nonnegative(),
-  substantive_reasoning_basis_counts: z.record(z.number().int().nonnegative()),
+  substantive_reasoning_basis_counts: z.record(z.string(), z.number().int().nonnegative()),
   baseline_completion_observed: z.boolean(),
   data_quality_events_observed: z.boolean(),
   completed_three_items_counterevidence_explanation: z.string(),

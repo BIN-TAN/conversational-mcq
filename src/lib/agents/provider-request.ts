@@ -19,7 +19,7 @@ export function buildProductionStructuredAgentRequest<TInput, TOutput>(input: {
   cache_static_instructions?: boolean;
   input_encoding?: StructuredAgentRequest<TInput, TOutput>["input_encoding"];
   input: TInput;
-  output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
+  output_schema: z.ZodType<TOutput, unknown>;
   schema_name: string;
   client_request_id: string;
   timeout_ms: number;

@@ -146,7 +146,7 @@ export const ItemVerificationFinding = z.object({
 }).strict();
 export type ItemVerificationFinding = z.infer<typeof ItemVerificationFinding>;
 
-const JsonRecord = z.record(z.unknown());
+const JsonRecord = z.record(z.string(), z.unknown());
 const ProcessEventPayload = z.object({
   detail: z.string().nullable(),
   reason: z.string().nullable(),

@@ -471,7 +471,7 @@ function structuredOutputSummary() {
   return Object.fromEntries(
     AgentName.options.map((agentName) => {
       const schema = agentOutputSchemas[agentName];
-      return [agentName, { schema_compiles: Boolean(schema), schema_type: schema?._def?.typeName ?? "unknown" }];
+      return [agentName, { schema_compiles: Boolean(schema), schema_type: schema?.type ?? "unknown" }];
     })
   );
 }

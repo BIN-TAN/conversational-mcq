@@ -5,7 +5,7 @@ import { ItemMediaAssetInputSchema } from "./item-media";
 
 const nonEmptyText = z.string().trim().min(1);
 const optionalText = z.string().trim().optional().nullable();
-const jsonObject = z.record(z.unknown());
+const jsonObject = z.record(z.string(), z.unknown());
 
 export const ItemOptionSchema = z
   .object({
@@ -75,7 +75,7 @@ export const ItemDraftInputSchema = z
     item_stem: nonEmptyText,
     options: z.array(ItemOptionSchema).min(2).max(6),
     correct_option: z.string().trim().min(1),
-    distractor_rationales: z.record(z.string().trim().min(1)).default({}),
+    distractor_rationales: z.record(z.string(), z.string().trim().min(1)).default({}),
     expected_reasoning_patterns: z.array(nonEmptyText).default([]),
     possible_misconception_indicators: z.array(nonEmptyText).default([]),
     administration_rules: jsonObject.default({}),
@@ -110,7 +110,7 @@ export const ItemUpdateInputSchema = z
     item_stem: nonEmptyText.optional(),
     options: z.array(ItemOptionSchema).min(2).max(6).optional(),
     correct_option: z.string().trim().min(1).optional(),
-    distractor_rationales: z.record(z.string().trim().min(1)).optional(),
+    distractor_rationales: z.record(z.string(), z.string().trim().min(1)).optional(),
     expected_reasoning_patterns: z.array(nonEmptyText).optional(),
     possible_misconception_indicators: z.array(nonEmptyText).optional(),
     administration_rules: jsonObject.optional(),

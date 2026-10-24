@@ -155,7 +155,7 @@ const FormativeConversationAgentExecutionSchema = z
 export type FormativeConversationAgentIdentity = z.infer<
   typeof FormativeConversationAgentIdentitySchema
 >;
-export type FormativeConversationAgentExecution = z.input<
+export type FormativeConversationAgentExecution = z.output<
   typeof FormativeConversationAgentExecutionSchema
 >;
 

@@ -105,7 +105,7 @@ const McqImportPreviewInputSchema = z
     source_text: z.string().optional(),
     file_base64: z.string().optional(),
     source_file_name: z.string().trim().optional().nullable(),
-    column_mapping: z.record(z.string().trim()).optional(),
+    column_mapping: z.record(z.string(), z.string().trim()).optional(),
     assisted_parsing_requested: z.boolean().default(false)
   })
   .strict();
@@ -279,7 +279,7 @@ const McqImportCandidateSchema = z.object({
   status: CandidateStatusSchema,
   import_selected: z.boolean(),
   original_source_text: z.string(),
-  source_metadata: z.record(z.unknown()).nullable().optional(),
+  source_metadata: z.record(z.string(), z.unknown()).nullable().optional(),
   normalized_changed_wording: z.boolean(),
   normalized_diff_summary: z.string().nullable(),
   formatting_suggestion: z.unknown().nullable().optional(),
@@ -316,7 +316,7 @@ const McqImportCandidateSchema = z.object({
     retry_count: z.number().int().nonnegative(),
     created_at: z.string()
   }).nullable().optional(),
-  formatting_decisions: z.record(McqSuggestionFieldDecisionSchema).optional(),
+  formatting_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
   suggestion: z.unknown().nullable().optional(),
   suggestion_status: z.enum([
     "none",
@@ -349,7 +349,7 @@ const McqImportCandidateSchema = z.object({
     retry_count: z.number().int().nonnegative(),
     created_at: z.string()
   }).nullable().optional(),
-  suggestion_decisions: z.record(McqSuggestionFieldDecisionSchema).optional(),
+  suggestion_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
   imported_item_public_id: z.string().nullable().optional()
 });
 
@@ -374,8 +374,8 @@ const CandidateCommitUpdateSchema = z
     distractor_diagnostic_notes: z.string().optional().nullable(),
     option_rationales: z.array(CandidateOptionRationaleSchema).optional(),
     media_assets: z.array(CandidateMediaAssetSchema).optional(),
-    formatting_decisions: z.record(McqSuggestionFieldDecisionSchema).optional(),
-    suggestion_decisions: z.record(McqSuggestionFieldDecisionSchema).optional()
+    formatting_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
+    suggestion_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional()
   })
   .strict();
 

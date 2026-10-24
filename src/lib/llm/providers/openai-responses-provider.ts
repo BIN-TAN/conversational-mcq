@@ -1,5 +1,5 @@
 import { zodTextFormat } from "openai/helpers/zod";
-import type { ZodType, ZodTypeDef } from "zod";
+import type { ZodType } from "zod";
 import {
   createOpenAIClient,
   type OpenAIClientTransportInstrumentation
@@ -182,7 +182,7 @@ function responseOutputText(response: Record<string, unknown>) {
 
 export function parseOpenAIResponsesStructuredOutput<TOutput>(
   response: Record<string, unknown>,
-  outputSchema: ZodType<TOutput, ZodTypeDef, unknown>
+  outputSchema: ZodType<TOutput, unknown>
 ): OpenAIResponsesStructuredOutputParseResult<TOutput> {
   const outputText = responseOutputText(response);
   if (outputText === null) {

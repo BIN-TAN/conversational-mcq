@@ -44,7 +44,7 @@ export const LunaMediumAllRolesValidationSchema = LunaLowAllRolesValidationSchem
 
 const LunaMediumProfileFidelityValidationSchema = LunaMediumAllRolesValidationSchema.extend({
   version: z.literal(LUNA_MEDIUM_PROFILE_FIDELITY_VALIDATION_VERSION),
-  corrected_source_files_sha256: z.record(digest),
+  corrected_source_files_sha256: z.record(z.string(), digest),
   case_reviews: z.array(z.object({
     case_id: z.enum(LUNA_LOW_REQUIRED_SCENARIOS),
     profile_fidelity_accepted: z.literal(true),
@@ -69,9 +69,9 @@ const usageSchema = z.object({ input_tokens: z.number().int().positive(), output
 const reportHeaderSchema = z.object({
   version: z.literal("ai-student-journeys-v3"), suite: z.literal("conversational-support-needs"),
   synthetic_only: z.literal(true), real_student_records_used: z.literal(false), runtime_hash: digest,
-  source_commit: z.string().regex(/^[a-f0-9]{40}$/), source_files_sha256: z.record(digest),
+  source_commit: z.string().regex(/^[a-f0-9]{40}$/), source_files_sha256: z.record(z.string(), digest),
   student_model: z.object({ model_name: z.literal("gpt-5.6-luna"), reasoning_effort: z.enum(["low", "medium"]) }).passthrough(),
-  provider_dispatches: z.number().int().nonnegative(), provider_models: z.record(z.number().int().positive()),
+  provider_dispatches: z.number().int().nonnegative(), provider_models: z.record(z.string(), z.number().int().positive()),
   finished_at: z.string().datetime(), results: z.array(z.object({ case_id: z.enum(LUNA_LOW_REQUIRED_SCENARIOS),
     outcome: z.string().min(1) }).passthrough()).min(1)
 }).passthrough();

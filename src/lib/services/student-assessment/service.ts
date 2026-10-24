@@ -317,7 +317,7 @@ const frontendEventSchema = z.object({
   visibility_duration_ms: z.number().int().nonnegative().max(24 * 60 * 60 * 1000).optional(),
   pause_duration_ms: z.number().int().nonnegative().max(24 * 60 * 60 * 1000).optional(),
   client_occurred_at: z.coerce.date().optional(),
-  payload: z.record(z.unknown()).optional()
+  payload: z.record(z.string(), z.unknown()).optional()
 }).strict();
 const frontendEventsInputSchema = z.union([
   frontendEventSchema,

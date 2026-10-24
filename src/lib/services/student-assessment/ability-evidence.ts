@@ -94,8 +94,8 @@ export const AbilityDiagnosticMetadataV1Schema = z.object({
   subskills: z.array(z.string()),
   expected_solution_actions: z.array(z.string()),
   correct_option: ScoredOptionLabelSchema,
-  option_misconception_map: z.record(z.array(z.string())),
-  option_diagnostic_notes: z.record(z.string()),
+  option_misconception_map: z.record(z.string(), z.array(z.string())),
+  option_diagnostic_notes: z.record(z.string(), z.string()),
   optional_future_calibration: z.object({
     difficulty_label: z.string(),
     discrimination_label: z.string(),
@@ -183,11 +183,11 @@ export const AbilityEvidencePacketV1Schema = z.object({
       "insufficient"
     ]),
     unsupported_correct_response_count: z.number().int().nonnegative(),
-    correctness_support_level_counts: z.record(z.number().int().nonnegative()),
-    estimated_guessing_risk_counts: z.record(z.number().int().nonnegative()),
-    answer_selection_evidence_weight_counts: z.record(z.number().int().nonnegative()),
+    correctness_support_level_counts: z.record(z.string(), z.number().int().nonnegative()),
+    estimated_guessing_risk_counts: z.record(z.string(), z.number().int().nonnegative()),
+    answer_selection_evidence_weight_counts: z.record(z.string(), z.number().int().nonnegative()),
     uncertainty_marker_count: z.number().int().nonnegative(),
-    uncertainty_marker_type_counts: z.record(z.number().int().nonnegative()),
+    uncertainty_marker_type_counts: z.record(z.string(), z.number().int().nonnegative()),
     evidence_limitations: z.array(z.string())
   }),
   student_safe_projection: z.object({

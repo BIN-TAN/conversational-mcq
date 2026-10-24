@@ -699,7 +699,7 @@
     "react-markdown": "^10.1.0",
     "tsx": "^4.19.2",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
-    "zod": "^3.24.0"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

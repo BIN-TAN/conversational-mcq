@@ -158,7 +158,7 @@ export type StructuredAgentRequest<TInput, TOutput> = {
   /** Lossless wire encoding only; validation and persisted evidence stay expanded. */
   input_encoding?: "lossless-profiling-json-v1" | "lossless-agent-json-v1";
   input: TInput;
-  output_schema: z.ZodType<TOutput, z.ZodTypeDef, unknown>;
+  output_schema: z.ZodType<TOutput, unknown>;
   schema_name: string;
   client_request_id: string;
   timeout_ms: number;

@@ -1622,7 +1622,7 @@ async function auditedCheckCall<T>(input: AuthoringCallSetup & {
   prompt_version: string;
   prompt_hash: string;
   schema_version: string;
-  output_schema: z.ZodType<unknown, z.ZodTypeDef, unknown>;
+  output_schema: z.ZodType<unknown>;
   instructions: string;
   context: Record<string, unknown>;
   parse: (value: unknown) => T;

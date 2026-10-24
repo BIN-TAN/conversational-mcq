@@ -20,7 +20,7 @@ const manifestSchema = z.object({
   repetition_count: z.literal(EVAL_CANARY_REPETITIONS),
   cases_per_agent: z.literal(EVAL_CANARY_CASES_PER_AGENT),
   agents: z.record(AgentName, z.array(z.string().min(1))),
-  coverage_notes: z.record(z.string()).optional()
+  coverage_notes: z.record(z.string(), z.string()).optional()
 }).strict();
 
 export type LiveCanaryManifest = z.infer<typeof manifestSchema>;

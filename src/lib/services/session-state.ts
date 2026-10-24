@@ -118,7 +118,7 @@ const updateAssessmentSessionPhaseSchema = z.object({
   to_phase: AssessmentPhaseSchema,
   event_source: z.enum(["backend", "system"]).default("backend"),
   reason: z.string().optional(),
-  payload: z.record(z.unknown()).optional()
+  payload: z.record(z.string(), z.unknown()).optional()
 });
 
 export async function updateAssessmentSessionPhase(

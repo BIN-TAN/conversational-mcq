@@ -134,7 +134,11 @@ export function parseMiniTestJsonWithChanges(text: string): { document: MiniTest
   changes.push(...normalized.changes);
   const parsed = MiniTestJsonSchema.safeParse(normalized.value);
   if (!parsed.success) {
-    throw new MiniTestJsonError(parsed.error.issues.slice(0, 8).map(miniTestJsonIssueText).join("\n"), false, changes);
+    throw new MiniTestJsonError(
+      parsed.error.issues.slice(0, 8).map(issue => miniTestJsonIssueText(issue, normalized.value)).join("\n"),
+      false,
+      changes
+    );
   }
   // The file as read, in the import format: used downstream instead of the original when anything changed.
   return { document: parsed.data, changes, normalized_text: changes.length ? JSON.stringify(normalized.value) : source };
@@ -152,34 +156,54 @@ function issueLocation(path: Array<string | number>) {
   return path.join(".");
 }
 
+function valueAtIssuePath(source: unknown, path: ReadonlyArray<PropertyKey>) {
+  let value = source;
+  for (const segment of path) {
+    if ((typeof value !== "object" || value === null) || !(segment in value)) return undefined;
+    value = (value as Record<PropertyKey, unknown>)[segment];
+  }
+  return value;
+}
+
+function receivedType(value: unknown) {
+  if (value === null) return "null";
+  if (Array.isArray(value)) return "array";
+  return typeof value;
+}
+
 /** One plain sentence per validation problem, naming where it is and what to change. */
-export function miniTestJsonIssueText(issue: z.ZodIssue): string {
-  const where = issueLocation(issue.path);
+export function miniTestJsonIssueText(issue: z.ZodIssue, source?: unknown): string {
+  const where = issueLocation(issue.path as Array<string | number>);
+  const receivedValue = valueAtIssuePath(source, issue.path);
   switch (issue.code) {
     case "too_big":
-      return issue.type === "string"
+      return issue.origin === "string"
         ? `${where}: this text is longer than the ${count(issue.maximum)}-character limit. Shorten it and try again.`
-        : issue.type === "array"
+        : issue.origin === "array"
           ? `${where}: this list has more than ${count(issue.maximum)} entries. Remove some and try again.`
           : `${where}: the value must be at most ${count(issue.maximum)}.`;
     case "too_small":
-      return issue.type === "string"
+      return issue.origin === "string"
         ? `${where}: this text is empty. Fill it in, or remove the field if it is optional.`
-        : issue.type === "array"
+        : issue.origin === "array"
           ? `${where}: this list needs at least ${count(issue.minimum)} ${Number(issue.minimum) === 1 ? "entry" : "entries"}.`
           : `${where}: the value must be at least ${count(issue.minimum)}.`;
-    case "invalid_type":
-      return issue.received === "undefined"
+    case "invalid_type": {
+      const received = source === undefined
+        ? /received (.+)$/u.exec(issue.message)?.[1] ?? "unknown"
+        : receivedType(receivedValue);
+      return received === "undefined"
         ? `${where}: this field is required.`
-        : `${where}: expected ${issue.expected === "string" ? "text" : issue.expected}, but found ${issue.received}.`;
-    case "invalid_enum_value":
-      return `${where}: "${String(issue.received)}" is not allowed. Use one of: ${issue.options.join(", ")}.`;
-    case "invalid_literal":
-      return `${where}: this must be "${String(issue.expected)}".`;
+        : `${where}: expected ${issue.expected === "string" ? "text" : issue.expected}, but found ${received}.`;
+    }
+    case "invalid_value":
+      return issue.values.length === 1
+        ? `${where}: this must be "${String(issue.values[0])}".`
+        : `${where}: "${String(receivedValue)}" is not allowed. Use one of: ${issue.values.join(", ")}.`;
     case "unrecognized_keys":
       return `${where}: ${issue.keys.length === 1 ? `the field "${issue.keys[0]}" is` : `the fields ${issue.keys.map(key => `"${key}"`).join(", ")} are`} not part of the format. Check the spelling or remove ${issue.keys.length === 1 ? "it" : "them"}.`;
-    case "invalid_string":
-      return `${where}: ${issue.validation === "url" ? "this must be a full web address starting with https://." : "this value is not in the expected format (an option label is a single capital letter, A to F)."}`;
+    case "invalid_format":
+      return `${where}: ${issue.format === "url" ? "this must be a full web address starting with https://." : "this value is not in the expected format (an option label is a single capital letter, A to F)."}`;
     default:
       return `${where}: ${issue.message}`;
   }

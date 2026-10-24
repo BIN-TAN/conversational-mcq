@@ -59,11 +59,11 @@ export const evalCaseFixtureSchema = z.object({
   agent_name: AgentName,
   title: z.string().min(1),
   description: z.string().min(1),
-  input_payload: z.record(z.unknown()),
-  expected_output_shape: z.record(z.unknown()).optional(),
-  gold_labels: z.record(z.unknown()).optional(),
-  rubric_expectations: z.record(z.unknown()).optional(),
-  safety_expectations: z.record(z.unknown()).optional(),
+  input_payload: z.record(z.string(), z.unknown()),
+  expected_output_shape: z.record(z.string(), z.unknown()).optional(),
+  gold_labels: z.record(z.string(), z.unknown()).optional(),
+  rubric_expectations: z.record(z.string(), z.unknown()).optional(),
+  safety_expectations: z.record(z.string(), z.unknown()).optional(),
   notes: z.string().optional()
 }).strict();
 
