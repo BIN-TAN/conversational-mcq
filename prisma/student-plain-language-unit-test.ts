@@ -43,7 +43,7 @@ check("The feedback and profiling prompts ask for complete, natural, plain langu
   assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Length is fine when it serves the focus\./);
   assert.match(interpretation.INTERPRETATION_V8_INSTRUCTIONS, /write rationales and notes as complete sentences\./);
 
-  assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.2");
+  assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.3");
 });
 
 check("Conversation v8.3 defines every focus type and strategy its turn record allows, and limits questions", () => {
