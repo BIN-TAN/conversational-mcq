@@ -35,7 +35,6 @@
     "prisma/teacher-tools-resilience-unit-test.ts",
     "prisma/agent-input-deduplication-smoke-test.ts",
     "prisma/attempt-comparison-smoke-test.ts",
-    "prisma/auth-llm-config-isolation-smoke-test.ts",
     "prisma/conversation-visibility-smoke-test.ts",
     "prisma/eval-budget-smoke-test.ts",
     "prisma/formative-conversation-profile-transition-v4-smoke-test.ts",
@@ -152,7 +151,6 @@
     "prisma/student-research-export-format-smoke-test.ts",
     "prisma/student-research-export-readiness-smoke-test.ts",
     "prisma/student-resumed-session-timing-smoke-test.ts",
-    "prisma/student-script-review-smoke-test.ts",
     "prisma/student-teacher-data-export-ui-smoke-test.ts",
     "prisma/student-topic-dialogue-clarification-smoke-test.ts",
     "prisma/student-topic-dialogue-smoke-test.ts",
@@ -161,22 +159,10 @@
     "prisma/teacher-mcq-review-ui-smoke-test.ts",
     "prisma/teacher-navigation-smoke-test.ts",
     "prisma/teacher-student-password-reset-ui-smoke-test.ts",
-    {
-      "path": "prisma/dependency-security-smoke-test.ts",
-      "allowFailure": "Not yet verified: failed in the database-free baseline only because the sandbox lacked a real dependency (deepmerge-ts). Expected to pass with real node_modules; remove allowFailure once CI shows it passing."
-    },
-    {
-      "path": "prisma/process-data-summary-smoke-test.ts",
-      "allowFailure": "Not yet verified: failed in the database-free baseline only because the sandbox lacked a real dependency (csv-stringify ESM build). Expected to pass with real node_modules; remove allowFailure once CI shows it passing."
-    },
-    {
-      "path": "prisma/profile-item-identity-schema-smoke-test.ts",
-      "allowFailure": "Not yet verified: failed in the database-free baseline only because the sandbox lacked a real dependency (openai/zod helpers). Expected to pass with real node_modules; remove allowFailure once CI shows it passing."
-    },
-    {
-      "path": "prisma/provider-recovery-smoke-test.ts",
-      "allowFailure": "Not yet verified: failed in the database-free baseline only because the sandbox lacked a real dependency (openai APIError). Expected to pass with real node_modules; remove allowFailure once CI shows it passing."
-    },
+    "prisma/dependency-security-smoke-test.ts",
+    "prisma/process-data-summary-smoke-test.ts",
+    "prisma/profile-item-identity-schema-smoke-test.ts",
+    "prisma/provider-recovery-smoke-test.ts",
     "prisma/item-content-unit-test.ts"
   ],
   "database": [
@@ -241,6 +227,7 @@
     "prisma/student-teacher-mcq-media-smoke-test.ts",
     "prisma/llm-usage-smoke-test.ts",
     "prisma/student-response-quality-smoke-test.ts",
+    "prisma/student-script-review-smoke-test.ts",
     "prisma/student-initial-chat-ui-smoke-test.ts",
     "prisma/teacher-item-design-material-upload-smoke-test.ts",
     "prisma/content-smoke-test.ts",
