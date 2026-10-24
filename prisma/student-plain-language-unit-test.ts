@@ -32,8 +32,8 @@ const source = (file: string) => readFileSync(path.join(process.cwd(), file), "u
 check("The feedback and profiling prompts ask for complete, natural, plain language", () => {
   // Each prompt family's version is checked on its own line, apart from the others, so that one
   // family's prompt commit can be reverted without touching another's.
-  assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.2");
-  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.3");
+  assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.3");
+  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.4");
 
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
     assert.match(prompt, /Write the way a knowledgeable, friendly tutor speaks: complete, natural sentences/);
@@ -46,7 +46,7 @@ check("The feedback and profiling prompts ask for complete, natural, plain langu
   assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.3");
 });
 
-check("Conversation v8.3 defines every focus type and strategy its turn record allows, and limits questions", () => {
+check("The feedback prompts define every focus type and strategy their records allow, and limit questions", () => {
   const prompt = feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS;
   const record = prompt.slice(prompt.indexOf("TURN RECORD"));
   for (const type of feedback.FOCUS_TYPES) assert.match(record, new RegExp(`\\n  ${type}: `), `focus type ${type} is defined`);
@@ -54,6 +54,11 @@ check("Conversation v8.3 defines every focus type and strategy its turn record a
   assert.match(record, /possible_misconception: an idea listed in the profile's possible misconceptions, including one that spans several items/);
   assert.match(record, /asking the student to apply an idea to a new case is extend/);
   assert.match(prompt, /not as rhetorical questions, and ask at most one question in a reply\./);
+  // The opening names each focus level and strategy by the value its record uses (from v8.3).
+  const opening = feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS;
+  for (const type of feedback.FOCUS_TYPES.filter((entry) => entry !== "closing")) assert.match(opening, new RegExp(`\\n\\d\\. ${type}: `), `opening focus ${type}`);
+  for (const strategy of feedback.STRATEGIES.filter((entry) => entry !== "close")) assert.match(opening, new RegExp(`\\n- ${strategy}: `), `opening strategy ${strategy}`);
+  assert.match(opening, /Ask a question only when the evidence calls for one, and ask at most one\./);
 });
 
 check("Results read as a sentence, and the stored result format is unchanged", () => {
