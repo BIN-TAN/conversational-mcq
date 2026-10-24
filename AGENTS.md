@@ -16,6 +16,8 @@ Use the LLM for conversational agent messages, response-package interpretation, 
 
 When implementing features, add or update relevant tests. Run focused checks such as `npm run typecheck`, `npm run lint`, and student-flow smoke tests when appropriate.
 
+Add every new test to `config/ci-tests.json` (the `unit`, `database` or `browser` list); GitHub Actions runs those lists on every push with the mock provider and no live model calls (`docs/CI.md`).
+
 After each task, summarize changed files, verification commands, and any limitations.
 
 ## Required Change and Deployment Record
