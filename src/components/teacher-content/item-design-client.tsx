@@ -230,7 +230,8 @@ function ItemDesignAssistantWorkspace({
   readOnly,
   transcriptEndRef,
   path,
-  onPathChoose
+  onPathChoose,
+  pendingMessage
 }: {
   assistantFiles: File[];
   assistantInput: string;
@@ -259,6 +260,7 @@ function ItemDesignAssistantWorkspace({
   transcriptEndRef: RefObject<HTMLDivElement | null>;
   path: ItemDesignPath | null;
   onPathChoose: (path: ItemDesignPath) => void;
+  pendingMessage: { text: string; files: string[] } | null;
 }) {
   const topicMap = design.assistant_state.topic_map ?? { topics: [], item_templates: [], selected_topic_id: null };
   const topicMiniTests = design.topic_mini_tests ?? [];
@@ -506,6 +508,23 @@ function ItemDesignAssistantWorkspace({
               );
             })}
 
+            {busy === "assistant" && pendingMessage ? (
+              <div className="flex justify-end">
+                <div className="max-w-[88%] rounded-md bg-accent px-4 py-3 text-sm leading-6 text-white sm:max-w-[78%]">
+                  <p className="whitespace-pre-wrap">{pendingMessage.text}</p>
+                  {pendingMessage.files.length > 0 ? (
+                    <ul className="mt-3 space-y-1 border-t border-white/30 pt-2 text-xs text-white">
+                      {pendingMessage.files.map((name) => (
+                        <li className="flex items-center gap-2" key={name}>
+                          <Paperclip className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="min-w-0 truncate">{name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {busy === "assistant" ? (
               <div className="flex justify-start">
                 <div className="rounded-md border border-line bg-white px-4 py-3 text-sm text-muted">
@@ -661,7 +680,7 @@ function ItemDesignAssistantWorkspace({
             {topicMap.topics.length > 0 ? (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide text-muted">
-                  Course topic bank ({topicMap.topics.length} topics)
+                  Course topic bank ({topicMap.topics.length} {topicMap.topics.length === 1 ? "topic" : "topics"})
                 </p>
                 <p className="mt-1 text-xs leading-5 text-muted">
                   One mini test per topic. The materials are kept, so the other topics need no new upload.
@@ -818,6 +837,8 @@ export function ItemDesignClient({
   const [topicRunStopping, setTopicRunStopping] = useState(false);
   const autoPrepareStarted = useRef(false);
   const [path, setPath] = useState<ItemDesignPath | null>(null);
+  // The message being sent, shown in the conversation while the assistant works.
+  const [pendingMessage, setPendingMessage] = useState<{ text: string; files: string[] } | null>(null);
   const pathRestored = useRef(false);
   // Files sent while adapting existing items; they come into review once the design is filled in.
   const pendingItemFiles = useRef<File[] | null>(null);
@@ -847,8 +868,15 @@ export function ItemDesignClient({
   useEffect(() => {
     if (!design || pathRestored.current) return;
     pathRestored.current = true;
-    setPath(defaultItemDesignPath(design, readStoredItemDesignPath(assessmentPublicId)));
-  }, [design, assessmentPublicId]);
+    const restored = defaultItemDesignPath(design, readStoredItemDesignPath(assessmentPublicId));
+    setPath(restored);
+    // A new design reopened in this browser: the chosen path's opening message is ready again.
+    if (restored && design.assistant_thread.messages.length === 0 && design.assessment.is_editable && !autoPrepareTopic) {
+      const prefix = `${itemDesignPathStarter(restored, design.blueprint.generation_settings)}\n\n`;
+      starterPrefixRef.current = prefix;
+      setAssistantInput((current) => current.trim() ? current : prefix);
+    }
+  }, [design, assessmentPublicId, autoPrepareTopic]);
 
   function handlePathChoose(next: ItemDesignPath) {
     if (!design || !blueprint) return;
@@ -1098,6 +1126,7 @@ export function ItemDesignClient({
     setBusy("assistant");
     setError(null);
     setSuccess(null);
+    setPendingMessage({ text: message, files: assistantFiles.map((file) => file.name) });
     const clientMessageId = assistantClientMessageId ?? crypto.randomUUID();
     setAssistantClientMessageId(clientMessageId);
 
@@ -1140,6 +1169,7 @@ export function ItemDesignClient({
       return null;
     } finally {
       setBusy(null);
+      setPendingMessage(null);
     }
   }
 
@@ -1205,6 +1235,7 @@ export function ItemDesignClient({
               topicRunStopping={topicRunStopping}
               path={path}
               onPathChoose={handlePathChoose}
+              pendingMessage={pendingMessage}
               readOnly={readOnly}
               transcriptEndRef={transcriptEndRef}
             />

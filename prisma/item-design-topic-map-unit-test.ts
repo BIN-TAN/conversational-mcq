@@ -26,6 +26,7 @@ import {
   type ItemDesignBlueprint,
   type ItemDesignTopicMap
 } from "../src/lib/services/content/item-design-contract";
+import { PLACEHOLDER_OBJECTIVE_EVIDENCE } from "../src/lib/services/content/item-design-contract";
 
 let passed = 0;
 function check(name: string, run: () => void) {
@@ -82,8 +83,8 @@ const blueprint: ItemDesignBlueprint = {
   generation_settings: { target_item_count: 4, option_count: 4, difficulty_mix: ["foundational", "analyzing"], context_notes: null }
 };
 
-check("Versions: assistant v7 with output v3, generation v5", () => {
-  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v7");
+check("Versions: assistant v8 with output v3, generation v5", () => {
+  assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v8");
   assert.equal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, "evidence-centered-item-design-assistant-output-v3");
   assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v5");
 });
@@ -262,6 +263,24 @@ check("The builder sidebar shows the bank, and a new topic mini test is prepared
   ]) assert(client.includes(part), part);
   assert(source("src/components/teacher-content/topic-preparation.ts")
     .includes("from the course topic bank, and fill in the whole design panel"));
+});
+
+check("A new mini test's placeholder objective goes once the assistant writes real objectives", () => {
+  const start = { ...blueprint, objectives: [{ objective_id: "objective_1", statement: "[Acceptance] Topic", evidence_requirements: [PLACEHOLDER_OBJECTIVE_EVIDENCE] }] };
+  const real = { objective_id: "raw_scores_and_theta", statement: "Evaluate a claim about change in θ.", evidence_requirements: ["Distinguishes θ from the raw score."] };
+  const filled = applyItemDesignAssistantUpdates({ blueprint: structuredClone(start), updates: [{ update_type: "upsert_objective", objective: real }] });
+  assert.deepEqual(filled.objectives.map((objective) => objective.objective_id), ["raw_scores_and_theta"]);
+  const only = applyItemDesignAssistantUpdates({ blueprint: structuredClone(start), updates: [{ update_type: "set_section_topic", value: "Topic" }] });
+  assert.equal(only.objectives.length, 1, "Kept while it is the only objective");
+  const edited = applyItemDesignAssistantUpdates({ blueprint: structuredClone({ ...start, objectives: [{ ...start.objectives[0]!, evidence_requirements: ["Names the scale."] }] }),
+    updates: [{ update_type: "upsert_objective", objective: real }] });
+  assert.equal(edited.objectives.length, 2, "An objective the teacher or assistant changed is kept");
+  const source = readFileSync(path.join(process.cwd(), "src/lib/services/content/item-design.ts"), "utf8");
+  assert(source.includes('Call the design panel "the design", not "the blueprint", and never write internal field or setting names'));
+  const client = readFileSync(path.join(process.cwd(), "src/components/teacher-content/item-design-client.tsx"), "utf8");
+  for (const part of ['{topicMap.topics.length === 1 ? "topic" : "topics"}', "busy === \"assistant\" && pendingMessage", "setAssistantInput((current) => current.trim() ? current : prefix)"]) {
+    assert(client.includes(part), part);
+  }
 });
 
 console.log(`\n${passed} item design topic bank checks passed; no database or provider calls.`);

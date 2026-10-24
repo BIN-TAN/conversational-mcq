@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
-export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v7" as const;
+export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v8" as const;
 export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-design-assistant-output-v3" as const;
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
@@ -273,6 +273,13 @@ export const ItemDesignAssistantThreadSchema = z.object({
   messages: z.array(ItemDesignAssistantMessageSchema).max(100)
 }).strict();
 
+/** The evidence line of the one objective a new mini test starts with, before any design work. */
+export const PLACEHOLDER_OBJECTIVE_EVIDENCE = "The student explains or applies the objective in their own reasoning.";
+
+function isUntouchedPlaceholder(objective: { evidence_requirements: string[] }) {
+  return objective.evidence_requirements.length === 1 && objective.evidence_requirements[0] === PLACEHOLDER_OBJECTIVE_EVIDENCE;
+}
+
 export function applyItemDesignAssistantUpdates(input: {
   blueprint: ItemDesignBlueprint;
   updates: z.infer<typeof ItemDesignAssistantBlueprintUpdateSchema>[];
@@ -339,6 +346,21 @@ export function applyItemDesignAssistantUpdates(input: {
         next.generation_settings = update.settings;
         break;
     }
+  }
+
+  // A new mini test starts with one placeholder objective. Once the assistant has written real
+  // objectives, the untouched placeholder goes, unless a misconception still depends on it alone.
+  const placeholders = next.objectives.filter(isUntouchedPlaceholder);
+  if (placeholders.length > 0 && placeholders.length < next.objectives.length) {
+    const removed = new Set(placeholders
+      .filter((objective) => !next.misconception_hypotheses.some((entry) =>
+        entry.linked_objective_ids.length === 1 && entry.linked_objective_ids[0] === objective.objective_id))
+      .map((objective) => objective.objective_id));
+    next.objectives = next.objectives.filter((objective) => !removed.has(objective.objective_id));
+    next.misconception_hypotheses = next.misconception_hypotheses.map((entry) => ({
+      ...entry,
+      linked_objective_ids: entry.linked_objective_ids.filter((id) => !removed.has(id))
+    }));
   }
 
   return ItemDesignBlueprintSchema.parse(next);
