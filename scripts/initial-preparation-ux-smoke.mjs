@@ -94,7 +94,7 @@ try {
   pass("progress endpoint requires authentication");
   await page.goto(base + path);
   await page.getByTestId("continue-to-feedback").waitFor();
-  assert((await page.getByTestId("initial-preparation-expectation").innerText()).includes("preparing your initial feedback may take about a minute or longer"));
+  assert((await page.getByTestId("initial-preparation-expectation").innerText()).includes("your feedback may take a minute or more to prepare"));
   assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
   const submission = page.waitForResponse((response) => response.url().endsWith("/complete-initial"));
   const started = Date.now();
@@ -102,16 +102,16 @@ try {
   assert.equal((await submission).status(), 202);
   console.log(`http_submission_acknowledgement_ms=${Date.now() - started}`);
   await page.getByTestId("initial-preparation-status").waitFor();
-  assert.equal(await page.getByTestId("initial-preparation-wait-notice").innerText(), "Preparing your initial feedback may take about a minute or longer. You can review your responses while you wait.");
+  assert.equal(await page.getByTestId("initial-preparation-wait-notice").innerText(), "Your feedback may take a minute or more to prepare. You can look over your answers while you wait.");
   pass("longer preparation is explained before submission and during waiting without a completion-time guarantee");
   await page.waitForFunction(() => !document.querySelector('[data-testid="end-attempt"]')?.disabled);
   assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: fixture.session.id } }), 0);
   assert.equal(await page.getByTestId("end-attempt").isEnabled(), true);
   assert.equal(await page.getByTestId("save-exit").isEnabled(), true);
-  await page.getByText("Review your responses", { exact: true }).click();
-  assert.equal(await page.getByTestId("submitted-response-review").locator("li").count(), 3);
-  assert.equal(await page.getByTestId("submitted-response-review").locator("input, textarea, button").count(), 0);
-  assert(!(await page.getByTestId("submitted-response-review").innerText()).includes("Correct answer"));
+  await page.getByTestId("package-results-chat-card").waitFor();
+  assert.equal(await page.getByTestId("initial-answer-review-item").count(), 3);
+  assert.equal(await page.getByTestId("package-results-chat-card").locator("input, textarea, button").count(), 0);
+  assert((await page.getByTestId("package-results-chat-card").innerText()).includes("Correct answer"));
   pass("HTTP submission returns without AI work; saved responses are reviewable and controls are unlocked");
   await page.screenshot({ path: join(output, "preparing-desktop.png"), fullPage: true });
   await page.reload();
@@ -121,28 +121,29 @@ try {
   assert.equal(await db.workflowJob.count({ where: { assessment_session_db_id: fixture.session.id } }), 1);
   pass("reload resumes read-only polling without another submission");
   await page.route(`${base}${api}/preparation`, (route) => route.fulfill({ status: 503, json: { error: { code: "synthetic_outage", message: "Unavailable" } } }));
-  await page.getByText("Connection interrupted. Checking progress again shortly.").waitFor();
+  await page.getByText("Your connection was interrupted. We will check again in a few seconds.").waitFor();
   await page.unroute(`${base}${api}/preparation`);
-  await page.getByText("Connection interrupted. Checking progress again shortly.").waitFor({ state: "hidden" });
+  await page.getByText("Your connection was interrupted. We will check again in a few seconds.").waitFor({ state: "hidden" });
   assert.equal(requests.filter((request) => request.path.endsWith("/complete-initial")).length, 1);
   pass("temporary connection failure recovers without resubmitting or generating");
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 850 });
-    await page.getByText("Review your responses", { exact: true }).click();
+    await page.getByTestId("package-results-chat-card").waitFor();
     await page.screenshot({ path: join(output, `preparing-${width}.png`), fullPage: true });
     const overflow = await page.evaluate(() => Array.from(document.querySelectorAll("body *"))
       .filter((element) => element.getBoundingClientRect().right > innerWidth + 1)
       .slice(0, 8).map((element) => ({ tag: element.tagName, class: element.className, text: element.textContent?.slice(0, 100) })));
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), JSON.stringify({ output, overflow }));
-    await page.getByText("Review your responses", { exact: true }).click();
+    assert.equal(await page.getByTestId("initial-answer-review-item").count(), 3);
   }
   pass("mobile 320/390 and desktop 1440 waiting and review layout");
   const job = await db.workflowJob.findFirstOrThrow({ where: { assessment_session_db_id: fixture.session.id } });
   await db.workflowJob.update({ where: { id: job.id }, data: { status: "failed", attempt_count: 3, last_error_category: "preparation_failed" } });
   await page.getByTestId("retry-initial-preparation").waitFor();
   assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
-  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /try again or contact your teacher/);
-  assert.equal(await page.getByTestId("end-attempt").count(), 0);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /try again, or finish now/);
+  assert.equal(await page.getByTestId("finish-without-learning-support").isEnabled(), true);
+  assert.equal(await page.getByTestId("end-attempt").isEnabled(), true);
   const retry = page.waitForResponse((response) => response.url().endsWith("/complete-initial"));
   await page.getByTestId("retry-initial-preparation").click();
   assert.equal((await retry).status(), 202);
