@@ -8,8 +8,12 @@
 name: CI
 
 on:
+  # main and release branches only, and not for release-record commits, to save Actions minutes
+  # (about 50 to 85 billed minutes per full run on a private repository).
   push:
-    branches: ["**"]
+    branches: ["main", "release/**"]
+    paths-ignore:
+      - "docs/release-records/**"
   pull_request:
   workflow_dispatch:
 
