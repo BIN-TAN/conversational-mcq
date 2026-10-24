@@ -6,7 +6,8 @@ export const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION = "evidence-centered-item-desi
 const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-assistant-output-v2" as const;
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v6" as const;
+// v7 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v7" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -421,7 +422,8 @@ export const ItemGenerationOutputSchema = z.object({
  */
 export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v2" as const;
 export const ITEM_CHECK_SCHEMA_VERSION = "evidence-centered-mcq-item-check-output-v1" as const;
-export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v2" as const;
+// v3: includes the v7 generation instructions (formulas and tables).
+export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v3" as const;
 export const ITEM_REVISION_SCHEMA_VERSION = "evidence-centered-mcq-revision-output-v1" as const;
 
 export const ItemCheckProblemSchema = z.enum([
@@ -507,7 +509,8 @@ export function itemCheckSummary(input: {
  * same review as generated drafts. A key is recorded only when the source states it; the
  * item specifications the source lacks are proposed and marked as suggestions.
  */
-export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v2" as const;
+// v3 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
+export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v3" as const;
 export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v1" as const;
 export const EXISTING_ITEMS_MAX = 40;
 

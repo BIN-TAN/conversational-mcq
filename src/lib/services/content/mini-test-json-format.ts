@@ -9,7 +9,8 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { MINI_TEST_JSON_VERSION } from "./mini-test-json-contract";
 
-export const MINI_TEST_JSON_FORMAT_PROMPT_VERSION = "mini-test-json-format-v3" as const;
+// v4 (release CMCQ-20261024-11): formulas in LaTeX between $ signs and Markdown tables are copied exactly.
+export const MINI_TEST_JSON_FORMAT_PROMPT_VERSION = "mini-test-json-format-v4" as const;
 export const MINI_TEST_JSON_FORMAT_SCHEMA_VERSION = "mini-test-json-format-output-v1" as const;
 /** About 100,000 tokens of source: larger files are split by the instructor. */
 export const MINI_TEST_JSON_FORMAT_MAX_CHARACTERS = 400_000;
@@ -80,6 +81,7 @@ You put an instructor's mini-test file into the application's import format. The
 KEEP THE CONTENT
 - Copy every title, stem, option, key, note and design entry word for word. Do not correct, shorten, reorder, translate or improve any of it, and do not add content the file does not contain.
 - Fix only the structure: field names, nesting, lists and letters.
+- Formulas may be written in LaTeX between $ signs and tables as Markdown pipe tables; copy them exactly, with every backslash.
 
 ITEMS
 - One entry per multiple-choice item, in the file's order. item_label is the item's label or number in the file, or null.
