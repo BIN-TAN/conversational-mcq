@@ -80,6 +80,8 @@ import {
   temptingOptionsForSelectedAnswer
 } from "@/lib/student-assessment/initial-admin-prompts";
 import { SafeTutorMessageMarkdown } from "@/components/safe-tutor-message-markdown";
+import { ItemContent } from "@/components/item-content";
+import { ItemVideoEmbed } from "@/components/item-media-video";
 import { enterKeySends, useCoarsePointer } from "./use-coarse-pointer";
 import {
   formativeOutgoingMessageFor,
@@ -268,7 +270,11 @@ function ChatBubble({ entry }: { entry: StudentTranscriptEntry }) {
         <p className={isAssistant ? "mb-1 text-[0.68rem] font-semibold uppercase tracking-wide text-accent" : "mb-1 text-right text-[0.68rem] font-semibold uppercase tracking-wide text-white/65"}>
           {isAssistant ? STUDENT_FACING_TUTOR_LABEL : "You"}
         </p>
-        <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
+        {isAssistant ? (
+          <ItemContent className="whitespace-pre-wrap text-sm leading-6" text={displayTranscriptText(entry)} />
+        ) : (
+          <p className="whitespace-pre-wrap text-sm leading-6">{displayTranscriptText(entry)}</p>
+        )}
         <time className="sr-only" dateTime={entry.created_at}>
           {formatTranscriptTimestamp(entry.created_at)}
         </time>
@@ -751,7 +757,7 @@ function CurrentItemMediaReminder({ item }: { item: { item_stem: string; media_a
         <span className="group-open:hidden">Show the question and its {stemMedia.length === 1 ? "figure" : "figures"} again</span>
         <span className="hidden group-open:inline">Hide the question</span>
       </summary>
-      <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+      <ItemContent className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink" text={item.item_stem} />
       <StudentMediaList mediaAssets={stemMedia} />
     </details>
   );
@@ -790,14 +796,19 @@ function StudentMediaList({
               src={asset.url}
             />
           ) : asset.url && linksInteractive ? (
-            <a
-              className="text-sm font-semibold text-accent underline-offset-4 hover:underline"
-              href={asset.url}
-              rel="noreferrer"
-              target="_blank"
-            >
-              {asset.title ?? (asset.media_type === "video" ? "Open media link" : "Open reference link")}
-            </a>
+            <>
+              {asset.media_type === "video" ? (
+                <ItemVideoEmbed title={asset.title ?? asset.alt_text_or_description} url={asset.url} />
+              ) : null}
+              <a
+                className="text-sm font-semibold text-accent underline-offset-4 hover:underline"
+                href={asset.url}
+                rel="noreferrer"
+                target="_blank"
+              >
+                {asset.title ?? (asset.media_type === "video" ? "Open media link" : "Open reference link")}
+              </a>
+            </>
           ) : asset.url ? (
             <span className="text-sm font-semibold text-accent">
               {asset.title ?? (asset.media_type === "video" ? "Media link" : "Reference link")}
@@ -852,7 +863,7 @@ function AgentItemMessage({
       <p className="text-xs font-semibold uppercase tracking-wide text-muted">
         {isTransferItem ? "Additional question" : initialItemLabel}
       </p>
-      <p className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink">{item.item_stem}</p>
+      <ItemContent className="mt-2 whitespace-pre-wrap text-[0.95rem] leading-7 text-ink" text={item.item_stem} />
       <StudentMediaList mediaAssets={item.media_assets.filter((asset) => asset.placement === "item_stem")} />
       <div className="mt-4 grid gap-1.5">
         {answerOptionsFor(item).map((option) => {
@@ -876,7 +887,8 @@ function AgentItemMessage({
               type="button"
             >
               <span className="block text-sm leading-6">
-                <span className="font-semibold">{option.label}.</span> {option.text}
+                <span className="font-semibold">{option.label}.</span>{" "}
+                <ItemContent inline linksInteractive={false} text={option.text} />
               </span>
               <StudentMediaList compact linksInteractive={false} mediaAssets={optionMedia} />
             </button>
@@ -966,7 +978,8 @@ function TemptingOptionMessage({
             key={option.label}
             onClick={() => onSelect(option.label)}
             data-testid={`chat-tempting-option-${item.item_public_id}-${option.label}`}
-          ><span className="font-semibold">{option.label}.</span> {option.text}
+          ><span className="font-semibold">{option.label}.</span>{" "}
+            <ItemContent inline linksInteractive={false} text={option.text} />
             <StudentMediaList linksInteractive={false} mediaAssets={item.media_assets.filter((asset) => asset.placement === "option" && asset.option_label === option.label)} />
           </button>
         ))}
@@ -1173,7 +1186,7 @@ function PackageReviewMessage({
                       </span>
                     </summary>
                     <div className="mt-2 space-y-2 border-t border-line pt-3">
-                      <p className="whitespace-pre-wrap text-sm leading-6 text-ink">{item.item_stem}</p>
+                      <ItemContent className="whitespace-pre-wrap text-sm leading-6 text-ink" text={item.item_stem} />
                       <StudentMediaList mediaAssets={item.media_assets.filter((asset) => asset.placement === "item_stem")} />
                       <dl className="grid gap-2 text-sm">
                         <div>
@@ -1236,7 +1249,8 @@ function PackageReviewMessage({
                               type="button"
                             >
                               <span className="text-sm leading-6">
-                                <span className="font-semibold">{option.label}.</span> {option.text}
+                                <span className="font-semibold">{option.label}.</span>{" "}
+                                <ItemContent inline linksInteractive={false} text={option.text} />
                               </span>
                             </button>
                           );
@@ -1494,7 +1508,8 @@ function InFlowEditPanel({
                   type="button"
                 >
                   <span className="text-sm leading-6">
-                    <span className="font-semibold">{option.label}.</span> {option.text}
+                    <span className="font-semibold">{option.label}.</span>{" "}
+                    <ItemContent inline linksInteractive={false} text={option.text} />
                   </span>
                 </button>
               ))}
@@ -2086,16 +2101,14 @@ function PackageResultsChatCard({
                     {item.answer_explanation_revealed && item.answer_explanation ? (
                       <ObservedFeedback enabled={observe} send={send} event={{ event_type: "item_correctness_status_shown",
                         item_public_id: item.item_public_id, concept_unit_public_id: conceptId, event_category: "feedback_display",
-                        payload: { content_id: feedbackContentId(sessionId, conceptId, `item:${item.item_public_id}`), content_kind: "item_feedback" } }}><p>
-                        <span className="font-semibold text-ink">Why:</span>{" "}
-                        {item.answer_explanation}
-                      </p></ObservedFeedback>
+                        payload: { content_id: feedbackContentId(sessionId, conceptId, `item:${item.item_public_id}`), content_kind: "item_feedback" } }}>
+                        <ItemContent prefix={<span className="font-semibold text-ink">Why:</span>} text={item.answer_explanation} />
+                        {/* Explanation media is sent only with a revealed explanation (service.ts). */}
+                        <StudentMediaList mediaAssets={item.explanation_media ?? []} />
+                      </ObservedFeedback>
                     ) : null}
                     {item.distractor_boundary ? (
-                      <p>
-                        <span className="font-semibold text-ink">What to watch for:</span>{" "}
-                        {item.distractor_boundary}
-                      </p>
+                      <ItemContent prefix={<span className="font-semibold text-ink">What to watch for:</span>} text={item.distractor_boundary} />
                     ) : null}
                   </div>
                 </details>
@@ -4144,10 +4157,13 @@ export function AssessmentSessionClient({
           <ol className="mt-3 space-y-4">
             {review.items.map((item, index) => (
               <li key={item.item_public_id} className="space-y-2 break-words text-sm text-ink">
-                <p className="font-semibold">{index + 1}. {item.item_stem}</p>
-                <p>Your answer: {item.existing_selected_option
-                  ? `${item.existing_selected_option}. ${item.options.find((option) => option.label === item.existing_selected_option)?.text ?? ""}`
-                  : "No answer"}</p>
+                <ItemContent className="font-semibold" prefix={`${index + 1}.`} text={item.item_stem} />
+                {item.existing_selected_option ? (
+                  <ItemContent
+                    prefix={`Your answer: ${item.existing_selected_option}.`}
+                    text={item.options.find((option) => option.label === item.existing_selected_option)?.text ?? ""}
+                  />
+                ) : <p>Your answer: No answer</p>}
                 <p className="whitespace-pre-wrap">Your reason: {item.existing_reasoning_text || "Not provided"}</p>
                 <p>Confidence: {item.existing_confidence_rating ? confidenceLabel(item.existing_confidence_rating) : "Not provided"}</p>
                 {item.tempting_option ? <p>Tempting option: {item.tempting_option}{item.tempting_option_reason ? ` - ${item.tempting_option_reason}` : ""}</p> : null}

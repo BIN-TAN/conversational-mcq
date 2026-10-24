@@ -46,6 +46,7 @@ import {
   StatusBadge,
   SuccessPanel
 } from "./ui";
+import { ItemContent, ItemContentAuthoringPreview } from "@/components/item-content";
 
 type SourceType = "csv" | "xlsx" | "docx" | "plain_text" | "project_json";
 
@@ -668,6 +669,7 @@ export function McqImportClient({
                         value={candidate.stem}
                       />
                     </Field>
+                    <ItemContentAuthoringPreview testId={`import-stem-preview-${candidate.candidate_public_id}`} text={candidate.stem} />
                     <div className="grid gap-3 md:grid-cols-2">
                       {candidate.options.map((option, index) => (
                         <Field label={`Option ${option.label}`} key={`${candidate.candidate_public_id}-${option.label}`}>
@@ -685,6 +687,7 @@ export function McqImportClient({
                             }
                             value={option.text}
                           />
+                          <ItemContentAuthoringPreview showHint={false} text={option.text} />
                         </Field>
                       ))}
                     </div>
@@ -739,6 +742,7 @@ export function McqImportClient({
                         value={candidate.target_reasoning_note ?? ""}
                       />
                     </Field>
+                    <ItemContentAuthoringPreview showHint={false} text={candidate.target_reasoning_note} />
                     {suggestionText(candidate, "suggested_target_reasoning_note") ? (
                       <SuggestionReview
                         candidate={candidate}
@@ -951,13 +955,16 @@ function FormattingReview({
         </div>
         <div className="rounded-md border border-amber-200 bg-white p-3">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">Proposed structure</p>
-          <p className="mt-2 text-sm font-semibold">{proposedStem || "Stem unresolved"}</p>
+          <ItemContent className="mt-2 text-sm font-semibold" text={proposedStem || "Stem unresolved"} />
           {proposedOptions.length ? (
             <ul className="mt-2 space-y-1 text-sm">
               {proposedOptions.map((option) => (
-                <li key={`${candidate.candidate_public_id}-format-${option.label}`}>
-                  <span className="font-semibold">{option.label}.</span> {option.text}
-                </li>
+                <ItemContent
+                  as="li"
+                  key={`${candidate.candidate_public_id}-format-${option.label}`}
+                  prefix={<span className="font-semibold">{option.label}.</span>}
+                  text={option.text}
+                />
               ))}
             </ul>
           ) : (

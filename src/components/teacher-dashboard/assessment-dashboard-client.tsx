@@ -16,6 +16,8 @@ import type {
   TeacherAssessmentDashboard
 } from "@/lib/services/teacher-dashboard/assessment-dashboard";
 import { followUpPriority } from "@/lib/services/teacher-dashboard/follow-up";
+import { ItemContent } from "@/components/item-content";
+import { hasRichItemContent } from "@/lib/item-content/rich-text";
 
 
 type DashboardResponse = {
@@ -171,7 +173,9 @@ function ParticipationStatusCard({ dashboard }: { dashboard: TeacherAssessmentDa
 
 /** Option counts with the answer key marked. Labels such as "B (not in administered option set)" stay as computed. */
 function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
-  const stemShortened = item.item_stem.replace(/\s+/g, " ").trim() !== item.item_stem_preview;
+  // A stem with formulas or a table is always offered in full, drawn by the item renderer.
+  const stemShortened =
+    item.item_stem.replace(/\s+/g, " ").trim() !== item.item_stem_preview || hasRichItemContent(item.item_stem);
   return (
     <article className="rounded-lg border border-border-light bg-white p-5 shadow-soft">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -183,7 +187,7 @@ function ItemDiagnostic({ item }: { item: ItemDiagnosticSummary }) {
           {stemShortened ? (
             <details className="mt-2 max-w-3xl text-sm">
               <summary className="cursor-pointer font-semibold text-accent">Show the full question</summary>
-              <p className="mt-2 whitespace-pre-wrap break-words leading-6 text-ink">{item.item_stem}</p>
+              <ItemContent className="mt-2 whitespace-pre-wrap break-words leading-6 text-ink" text={item.item_stem} />
             </details>
           ) : null}
         </div>

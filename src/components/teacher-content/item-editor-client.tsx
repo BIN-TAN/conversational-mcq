@@ -22,6 +22,9 @@ import {
   type TeacherDiagnosticOptionNote
 } from "@/lib/services/content/teacher-diagnostic-context";
 import type { AssessmentDetail, ItemDetail, ItemMediaAsset, ItemOption, StructuredApiError } from "./types";
+import { ItemContent, ItemContentAuthoringPreview } from "@/components/item-content";
+import { ItemVideoEmbed } from "@/components/item-media-video";
+import type { ItemMediaPlacementValue } from "@/lib/item-content/media-placement";
 import {
   Breadcrumbs,
   Button,
@@ -89,7 +92,7 @@ function optionNotesForSave(
 
 type ItemMediaDraft = {
   media_public_id?: string;
-  placement: "item_stem" | "option";
+  placement: ItemMediaPlacementValue;
   option_label: string | null;
   media_type: "image" | "video" | "reference_link";
   source_type: "uploaded" | "external_url";
@@ -245,8 +248,14 @@ function MediaDraftPreview({
               <span>
                 {asset.media_type.replace("_", " ")}
                 {asset.placement === "option" && asset.option_label ? ` for option ${asset.option_label}` : ""}
+                {asset.placement === "explanation" ? " with the explanation" : ""}
               </span>
             </div>
+            {asset.media_type === "video" && url ? (
+              <div className="mt-2">
+                <ItemVideoEmbed title={asset.title || asset.student_alt_text || "Item video"} url={url} />
+              </div>
+            ) : null}
             {asset.media_type === "image" && url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
@@ -611,7 +620,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
               ...asset,
               ...patch,
               option_label:
-                patch.placement === "item_stem"
+                patch.placement === "item_stem" || patch.placement === "explanation"
                   ? null
                   : patch.placement === "option" && !asset.option_label
                     ? optionLabels[0] ?? null
@@ -1045,6 +1054,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                     value={itemStem}
                   />
                 </Field>
+                <ItemContentAuthoringPreview testId="item-stem-authoring-preview" text={itemStem} />
                 <p className="mt-3 rounded-md border border-line bg-white p-3 text-xs leading-5 text-muted">
                   Image upload storage is disabled until a server-side storage provider is configured. Use HTTPS URLs for now. PNG, JPEG, and WebP uploads are validated server-side when storage is enabled; SVG and video binary uploads are not accepted.
                 </p>
@@ -1065,6 +1075,11 @@ export function ItemEditorClient(props: ItemEditorProps) {
                             {media.placement === "option" && media.option_label ? (
                               <span className="text-xs font-normal text-muted">
                                 currently attached to option {media.option_label}
+                              </span>
+                            ) : null}
+                            {media.placement === "explanation" ? (
+                              <span className="text-xs font-normal text-muted">
+                                shown with the explanation in the answer review
                               </span>
                             ) : null}
                           </div>
@@ -1114,6 +1129,39 @@ export function ItemEditorClient(props: ItemEditorProps) {
                               <option value="image">Image</option>
                               <option value="video">Video link</option>
                               <option value="reference_link">Reference link</option>
+                            </select>
+                          </Field>
+                          <Field
+                            label="Shown with"
+                            hint="Explanation media is shown to students only in the answer review, after they submit."
+                          >
+                            <select
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              data-testid={`teacher-media-placement-${mediaIndex}`}
+                              disabled={!isEditable}
+                              onChange={(event) => {
+                                const value = event.target.value;
+                                if (value.startsWith("option:")) {
+                                  updateMediaAsset(mediaIndex, { placement: "option", option_label: value.slice(7) });
+                                } else {
+                                  updateMediaAsset(mediaIndex, { placement: value === "explanation" ? "explanation" : "item_stem" });
+                                }
+                              }}
+                              value={
+                                media.placement === "option" && media.option_label
+                                  ? `option:${media.option_label}`
+                                  : media.placement === "explanation"
+                                    ? "explanation"
+                                    : "item_stem"
+                              }
+                            >
+                              <option value="item_stem">Question text</option>
+                              {optionLabels.map((label) => (
+                                <option key={`placement-option-${label}`} value={`option:${label}`}>
+                                  Option {label}
+                                </option>
+                              ))}
+                              <option value="explanation">Explanation (answer review)</option>
                             </select>
                           </Field>
                           <Field label="Source">
@@ -1221,16 +1269,12 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <div className="mt-5 grid gap-4 lg:grid-cols-2">
                   <div className="rounded-md border border-line bg-white p-4">
                     <h3 className="text-sm font-semibold text-ink">Teacher preview</h3>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
-                      {itemStem || "Item stem will appear here."}
-                    </p>
+                    <ItemContent className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink" text={itemStem || "Item stem will appear here."} />
                     <MediaDraftPreview mediaAssets={mediaAssets.filter((media) => media.placement === "item_stem")} />
                   </div>
                   <div className="rounded-md border border-line bg-white p-4">
                     <h3 className="text-sm font-semibold text-ink">Student preview</h3>
-                    <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
-                      {itemStem || "Item stem will appear here."}
-                    </p>
+                    <ItemContent className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink" text={itemStem || "Item stem will appear here."} />
                     <MediaDraftPreview mediaAssets={mediaAssets.filter((media) => media.placement === "item_stem")} />
                   </div>
                 </div>
@@ -1302,6 +1346,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                       required
                       value={option.text}
                     />
+                    <ItemContentAuthoringPreview showHint={false} testId={`option-authoring-preview-${option.label}`} text={option.text} />
                   </Field>
                   <label className="flex items-end gap-2 pb-2 text-sm font-medium text-ink">
                     <input
@@ -1356,6 +1401,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   value={targetReasoningNote}
                 />
               </Field>
+              <ItemContentAuthoringPreview testId="target-reasoning-authoring-preview" text={targetReasoningNote} />
               <Field
                 label="Essential elements (1 to 3)"
                 hint="One per line: only the points an explanation must state to justify the correct answer. An explanation missing any of them is rated limited, so leave out extras. Required before publishing."
@@ -1396,7 +1442,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
                     >
                       <p className="text-sm font-semibold text-ink">
                         Option {option.label}
-                        {option.text ? <span className="ml-2 font-normal text-muted">{option.text}</span> : null}
+                        {option.text ? (
+                          <ItemContent as="span" className="ml-2 font-normal text-muted" text={option.text} />
+                        ) : null}
                       </p>
                       <Field label="Why a student might choose this option">
                         <textarea
@@ -1407,6 +1455,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                           value={note.rationale}
                         />
                       </Field>
+                      <ItemContentAuthoringPreview showHint={false} text={note.rationale} />
                       <Field
                         label="Idea label (optional)"
                         hint="A few words. Two chosen options in a mini test with the same label show as an answer pattern."
@@ -1456,9 +1505,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 Students see only the stem and option text during protected administration.
               </p>
               <div className="mt-4 rounded-md border border-line bg-slate-50 p-4">
-                <p className="whitespace-pre-wrap text-sm leading-6 text-ink">
-                  {itemStem || "Item stem will appear here."}
-                </p>
+                <ItemContent className="whitespace-pre-wrap text-sm leading-6 text-ink" text={itemStem || "Item stem will appear here."} />
                 <MediaDraftPreview
                   mediaAssets={mediaAssets.filter((media) => media.placement === "item_stem")}
                 />
@@ -1466,7 +1513,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   {options.map((option) => (
                     <li className="text-sm text-ink" key={`student-preview-${option.label}`}>
                       <span className="font-semibold">{option.label || "?"}.</span>{" "}
-                      {option.text || "Option text"}
+                      <ItemContent inline text={option.text || "Option text"} />
                       <MediaDraftPreview
                         compact
                         mediaAssets={mediaAssets.filter(
@@ -1490,9 +1537,11 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 </div>
                 <div>
                   <dt className="text-muted">Expected / target reasoning</dt>
-                  <dd className="whitespace-pre-wrap text-ink">
-                    {targetReasoningNote || "No target reasoning note yet."}
-                  </dd>
+                  <ItemContent as="dd" className="whitespace-pre-wrap text-ink" text={targetReasoningNote || "No target reasoning note yet."} />
+                  <MediaDraftPreview
+                    compact
+                    mediaAssets={mediaAssets.filter((media) => media.placement === "explanation")}
+                  />
                 </div>
                 <div>
                   <dt className="text-muted">Essential elements</dt>
@@ -1516,7 +1565,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                         option.label === correctOption ? null : (
                           <li key={`preview-rationale-${index}`}>
                             <span className="font-semibold">{option.label}.</span>{" "}
-                            {optionNotes[index]?.rationale.trim() || "No rationale yet."}
+                            <ItemContent inline text={optionNotes[index]?.rationale.trim() || "No rationale yet."} />
                             {optionNotes[index]?.idea_label.trim() ? (
                               <span className="ml-1 text-muted">({optionNotes[index]?.idea_label.trim()})</span>
                             ) : null}
