@@ -117,7 +117,8 @@ async function main() {
     for (const [key, value] of [["DATABASE_CONNECTION_LIMIT", "10"], ["PREPARATION_WORKER_DATABASE_CONNECTION_LIMIT", "8"], ["DATABASE_POOL_TIMEOUT_SECONDS", "20"]]) {
       assert.match(render, new RegExp(`- key: ${key}\\n\\s+value: "${value}"`));
     }
-    assert.match(render, /^\s*plan: basic-1gb\s*$/m);
+    // The plan stays basic-256mb until 5 Jan 2027 (researcher's decision of 24 Oct 2026); both pools fit its 100 connections.
+    assert.match(render, /^\s*plan: basic-256mb\s*$/m);
     assert(!source("src/lib/db.ts").includes("console."), "The connection string is never logged");
   });
 

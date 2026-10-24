@@ -127,5 +127,6 @@ databases:
     databaseName: conversational_mcq_staging
     user: conversational_mcq_staging
     region: oregon
-    plan: basic-1gb
+    # basic-256mb until 5 Jan 2027, then basic-1gb (researcher's decision, 24 Oct 2026).
+    plan: basic-256mb
     postgresMajorVersion: "16"
