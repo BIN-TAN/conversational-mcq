@@ -407,7 +407,7 @@ async function main() {
     const section = doc.slice(doc.indexOf("### 9.7 Instructor reporting"));
     const block = /```text\n([\s\S]*?)\n```/.exec(section)![1];
     assert.equal(contract.INSTRUCTOR_REPORT_V8_INSTRUCTIONS, block);
-    assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, "instructor-report-prompt-v8.1");
+    assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, "instructor-report-prompt-v8.2");
     assert.equal(contract.INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, "instructor-report-output-v8");
     assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_HASH, createHash("sha256")
       .update([contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, contract.INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, block].join("\n")).digest("hex"));
