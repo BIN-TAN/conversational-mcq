@@ -60,8 +60,8 @@ async function context(user, viewport = { width: 1440, height: 900 }) {
     const url = new URL(request.url());
     if (url.origin !== base) { blockedExternal.push(url.hostname); return route.abort(); }
     if (!["GET", "HEAD"].includes(request.method())) {
-      // Student timing telemetry is blocked too; only synthetic fixtures are used.
-      if (!url.pathname.endsWith("/events")) unexpectedWrites.push(url.pathname);
+      // Student timing telemetry and the one-tab claim are blocked too; only synthetic fixtures are used.
+      if (!/\/(events|tab-claim)$/.test(url.pathname)) unexpectedWrites.push(url.pathname);
       return route.abort();
     }
     return route.continue();
