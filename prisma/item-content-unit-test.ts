@@ -351,10 +351,12 @@ async function main() {
     const tutor = source("src/components/safe-tutor-message-markdown.tsx");
     assert(tutor.includes("remarkMath") && !tutor.includes("remark-gfm"), "tutor: formulas yes, tables still rejected");
     assert(source("src/app/layout.tsx").includes('import "katex/dist/katex.min.css";'));
-    const packageJson = JSON.parse(source("package.json")) as { dependencies: Record<string, string> };
+    const packageJson = JSON.parse(source("package.json")) as { dependencies: Record<string, string>; overrides: Record<string, unknown> };
+    // KaTeX 0.18.2 fixed GHSA-238p-pmpm-9mq7; the override keeps rehype-katex and remark-math on it.
+    assert.equal(packageJson.overrides.katex, "$katex");
     assert.deepEqual(
       ["katex", "rehype-katex", "remark-gfm", "remark-math"].map((name) => packageJson.dependencies[name]),
-      ["^0.16.11", "^7.0.1", "^4.0.0", "^6.0.0"]
+      ["^0.18.4", "^7.0.1", "^4.0.0", "^6.0.0"]
     );
   });
 
