@@ -59,7 +59,7 @@ check("Results read as a sentence, and the stored result format is unchanged", (
 });
 
 check("Fixed prompts during the mini-test are plain, and their generator version changed", () => {
-  assert.equal(INITIAL_ADMIN_PROMPT_GENERATOR_VERSION, "initial-admin-prompt-generator-v4");
+  assert.equal(INITIAL_ADMIN_PROMPT_GENERATOR_VERSION, "initial-admin-prompt-generator-v5");
   const texts: string[] = [];
   for (let order = 1; order <= 12; order += 1) {
     for (const kind of ["answer_prompt", "reasoning_prompt", "tempting_option_prompt", "tempting_reason_prompt", "procedural_clarification", "repair_prompt"] as const) {
@@ -72,6 +72,14 @@ check("Fixed prompts during the mini-test are plain, and their generator version
     assert.match(text, /[.?!]$/, `A full sentence: ${text}`);
   }
   assert(texts.some((text) => /option C\b/.test(text)), "The chosen option is named as \"option C\"");
+  // v5: the tempting step uses buttons and asks the reason in the next step.
+  for (const order of [1, 2, 3, 4, 5, 6]) {
+    for (const selectedOption of ["C", "E"]) {
+      const text = buildInitialAdminPrompt({ kind: "tempting_option_prompt", assessmentState: "AWAIT_TEMPTING_OPTION", itemPublicId: `item_${order}`, itemOrder: order, selectedOption }).prompt_text;
+      assert.match(text, /If so, choose it\. If not, choose No\.$/, text);
+      assert.doesNotMatch(text, /what made it|which one/i, text);
+    }
+  }
 });
 
 check("Students never see internal error codes, and conflicts say what to do", () => {

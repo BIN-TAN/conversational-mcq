@@ -237,7 +237,7 @@ async function checkRenderBlueprint(renderYaml: string) {
 
   const hasFreePlan = /^\s*plan:\s*free\s*$/imu.test(renderYaml);
   const hasPaidWebPlan = /^\s*plan:\s*(starter|standard|pro|pro plus|pro max|pro ultra)\s*$/imu.test(renderYaml);
-  const hasPaidDatabasePlan = /^\s*plan:\s*basic-256mb\s*$/imu.test(renderYaml);
+  const hasPaidDatabasePlan = /^\s*plan:\s*basic-(256mb|1gb|4gb)\s*$/imu.test(renderYaml);
   addCheck({
     name: "non_free_render_resources",
     status: !hasFreePlan && hasPaidWebPlan && hasPaidDatabasePlan ? "pass" : "fail",

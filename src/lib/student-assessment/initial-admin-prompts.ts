@@ -1,7 +1,10 @@
 import type { ChatNativeAssessmentState } from "@/lib/student-assessment/state-machine";
 
 // v4 (release CMCQ-20261020-06): plainer wording for five prompts; the variants keep their IDs.
-export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v4";
+// v5 (release CMCQ-20261024-09): the tempting-option prompts match the screen. The student picks
+// an option or No with buttons, and the reason is asked in the next step, so these prompts no
+// longer ask "what made it tempting" here. The variants keep their IDs.
+export const INITIAL_ADMIN_PROMPT_GENERATOR_VERSION = "initial-admin-prompt-generator-v5";
 
 export type InitialAdminRequiredEvidence =
   | "answer"
@@ -76,13 +79,13 @@ const REASONING_PROMPTS = [
 ];
 
 const TEMPTING_PROMPTS = [
-  "Was a different option tempting? If yes, which one, and what made it tempting? You can also say No.",
+  "Did another option almost win you over? If so, choose it. If not, choose No.",
   "Was a different option tempting? If so, choose it. If not, choose No.",
-  "Did a different option seem plausible? If yes, which one, and what made it seem possible? You can also say No."
+  "Did a different option seem plausible? If so, choose it. If not, choose No."
 ];
 
 const IDK_TEMPTING_PROMPT =
-  "Did any of the answer options seem like it could be right? If yes, which one, and what made it seem possible? You can also say No.";
+  "Did any of the answer options seem like it could be right? If so, choose it. If not, choose No.";
 
 const TEMPTING_REASON_PROMPTS = [
   "What made that option seem tempting?",

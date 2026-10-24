@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db";
+import { conversationUsesFeedbackV8 } from "../feedback-v8/context";
 import { isStaleOpeningReservation } from "./opening-stale";
 import { canFinishConversationAssessment, finishConversationAssessment } from "./finish-assessment";
 import { logProcessEvent } from "@/lib/services/process-events";
@@ -87,6 +88,18 @@ function turnProjection(turn: {
  * timeout and retries), the reply is marked failed so the normal Retry claim applies.
  */
 export const FORMATIVE_CONVERSATION_STALE_RESPONSE_MS = 15 * 60 * 1000;
+/**
+ * Release CMCQ-20261024-09: a feedback v8 reply is one provider call plus at most one
+ * regeneration (two calls of at most 120 s each, with a wait of at most 30 s between them), so
+ * a v8 reply still pending after 6 minutes was interrupted. v8 conversations use this shorter
+ * window and record policy stale_reply_sweep_v2; other conversations keep 15 minutes and v1.
+ */
+export const FEEDBACK_V8_STALE_RESPONSE_MS = 6 * 60 * 1000;
+export const STALE_REPLY_SWEEP_POLICY = {
+  legacy: { threshold_ms: FORMATIVE_CONVERSATION_STALE_RESPONSE_MS, policy: "stale_reply_sweep_v1" },
+  feedback_v8: { threshold_ms: FEEDBACK_V8_STALE_RESPONSE_MS, policy: "stale_reply_sweep_v2" }
+} as const;
+type StaleReplySweepPolicy = (typeof STALE_REPLY_SWEEP_POLICY)[keyof typeof STALE_REPLY_SWEEP_POLICY];
 export const FORMATIVE_CONVERSATION_INTERRUPTED_FAILURE = "assistant_response_interrupted";
 
 type ReceiptForStaleCheck = {
@@ -98,12 +111,16 @@ type ReceiptForStaleCheck = {
   updated_at: Date;
 };
 
-export function isStaleFormativeConversationResponse(receipt: ReceiptForStaleCheck, now: Date) {
+export function isStaleFormativeConversationResponse(
+  receipt: ReceiptForStaleCheck,
+  now: Date,
+  thresholdMs: number = FORMATIVE_CONVERSATION_STALE_RESPONSE_MS
+) {
   return receipt.client_message_id !== FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID &&
     Boolean(receipt.student_turn_db_id) &&
     !receipt.assistant_turn_db_id &&
     (receipt.assistant_response_status === "pending" || receipt.assistant_response_status === "retrying") &&
-    now.getTime() - receipt.updated_at.getTime() > FORMATIVE_CONVERSATION_STALE_RESPONSE_MS;
+    now.getTime() - receipt.updated_at.getTime() > thresholdMs;
 }
 
 async function failStaleFormativeConversationResponses<T extends ReceiptForStaleCheck & {
@@ -111,10 +128,20 @@ async function failStaleFormativeConversationResponses<T extends ReceiptForStale
   failure_code: string | null;
   assistant_response_last_failure_category: string | null;
   assistant_response_last_failed_at: Date | null;
-}>(receipts: T[], context: { assessment_session_db_id: string; concept_unit_session_db_id: string }) {
+}>(receipts: T[], context: {
+  assessment_session_db_id: string;
+  concept_unit_session_db_id: string;
+  conversation_public_id: string;
+}) {
   const now = new Date();
+  // The v8 check reads the database, so it is made only when a reply has waited past the
+  // shorter window.
+  if (!receipts.some((receipt) => isStaleFormativeConversationResponse(receipt, now, FEEDBACK_V8_STALE_RESPONSE_MS))) return;
+  const sweep: StaleReplySweepPolicy = await conversationUsesFeedbackV8({ conversation_public_id: context.conversation_public_id })
+    ? STALE_REPLY_SWEEP_POLICY.feedback_v8
+    : STALE_REPLY_SWEEP_POLICY.legacy;
   for (const receipt of receipts) {
-    if (!isStaleFormativeConversationResponse(receipt, now)) continue;
+    if (!isStaleFormativeConversationResponse(receipt, now, sweep.threshold_ms)) continue;
     const staleSince = receipt.updated_at;
     const priorStatus = receipt.assistant_response_status;
     const priorFailureCategory = receipt.assistant_response_last_failure_category;
@@ -127,7 +154,7 @@ async function failStaleFormativeConversationResponses<T extends ReceiptForStale
         id: receipt.id,
         assistant_turn_db_id: null,
         assistant_response_status: { in: ["pending", "retrying"] },
-        updated_at: { lt: new Date(now.getTime() - FORMATIVE_CONVERSATION_STALE_RESPONSE_MS) }
+        updated_at: { lt: new Date(now.getTime() - sweep.threshold_ms) }
       },
       data: {
         status: "failed",
@@ -157,7 +184,7 @@ async function failStaleFormativeConversationResponses<T extends ReceiptForStale
           prior_assistant_response_status: priorStatus,
           stale_since: staleSince.toISOString(),
           prior_failure_category: priorFailureCategory,
-          policy: "stale_reply_sweep_v1"
+          policy: sweep.policy
         },
         occurred_at: now
       });
@@ -171,8 +198,8 @@ async function failStaleFormativeConversationResponses<T extends ReceiptForStale
  * status, and whether the opening receipt already holds its tutor turn. When that turn is
  * missing (an opening still being prepared, failed, or a legacy opening stored without a
  * receipt turn) the caller loads the full projection to decide. The same applies when a
- * tutor reply has been waiting longer than FORMATIVE_CONVERSATION_STALE_RESPONSE_MS: only the
- * full projection marks it failed (stale_reply_sweep_v1), so it still runs first, as before.
+ * tutor reply has been waiting longer than FEEDBACK_V8_STALE_RESPONSE_MS (the shorter window):
+ * only the full projection marks it failed (stale_reply_sweep_v1 or v2), so it still runs first.
  * The reservation re-checks the conversation status under the conversation lock, so this
  * check only gives an early answer.
  */
@@ -200,7 +227,7 @@ export async function getStudentFormativeConversationMessageGate(input: {
               student_turn_db_id: { not: null },
               assistant_turn_db_id: null,
               assistant_response_status: { in: ["pending", "retrying"] },
-              updated_at: { lt: new Date(Date.now() - FORMATIVE_CONVERSATION_STALE_RESPONSE_MS) }
+              updated_at: { lt: new Date(Date.now() - FEEDBACK_V8_STALE_RESPONSE_MS) }
             }
           ]
         },
@@ -269,7 +296,8 @@ export async function getStudentFormativeConversationProjection(input: {
     try {
       await failStaleFormativeConversationResponses(conversation.message_receipts, {
         assessment_session_db_id: conversation.assessment_session_db_id,
-        concept_unit_session_db_id: conversation.concept_unit_session_db_id
+        concept_unit_session_db_id: conversation.concept_unit_session_db_id,
+        conversation_public_id: conversation.conversation_public_id
       });
     } catch (error) {
       logProductionError(error, { safe_error_code: "formative_stale_reply_sweep_failed" });

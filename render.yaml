@@ -114,11 +114,18 @@ services:
       # Feedback preparation jobs run at the same time; 2 queued a whole class that submits together.
       - key: INITIAL_PREPARATION_CONCURRENCY
         value: "6"
+      # Connection pools (release CMCQ-20261024-09): web 10, preparation worker 8, wait up to 20 s.
+      - key: DATABASE_CONNECTION_LIMIT
+        value: "10"
+      - key: PREPARATION_WORKER_DATABASE_CONNECTION_LIMIT
+        value: "8"
+      - key: DATABASE_POOL_TIMEOUT_SECONDS
+        value: "20"
 
 databases:
   - name: conversational-mcq-staging-db
     databaseName: conversational_mcq_staging
     user: conversational_mcq_staging
     region: oregon
-    plan: basic-256mb
+    plan: basic-1gb
     postgresMajorVersion: "16"

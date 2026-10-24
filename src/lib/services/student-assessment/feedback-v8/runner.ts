@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { providerFailureBackoffMs } from "../interpretation-v8/generate";
 import { assertNoProhibitedProviderInput } from "@/lib/agents/redaction";
 import { getServerEnv } from "@/lib/env";
 import { getLlmRuntimeConfig, LlmConfigurationError, resolveOpenAIModelConfigForRole } from "@/lib/llm/config";
@@ -196,6 +197,8 @@ export async function generateFeedbackV8(input: {
   model_config: AgentModelConfig;
   invocation_key: string;
   context: FeedbackV8Input;
+  /** Waits before a new attempt after a provider failure (tests pass a no-op). */
+  sleep?: (ms: number) => Promise<void>;
 }): Promise<FeedbackV8Execution> {
   const { context, invocation_key } = input;
   const plan = { provider: input.provider, model_config: input.model_config };
@@ -205,7 +208,14 @@ export async function generateFeedbackV8(input: {
   let previousIssues: FeedbackIssue[] = [];
   let lastUsage = { input_tokens: null as number | null, output_tokens: null as number | null, total_tokens: null as number | null };
   let transportFailures = 0;
+  // Release CMCQ-20261024-09: after a provider failure (network, timeout, rate limit), wait
+  // before the next attempt by the interpretation v8 rule (3 s; 5 to 30 s after a rate limit).
+  // A regeneration after invalid output starts at once, as before.
+  const sleep = input.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  let waitBeforeNext: number | null = null;
   for (let attempt = 1; attempt <= FEEDBACK_V8_MAX_ATTEMPTS; attempt += 1) {
+    if (waitBeforeNext !== null) await sleep(waitBeforeNext);
+    waitBeforeNext = null;
     const clientRequestId = `feedback_v8_${randomUUID()}`;
     const providerInput = previousIssues.length ? { ...context, previous_attempt_rejected_for: previousIssues.slice(0, 20) } : context;
     let result: StructuredAgentResult<FeedbackV8Output>;
@@ -224,6 +234,7 @@ export async function generateFeedbackV8(input: {
     } catch {
       transportFailures += 1;
       attempts.push({ attempt, status: "provider_exception", issues: [], rejected_output: null, latency_ms: 0 });
+      waitBeforeNext = providerFailureBackoffMs(null);
       continue;
     }
     lastUsage = usageOf(result);
@@ -231,6 +242,7 @@ export async function generateFeedbackV8(input: {
       transportFailures += 1;
       attempts.push({ attempt, status: result.error?.category ?? result.status, issues: [], rejected_output: null, latency_ms: result.latency_ms });
       if (result.error?.retryable === false) break;
+      waitBeforeNext = providerFailureBackoffMs(result);
       continue;
     }
     const parsed = FeedbackV8OutputSchema.safeParse(result.parsed_output);

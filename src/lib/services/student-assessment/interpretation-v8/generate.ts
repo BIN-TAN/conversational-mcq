@@ -32,8 +32,11 @@ export const TRANSIENT_PROVIDER_FAILURES = new Set([
   "rate_limit", "timeout", "network", "provider_5xx", "unexpected_provider_response", "provider_exception", "failed"
 ]);
 
-/** Wait before the next attempt after a transient provider failure (capped). */
-function backoffMs(result: StructuredAgentResult<unknown> | null) {
+/**
+ * Wait before the next attempt after a transient provider failure (capped). Feedback v8 uses
+ * the same rule from release CMCQ-20261024-09.
+ */
+export function providerFailureBackoffMs(result: StructuredAgentResult<unknown> | null) {
   const category = result?.error?.category;
   if (category === "rate_limit") {
     const hinted = result?.transport_telemetry?.retry_after_ms;
@@ -98,7 +101,7 @@ export async function generateInterpretationV8(input: {
   const maxAttempts = input.max_attempts ?? INTERPRETATION_V8_MAX_ATTEMPTS;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     if (attempt > 1 && (lastReason === "provider_exception" || TRANSIENT_PROVIDER_FAILURES.has(lastReason))) {
-      await sleep(backoffMs(lastFailureResult));
+      await sleep(providerFailureBackoffMs(lastFailureResult));
     }
     const clientRequestId = `interpretation_v8_${randomUUID()}`;
     const providerInput = previousIssues.length

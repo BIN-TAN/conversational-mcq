@@ -3184,7 +3184,7 @@ const EXPLICIT_EVENT_CODEBOOK: Record<string, { category: string; actor: string;
   formative_reply_marked_interrupted: {
     category: "agent_or_formative_workflow",
     actor: "application_backend",
-    trigger: "Recorded when a tutor reply left pending for more than 15 minutes in a live conversation is marked failed so the student can retry; the payload keeps the prior status, any earlier failure category and when the reply stalled.",
+    trigger: "Recorded when a tutor reply left pending in a live conversation is marked failed so the student can retry: after 6 minutes in a feedback v8 conversation (policy stale_reply_sweep_v2, from release CMCQ-20261024-09) and after 15 minutes otherwise (policy stale_reply_sweep_v1). The payload keeps the prior status, any earlier failure category, when the reply stalled and the policy.",
     payload: "client_message_id; prior_assistant_response_status; stale_since; prior_failure_category; policy"
   }
 };

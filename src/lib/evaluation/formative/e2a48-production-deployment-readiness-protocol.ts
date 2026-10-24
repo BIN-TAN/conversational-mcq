@@ -468,7 +468,7 @@ function buildBuildAudit() {
         /healthCheckPath:\s*\/api\/health/u.test(renderYaml),
       paid_resource_plan_declared:
         /plan:\s*standard/u.test(renderYaml) &&
-        /plan:\s*basic-256mb/u.test(renderYaml),
+        /plan:\s*basic-(256mb|1gb|4gb)/u.test(renderYaml),
       resource_capacity_operator_evidence_present: false,
       production_build_verified: currentBuildMatchesCommit()
     }),

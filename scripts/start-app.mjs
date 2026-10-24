@@ -15,7 +15,16 @@ if (memory.web.length) console.info("Runtime memory budgets", { constrainedBytes
 // The web server and durable worker share a service lifecycle, not an HTTP request.
 const children = [
   spawn(process.execPath, [...memory.web, require.resolve("next/dist/bin/next"), mode, ...args], { stdio: "inherit" }),
-  spawn(process.execPath, [...memory.worker, "--import", "tsx", "prisma/initial-preparation-worker.ts"], { stdio: "inherit" })
+  spawn(process.execPath, [...memory.worker, "--import", "tsx", "prisma/initial-preparation-worker.ts"], {
+    stdio: "inherit",
+    // The worker has its own connection pool size (release CMCQ-20261024-09); unset, it uses the web value.
+    env: {
+      ...process.env,
+      ...(process.env.PREPARATION_WORKER_DATABASE_CONNECTION_LIMIT
+        ? { DATABASE_CONNECTION_LIMIT: process.env.PREPARATION_WORKER_DATABASE_CONNECTION_LIMIT }
+        : {})
+    }
+  })
 ];
 let stopping = false;
 let killTimer;
