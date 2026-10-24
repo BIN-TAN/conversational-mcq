@@ -7,6 +7,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { ITEM_MEDIA_PLACEMENTS } from "@/lib/item-content/media-placement";
+import { docxTableLinearText, joinStemLines } from "@/lib/item-content/docx-tables";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   extractDocxForMcqImport,
@@ -811,7 +812,7 @@ function parsePlainTextItems(text: string): CandidateDraft[] {
       }
     }
 
-    const stem = stemLines.join(" ").trim();
+    const stem = joinStemLines(stemLines);
     const issueFlags: string[] = [];
     if (!stem) issueFlags.push("missing_stem");
     if (options.length < 2) issueFlags.push("too_few_options");
@@ -898,7 +899,7 @@ function docxBlocksLinearText(extraction: DocxExtraction) {
       if (block.kind === "paragraph") {
         return block.text;
       }
-      return block.rows.map((row) => row.filter(Boolean).join(" | ")).join("\n");
+      return docxTableLinearText(block.rows);
     })
     .filter((text) => text.trim())
     .join("\n");
