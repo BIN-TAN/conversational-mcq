@@ -283,8 +283,7 @@
     },
     {
       "path": "scripts/initial-preparation-ux-smoke.mjs",
-      "database": "conversational_mcq_classroom_audit_preparation_ux",
-      "allowFailure": "The release 09 wording and answer review are in the script from release 10 on. It still stops at the worker step (opening_status unavailable, not ready): the script switches the job to deterministic_e1, which feedback v8 has refused since 19 Oct, so preparation completes without an opening. This predates releases 08 to 11. Remove allowFailure once the worker step uses the feedback v8 local test plan."
+      "database": "conversational_mcq_classroom_audit_preparation_ux"
     },
     {
       "path": "scripts/response-stage-browser-smoke.mjs",

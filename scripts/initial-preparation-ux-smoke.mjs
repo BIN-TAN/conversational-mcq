@@ -35,8 +35,8 @@ const port = socket.address().port;
 await new Promise((done) => socket.close(done));
 const base = `http://127.0.0.1:${port}`;
 const children = [];
-function child(args) {
-  const process = spawn(globalThis.process.execPath, args, { env, stdio: ["ignore", "pipe", "pipe"] });
+function child(args, overrides = {}) {
+  const process = spawn(globalThis.process.execPath, args, { env: { ...env, ...overrides }, stdio: ["ignore", "pipe", "pipe"] });
   process.output = "";
   process.stdout.on("data", (data) => { process.output += data; });
   process.stderr.on("data", (data) => { process.output += data; });
@@ -151,12 +151,14 @@ try {
   pass("failed preparation has an explicit retry using the same saved job");
   const queued = await db.workflowJob.findUniqueOrThrow({ where: { id: job.id } });
   assert.equal(queued.payload.execution_mode, "production");
-  // Only this synthetic job uses the existing deterministic evaluation adapter.
-  // Production requests keep their normal provider and approval checks.
-  await db.workflowJob.update({ where: { id: job.id }, data: {
-    payload: { ...queued.payload, execution_mode: "deterministic_e1" }
-  } });
-  const worker = child(["--import", "tsx", "prisma/initial-preparation-worker.ts"]);
+  // The job keeps its production execution mode. Feedback v8 refuses deterministic_e1
+  // (feedbackV8Plan in src/lib/services/student-assessment/feedback-v8/runner.ts:
+  // feedback_v8_generation_not_allowed), so only this worker process runs with the labelled local
+  // test stand-ins of interpretation v8 and feedback v8: the mock provider with
+  // OPERATIONAL_AGENT_MODE=mock, outside NODE_ENV=production (feedback_v8_mock_in_production).
+  // The web server keeps the production settings above; no provider or network is involved.
+  const worker = child(["--import", "tsx", "prisma/initial-preparation-worker.ts"],
+    { NODE_ENV: "test", OPERATIONAL_AGENT_MODE: "mock" });
   await page.getByTestId("initial-preparation-status").waitFor({ state: "hidden", timeout: 90_000 });
   assert.equal(await page.getByTestId("initial-preparation-wait-notice").count(), 0);
   const response = await context.request.get(`${base}${api}/state`);
