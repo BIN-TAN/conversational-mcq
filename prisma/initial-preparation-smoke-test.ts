@@ -16,6 +16,14 @@ assert(["localhost", "127.0.0.1"].includes(database.hostname));
 assert(database.pathname.startsWith("/conversational_mcq_classroom_audit_"));
 assert.equal(process.env.LLM_PROVIDER, "mock");
 assert.equal(process.env.LLM_LIVE_CALLS_ENABLED, "false");
+// The jobs that run the real pipeline (failed_profile_retry, full_pipeline) use the production
+// execution mode, as the student's submission does, so interpretation v8 and the feedback v8
+// opening use their labelled local test stand-ins: both require the mock provider and
+// OPERATIONAL_AGENT_MODE=mock (interpretation-v8/call.ts; feedbackV8Plan in feedback-v8/runner.ts).
+// deterministic_e1 is refused by feedback v8 (feedback_v8_generation_not_allowed), so no opening
+// could be ready. The standalone worker below inherits this environment.
+process.env.OPERATIONAL_AGENT_MODE = "mock";
+process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "false";
 let networkCalls = 0;
 globalThis.fetch = async () => { networkCalls++; throw new Error("no_provider_or_network_allowed"); };
 const prefix = `initial_preparation_${randomUUID().replaceAll("-", "")}`;
@@ -23,7 +31,7 @@ const fixtures: Awaited<ReturnType<typeof createResponseCollectionFixture>>[] = 
 const results: string[] = [];
 const pass = (name: string) => { results.push(name); console.log(`PASS ${name}`); };
 
-async function fixture(name: string) {
+async function fixture(name: string, executionMode: "deterministic_e1" | "production" = "deterministic_e1") {
   const f = await createResponseCollectionFixture({ prisma, prefix: `${prefix}_${name}`, responseCollectionMode: "deterministic" });
   fixtures.push(f);
   await prisma.itemResponse.createMany({ data: f.items.map((item) => ({
@@ -34,7 +42,7 @@ async function fixture(name: string) {
   })) });
   return { ...f, input: {
     student_user_db_id: f.student.id, session_public_id: f.session.session_public_id,
-    concept_unit_public_id: f.conceptUnit.concept_unit_public_id, execution_mode: "deterministic_e1" as const
+    concept_unit_public_id: f.conceptUnit.concept_unit_public_id, execution_mode: executionMode
   } };
 }
 async function jobFor(id: string) { return prisma.workflowJob.findFirstOrThrow({ where: { assessment_session_db_id: id, job_type: "prepare_initial_conversation" } }); }
@@ -212,26 +220,29 @@ async function main() {
   await assert.rejects(submitInitialConceptUnitForPreparation(invalid.input));
   pass("changed source evidence fails closed and cannot be retried by the student");
 
-  const failedProfile = await fixture("failed_profile_retry");
+  // Interpretation v8 makes the one profiling call (student_profiling_agent, the role of the old
+  // planning call); the first attempt's call is saved as failed and the attempt throws, so the
+  // job must be retried and the retry must not be poisoned by the failed call.
+  const failedProfile = await fixture("failed_profile_retry", "production");
   await submitInitialConceptUnitForPreparation(failedProfile.input);
   const profileJob = await claim();
-  const updateAgentCall = prisma.agentCall.update.bind(prisma.agentCall);
+  const createAgentCall = prisma.agentCall.create.bind(prisma.agentCall);
   let failedCallId: string | null = null;
-  prisma.agentCall.update = (async (args: Prisma.AgentCallUpdateArgs) => {
-    const call = await prisma.agentCall.findUniqueOrThrow({ where: args.where });
-    if (!failedCallId && call.assessment_session_db_id === failedProfile.session.id &&
-        call.agent_name === "formative_value_and_planning_agent" && args.data.call_status === "succeeded") {
-      failedCallId = call.id;
-      await updateAgentCall({ where: { id: call.id }, data: {
-        call_status: "invalid_output", output_validated: false, output_payload: Prisma.JsonNull,
+  prisma.agentCall.create = (async (args: Prisma.AgentCallCreateArgs) => {
+    const data = args.data as Prisma.AgentCallUncheckedCreateInput;
+    if (!failedCallId && data.assessment_session_db_id === failedProfile.session.id &&
+        data.agent_name === "student_profiling_agent" && data.call_status === "succeeded") {
+      const failed = await createAgentCall({ data: {
+        ...data, call_status: "invalid_output", output_validated: false, output_payload: Prisma.JsonNull,
         validation_error: "synthetic_provider_validation_failure", completed_at: new Date()
       } });
+      failedCallId = failed.id;
       throw new Error("synthetic_provider_validation_failure");
     }
-    return updateAgentCall(args);
-  }) as unknown as typeof prisma.agentCall.update;
+    return createAgentCall(args);
+  }) as unknown as typeof prisma.agentCall.create;
   try { assert.equal(await processInitialPreparationJob(profileJob), "retryable"); }
-  finally { prisma.agentCall.update = updateAgentCall; }
+  finally { prisma.agentCall.create = createAgentCall; }
   assert(failedCallId);
   const failureRecord = await prisma.agentCall.findUniqueOrThrow({ where: { id: failedCallId } });
   const sealedBeforeRetry = await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: failedProfile.conceptUnitSession.id } });
@@ -240,7 +251,7 @@ async function main() {
   assert.deepEqual(await prisma.agentCall.findUniqueOrThrow({ where: { id: failedCallId } }), failureRecord);
   assert.deepEqual(await prisma.responsePackage.findMany({ where: { concept_unit_session_db_id: failedProfile.conceptUnitSession.id } }), sealedBeforeRetry);
   const retriedCalls = await prisma.agentCall.findMany({ where: {
-    assessment_session_db_id: failedProfile.session.id, agent_name: "formative_value_and_planning_agent"
+    assessment_session_db_id: failedProfile.session.id, agent_name: "student_profiling_agent"
   } });
   assert.equal(retriedCalls.length, 2);
   assert.equal(retriedCalls.filter(call => call.call_status === "succeeded" && call.output_validated).length, 1);
@@ -248,7 +259,7 @@ async function main() {
   await prisma.workflowJob.update({ where: { id: profileJob.id }, data: { status: "retryable", run_after: new Date(0), completed_at: null } });
   assert.equal(await processInitialPreparationJob(await claim()), "completed");
   assert.equal(await prisma.agentCall.count({ where: {
-    assessment_session_db_id: failedProfile.session.id, agent_name: "formative_value_and_planning_agent"
+    assessment_session_db_id: failedProfile.session.id, agent_name: "student_profiling_agent"
   } }), 2);
   pass("failed profile retries retain the failed audit, recover the opening, and replay without duplicating evidence");
 
@@ -283,7 +294,7 @@ async function main() {
     (error: unknown) => (error as { code: string }).code === "idempotency_conflict");
   pass("concurrent retries reserve one call, preserve all prior failures, retain successful results, and enforce session scope");
 
-  const full = await fixture("full_pipeline");
+  const full = await fixture("full_pipeline", "production");
   await submitInitialConceptUnitForPreparation(full.input);
   process.env.WORKFLOW_JOB_LEASE_TIMEOUT_MS = "300000";
   process.env.INITIAL_PREPARATION_LEASE_TIMEOUT_MS = "90000";

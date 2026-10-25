@@ -194,10 +194,7 @@
     },
     "prisma/student-attempt-lifecycle-smoke-test.ts",
     "prisma/student-ui-smoke-test.ts",
-    {
-      "path": "prisma/initial-preparation-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: a retry case ends 'completed' where it expects 'retryable'. Re-check the retry rule it asserts."
-    },
+    "prisma/initial-preparation-smoke-test.ts",
     "prisma/initial-feedback-failure-smoke-test.ts",
     {
       "path": "prisma/student-formative-conversation-runtime-smoke-test.ts",
