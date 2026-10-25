@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-21T18:20:04.630198+00:00",
+  "updated_at": "2026-10-25T02:00:39.396568+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -4458,6 +4458,293 @@
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\mini-test-json-lenient-unit-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\prisma\\mini-test-json-format-smoke-test.ts",
         "E:\\New_Downloads\\cmcq-v8-release\\docs\\MINI_TEST_JSON_IMPORT.md"
+      ]
+    },
+    {
+      "id": "CMCQ-20261024-08-10",
+      "date": "2026-10-24",
+      "title": "Releases 08, 09 and 10 together: acceptance fixes, student-path performance, eight research decisions, code removal and shorter prompts",
+      "application_commit": "b5777d75e517afc3414025dc271513c11d56ba38",
+      "push_status": "Releases 08 (3 commits), 09 (8) and 10 (17) were cherry-picked onto origin/main f17cd36e491352e7205405aab4f2ba99596e5952 with five test-only fix commits and one script commit, and fast-forwarded to b5777d75e517afc3414025dc271513c11d56ba38 on 2026-10-24 (CODEX_PUSH-run10.md). No force push.",
+      "deployment": {
+        "status": "failed",
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "deployment_id": "dep-dbei299srm7s73c7brt0",
+        "source_commit": "b5777d75e517afc3414025dc271513c11d56ba38",
+        "url": "https://conversational-mcq.onrender.com",
+        "evidence": [
+          "Manual deploy of the latest commit started 2026-10-24T21:20:37Z and failed at 21:21:25Z in the Docker build step 'npm run security:dependencies && npm run build' with dependency_audit_high_findings. Advisories published after the 21 Oct deploy: next 15.5.27 (GHSA-2464-fhr4-w9xw, critical; GHSA-p3m5-59mp-jv5r, high) and zod 3.25.76 (GHSA-mrhx-c7xc-m3w5, high).",
+          "The failed build did not replace the live service; d64d0b9b4a1c00fa158c27e5225dba8dc116340e stayed live. The two approval hashes set before the deploy were put back to the d64d0b9 values until release 12 deployed. Sharp 0.35.5, the advisory workaround for GHSA-2464-fhr4-w9xw, was already pinned in overrides.",
+          "Before the deploy, Render variables INITIAL_PREPARATION_CONCURRENCY=6, INITIAL_PREPARATION_LEASE_TIMEOUT_MS=90000, DATABASE_CONNECTION_LIMIT=10, PREPARATION_WORKER_DATABASE_CONNECTION_LIMIT=8 and DATABASE_POOL_TIMEOUT_SECONDS=20 were added (Save only). The database stayed on basic-256mb by the researcher's decision until 5 Jan 2027."
+        ]
+      },
+      "summary": "Teacher-page wording from the 21 Oct browser acceptance report, fewer repeated requests on the student path, the eight research decisions of 24 Oct, removal of unused code (406 files, about 266,000 lines, 979 npm scripts) and shorter prompts. The profiling, feedback and item-preparation prompt families passed their live decision runs; this commit first went live with release 12 (abfa361).",
+      "changes": [
+        {
+          "area": "Release 08: acceptance fixes and performance",
+          "problem": "Acceptance report wording (items[0], parse confidence, 'Ready to add' before key confirmation, 'blueprint'); the untouched placeholder objective stayed as a fifth objective; each answer step made about 7 API requests including repeated /review fetches.",
+          "fix": "Plain teacher wording, assistant v8 and mini-test-json-format-v2, the placeholder objective removed once real objectives exist, the review fetched once per attempt state, lighter state build and list queries, serialization retries, and 6 preparation jobs at a time.",
+          "impact": "Local mock measurement over 12 answer steps: /review requests 12 to 1, all API requests 87 to 76. Waiting time only; no recorded field changes."
+        },
+        {
+          "area": "Release 09: student, tutor and instructor pages, research decisions 1-8",
+          "problem": "Errors appeared away from the active step; touch-screen Enter sent half-written answers; feedback could stall after a provider failure; pool exhaustion risk with a whole class submitting at once.",
+          "fix": "Errors beside the active step, kept focus, read timeouts; Enter adds a line on touch screens; tempting prompts end 'If so, choose it. If not, choose No.' (generator v5); the answer review shows while feedback is prepared; a backoff before the feedback retry; v8 stale replies swept after 6 minutes; connection pools sized by environment variables; document_has_focus recorded.",
+          "impact": "See data impact. The dashboard briefly reused the forbidden label 'Flagged for review'; the run 10 fix e3a9388 restored 'Needs review'."
+        },
+        {
+          "area": "Release 10: code removal and prompts",
+          "problem": "Superseded evaluation harnesses (E1, E2A) and unused exports made the code hard to review; several prompts repeated rules.",
+          "fix": "Code removed; teacher prompts assistant v9, generation v6, check v2, revision v2, existing-mcq-import-v2, mini-test-json-format-v3; gated families student-profiling-v8.3, formative-opening-v8.3 with formative-conversation-v8.4, item-preparation-v8.3 and instructor-report-prompt-v8.2.",
+          "impact": "Approval hashes: interpretation cf30e4a3a18a25e5c717022ea7699b9d2063ca786da43ff1e0dd9378defb4331, feedback 6a4e67feaada562c8b05733f335316fc95f537187e01043cbb0bb31b95e4823c. Item preparation and instructor report approvals stay unset."
+        },
+        {
+          "area": "Run 10 test-only fixes",
+          "problem": "Windows CRLF checkouts broke four source tests and the concurrency test; three tests still expected wording that release 09 changed on purpose.",
+          "fix": "Commits 880c6fe, 2593a63, 26af15f and 04b5e19 (tests), e3a9388 (dashboard label) and b5777d7 (initial-preparation UX script).",
+          "impact": "No behaviour change apart from the dashboard label."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Profiling and feedback decision run (live, 3 runs, 147 rows)",
+          "result": "PASS",
+          "detail": "v10-decision-3 against the run 8 baseline v8.3-decision-3: every gated criterion passes. AC1 0.99, misconception precision 1, recall 0.957, label stability 0.968 (baseline 1.0, within the 5-point limit), feedback focus, strategy, flag and question-limit criteria 100%, stock phrases 0. All 147 rows validated."
+        },
+        {
+          "name": "Item preparation live check (9 calls each)",
+          "result": "PASS",
+          "detail": "v8.3 against v8.2 at d64d0b9: none rejected twice, no confirmed key changed, no wording changed in formatting, S4's second defensible answer still flagged; one repair in the S check. v8.2's two answer-cue notes came from single runs."
+        },
+        {
+          "name": "Database and browser checks (Windows, mock provider)",
+          "result": "No new failures",
+          "detail": "Each remaining failure also failed on d64d0b9 or failed only because of the Windows or local setup (codex-logs-run10). Triage confirmed one release defect, the dashboard label, fixed by e3a9388."
+        },
+        {
+          "name": "Build and redesign suites",
+          "result": "PASS",
+          "detail": "npm run build and npm run test:redesign-v8 passed on the combined branch."
+        }
+      ],
+      "data_impact": [
+        "New profiles record student-profiling-v8.3; new feedback calls record formative-opening-v8.3+formative-conversation-v8.4. Earlier records keep their versions. The opening asks at most one question.",
+        "document_has_focus is recorded on ready observations from this release; earlier ready observations leave it blank.",
+        "initial-admin-prompt-generator-v5 changes the tempting-option prompts; variant IDs are unchanged, so compare variants within one generator version.",
+        "On touch screens enter_key_count counts new lines, not sends. The answer key and explanations show during the feedback wait, so display events can come before the tutor opening; revealed_at is unchanged.",
+        "Stuck v8 replies are marked after 6 minutes (stale_reply_sweep_v2), others after 15 (stale_reply_sweep_v1). Preparation concurrency, lease, retry timing and pool sizes change waiting time only.",
+        "Teacher-authoring calls record the release 10 prompt versions. Re-importing a file makes a new call and batch because the prompt is part of the source hash. Code removal changes no stored record or export column."
+      ],
+      "limitations": [
+        "This commit never ran live by itself; its first live deployment is release 12 (abfa361), which adds the dependency upgrades.",
+        "Database and browser checks ran on Windows; several pre-existing failures could not be judged there. GitHub Actions CI from release 11 covers them on Linux.",
+        "The instructor report approval stays unset, so instructor reports remain counts-only."
+      ],
+      "references": [
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CODEX_TEST_REPORT-run10.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CLAUDE_DECISION-run10.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CODEX_PUSH-run10.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\codex-logs-run10"
+      ]
+    },
+    {
+      "id": "CMCQ-20261024-12",
+      "date": "2026-10-24",
+      "title": "Next.js 15.5.28 and Zod 4: dependency advisories fixed; first live deployment of releases 08 to 10",
+      "application_commit": "abfa361a54606889da37d8d42bcd80fcd52a8f3b",
+      "push_status": "Pushed to release/cmcq-20261024-12, then fast-forwarded origin/main from b5777d75e517afc3414025dc271513c11d56ba38 to abfa361a54606889da37d8d42bcd80fcd52a8f3b after the live checks (CODEX_PUSH-run12.md). No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "verified_live",
+        "deployment_id": "dep-dbeje97b9u1s739ttke0",
+        "source_commit": "abfa361a54606889da37d8d42bcd80fcd52a8f3b",
+        "verified_at": "2026-10-24T23:00:00+00:00",
+        "evidence": [
+          "Approval hashes set (Save only) before the deploy: INTERPRETATION_V8_APPROVED_PROMPT_HASH=cf30e4a3a18a25e5c717022ea7699b9d2063ca786da43ff1e0dd9378defb4331 and FORMATIVE_FEEDBACK_V8_APPROVED_PROMPT_HASH=6a4e67feaada562c8b05733f335316fc95f537187e01043cbb0bb31b95e4823c, verified by reading them back.",
+          "Manual deploy of the latest commit started 2026-10-24T22:54:28Z; the build passed the dependency audit; pre-deploy reported 68 migrations and none pending; Next.js 15.5.28 started and Render reported the service live at 22:58:59Z. No errors in the application logs.",
+          "Database dpg-d97j0jfavr4c73d0kss0-a available with 8 open connections; plan unchanged; Blueprint CBA-MCQ synced to main. /api/health could not be opened from Claude's browser extension (site permission), so health rests on Render's health check and the logs."
+        ]
+      },
+      "summary": "Next.js moves to the patched 15.5.28 and Zod to 4.6.7 with a real migration to the Zod 4 API (no zod/v3 import). The dependency audit has zero findings, so the Render build passes again. Prompt hashes are unchanged.",
+      "changes": [
+        {
+          "area": "Next.js 15.5.28",
+          "problem": "GHSA-2464-fhr4-w9xw (critical, image optimization; workaround sharp >= 0.35.5 already pinned) and GHSA-p3m5-59mp-jv5r (high, server actions DoS).",
+          "fix": "next pinned to 15.5.28 (commit 96a7c42).",
+          "impact": "No behaviour change expected."
+        },
+        {
+          "area": "Zod 4.6.7",
+          "problem": "GHSA-mrhx-c7xc-m3w5 (high, unreviewed): array validation collects issues without a cap; no 3.x fix.",
+          "fix": "Migration to the Zod 4 API (commit abfa361): string-keyed records, ZodType generics, issue formatting that keeps the user-facing messages, coerced dates typed as outputs, the public schema type instead of _def. openai stays 6.44.0, whose zodTextFormat accepts Zod 4.",
+          "impact": "Schema snapshot (prisma/zod-schema-snapshot.ts) before and after: no schema accepts or rejects different generic inputs. The JSON schema sent to the model changed notation only (type arrays instead of nullable: true; integer maximum)."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Dependency audit",
+          "result": "PASS",
+          "detail": "Production and full audits: 0 findings at every severity."
+        },
+        {
+          "name": "Typecheck, lint, redesign suites, 13 unit tests, hashes",
+          "result": "PASS",
+          "detail": "The four approval hashes are unchanged."
+        },
+        {
+          "name": "Database (59) and browser (8) checks against run 10",
+          "result": "No new failures",
+          "detail": "47 PASS / 12 FAIL and 3 PASS / 5 FAIL, all failing on run 10 too; 4 database checks and 2 browser scripts that failed in run 10 now pass."
+        },
+        {
+          "name": "Live check of the Zod 4 output schemas",
+          "result": "PASS",
+          "detail": "One run per case (v12-zod4-check-1): 49 interpretation rows and 18 feedback rows validated; every scored criterion passes (misconception recall 1). Item preparation (9 calls): none rejected twice, no key changed, S4 flagged."
+        },
+        {
+          "name": "Build",
+          "result": "PASS",
+          "detail": "npm run build and the Render Docker build passed."
+        }
+      ],
+      "data_impact": [
+        "No stored field, export column or migration changes. The model receives equivalent JSON schemas in a different notation; outputs are validated by the same schemas.",
+        "Releases 08 to 10 go live with this deploy; their data impact is recorded under CMCQ-20261024-08-10 and starts at 2026-10-24T22:58:59Z."
+      ],
+      "limitations": [
+        "Enum-keyed records became exhaustive under Zod 4, which the snapshot's generic samples did not show. CI found it on the release 11 branch; hotfix CMCQ-20261024-12a (9e64d33) restored the partial records about two hours later. No request in that window reached the affected code (no application logs between the deploys)."
+      ],
+      "references": [
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CODEX_RELEASE_12_PROMPT.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CODEX_REPORT-run12.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CLAUDE_DECISION-run12.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\CODEX_PUSH-run12.md",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\codex-logs-run12",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\codex-logs-run12-push"
+      ]
+    },
+    {
+      "id": "CMCQ-20261024-12a",
+      "date": "2026-10-24",
+      "title": "Hotfix: enum-keyed records stay partial under Zod 4",
+      "application_commit": "9e64d33146fa984bcfba1d76b83bd494743aba48",
+      "push_status": "Fast-forwarded origin/main from abfa361a54606889da37d8d42bcd80fcd52a8f3b to 9e64d33146fa984bcfba1d76b83bd494743aba48 by the researcher running run-hotfix-v2.ps1 (codex-logs-hotfix). No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "verified_live",
+        "deployment_id": "dep-dbelfbjncjis73eko6i0",
+        "source_commit": "9e64d33146fa984bcfba1d76b83bd494743aba48",
+        "verified_at": "2026-10-25T01:18:00+00:00",
+        "evidence": [
+          "Manual deploy of the latest commit started 2026-10-25T01:13:18Z; Render reported it live after 3m58s with no build or startup errors.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Zod 3 treated z.record(enum, value) as partial; Zod 4 requires every key. The approved operational manifests list 17 of the 18 role names, so the Zod 4 schema rejected them. z.partialRecord restores the Zod 3 meaning in six records.",
+      "changes": [
+        {
+          "area": "Approval bundle, approved config, model-upgrade, canary and pilot manifests",
+          "problem": "16 CI unit tests failed with roles.formative_conversation_agent 'expected object, received undefined'; production reads such a manifest under OPERATIONAL_AGENT_MODE=guarded_live.",
+          "fix": "z.partialRecord in approved-config.ts, active-approval-bundle.ts, model-upgrade.ts, canary-manifest.ts and pilot-manifest.ts (two).",
+          "impact": "Same acceptance as under Zod 3."
+        }
+      ],
+      "tests": [
+        {
+          "name": "Local (Windows)",
+          "result": "PASS for schema",
+          "detail": "npm ci, prisma generate, typecheck, lint, redesign suites, dependency audit; 16 operational tests run: no schema error; 5 failed only on Windows build-provenance (spawning npm) and were left to CI."
+        },
+        {
+          "name": "GitHub Actions CI (release 11d on this commit)",
+          "result": "PASS",
+          "detail": "Run 4: 153 of 153 unit tests, build, typecheck and audit pass."
+        }
+      ],
+      "data_impact": [
+        "None. No stored record, field or export changes."
+      ],
+      "limitations": [
+        "The Windows-only build-provenance failures remain a local harness limitation; CI on Linux runs those tests."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\operational\\active-approval-bundle.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\agents\\operational\\approved-config.ts",
+        "E:\\New_Downloads\\Conversational MCQ\\.data\\redesign-2026-10-19\\codex-logs-hotfix"
+      ]
+    },
+    {
+      "id": "CMCQ-20261024-11",
+      "date": "2026-10-24",
+      "title": "Formulas, tables and videos in items; GitHub Actions CI",
+      "application_commit": "99d81f5551279ca113cf05f46e53001f0d76cbf8",
+      "push_status": "Built on main 9e64d33 as release/cmcq-20261024-11d (CI runs 3 and 4), then fast-forwarded origin/main to 99d81f5551279ca113cf05f46e53001f0d76cbf8 by the researcher running run-merge-11d-to-main.ps1. No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "verified_live",
+        "deployment_id": "dep-dbelvfhsrm7s73cj1r90",
+        "source_commit": "99d81f5551279ca113cf05f46e53001f0d76cbf8",
+        "verified_at": "2026-10-25T01:53:00+00:00",
+        "evidence": [
+          "Manual deploy of the latest commit started 2026-10-25T01:47:42Z; pre-deploy applied 20261024110000_item_media_explanation_placement ('All migrations have been successfully applied'); Next.js 15.5.28 ready; Render reported it live after 4m37s.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Items can carry LaTeX formulas, Markdown tables and YouTube, Vimeo or mp4 videos in the stem, options and explanation. Word tables import as tables. GitHub Actions runs the checks, database tests and browser scripts with the mock provider on main and release branches, including the dependency audit the Render build runs.",
+      "changes": [
+        {
+          "area": "Item content renderer",
+          "problem": "Items could hold only plain text and images.",
+          "fix": "One renderer (react-markdown with remark-math, remark-gfm and rehype-katex; KaTeX trust off; https links only; privacy-enhanced video embeds) used in every student and instructor view; explanation media placement; teacher prompts generation-v7, revision-v3, existing-mcq-import-v3 and mini-test-json-format-v4 write formulas in LaTeX and tables in Markdown.",
+          "impact": "Plain-text items render exactly as before."
+        },
+        {
+          "area": "KaTeX 0.18.4",
+          "problem": "GHSA-238p-pmpm-9mq7 (low) in KaTeX before 0.18.2.",
+          "fix": "katex ^0.18.4 with an override so rehype-katex and remark-math use the same copy.",
+          "impact": "Only .katex and .katex-display are styled by the app; both are unchanged in 0.18."
+        },
+        {
+          "area": "Continuous integration",
+          "problem": "Checks ran only by hand on Windows.",
+          "fix": ".github/workflows/ci.yml, config/ci-tests.json and scripts/ci-run-tests.mjs; database-backed tests moved out of the unit list; the catalog test's database is not seeded; ten database tests that already failed on d64d0b9 are marked allowFailure with the reason and the fix needed.",
+          "impact": "CI found the Zod 4 enum-record defect before release 11 reached main."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 4 (release/cmcq-20261024-11d, 99d81f5)",
+          "result": "Success",
+          "detail": "Checks: 153/153 unit tests, lint, build, typecheck, audit. Database: 49 passed, 0 failed, 19 allowed failures (pre-existing). Browser (non-blocking): 5 passed; student-usability, classroom-login-progression and assessment-preview failed as on d64d0b9; initial-preparation-ux allowed."
+        },
+        {
+          "name": "Local (Windows)",
+          "result": "PASS",
+          "detail": "npm install (lockfile), dependency audit, typecheck, test:item-content (14 checks), lint and build before the branch push."
+        }
+      ],
+      "data_impact": [
+        "Migration 20261024110000_item_media_explanation_placement adds the enum value explanation to ItemMediaPlacement; existing rows are unchanged.",
+        "Item text may now contain LaTeX and Markdown table syntax; it is stored as written and rendered on display. Response and process data are unchanged.",
+        "Teacher-authoring calls record generation-v7, revision-v3, existing-mcq-import-v3 and mini-test-json-format-v4 from this release."
+      ],
+      "limitations": [
+        "Ten database tests and three browser scripts still fail as they did before releases 08 to 12; they are reported in every CI run and are being fixed.",
+        "Rendering of formulas, tables and videos on the live site awaits the researcher's manual check."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\components\\item-content.tsx",
+        "E:\\New_Downloads\\cmcq-v8-release\\.github\\workflows\\ci.yml",
+        "E:\\New_Downloads\\cmcq-v8-release\\config\\ci-tests.json",
+        "E:\\New_Downloads\\cmcq-v8-release\\docs\\CI.md",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40150761723"
       ]
     }
   ],
