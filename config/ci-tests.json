@@ -225,10 +225,7 @@
     "prisma/auth-account-status-smoke-test.ts",
     "prisma/master-export-smoke-test.ts",
     "prisma/master-export-complete-smoke-test.ts",
-    {
-      "path": "prisma/teacher-assessment-organization-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: it expects JSON import on the assessment management page, which moved to the import page. Update the page check."
-    },
+    "prisma/teacher-assessment-organization-smoke-test.ts",
     "prisma/teacher-evidence-centered-item-design-smoke-test.ts",
     "prisma/student-analysis-ready-export-smoke-test.ts",
     "prisma/export-cleanup.ts",

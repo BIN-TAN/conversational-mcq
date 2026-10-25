@@ -104,6 +104,7 @@ function assertManagementSurface() {
   const workspaceLayout = readProjectFile("src/app/teacher/layout.tsx");
   const workspaceHeader = readProjectFile("src/components/teacher-workspace-header.tsx");
   const libraryClient = readProjectFile("src/components/teacher-content/assessment-list-client.tsx");
+  const importClient = readProjectFile("src/components/teacher-content/import-json-client.tsx");
   const organizationRoute = readProjectFile("src/app/api/teacher/assessments/organization/route.ts");
   const legacyReorganizePage = readProjectFile("src/app/teacher/content/reorganize-assessments/page.tsx");
   const legacyLibraryReorganizePage = readProjectFile("src/app/teacher/content/assessments/reorganize/page.tsx");
@@ -111,10 +112,17 @@ function assertManagementSurface() {
   assertIncludes(workspaceHeader, "Assessment management", "Teacher workspace header");
   assertIncludes(contentHome, "New mini test", "Assessment management page");
   assertIncludes(contentHome, "Assessment library", "Assessment management page");
-  assertIncludes(contentHome, "JSON import", "Assessment management page");
+  // The third card opens the import page, which is titled "Import items" and offers JSON next
+  // to the Excel workbook import (src/components/teacher-content/import-json-client.tsx).
+  assertIncludes(contentHome, "Import items", "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments/new"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/assessments"', "Assessment management page");
   assertIncludes(contentHome, 'href="/teacher/content/import-json"', "Assessment management page");
+  assertIncludes(importClient, 'title="Import items"', "Import page");
+  assertIncludes(importClient, 'aria-label="Import format"', "Import page");
+  assertIncludes(importClient, 'onClick={() => setMode("json")}>JSON</Button>', "Import page");
+  assertIncludes(importClient, "Excel workbook", "Import page");
+  assertIncludes(importClient, "Upload JSON", "Import page");
   assertExcludes(contentHome, "Reorganize assessments", "Assessment management page");
   assertExcludes(contentHome, "PrimaryLink", "Assessment management page");
   assertExcludes(contentHome, "SecondaryLink", "Assessment management page");
