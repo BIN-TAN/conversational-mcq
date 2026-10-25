@@ -15,6 +15,18 @@ import { listTeacherReviewSessions } from "../src/lib/services/teacher-review/se
 import { sessionListQuerySchema } from "../src/lib/services/teacher-review/filters";
 import { buildAnalysisReadyResearchDataBundle } from "../src/lib/services/teacher-research-data/analysis-ready-export";
 
+// The checks below need a delivered tutor opening. Since interpretation v8 and feedback v8
+// (docs/AI_MODULE_REDESIGN_2026-10-19.md) an opening exists only when the feedback v8 runner may
+// generate: feedbackV8Plan (src/lib/services/student-assessment/feedback-v8/runner.ts) refuses
+// OPERATIONAL_AGENT_MODE=disabled, and with the mock provider and mode "mock" it uses the
+// labelled local test stand-in. The harnesses that run this file (the CI database job,
+// scripts/student-usability-smoke.mjs) set "disabled", so the test selects the local test plan
+// itself and creates its own opening. No provider or network is involved.
+process.env.LLM_PROVIDER = "mock";
+process.env.LLM_LIVE_CALLS_ENABLED = "false";
+process.env.OPERATIONAL_AGENT_MODE = "mock";
+process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "false";
+
 const db = new PrismaClient();
 async function main() {
   const database = new URL(process.env.DATABASE_URL!);
@@ -50,7 +62,8 @@ async function main() {
     await ingestFrontendProcessEvents({ ...input, data: item });
     await ingestFrontendProcessEvents({ ...input, data: { ...item, client_event_id: randomUUID() } });
     assert.equal(await unobserved(), 2, "Only the observed item is acknowledged; reload is idempotent");
-    const tutor = state.formative_conversation!.transcript.find(turn => turn.actor === "tutor")!;
+    const tutor = state.formative_conversation?.transcript.find(turn => turn.actor === "tutor");
+    assert(tutor, "Completing the mini-test with the feedback v8 local test plan must save the tutor opening.");
     const message = { ...envelope, client_event_id: randomUUID(), event_type: "formative_feedback_shown", payload: {
       ...payload, content_kind: "formative_tutor_message", content_id: feedbackContentId(ids[0], conceptId, `turn:${tutor.turn_id}`),
       conversation_public_id: state.formative_conversation!.conversation_public_id, source_turn_sequence_index: tutor.sequence_index, turn_id: tutor.turn_id

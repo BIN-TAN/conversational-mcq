@@ -183,10 +183,7 @@
     "prisma/mini-test-json-format-smoke-test.ts",
     "prisma/mini-test-json-import-smoke-test.ts",
     "prisma/existing-items-import-smoke-test.ts",
-    {
-      "path": "prisma/feedback-display-completion-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: no tutor turn exists when it runs alone (turn_id of undefined); it passes after the earlier steps of the local standard flow. Make it create its own tutor turn."
-    },
+    "prisma/feedback-display-completion-smoke-test.ts",
     "prisma/classroom-data-integrity-smoke-test.ts",
     {
       "path": "prisma/student-initial-admin-smoke-test.ts",
