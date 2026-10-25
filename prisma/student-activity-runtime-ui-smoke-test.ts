@@ -536,10 +536,15 @@ async function cleanupRuntimeForSessions(sessionPublicIds: string[]) {
 
 async function createCompletedSession(suffix: string): Promise<CompletedSession> {
   const prefix = `${SMOKE_PREFIX}_${suffix}_${Date.now()}_${randomUUID().slice(0, 8)}`;
+  // The legacy demo assessment is in a student's catalog only when the student belongs to its
+  // instructor: canStartAssessmentFromCatalog (src/lib/services/student-assessment/catalog-access.ts)
+  // refuses it to unassigned accounts ("This assessment is not available for new starts").
+  const demoAssessment = await ensureDemoStudentAssessment(prisma);
   const student = await createSmokeStudent({
     prisma,
     prefix,
-    accessCode: `${prefix}_access`
+    accessCode: `${prefix}_access`,
+    teacherDbId: demoAssessment.created_by_user_db_id
   });
   const started = await startOrResumeStudentAssessmentSession({
     student_user_db_id: student.id,

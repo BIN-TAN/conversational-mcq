@@ -158,7 +158,7 @@ async function main() {
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
   process.env.OPERATIONAL_AGENT_MODE = "disabled";
 
-  await ensureDemoStudentAssessment(prisma);
+  const demoAssessment = await ensureDemoStudentAssessment(prisma);
 
   const prefix = `phase7_transfer_${Date.now()}_${randomUUID().slice(0, 8)}`;
   const student = await prisma.user.create({
@@ -166,7 +166,10 @@ async function main() {
       user_id: prefix,
       user_id_normalized: normalizeUserId(prefix),
       role: "student",
-      access_code_hash: await hashSecret("phase7_transfer_access")
+      access_code_hash: await hashSecret("phase7_transfer_access"),
+      // The legacy demo assessment is offered only to students of its instructor
+      // (canStartAssessmentFromCatalog in src/lib/services/student-assessment/catalog-access.ts).
+      created_by_teacher_user_id: demoAssessment.created_by_user_db_id
     },
     select: { id: true }
   });

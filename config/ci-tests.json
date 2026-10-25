@@ -190,7 +190,7 @@
     "prisma/research-data-quality-audit.ts",
     {
       "path": "prisma/student-activity-runtime-ui-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: its fixture assessment is not available for new starts. Give the fixture a current availability window."
+      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window (the demo has none); the test student is now assigned to the demo instructor. Not verified past that point: the test then drives the legacy activity runtime (startStudentActivityForSession and its profile/plan turn cycle) on a session whose completion, since interpretation v8 (19 Oct), creates a formative conversation without a planning decision, and it could not be run outside CI. Remove allowFailure if CI shows it passing; otherwise it needs the same decision as the targeted-feedback and transfer-item tests."
     },
     "prisma/student-attempt-lifecycle-smoke-test.ts",
     "prisma/student-ui-smoke-test.ts",
@@ -208,11 +208,11 @@
     "prisma/student-lifecycle-command-result-smoke-test.ts",
     {
       "path": "prisma/student-targeted-feedback-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: its fixture assessment is not available for new starts. Give the fixture a current availability window."
+      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window; the test student is now assigned to the demo instructor. It still fails by design after completion: submitFormativeActivityResponse needs an active follow-up round (active_followup_round_required, submitChatNativeFormativeActivityResponse in formative-profile.ts), and completion since interpretation v8 (19 Oct) creates a formative conversation with no planning decision or follow-up round, so the legacy activity, targeted feedback and revision path cannot be reached from completion. Decide whether to rebuild the test on a hand-made legacy session or retire it."
     },
     {
       "path": "prisma/student-transfer-item-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: its fixture assessment is not available for new starts. Give the fixture a current availability window."
+      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window; the test student is now assigned to the demo instructor. It still fails by design after completion: its activity response, revision and next choice B need an active follow-up round (active_followup_round_required, submitChatNativeFormativeActivityResponse in formative-profile.ts), and completion since interpretation v8 (19 Oct) creates a formative conversation with no planning decision or follow-up round, so the legacy transfer-item path cannot be reached from completion. Decide whether to rebuild the test on a hand-made legacy session or retire it."
     },
     "prisma/student-demo-recovery-smoke-test.ts",
     "prisma/student-production-schema-readiness-smoke-test.ts",
