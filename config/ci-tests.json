@@ -2,7 +2,7 @@
   "$comment": [
     "Tests run by GitHub Actions (.github/workflows/ci.yml) through scripts/ci-run-tests.mjs. See docs/CI.md.",
     "Add a new test by appending its path to the right list. An entry is a path string, or an object:",
-    "{ \"path\": ..., \"database\": name, \"args\": [...], \"timeoutMinutes\": n, \"env\": {...}, \"allowFailure\": reason, \"note\": text }.",
+    "{ \"path\": ..., \"database\": name, \"args\": [...], \"timeoutMinutes\": n, \"env\": {...}, \"seed\": false, \"allowFailure\": reason, \"note\": text }.",
     "unit: no database and no live model calls. database: needs PostgreSQL (DATABASE_URL). browser: Playwright scripts that start the built app themselves.",
     "database: run this entry against its own database of that name (created, migrated and seeded on first use); test guards often require a conversational_mcq_classroom_audit_ prefix.",
     "allowFailure: the entry is run and reported, but its failure does not fail the job. Remove it once the test passes."
@@ -173,7 +173,8 @@
     {
       "path": "prisma/student-assessment-catalog-smoke-test.ts",
       "database": "conversational_mcq_classroom_audit_catalog_smoke",
-      "note": "The test requires a database whose name ends in _catalog_smoke."
+      "note": "The test requires a database whose name ends in _catalog_smoke, and creates the legacy demo assessment itself, so this database is not seeded.",
+      "seed": false
     },
     "prisma/student-assessment-start-resume-conflict-smoke-test.ts",
     "prisma/student-conversational-flow-smoke-test.ts",

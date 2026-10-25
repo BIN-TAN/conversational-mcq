@@ -105,9 +105,10 @@ if (process.env.CI_NETWORK_GUARD !== "0" && existsSync(guardPath)) {
 const logDir = resolve(root, "ci-logs", listName);
 mkdirSync(logDir, { recursive: true });
 
-// Databases named by entries: created on the DATABASE_URL server, migrated and seeded once per run.
+// Databases named by entries: created on the DATABASE_URL server, migrated and (unless the entry
+// says "seed": false) seeded once per run.
 const preparedDatabases = new Map();
-async function databaseUrlFor(name) {
+async function databaseUrlFor(name, seed = true) {
   if (preparedDatabases.has(name)) return preparedDatabases.get(name);
   if (!process.env.DATABASE_URL) throw new Error(`DATABASE_URL is required to prepare database ${name}.`);
   const url = new URL(process.env.DATABASE_URL);
@@ -125,7 +126,7 @@ async function databaseUrlFor(name) {
   const prismaCli = join(root, "node_modules", "prisma", "build", "index.js");
   const steps = [
     ["migrate deploy", process.execPath, [prismaCli, "migrate", "deploy"]],
-    ["seed", ...tsxCommand("prisma/seed.ts")]
+    ...(seed ? [["seed", ...tsxCommand("prisma/seed.ts")]] : [])
   ];
   for (const [label, command, commandArgs] of steps) {
     const result = spawnSync(command, commandArgs, { cwd: root, env, encoding: "utf8", timeout: 300_000 });
@@ -134,7 +135,7 @@ async function databaseUrlFor(name) {
       throw new Error(`${label} failed for database ${name}: ${(result.stderr || result.stdout || result.error?.message || "").slice(-2000)}`);
     }
   }
-  console.log(`Prepared database ${name} (created if missing, migrated, seeded).`);
+  console.log(`Prepared database ${name} (created if missing, migrated${seed ? ", seeded" : ", not seeded"}).`);
   preparedDatabases.set(name, url.href);
   return url.href;
 }
@@ -248,7 +249,7 @@ for (const [index, entry] of entries.entries()) {
     const env = { ...baseEnv, ...(entry.env ?? {}) };
     try {
       if (entry.database) {
-        env.DATABASE_URL = await databaseUrlFor(entry.database);
+        env.DATABASE_URL = await databaseUrlFor(entry.database, entry.seed !== false);
         env.E2E_DATABASE_URL = env.DATABASE_URL;
       }
       result = await runOne(entry, env);

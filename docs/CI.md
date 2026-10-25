@@ -71,6 +71,8 @@ Append the test's path to the right list in `config/ci-tests.json`, for example
 - `database`: run this test against its own database of that name on the same server. The runner
   creates, migrates and seeds it the first time it is needed. Use this when the test's guard needs a
   particular name (for example `..._catalog_smoke` or `..._ux`).
+- `seed`: `false` skips the demo seed for that database, for a test that creates the demo records
+  itself.
 - `timeoutMinutes`: the default is 10. The runner stops the test and everything it started at the
   limit.
 - `allowFailure`: the test runs and is reported, but its failure does not fail the job. The summary
