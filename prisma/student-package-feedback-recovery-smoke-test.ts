@@ -28,6 +28,12 @@ const prisma = new PrismaClient();
 
 process.env.LLM_PROVIDER = "mock";
 process.env.LLM_LIVE_CALLS_ENABLED = "false";
+// Completion runs interpretation v8 and the feedback v8 opening. Both use their labelled
+// local test stand-ins only with the mock provider and OPERATIONAL_AGENT_MODE=mock
+// (interpretation-v8/call.ts, feedback-v8/runner.ts feedbackV8Plan); the CI database job
+// sets "disabled", which saves a fallback profile and refuses the opening.
+process.env.OPERATIONAL_AGENT_MODE = "mock";
+process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "false";
 
 async function counts(sessionPublicId: string) {
   const session = await prisma.assessmentSession.findUniqueOrThrow({
@@ -172,18 +178,25 @@ async function main() {
     );
 
     const afterFirst = await counts(prepared.state.session_public_id);
-    assert(
-      afterFirst.agent_names.includes("formative_value_and_planning_agent") &&
-        afterFirst.agent_names.includes("formative_conversation_agent"),
-      `First completion should create planning and formative opening calls; found ${afterFirst.agent_names.join(",")}.`
+    // Interpretation v8 (docs/AI_MODULE_REDESIGN_2026-10-19.md; prepareInitialInterpretationV8 in
+    // src/lib/services/student-assessment/interpretation-v8/prepare.ts): one profiling call
+    // (student_profiling_agent), then the conversation and its feedback v8 opening
+    // (formative_conversation_agent). It replaces the profile-integration and planning calls,
+    // so no planning decision or follow-up round is written.
+    const v8Calls = afterFirst.agent_names.filter((name) =>
+      ["student_profiling_agent", "formative_value_and_planning_agent", "formative_conversation_agent"].includes(name)
     );
     assert(
-      afterFirst.student_profiling_calls <= 1,
-      "Canonical profile preparation must create at most one student-profiling call."
+      JSON.stringify(v8Calls) === JSON.stringify(["student_profiling_agent", "formative_conversation_agent"]),
+      `First completion should make the v8 profiling call and then the formative opening call; found ${afterFirst.agent_names.join(",")}.`
     );
-    assert(afterFirst.profiles >= 1, "First completion should create profile records.");
-    assert(afterFirst.decisions === 1, "First completion should create one decision.");
-    assert(afterFirst.rounds === 1, "First completion should create one follow-up round.");
+    assert(
+      afterFirst.student_profiling_calls === 1,
+      "Interpretation v8 makes exactly one student-profiling call per submitted mini-test."
+    );
+    assert(afterFirst.profiles === 1, "First completion should create one v8 profile record.");
+    assert(afterFirst.decisions === 0, "Interpretation v8 makes no planning call, so no formative decision is written.");
+    assert(afterFirst.rounds === 0, "Interpretation v8 makes no planning call, so no follow-up round is written.");
     assert(afterFirst.response_packages === 1, "First completion should create one response package.");
     assert(
       afterFirst.formative_conversations === 1,
@@ -209,7 +222,10 @@ async function main() {
       afterFirst.activity_attempts === 0,
       "Conversation-hosted completion must not create a dormant runtime activity."
     );
-    assert(afterFirst.package_feedback_turns === 1, "First completion should create one feedback turn.");
+    // The legacy package-feedback turn is written only together with a follow-up round
+    // (reconcilePackageCompletionState in formative-profile.ts); under v8 the student sees the
+    // answer review built from the v8 profile and the conversation opening instead.
+    assert(afterFirst.package_feedback_turns === 0, "Interpretation v8 completion writes no legacy package-feedback turn.");
     assert(
       afterFirst.formative_conversation_opening_turns === 1,
       "First completion should persist one tutor opening."
@@ -218,8 +234,17 @@ async function main() {
       afterFirst.next_interaction_turns === 0,
       "Conversation-hosted completion must not create a legacy next-interaction turn."
     );
-    assert(afterFirst.events.package_results_generated === 1, "Backend should emit generated package event.");
-    assert(afterFirst.events.package_results_persisted === 1, "Backend should emit persisted package event.");
+    // package_results_generated/persisted belong to the legacy profile-decision-activity step
+    // (persistProfileDecisionAndActivity in formative-profile.ts), which v8 completion does not run.
+    assert(
+      (afterFirst.events.package_results_generated ?? 0) === 0 &&
+        (afterFirst.events.package_results_persisted ?? 0) === 0,
+      "Interpretation v8 completion must not emit the legacy package-results telemetry."
+    );
+    assert(
+      (afterFirst.events.package_submitted ?? 0) === 1,
+      "Backend should record the package submission exactly once."
+    );
     assert(
       (afterFirst.events.formative_activity_generated ?? 0) === 0,
       "Conversation-hosted completion must not emit activity-generation telemetry."
@@ -265,24 +290,6 @@ async function main() {
       ),
       "The opening should not repeat the report or expose internal/activity language."
     );
-    const retainedFeedback = await prisma.conversationTurn.findFirstOrThrow({
-      where: {
-        assessment_session: {
-          session_public_id: prepared.state.session_public_id
-        },
-        structured_payload: {
-          path: ["message_type"],
-          equals: "package_feedback"
-        }
-      },
-      select: { structured_payload: true }
-    });
-    assert(
-      (
-        retainedFeedback.structured_payload as Record<string, unknown>
-      ).visibility_status === "internal",
-      "Package feedback should remain persisted as internal audit evidence."
-    );
     const openingCall = await prisma.agentCall.findFirstOrThrow({
       where: {
         assessment_session: {
@@ -301,42 +308,35 @@ async function main() {
       !Array.isArray(openingCall.input_payload)
         ? (openingCall.input_payload as Record<string, unknown>)
         : {};
-    const responseEvidence = Array.isArray(
-      openingContext.assessment_response_evidence
-    )
-      ? openingContext.assessment_response_evidence
-      : [];
-    const processEvidence = Array.isArray(
-      openingContext.assessment_process_evidence
-    )
-      ? openingContext.assessment_process_evidence
-      : [];
-    const assessmentSpecification =
-      openingContext.assessment_specification &&
-      typeof openingContext.assessment_specification === "object" &&
-      !Array.isArray(openingContext.assessment_specification)
-        ? (openingContext.assessment_specification as Record<string, unknown>)
-        : {};
+    // The opening call's input is the feedback v8 context (FeedbackV8Input in
+    // feedback-v8/contract.ts, compiled by compileFeedbackV8Context in feedback-v8/context.ts):
+    // every administered item with the student's response, and the topic. Raw process logs are
+    // not included by design; the profiling call's process interpretations are carried per item.
+    const asRecord = (value: unknown): Record<string, unknown> =>
+      value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+    const openingItems = Array.isArray(openingContext.items) ? openingContext.items.map(asRecord) : [];
+    assert(openingContext.mode === "opening", "The opening call should use the feedback v8 opening mode.");
     assert(
-      responseEvidence.length === 3 &&
-        responseEvidence.every((entry) => {
-          const evidence =
-            entry && typeof entry === "object" && !Array.isArray(entry)
-              ? (entry as Record<string, unknown>)
-              : {};
-          return Boolean(evidence.written_reasoning) &&
-            Boolean(evidence.confidence);
+      openingItems.length === 3 &&
+        openingItems.every((item) => {
+          const response = asRecord(item.student_response);
+          return Boolean(response.explanation) && Boolean(response.reported_confidence);
         }),
       "The opening agent should receive reasoning and confidence for every administered response."
     );
+    const openingTopic = asRecord(openingContext.topic);
     assert(
-      typeof assessmentSpecification.learning_objective === "string" &&
-        assessmentSpecification.learning_objective.length > 0,
+      typeof openingTopic.learning_objective === "string" &&
+        openingTopic.learning_objective.length > 0,
       "The opening agent should receive the assessment learning objective."
     );
     assert(
-      processEvidence.length > 0,
-      "The opening agent should receive observable assessment process evidence."
+      openingContext.profile_available === true,
+      "The opening agent should receive the validated v8 profile, not the fallback."
+    );
+    assert(
+      !("assessment_process_evidence" in openingContext),
+      "The feedback v8 context must not carry raw process logs."
     );
     for (const legacyRoutingKey of [
       "package_feedback",
@@ -380,7 +380,7 @@ async function main() {
       "Replay must not duplicate the formative conversation opening."
     );
     assert(afterSecond.next_interaction_turns === afterFirst.next_interaction_turns, "Replay must not duplicate next-interaction turn.");
-    assert(afterSecond.events.package_results_generated === 1, "Replay must not duplicate generated package event.");
+    assert(afterSecond.events.package_submitted === 1, "Replay must not duplicate the package submission event.");
     assert(
       (afterSecond.events.formative_activity_persisted ?? 0) === 0,
       "Replay must not emit legacy activity persistence."
@@ -569,6 +569,13 @@ async function main() {
         latest_student_profile_db_id: true
       }
     });
+    // Since interpretation v8 a completed mini-test has a profile and a conversation but no
+    // planning decision. The legacy runtime that reconcilePackageCompletionState
+    // (formative-profile.ts) restores for a session without a conversation (follow-up round,
+    // next-interaction turn, activity attempt) is created only from a profile with a planning
+    // decision (its "profile && decision" conditions). So a v8 session whose conversation record
+    // is missing must not be turned into a legacy activity session; restoring the conversation
+    // brings the conversation runtime back.
     await prisma.formativeConversationSession.deleteMany({
       where: {
         assessment_session_db_id: conceptUnitSession.assessment_session_db_id
@@ -579,41 +586,18 @@ async function main() {
       reason: "legacy_activity_regression"
     });
     assert(
-      legacyRecovery.recovered_stages.includes("activity_runtime_attempt_restored"),
-      "A legacy session without a formative conversation should restore its activity."
+      !legacyRecovery.recovered_stages.includes("followup_round_restored") &&
+        !legacyRecovery.recovered_stages.includes("next_interaction_turn_restored") &&
+        !legacyRecovery.recovered_stages.includes("activity_runtime_attempt_restored"),
+      `A v8 session without a planning decision must not be given a legacy activity; recovered ${legacyRecovery.recovered_stages.join(",")}.`
     );
+    const afterLegacyRecovery = await counts(prepared.state.session_public_id);
     assert(
-      (
-        await counts(prepared.state.session_public_id)
-      ).next_interaction_turns === 1,
-      "A true legacy session should retain next-interaction reconciliation."
-    );
-    const legacyAttempt = await prisma.activityRuntimeAttempt.findFirstOrThrow({
-      where: { session_public_id: prepared.state.session_public_id },
-      select: { id: true, activity_attempt_public_id: true }
-    });
-    const legacyState = await getStudentSessionState({
-      student_user_db_id: prepared.student.id,
-      session_public_id: prepared.state.session_public_id
-    });
-    assert(
-      legacyState.formative_conversation === null,
-      "Legacy runtime should not fabricate a formative conversation."
-    );
-    assert(
-      legacyState.activity_runtime?.activity_attempt_public_id ===
-        legacyAttempt.activity_attempt_public_id,
-      "Legacy runtime should continue exposing its active activity."
-    );
-    const legacyTranscript = await getStudentSafeTranscript({
-      student_user_db_id: prepared.student.id,
-      session_public_id: prepared.state.session_public_id
-    });
-    assert(
-      legacyTranscript.transcript.some(
-        (turn) => turn.interaction_type === "package_feedback"
-      ),
-      "A legacy session without FormativeConversationSession should keep its package feedback."
+      afterLegacyRecovery.rounds === 0 &&
+        afterLegacyRecovery.next_interaction_turns === 0 &&
+        afterLegacyRecovery.activity_attempts === 0 &&
+        afterLegacyRecovery.decisions === 0,
+      "Reconciliation must not fabricate legacy follow-up records for a v8 session."
     );
 
     assert(
@@ -632,27 +616,17 @@ async function main() {
       concept_unit_session_db_id: conceptUnitSession.id,
       reason: "historical_activity_preservation_regression"
     });
-    const preservedHistoricalAttempt =
-      await prisma.activityRuntimeAttempt.findUniqueOrThrow({
-        where: { id: legacyAttempt.id },
-        select: { activity_attempt_public_id: true }
-      });
-    assert(
-      preservedHistoricalAttempt.activity_attempt_public_id ===
-        legacyAttempt.activity_attempt_public_id,
-      "Creating a formative conversation must not delete historical activity records."
-    );
     const migratedState = await getStudentSessionState({
       student_user_db_id: prepared.student.id,
       session_public_id: prepared.state.session_public_id
     });
     assert(
       migratedState.formative_conversation?.conversation_public_id,
-      "Migrated state should expose its formative conversation."
+      "Restored state should expose its formative conversation."
     );
     assert(
       migratedState.activity_runtime === null,
-      "Historical activity records must not be projected as active after migration."
+      "A restored conversation runtime must not project an activity."
     );
     const migratedTranscript = await getStudentSafeTranscript({
       student_user_db_id: prepared.student.id,
@@ -662,24 +636,18 @@ async function main() {
       migratedTranscript.transcript.every(
         (turn) => turn.interaction_type !== "package_feedback"
       ),
-      "Once a formative conversation owns the runtime, the legacy package-feedback report should be hidden."
+      "Once a formative conversation owns the runtime, no legacy package-feedback report is shown."
     );
     const migratedAudit = await buildTeacherSessionDataAudit({
       session_public_id: prepared.state.session_public_id,
       write_artifact: false
     });
     assert(
-      migratedAudit.activity_runtime_summary.attempt_count === 0 &&
-        migratedAudit.activity_runtime_summary
-          .legacy_non_authoritative_attempt_count === 1 &&
+      migratedAudit.activity_runtime_summary.runtime_mode === "formative_conversation" &&
+        migratedAudit.activity_runtime_summary.attempt_count === 0 &&
+        migratedAudit.activity_runtime_summary.legacy_non_authoritative_attempt_count === 0 &&
         migratedAudit.activity_runtime_summary.active_attempt_count === 0,
-      "Teacher audit should preserve the historical row without treating it as active."
-    );
-    assert(
-      migratedAudit.activity_runtime_summary.limitations.includes(
-        "historical_activity_records_preserved"
-      ),
-      "Teacher audit should label preserved activity rows as historical."
+      "Teacher audit should report the restored conversation runtime without activity rows."
     );
 
     const responsePackage = await prisma.responsePackage.findFirstOrThrow({
