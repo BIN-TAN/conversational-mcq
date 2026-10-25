@@ -86,7 +86,7 @@ const blueprint: ItemDesignBlueprint = {
 check("Versions: assistant v9 with output v3, generation v6", () => {
   assert.equal(ITEM_DESIGN_ASSISTANT_PROMPT_VERSION, "evidence-centered-item-design-assistant-v9");
   assert.equal(ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION, "evidence-centered-item-design-assistant-output-v3");
-  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v7");
+  assert.equal(ITEM_GENERATION_PROMPT_VERSION, "evidence-centered-mcq-generation-v7.1");
 });
 
 check("The reply carries the topic bank: knowledge points, notes and quiz items per topic, and templates", () => {

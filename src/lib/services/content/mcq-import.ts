@@ -1358,10 +1358,12 @@ async function parseCandidates(input: z.infer<typeof McqImportPreviewInputSchema
   return { sourceChecksum: sha256(text), drafts, sourceWarnings: [] };
 }
 
-function validationSummary(candidates: McqImportCandidate[], sourceWarnings: string[] = []) {
+function validationSummary(candidates: McqImportCandidate[], sourceWarnings: string[] = [], reviewNotes: string[] = []) {
   return {
     ok: candidates.some((candidate) => candidate.import_selected),
     source_warnings: sourceWarnings,
+    // Plain sentences for the teacher about the whole set, shown at the top of the review page.
+    ...(reviewNotes.length > 0 ? { review_notes: reviewNotes } : {}),
     limits: {
       max_file_bytes: MCQ_IMPORT_MAX_FILE_BYTES,
       max_rows: MCQ_IMPORT_MAX_ROWS
@@ -1575,6 +1577,8 @@ export async function createGeneratedMcqReviewBatch(input: {
     remaining_problems: string[];
   }>;
   generation_metadata: Record<string, unknown>;
+  /** Plain sentences for the teacher about the whole set (for example misconceptions no draft probes). */
+  review_notes?: string[];
 }) {
   const assessment = await assertAssessmentEditable(input);
   const existing = await prisma.mcqItemImportBatch.findFirst({
@@ -1655,7 +1659,7 @@ export async function createGeneratedMcqReviewBatch(input: {
   });
   const summary = validationSummary(candidates, [
     "AI-generated drafts require teacher review, key confirmation, and item verification before publication."
-  ]);
+  ], input.review_notes ?? []);
   const batch = await prisma.mcqItemImportBatch.create({
     data: {
       batch_public_id: generatePublicId("mcq_import_batch"),

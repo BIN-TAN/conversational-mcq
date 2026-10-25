@@ -458,6 +458,7 @@ export function McqImportClient({
 
       <ErrorPanel error={error} focusOnError />
       {batch ? <WorkbookGuides guides={readWorkbookGuides(batch.validation_summary)} /> : null}
+      {batch ? <ReviewNotes notes={readReviewNotes(batch.validation_summary)} /> : null}
       <SuccessPanel message={success} />
 
       {!generatedBatch && !initialBatchPublicId ? <form className="rounded-lg border border-line bg-white p-5 shadow-soft" onSubmit={previewImport}>
@@ -1210,5 +1211,21 @@ function OptionRationalesEditor({
         );
       })}
     </fieldset>
+  );
+}
+
+/** Notes about the whole set of drafts, such as misconception examples no draft probes. */
+function readReviewNotes(summary: unknown): string[] {
+  if (!summary || typeof summary !== "object" || Array.isArray(summary)) return [];
+  const notes = (summary as Record<string, unknown>).review_notes;
+  return Array.isArray(notes) ? notes.filter((note): note is string => typeof note === "string" && Boolean(note.trim())) : [];
+}
+
+function ReviewNotes({ notes }: { notes: string[] }) {
+  if (notes.length === 0) return null;
+  return (
+    <section aria-label="About these drafts" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+      {notes.map((note) => <p key={note}>{note}</p>)}
+    </section>
   );
 }

@@ -7,7 +7,9 @@ const ITEM_DESIGN_ASSISTANT_SCHEMA_VERSION_V2 = "evidence-centered-item-design-a
 export const ITEM_DESIGN_ASSISTANT_THREAD_VERSION = "evidence-centered-item-design-thread-v1" as const;
 export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-design-source-materials-v1" as const;
 // v7 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v7" as const;
+// v7.1 (release CMCQ-20261025-15a): misconceptions are probed where incorrect options really rest
+// on them, and unprobed ones are reported to the teacher; a recovery attempt sees the problems.
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v7.1" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -383,7 +385,9 @@ export const GeneratedItemCandidateSchema = z.object({
   proposed_correct_option: z.string().trim().regex(/^[A-E]$/),
   correct_answer_explanation: z.string().trim().min(1).max(1400),
   objective_ids: z.array(z.string().trim().min(1).max(80)).min(1).max(8),
-  misconception_hypothesis_ids: z.array(z.string().trim().min(1).max(80)).max(8),
+  // Up to 8 per option; the item-level index also holds every option-linked ID (see
+  // validateGeneratedItemSet), so it can hold up to 8 per option of a five-option item.
+  misconception_hypothesis_ids: z.array(z.string().trim().min(1).max(80)).max(40),
   target_reasoning_note: z.string().trim().min(1).max(1000),
   strong_reasoning_should_mention: z.string().trim().min(1).max(1000),
   cognitive_demand: z.enum(["remember", "understand", "apply", "analyze", "evaluate", "create"]),
@@ -423,7 +427,8 @@ export const ItemGenerationOutputSchema = z.object({
 export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v2" as const;
 export const ITEM_CHECK_SCHEMA_VERSION = "evidence-centered-mcq-item-check-output-v1" as const;
 // v3: includes the v7 generation instructions (formulas and tables).
-export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v3" as const;
+// v3.1: includes the v7.1 generation instructions.
+export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v3.1" as const;
 export const ITEM_REVISION_SCHEMA_VERSION = "evidence-centered-mcq-revision-output-v1" as const;
 
 export const ItemCheckProblemSchema = z.enum([
@@ -726,6 +731,17 @@ function cognitiveDemandBand(value: z.infer<typeof GeneratedItemCandidateSchema>
   return "foundational" as const;
 }
 
+/** Misconception hypotheses of the design that no candidate probes, in the design's order. */
+export function unprobedMisconceptionIds(blueprint: ItemDesignBlueprint, output: ItemGenerationOutput): string[] {
+  const probed = new Set(output.candidates.flatMap((candidate) => [
+    ...candidate.misconception_hypothesis_ids,
+    ...candidate.options.flatMap((option) => option.linked_misconception_ids)
+  ]));
+  return blueprint.misconception_hypotheses
+    .map((misconception) => misconception.misconception_id)
+    .filter((id) => !probed.has(id));
+}
+
 export function validateGeneratedItemSet(input: {
   blueprint: ItemDesignBlueprint;
   output: unknown;
@@ -733,23 +749,41 @@ export function validateGeneratedItemSet(input: {
   required_objective_ids?: string[];
   required_misconception_ids?: string[];
   required_cognitive_demand_bands?: ItemDesignCognitiveDemandBand[];
+  /**
+   * "required" (the default) rejects a set that leaves a required misconception unprobed.
+   * "reported" accepts it: draft generation reports unprobed misconceptions to the teacher
+   * instead, because a design can list more misconception hypotheses than its items can
+   * sensibly probe, and a forced link makes a weaker distractor rather than better evidence.
+   */
+  misconception_coverage?: "required" | "reported";
 }) {
   let parsed = ItemGenerationOutputSchema.safeParse(
     normalizeLegacyItemGenerationOutput(input.output)
   );
   if (!parsed.success) return parsed;
 
-  // The item-level index includes all option-level links. This is metadata
-  // closure only: no new hypothesis, wording, or answer key is inferred.
+  // Metadata closure only; no new hypothesis, wording or answer key is inferred:
+  // - the item-level index includes all option-level links;
+  // - the band (difficulty) follows the more specific cognitive_demand label;
+  // - coverage_summary is counted from the candidates instead of trusting the model's count.
+  const candidates = parsed.data.candidates.map((candidate) => ({
+    ...candidate,
+    difficulty: cognitiveDemandBand(candidate.cognitive_demand),
+    misconception_hypothesis_ids: [...new Set([
+      ...candidate.misconception_hypothesis_ids,
+      ...candidate.options.flatMap((option) => option.linked_misconception_ids)
+    ])]
+  }));
+  const objectiveOrder = [...new Set([
+    ...input.blueprint.objectives.map((objective) => objective.objective_id),
+    ...candidates.flatMap((candidate) => candidate.objective_ids)
+  ])];
   parsed = ItemGenerationOutputSchema.safeParse({
     ...parsed.data,
-    candidates: parsed.data.candidates.map((candidate) => ({
-      ...candidate,
-      misconception_hypothesis_ids: [...new Set([
-        ...candidate.misconception_hypothesis_ids,
-        ...candidate.options.flatMap((option) => option.linked_misconception_ids)
-      ])]
-    }))
+    candidates,
+    coverage_summary: objectiveOrder
+      .map((id) => ({ objective_id: id, candidate_count: candidates.filter((candidate) => candidate.objective_ids.includes(id)).length }))
+      .filter((row) => row.candidate_count > 0)
   });
   if (!parsed.success) return parsed;
 
@@ -789,12 +823,6 @@ export function validateGeneratedItemSet(input: {
         message: `Cognitive-demand band ${candidate.difficulty} was not selected in the saved design.`
       });
     }
-    if (candidate.difficulty !== cognitiveDemandBand(candidate.cognitive_demand)) {
-      issues.push({
-        path: `candidates.${index}.difficulty`,
-        message: "The cognitive-demand label and band do not agree."
-      });
-    }
     const candidateMisconceptionIds = new Set(candidate.misconception_hypothesis_ids);
     candidate.options.forEach((option, optionIndex) => {
       option.linked_misconception_ids.forEach((id) => {
@@ -821,7 +849,9 @@ export function validateGeneratedItemSet(input: {
       issues.push({ path: "candidates", message: `No generated candidate covers objective ID: ${id}.` });
     }
   });
-  const requiredMisconceptionIds = input.required_misconception_ids ?? [...misconceptionIds];
+  const requiredMisconceptionIds = input.misconception_coverage === "reported"
+    ? []
+    : input.required_misconception_ids ?? [...misconceptionIds];
   requiredMisconceptionIds.forEach((id) => {
     if (!coveredMisconceptionIds.has(id)) {
       issues.push({ path: "candidates", message: `No generated candidate probes misconception ID: ${id}.` });
@@ -837,21 +867,6 @@ export function validateGeneratedItemSet(input: {
     }
   });
 
-  const coverageRows = new Map(parsed.data.coverage_summary.map((row) => [row.objective_id, row.candidate_count]));
-  if (coverageRows.size !== parsed.data.coverage_summary.length) {
-    issues.push({ path: "coverage_summary", message: "Coverage summary objective IDs must be unique." });
-  }
-  objectiveIds.forEach((id) => {
-    const actualCount = parsed.data.candidates.filter((candidate) => candidate.objective_ids.includes(id)).length;
-    if (actualCount > 0 && coverageRows.get(id) !== actualCount) {
-      issues.push({ path: "coverage_summary", message: `Coverage summary is incorrect for objective ID: ${id}.` });
-    }
-  });
-  coverageRows.forEach((_count, id) => {
-    if (!objectiveIds.has(id)) {
-      issues.push({ path: "coverage_summary", message: `Coverage summary contains unknown objective ID: ${id}.` });
-    }
-  });
   return issues.length === 0
     ? parsed
     : { success: false as const, error: { issues } };

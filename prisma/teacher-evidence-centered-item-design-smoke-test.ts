@@ -12,6 +12,7 @@ import {
   ItemGenerationOutputSchema,
   normalizeLegacyItemDesignBlueprint,
   normalizeLegacyItemGenerationOutput,
+  unprobedMisconceptionIds,
   validateGeneratedItemSet
 } from "../src/lib/services/content/item-design-contract";
 import {
@@ -20,6 +21,7 @@ import {
   ITEM_GENERATION_INSTRUCTIONS,
   createItemGenerationPlan,
   itemGenerationResultSupportsRecovery,
+  mergeItemGenerationChunkOutputs,
   itemDesignBlueprintHash
 } from "../src/lib/services/content/item-design";
 import { projectConceptAdministrationRulesForProfiling } from "../src/lib/agents/student-profiling/input-builder";
@@ -186,9 +188,60 @@ assert.deepEqual(
   createItemGenerationPlan(denseMisconceptionBlueprint).map(
     (chunk) => chunk.required_misconception_ids.length
   ),
-  [14, 6],
-  "Evidence distribution must respect the candidate capacity of a shorter final chunk."
+  [13, 7],
+  "Misconceptions are spread in proportion to each chunk's incorrect-option slots (6 and 3)."
 );
+
+// Misconceptions follow their linked objective, so a chunk is not asked to probe a misconception
+// about an objective it does not assess (the Test 9 design: 5 objectives, 13 misconceptions, 5 items).
+const testNineBlueprint = ItemDesignBlueprintSchema.parse({
+  ...blueprint,
+  objectives: Array.from({ length: 5 }, (_, index) => ({
+    objective_id: `objective_${index + 1}`,
+    statement: `Objective ${index + 1}`,
+    evidence_requirements: [`Evidence ${index + 1}`]
+  })),
+  misconception_hypotheses: Array.from({ length: 13 }, (_, index) => ({
+    misconception_id: `misconception_${index + 1}`,
+    statement: `Misconception ${index + 1}`,
+    linked_objective_ids: [`objective_${(index % 5) + 1}`],
+    student_language_examples: [],
+    why_plausible: null
+  })),
+  generation_settings: { ...blueprint.generation_settings, target_item_count: 5 }
+});
+const testNinePlan = createItemGenerationPlan(testNineBlueprint);
+assert.deepEqual(testNinePlan.map((chunk) => chunk.candidate_count), [2, 2, 1]);
+for (const chunk of testNinePlan) {
+  for (const id of chunk.required_misconception_ids) {
+    const linked = testNineBlueprint.misconception_hypotheses.find((entry) => entry.misconception_id === id)!.linked_objective_ids;
+    assert(linked.some((objectiveId) => chunk.required_objective_ids.includes(objectiveId)),
+      `${id} is assigned to a chunk that assesses its objective`);
+  }
+}
+assert.equal(testNinePlan.flatMap((chunk) => chunk.required_misconception_ids).length, 13, "Every misconception is assigned once");
+
+// Generation reports misconceptions no draft probes instead of rejecting the set, normalizes
+// the band from the cognitive-demand label and counts coverage itself.
+const unprobedOutput = {
+  ...validOutput,
+  candidates: validOutput.candidates.map((entry) => ({ ...entry, misconception_hypothesis_ids: [],
+    options: entry.options.map((option) => ({ ...option, linked_misconception_ids: [] })) }))
+};
+assert.equal(validateGeneratedItemSet({ blueprint, output: unprobedOutput }).success, false, "By default an unprobed misconception is rejected");
+const reported = validateGeneratedItemSet({ blueprint, output: unprobedOutput, misconception_coverage: "reported" });
+assert(reported.success, "Draft generation accepts the set and reports the misconception");
+assert.deepEqual(unprobedMisconceptionIds(blueprint, reported.data), ["misconception_volunteer_representative"]);
+const mislabeled = validateGeneratedItemSet({ blueprint, output: { ...validOutput,
+  candidates: [{ ...candidate(1), cognitive_demand: "analyze" as const, difficulty: "foundational" as const }, candidate(2), candidate(3)],
+  coverage_summary: [{ objective_id: "objective_sampling", candidate_count: 7 }] } });
+assert(mislabeled.success, "A band that disagrees with its label, or a miscounted coverage summary, is corrected, not rejected");
+assert.equal(mislabeled.data.candidates[0]!.difficulty, "analyzing");
+assert.deepEqual(mislabeled.data.coverage_summary, [{ objective_id: "objective_sampling", candidate_count: 3 }]);
+const merged = mergeItemGenerationChunkOutputs({ blueprint, outputs: [ItemGenerationOutputSchema.parse(unprobedOutput)] });
+assert.equal(merged.set_level_limitations[0],
+  "No draft probes misconception example 1. Add or revise items if you want evidence on it.",
+  "The teacher is told which misconception examples no draft probes");
 assert.equal(
   itemGenerationResultSupportsRecovery({
     provider: "mock",
@@ -256,7 +309,8 @@ assert.doesNotThrow(() => zodTextFormat(ItemGenerationOutputSchema, "item_genera
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /draft MCQ candidates/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /teacher review/);
 assert.match(ITEM_GENERATION_INSTRUCTIONS, /Do not treat .* as established fact/);
-assert.match(ITEM_GENERATION_INSTRUCTIONS, /cover every objective and every supplied misconception hypothesis/);
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /Cover every objective in the chunk's required_objective_ids/);
+assert.match(ITEM_GENERATION_INSTRUCTIONS, /link an option to a misconception only when the option really rests on it/);
 
 const root = process.cwd();
 const detailSource = readFileSync(path.join(root, "src/components/teacher-content/assessment-detail-client.tsx"), "utf8");

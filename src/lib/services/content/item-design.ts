@@ -50,6 +50,7 @@ import {
   normalizeLegacyItemDesignAssistantOutput,
   normalizeLegacyItemDesignBlueprint,
   normalizeLegacyItemGenerationOutput,
+  unprobedMisconceptionIds,
   validateGeneratedItemSet,
   type ItemDesignAssistantOutput,
   type ItemDesignAssistantThread,
@@ -210,7 +211,8 @@ Do not treat a misconception hypothesis as established fact about any student, a
 
 OUTPUT
 - The drafts are written in numbered chunks (generation_chunk) so that each fits in one response. Return exactly the candidate and option counts in required_output, and give the items distinct item labels from the chunk's global item-number range.
-- Use only objective and misconception IDs in the blueprint. So that the set will cover every objective and every supplied misconception hypothesis at least once, cover everything in the chunk's required_objective_ids, required_misconception_ids and required_cognitive_demand_bands; IDs assigned to other chunks need not appear.
+- Use only objective and misconception IDs in the blueprint. Cover every objective in the chunk's required_objective_ids and every band in required_cognitive_demand_bands; IDs assigned to other chunks need not appear.
+- Probe the misconceptions in required_misconception_ids with the incorrect options: link an option to a misconception only when the option really rests on it, and an option may rest on more than one. Probe as many as plausible incorrect options allow; do not force a link. Misconceptions you leave unprobed are reported to the teacher.
 - difficulty is one of the design's bands (difficulty_mix) and agrees with cognitive_demand: remember, understand and apply are foundational; analyze is analyzing; evaluate is evaluating; create is creating.
 - coverage_summary gives, for each objective the chunk's items assess, the number of those items.
 - The key is a proposal only. Every candidate requires teacher review, teacher key confirmation and the existing publication checks.
@@ -218,7 +220,7 @@ OUTPUT
 
 const ITEM_GENERATION_RECOVERY_INSTRUCTIONS = `
 RECOVERY
-The previous attempt did not produce an acceptable complete chunk. Write a fresh, complete response for the same chunk, with the exact candidate and option counts, the assigned coverage and the cognitive-demand mapping. Keep the wording short enough to finish.
+The previous attempt did not produce an acceptable complete chunk. previous_attempt_problems, when present, lists what was wrong with it. Write a fresh, complete response for the same chunk that fixes each of those problems, with the exact candidate and option counts, the assigned coverage and the cognitive-demand mapping. Keep the wording short enough to finish.
 `.trim();
 
 export const ITEM_CHECK_INSTRUCTIONS = `
@@ -1432,16 +1434,27 @@ export function createItemGenerationPlan(
       objective.objective_id
     );
   });
-  blueprint.misconception_hypotheses.forEach((misconception, index) => {
-    chunks[chunkIndexForEvidence(index)]?.required_misconception_ids.push(
-      misconception.misconception_id
-    );
-  });
   chunks.forEach((chunk, index) => {
     if (chunk.required_objective_ids.length === 0) {
       const objective = blueprint.objectives[index % blueprint.objectives.length];
       if (objective) chunk.required_objective_ids.push(objective.objective_id);
     }
+  });
+  // Each misconception goes to a chunk whose items assess one of its linked objectives, so that
+  // a chunk is never asked to probe a misconception about an objective it does not assess; among
+  // those chunks (or all chunks, for an unlinked misconception) the least loaded one per
+  // incorrect-option slot is chosen.
+  const slots = (chunk: ItemGenerationChunk) =>
+    chunk.candidate_count * Math.max(1, blueprint.generation_settings.option_count - 1);
+  const load = (chunk: ItemGenerationChunk) => chunk.required_misconception_ids.length / slots(chunk);
+  blueprint.misconception_hypotheses.forEach((misconception) => {
+    const linked = chunks.filter((chunk) =>
+      chunk.required_objective_ids.some((id) => misconception.linked_objective_ids.includes(id)));
+    const pool = linked.length > 0 ? linked : chunks;
+    const target = pool.reduce((best, chunk) => load(chunk) < load(best) ? chunk : best, pool[0]!);
+    target.required_misconception_ids.push(misconception.misconception_id);
+  });
+  chunks.forEach((chunk) => {
     for (
       let itemOffset = 0;
       itemOffset < chunk.candidate_count;
@@ -1502,7 +1515,7 @@ function generationContext(input: {
 }
 
 function validateOutput(blueprint: ItemDesignBlueprint, output: unknown): ItemGenerationOutput {
-  const validated = validateGeneratedItemSet({ blueprint, output });
+  const validated = validateGeneratedItemSet({ blueprint, output, misconception_coverage: "reported" });
   if (!validated.success) {
     throw new ContentServiceError("validation_failed", "The drafts did not match the saved design, for example in the number of items or options or the objectives they cover. Your saved design is unchanged; generate the drafts again.", 422, {
       issues: validated.error.issues
@@ -1523,7 +1536,8 @@ function validateChunkOutput(input: {
     required_objective_ids: input.chunk.required_objective_ids,
     required_misconception_ids: input.chunk.required_misconception_ids,
     required_cognitive_demand_bands:
-      input.chunk.required_cognitive_demand_bands
+      input.chunk.required_cognitive_demand_bands,
+    misconception_coverage: "reported"
   });
   if (!validated.success) {
     throw new ContentServiceError(
@@ -1536,12 +1550,25 @@ function validateChunkOutput(input: {
   return ItemGenerationOutputSchema.parse(validated.data);
 }
 
+const UNPROBED_MISCONCEPTIONS_NOTE_START = "No draft probes misconception";
+
+/** The validation problems of a rejected chunk, as short "path: message" lines (at most 12). */
+function generationIssueMessages(error: unknown): string[] {
+  const issues = error instanceof ContentServiceError && Array.isArray(error.details.issues) ? error.details.issues : [];
+  return issues.slice(0, 12).flatMap((issue: unknown) => {
+    if (!issue || typeof issue !== "object") return [];
+    const entry = issue as { path?: unknown; message?: unknown };
+    const path = Array.isArray(entry.path) ? entry.path.join(".") : typeof entry.path === "string" ? entry.path : "";
+    return typeof entry.message === "string" ? [`${path ? `${path}: ` : ""}${entry.message}`.slice(0, 300)] : [];
+  });
+}
+
 export function mergeItemGenerationChunkOutputs(input: {
   blueprint: ItemDesignBlueprint;
   outputs: ItemGenerationOutput[];
 }): ItemGenerationOutput {
   const candidates = input.outputs.flatMap((output) => output.candidates);
-  return validateOutput(input.blueprint, {
+  const merged = validateOutput(input.blueprint, {
     schema_version: ITEM_GENERATION_SCHEMA_VERSION,
     blueprint_version: ITEM_DESIGN_BLUEPRINT_VERSION,
     candidates,
@@ -1556,6 +1583,18 @@ export function mergeItemGenerationChunkOutputs(input: {
     ).slice(0, 8),
     teacher_review_required: true
   });
+  // Misconception examples no draft probes are reported to the teacher, by their number in the
+  // design, ahead of the model's own notes.
+  const unprobed = new Set(unprobedMisconceptionIds(input.blueprint, merged));
+  if (unprobed.size === 0) return merged;
+  const numbers = input.blueprint.misconception_hypotheses.flatMap((entry, index) =>
+    unprobed.has(entry.misconception_id) ? [String(index + 1)] : []);
+  const list = numbers.length === 1 ? numbers[0]! : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
+  const note = `${UNPROBED_MISCONCEPTIONS_NOTE_START} ${numbers.length === 1 ? "example" : "examples"} ${list}. Add or revise items if you want evidence on ${numbers.length === 1 ? "it" : "them"}.`;
+  return {
+    ...merged,
+    set_level_limitations: [note, ...merged.set_level_limitations.filter((entry) => entry !== note)].slice(0, 8)
+  };
 }
 
 export function itemGenerationResultSupportsRecovery(
@@ -1591,6 +1630,7 @@ async function materializeGeneratedReviewBatch(input: {
     },
     candidates: input.output.candidates,
     item_checks: input.item_checks,
+    review_notes: input.output.set_level_limitations.filter((note) => note.startsWith(UNPROBED_MISCONCEPTIONS_NOTE_START)),
     generation_metadata: {
       source: "provider_backed_teacher_triggered",
       agent_name: ITEM_GENERATION_AGENT_NAME,
@@ -2060,6 +2100,8 @@ export async function generateAssessmentItemDrafts(input: {
     });
     let acceptedChunk: ItemGenerationOutput | null = null;
     let latestAgentCallPublicId: string | null = null;
+    // What was wrong with the previous attempt, so that the recovery attempt can fix it.
+    let previousAttemptProblems: string[] = [];
     const maximumAttempts = ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS + 1;
 
     for (let recoveryIndex = 0; recoveryIndex < maximumAttempts; recoveryIndex += 1) {
@@ -2068,6 +2110,9 @@ export async function generateAssessmentItemDrafts(input: {
         ? chunkPrefix
         : `${chunkPrefix}:attempt:${attemptNumber}`;
       const clientRequestId = `mcq_generate_${randomUUID()}`;
+      const requestContext = recoveryIndex > 0 && previousAttemptProblems.length > 0
+        ? { ...context, previous_attempt_problems: previousAttemptProblems }
+        : context;
       const requestModelConfig: AgentModelConfig = {
         ...modelConfig,
         max_output_tokens: Math.max(
@@ -2093,7 +2138,7 @@ export async function generateAssessmentItemDrafts(input: {
             reasoning_effort: modelConfig.reasoning_effort ?? null,
             prompt_version: ITEM_GENERATION_PROMPT_VERSION,
             schema_version: ITEM_GENERATION_SCHEMA_VERSION,
-            input_payload: toPrismaJson(redactForAudit(context)) ?? Prisma.JsonNull,
+            input_payload: toPrismaJson(redactForAudit(requestContext)) ?? Prisma.JsonNull,
             live_call_allowed: liveCallAllowed,
             call_status: "started",
             retry_count: recoveryIndex,
@@ -2118,7 +2163,7 @@ export async function generateAssessmentItemDrafts(input: {
         instructions: recoveryIndex === 0
           ? ITEM_GENERATION_INSTRUCTIONS
           : `${ITEM_GENERATION_INSTRUCTIONS}\n\n${ITEM_GENERATION_RECOVERY_INSTRUCTIONS}`,
-        input: context,
+        input: requestContext,
         output_schema: ItemGenerationOutputSchema,
         schema_name: ITEM_GENERATION_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
         client_request_id: clientRequestId,
@@ -2148,6 +2193,9 @@ export async function generateAssessmentItemDrafts(input: {
           recoveryIndex < ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS &&
           itemGenerationResultSupportsRecovery(result)
         ) {
+          previousAttemptProblems = result.status === "incomplete"
+            ? ["The previous response stopped before it was complete."]
+            : [];
           continue;
         }
         throw new ContentServiceError(
@@ -2165,15 +2213,18 @@ export async function generateAssessmentItemDrafts(input: {
           output: result.parsed_output
         });
       } catch (error) {
+        previousAttemptProblems = generationIssueMessages(error);
         await prisma.agentCall.update({
           where: { id: agentCall.id },
           data: {
             ...providerAuditUpdate(result),
             output_validated: false,
             call_status: "invalid_output",
-            validation_error: error instanceof Error
-              ? error.message
-              : "Generated item validation failed.",
+            // The specific problems are kept for diagnosis; the teacher sees the plain message.
+            validation_error: [
+              error instanceof Error ? error.message : "Generated item validation failed.",
+              ...previousAttemptProblems
+            ].join(" | ").slice(0, 4000),
             completed_at: new Date()
           }
         });
