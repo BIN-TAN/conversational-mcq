@@ -274,7 +274,9 @@ try {
     const tab = await restricted.newPage();
     await tab.goto(previewUrl, { waitUntil: "networkidle" });
     if (user === users[1]) await tab.locator("section[role='alert']").waitFor();
-    else assert.equal(new URL(tab.url()).pathname, user ? "/student/assessment" : "/student/login");
+    // Signed-out visitors to teacher pages go to the instructor sign-in page, /teacher/login
+    // (src/app/teacher/layout.tsx, since 6b35841); a student goes to the student catalog.
+    else assert.equal(new URL(tab.url()).pathname, user ? "/student/assessment" : "/teacher/login");
     assert.equal(await tab.getByTestId("assessment-preview").count(), 0);
     assert(!(await tab.locator("body").innerText()).includes(stems[0]));
     await restricted.close();
