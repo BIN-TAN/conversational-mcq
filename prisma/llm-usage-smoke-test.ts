@@ -9,10 +9,11 @@ import { hashSecret } from "../src/lib/password";
 import { generatePublicId } from "../src/lib/services/ids";
 import { fixtureInputForAgent } from "./llm-fixtures";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
+import { approvedModelConfigForRole } from "../src/lib/agents/operational/approved-config";
 import {
-  activeOperationalConfigHash,
-  approvedModelConfigForRole
-} from "../src/lib/agents/operational/approved-config";
+  LEGACY_GPT54_APPROVED_RUNTIME_HASH,
+  resolveActiveOperationalApproval
+} from "../src/lib/operational/active-approval-bundle";
 
 const prisma = new PrismaClient();
 const llmEnvKeys = [
@@ -49,6 +50,18 @@ function setEnv(values: Partial<Record<(typeof llmEnvKeys)[number], string>>) {
   }
 }
 
+// The approved configuration hash that getLlmRuntimeConfig accepts
+// (resolveOperationalApprovalForModelResolution in src/lib/llm/config.ts): the runtime candidate
+// hash of an active derived or local-candidate approval bundle, otherwise only the legacy runtime
+// hash; any other configured hash fails with active_approval_bundle_missing. CI has no bundle
+// under .data/operational-model-upgrade/active-approval, so it uses the legacy hash.
+function approvedConfigHashForTest() {
+  const active = resolveActiveOperationalApproval();
+  return active?.kind === "derived_approval" || active?.kind === "local_candidate_evaluation"
+    ? active.record.runtime_candidate_hash
+    : LEGACY_GPT54_APPROVED_RUNTIME_HASH;
+}
+
 function setOpenAiEnv(values: Partial<Record<(typeof llmEnvKeys)[number], string>> = {}) {
   setEnv({
     LLM_PROVIDER: "openai",
@@ -56,7 +69,7 @@ function setOpenAiEnv(values: Partial<Record<(typeof llmEnvKeys)[number], string
     OPENAI_API_KEY: "sk-synthetic-usage-smoke-not-a-real-secret",
     OPENAI_MODEL_RESPONSE_COLLECTION:
       approvedModelConfigForRole("response_collection_agent").model_name,
-    OPERATIONAL_APPROVED_CONFIG_HASH: activeOperationalConfigHash(),
+    OPERATIONAL_APPROVED_CONFIG_HASH: approvedConfigHashForTest(),
     LLM_DAILY_CLASS_CALL_LIMIT: "1000",
     LLM_DAILY_CLASS_TOKEN_LIMIT: "1000000",
     LLM_DAILY_STUDENT_CALL_LIMIT: "1000",

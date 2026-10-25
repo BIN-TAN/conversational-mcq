@@ -235,10 +235,7 @@
     "prisma/operator-rename-teacher-smoke-test.ts",
     "prisma/auth-llm-config-isolation-smoke-test.ts",
     "prisma/student-teacher-mcq-media-smoke-test.ts",
-    {
-      "path": "prisma/llm-usage-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: it uses a non-legacy approved configuration hash without an active operational approval bundle. Give it a test bundle."
-    },
+    "prisma/llm-usage-smoke-test.ts",
     "prisma/student-response-quality-smoke-test.ts",
     "prisma/student-script-review-smoke-test.ts",
     "prisma/student-initial-chat-ui-smoke-test.ts",
