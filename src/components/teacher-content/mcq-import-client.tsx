@@ -1063,7 +1063,6 @@ function WordingChoice({
   const accessible = record.accessible;
   const usingAccessible = wordingVersionOf(candidate) === "accessible";
   const edited = wordingEditedSinceChoice(candidate);
-  const checked = Boolean(assistantCheckOf(candidate));
 
   function choose(version: WordingVersion) {
     if (edited && !window.confirm("Switching the wording replaces the edits you made to the question and options of this item. Do you want to continue?")) return;
@@ -1077,12 +1076,12 @@ function WordingChoice({
       </p>
       <p className="mt-1 text-xs leading-5 text-muted">
         {usingAccessible
-          ? "The assistant rewrote the question and options at a middle to high school reading level. Your key terms, numbers, formulas, options and key are the same, and your original wording is kept."
-          : "The assistant also suggested simpler wording for this item at a middle to high school reading level."}
+          ? "The assistant rewrote the question and options to make them easier to read. The checks found the same key terms, numbers, formulas and key, and each answer choice keeps its meaning. Your original wording is kept, and you can switch back."
+          : "The assistant also suggested simpler wording for this item."}
         {record.change_note ? ` What changed: ${record.change_note}` : ""}
       </p>
-      {!usingAccessible && checked ? (
-        <p className="mt-1 text-xs leading-5 text-muted">The automatic check below answered the simpler wording of this item.</p>
+      {!usingAccessible && record.default_version === "as_written" && record.teacher_note ? (
+        <p className="mt-1 text-xs leading-5 text-muted">{record.teacher_note}</p>
       ) : null}
       {edited ? (
         <p className="mt-1 text-xs leading-5 text-muted">You have edited the wording of this item, and your edits are what will be added.</p>
@@ -1097,6 +1096,7 @@ function WordingChoice({
           {compare ? "Hide the comparison" : "Compare both versions"}
         </Button>
       </div>
+      <p className="mt-2 text-xs leading-5 text-muted">After you switch the wording, confirm the key of this item again.</p>
       {compare ? (
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <WordingPreview title="Your original wording" wording={record.original} />

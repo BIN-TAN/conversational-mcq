@@ -24,6 +24,7 @@ import {
   reviewAccessibleWording,
   tableLines,
   wordingProvenance,
+  wordingVersionAfterChoice,
   type AccessibleWordingProposal,
   type ItemWording
 } from "../src/lib/item-content/accessible-wording";
@@ -40,6 +41,8 @@ import {
 } from "../src/lib/services/content/item-design-contract";
 import {
   accessibleWordingOf,
+  assistantCheckHeadline,
+  assistantCheckOf,
   chooseWording,
   wordingEditedSinceChoice,
   wordingVersionOf
@@ -76,8 +79,8 @@ const simpler: AccessibleWordingProposal = {
   options: [
     { label: "A", text: "The probability is below 0.5 because θ is larger than b." },
     { label: "B", text: "The probability is above 0.5 because θ is larger than b." },
-    { label: "C", text: "The probability is 0.5 because the logit is 1." },
-    { label: "D", text: "You need the ICC to find the probability." }
+    { label: "C", text: "The probability equals 0.5 because the logit is 1." },
+    { label: "D", text: "The probability cannot be found without the ICC." }
   ],
   key_terms: ["Rasch", "θ", "b", "logit", "ICC", "probability"],
   change_note: "Shorter sentences and more common words."
@@ -153,6 +156,36 @@ check("Each failed check falls back to the original wording with a plain note fo
       /made the correct answer the longest option/],
     ["only the key hedged", withOption("B", "The probability is usually above 0.5 as θ > b."), /hedging word such as "usually"/]
   ];
+  // Changes that reverse what an item asks or move an idea to another letter.
+  const meaning: Array<[string, ItemWording, ItemWording, string[], RegExp]> = [
+    ["not dropped", { ...original, stem: "Which statement is not true when θ = 1.5 and b = 0.5?" },
+      { ...original, stem: "Which statement is true when θ = 1.5 and b = 0.5?" }, [], /the word "not"/],
+    ["contraction kept", { ...original, stem: "Which statement does not hold when θ = 1.5 and b = 0.5?" },
+      { ...original, stem: "Which statement doesn't hold when θ = 1.5 and b = 0.5?" }, [], /^$/],
+    ["except dropped", { ...original, stem: "All describe θ = 1.5 and b = 0.5 except which?" },
+      { ...original, stem: "All describe θ = 1.5 and b = 0.5. Which one?" }, [], /the word "except"/],
+    ["at least to at most", { ...original, stem: "With at least 2 items, θ = 1.5 and b = 0.5. What follows?" },
+      { ...original, stem: "With at most 2 items, θ = 1.5 and b = 0.5. What follows?" }, [], /the word "least"/],
+    ["increases to decreases", { ...original, stem: "As θ increases from 1.5 with b = 0.5, what happens?" },
+      { ...original, stem: "As θ decreases from 1.5 with b = 0.5, what happens?" }, [], /the word "increase"/],
+    ["numbers swapped", original, { ...original, stem: original.stem.replace("θ = 1.5", "θ = X").replace("b = 0.5", "b = 1.5").replace("θ = X", "θ = 0.5") }, [], /order of the numbers/],
+    ["sign dropped", { ...original, stem: "A student has θ = -1.5 and the item has b = 0.5. What is true?" },
+      { ...original, stem: "A student has θ = 1.5 and the item has b = 0.5. What is true?" }, [], /it changed a number/],
+    ["percent dropped", { ...original, stem: "With 95% of students, θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "With 95 of students, θ = 1.5 and b = 0.5. What is true?" }, [], /it changed a number/],
+    ["option ideas swapped", original, { ...original, options: [
+      { label: "A", text: original.options[1]!.text }, { label: "B", text: original.options[0]!.text }, ...original.options.slice(2)] }, [],
+      /matched a different option's idea/],
+    ["listed term in other case", { ...original, stem: "Under the Standard Error of Measurement, θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "Under the error, θ = 1.5 and b = 0.5. What is true?" }, ["standard error of measurement"], /term "standard error of measurement"/],
+    ["listed term in plural", { ...original, stem: "The item parameters give θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "These values give θ = 1.5 and b = 0.5. What is true?" }, ["item parameter"], /term "item parameter"/]
+  ];
+  for (const [name, before, after, terms, reason] of meaning) {
+    const problems = accessibleWordingProblems({ original: before, accessible: after, key_terms: terms, key: "B" });
+    if (reason.source === "^$") assert.deepEqual(problems, [], name);
+    else assert(problems.some((problem) => reason.test(problem)), `${name}: ${problems.join("; ")}`);
+  }
   for (const [name, proposal, reason] of cases) {
     const record = review(proposal);
     assert.equal(record.status, "fallback", name);
@@ -173,7 +206,9 @@ check("Formulas and tables must stay exactly as written", () => {
     { label: "A", text: "Item 1" }, { label: "B", text: "Item 2" }] };
   const run = (wording: ItemWording, stem: string) => reviewAccessibleWording({ original: wording,
     proposal: { changed: true, stem, options: wording.options, key_terms: [], change_note: null }, key: "A", requested: true, prompt_version: "x" });
-  assert.equal(run(formula, "Given $P(\\theta) = \\frac{1}{1 + e^{-(\\theta - b)}}$, what happens if θ goes up?").status, "accessible");
+  assert.equal(run(formula, "Given $P(\\theta) = \\frac{1}{1 + e^{-(\\theta - b)}}$, what happens to P when θ rises?").status, "accessible");
+  assert.match(run(formula, "Given $P(\\theta) = \\frac{1}{1 + e^{-(\\theta - b)}}$, what happens if θ goes up?").teacher_note ?? "", /the word "increase"/,
+    "Losing \"rises\" is treated as a possible change of meaning");
   assert.match(run(formula, "Given $P(\\theta) = 1/(1 + e^{-(\\theta - b)})$, what happens if θ goes up?").teacher_note ?? "", /changed a formula/);
   assert.equal(run(table, "Which item is the hardest?\n| Item | p |\n| --- | --- |\n| 1 | 0.4 |").status, "accessible");
   assert.match(run(table, "Which item is the hardest?\n| Item | p value |\n| --- | --- |\n| 1 | 0.4 |").teacher_note ?? "", /changed a table/);
@@ -303,6 +338,21 @@ check("The review page switches the wording of one item at a time", () => {
   assert.equal(chooseWording(earlier, "as_written"), earlier);
   const imported = candidate("c6", record, { status: "imported" });
   assert.equal(chooseWording(imported, "as_written"), imported, "An added item is not changed");
+
+  // Both wordings were checked: the result shown is the one for the wording the item now uses.
+  const checkOf = (wording: ItemWording, answer: string) => ({ status: "checked", independent_answer: answer, agrees_with_key: answer === "B",
+    revised: false, remaining_problems: [], checked_stem: wording.stem, checked_options: wording.options });
+  const simplerWording = { stem: simpler.stem!, options: simpler.options };
+  const checked = candidate("c7", record, { suggestion: { accessible_wording: record,
+    assistant_check: checkOf(simplerWording, "B"), assistant_check_other_wording: checkOf(original, "A") } });
+  assert.equal(assistantCheckOf(checked)?.agrees_with_key, true);
+  assert.equal(assistantCheckOf(checked)?.current, true);
+  const checkedOriginal = chooseWording(checked, "as_written");
+  assert.equal(assistantCheckOf(checkedOriginal)?.independent_answer, "A", "Switching shows the check of the original wording");
+  assert.equal(assistantCheckOf(checkedOriginal)?.current, true);
+  assert.equal(assistantCheckOf({ ...checkedOriginal, stem: "My own edit." })?.current, false, "An edit makes both results earlier ones");
+  assert.match(assistantCheckHeadline(assistantCheckOf({ ...checkedOriginal, stem: "My own edit." })!, "B"),
+    /^The question or options have changed since the automatic check/);
 });
 
 check("The teacher's choice is saved per item and recorded when the item is added", () => {
@@ -311,7 +361,14 @@ check("The teacher's choice is saved per item and recorded when the item is adde
   assert(update.includes("wording_version: WordingVersionSchema.optional()"));
   assert(service.includes("wording_version: WordingVersionSchema.nullable().optional()"), "Kept in the stored candidate");
   assert(service.includes("wording_version: wordingVersionAfterUpdate(candidate, update.wording_version)"));
-  assert(service.includes('return requested === "accessible" && !record.accessible ? "as_written" : requested;'));
+  assert(service.includes("return wordingVersionAfterChoice(accessibleWordingRecordOf(candidate), candidate.wording_version, requested);"));
+  const passedRecord = review(simpler);
+  const failedRecord = review({ ...simpler, options: simpler.options.slice(0, 3) });
+  assert.equal(wordingVersionAfterChoice(failedRecord, "as_written", "accessible"), "as_written", "A client cannot choose a proposal that failed a check");
+  assert.equal(wordingVersionAfterChoice(passedRecord, "as_written", "accessible"), "accessible");
+  assert.equal(wordingVersionAfterChoice(passedRecord, "accessible", "as_written"), "as_written");
+  assert.equal(wordingVersionAfterChoice(passedRecord, "accessible", undefined), "accessible", "No request keeps the choice");
+  assert.equal(wordingVersionAfterChoice(null, null, "accessible"), null, "Items without a record ignore the request");
   const provenance = between(service, "function importProvenanceRules", "export async function commitMcqItemImport");
   assert(provenance.includes("wording: wordingProvenance({") && provenance.includes("wording_version: candidate.wording_version"));
   assert(provenance.includes("final: { stem: candidate.stem, options: candidate.options }"));
@@ -339,7 +396,8 @@ check("The teacher setting is on by default and reaches the import call", () => 
   const builder = source("src/components/teacher-content/item-design-client.tsx");
   assert(builder.includes("const [accessibleWording, setAccessibleWording] = useState(true);"));
   assert(builder.includes('form.append("accessible_wording", accessibleWording ? "true" : "false");'));
-  assert(builder.includes("Suggest simpler wording at a middle to high school reading level (grades 8 to 10)."));
+  assert(builder.includes("Suggest simpler wording at a middle to high school reading level. "));
+  assert(!/grades? \d/i.test(builder.slice(builder.indexOf("Suggest simpler wording"), builder.indexOf("Suggest simpler wording") + 600)), "No grade number is shown");
   assert(source("src/components/teacher-content/topic-preparation.ts").includes("accessible_wording: input.accessible_wording !== false"));
   const text = source("src/lib/services/content/item-design.ts");
   const service = between(text, "export async function importExistingItemsFromMaterials", "\n}\n");
@@ -355,14 +413,17 @@ check("The prompts set a grade 8 to 10 reading level and keep key terms", () => 
     "Copy the stem and the options word for word. Do not correct, shorten, reorder or improve them.",
     "ACCESSIBLE WORDING", "grade 8 to 10 (middle to high school) reading level", "no idioms",
     "Keep every key term and symbol of the course exactly as written", "list in key_terms",
-    "Keep every number, every formula between $ signs and every Markdown table line exactly as written",
+    "Keep every number, in the same order, every formula between $ signs and every Markdown table line exactly as written",
+    "Keep the words that decide what is asked or claimed exactly as they are", "each option keeps its own idea under its own letter",
     "the specific incorrect idea that each wrong option rests on", "Never add hints or cues",
     "must not become the longest option", "When the item is already easy to read, set changed to false",
-    "When required_output.accessible_wording is false", "keep its content and its key terms, and simplify its wording"
+    "When required_output.accessible_wording is false", "keep its content and its key terms. When required_output.accessible_wording is true, simplify its wording",
+    "when it is false, keep as much of its wording as reads naturally to a student"
   ]) assert(prompt.includes(part), part);
   const generation = between(text, "export const ITEM_GENERATION_INSTRUCTIONS", "const ITEM_GENERATION_RECOVERY_INSTRUCTIONS");
   assert(generation.includes("at a grade 8 to 10 (middle to high school) reading level"));
-  assert(generation.includes("Keep the course's key terms and symbols exactly as the course writes them"));
+  assert(generation.includes("Keep the course's key terms and symbols exactly as the course materials write them"));
+  assert(!/Rasch|3PL|ICC|logit/.test(generation), "The generation prompt does not name one course's terms");
   assert(generation.includes("Keep the reading load low"));
   const revision = between(text, "const ITEM_REVISION_INSTRUCTIONS", "export const ITEM_REVISION_PROMPT_HASH");
   assert(revision.includes("at the same grade 8 to 10 reading level and with the same key terms"));

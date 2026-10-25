@@ -44,6 +44,7 @@ class ImportProvider implements LlmProvider {
   readRequests: Array<StructuredAgentRequest<unknown, unknown>> = [];
   checkRequests: Array<StructuredAgentRequest<unknown, unknown>> = [];
   belongsToTopic = true;
+  disagreeWithSimpler = false;
 
   async executeStructured<TInput, TOutput>(request: StructuredAgentRequest<TInput, TOutput>): Promise<StructuredAgentResult<TOutput>> {
     const done = (output: unknown): StructuredAgentResult<TOutput> => ({
@@ -53,10 +54,14 @@ class ImportProvider implements LlmProvider {
     });
     if (request.metadata?.purpose === "teacher_existing_item_check") {
       this.checkRequests.push(request as StructuredAgentRequest<unknown, unknown>);
-      const input = request.input as { items: Array<{ item_label: string }> };
+      const input = request.input as { items: Array<{ item_label: string; stem: string }> };
       return done({
         schema_version: "evidence-centered-mcq-item-check-output-v1",
-        items: input.items.map((item) => ({ item_label: item.item_label, independent_answer: "B", defensible_options: ["B"], problems: [] }))
+        items: input.items.map((item) => {
+          // The simpler wording of D1 is "What does local independence mean?".
+          const answer = this.disagreeWithSimpler && item.stem.includes("What does") ? "A" : "B";
+          return { item_label: item.item_label, independent_answer: answer, defensible_options: [answer], problems: [] };
+        })
       });
     }
     assert(request.metadata?.purpose === "teacher_existing_item_import", `Unexpected call ${request.metadata?.purpose}`);
@@ -167,6 +172,11 @@ async function main() {
     assert((firstWording.original as { stem: string }).stem === "D1. Which statement describes local independence?", "The original wording is kept.");
     assert(second.stem === "D2. Which statement describes local independence?" && second.wording_version === "as_written", "Unchanged wording stays as written.");
     assert(JSON.stringify(provider.checkRequests[0]?.input).includes("D1. What does local independence mean?"), "The check answers the wording the item starts with.");
+    assert(JSON.stringify(provider.checkRequests[0]?.input).includes("D1. Which statement describes local independence?"),
+      "An item with simpler wording is also checked in the instructor's wording.");
+    const otherCheck = (first.suggestion as Record<string, unknown>).assistant_check_other_wording as Record<string, unknown> | undefined;
+    assert(otherCheck?.checked_stem === "D1. Which statement describes local independence?" && otherCheck.agrees_with_key === true,
+      "The check of the other wording is kept for when the teacher switches.");
     assert(first.imported_key === "B" && first.llm_suggested_key === null, "A stated key is kept as the imported key.");
     assert(first.target_reasoning_note?.startsWith("Once ability is held fixed"), "A stated target reasoning fills the field.");
     assert(first.option_rationales.some((entry) => entry.label === "A" && entry.rationale === "Drops the conditioning on theta."), "A stated note fills the field.");
@@ -220,6 +230,23 @@ async function main() {
     const offBatch = (await getMcqItemImportBatch({ teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId, batch_public_id: asWritten.batch_public_id })).batch;
     assert(offBatch.candidates[0]?.stem === "D1. Which statement describes local independence?" && offBatch.candidates[0]?.wording_version === "as_written",
       "With the setting off, the wording stays as written.");
+
+    // When the check finds a problem in the simpler wording, the item starts in the instructor's
+    // wording, and the simpler wording stays available.
+    provider.disagreeWithSimpler = true;
+    const disagreed = await withItemGenerationProviderForTest({ provider, provider_label: "mock" }, () =>
+      importExistingItemsFromMaterials({ teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId!,
+        files: [...files, { file_name: "notes.txt", media_type: "text/plain", bytes: Buffer.from("Course notes.", "utf8") }] }));
+    provider.disagreeWithSimpler = false;
+    const disagreedFirst = (await getMcqItemImportBatch({ teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId,
+      batch_public_id: disagreed.batch_public_id })).batch.candidates[0];
+    const disagreedSuggestion = (disagreedFirst?.suggestion ?? {}) as Record<string, Record<string, unknown>>;
+    assert(disagreedFirst?.stem === "D1. Which statement describes local independence?" && disagreedFirst.wording_version === "as_written",
+      "A simpler wording the check disagreed with is not the starting wording.");
+    assert(disagreedSuggestion.accessible_wording?.accessible && disagreedSuggestion.accessible_wording?.default_version === "as_written",
+      "The simpler wording stays available to choose.");
+    assert(disagreedSuggestion.assistant_check?.agrees_with_key === true && disagreedSuggestion.assistant_check_other_wording?.agrees_with_key === false,
+      "Each wording keeps its own check result.");
 
     provider.belongsToTopic = false;
     let rejected: unknown = null;

@@ -241,8 +241,16 @@ export function assistantCheckOf(candidate: McqImportCandidate): AssistantCheckV
   const suggestion = candidate.suggestion && typeof candidate.suggestion === "object" && !Array.isArray(candidate.suggestion)
     ? (candidate.suggestion as Record<string, unknown>)
     : {};
-  const value = suggestion.assistant_check;
-  if (!value || typeof value !== "object") return null;
+  const primary = suggestion.assistant_check;
+  if (!primary || typeof primary !== "object") return null;
+  // An item read from course materials with a simpler version was checked in both wordings;
+  // the check of the wording the item now shows is the one that applies.
+  const other = suggestion.assistant_check_other_wording;
+  const value = other && typeof other === "object" && !Array.isArray(other) &&
+    !checkedWordingIsCurrent(primary as Record<string, unknown>, candidate) &&
+    checkedWordingIsCurrent(other as Record<string, unknown>, candidate)
+    ? other
+    : primary;
   const check = value as Record<string, unknown>;
   if (check.status !== "checked" && check.status !== "unavailable") return null;
   return {
@@ -273,7 +281,7 @@ export function assistantCheckHeadline(check: AssistantCheckView, proposedKey: s
       : "The automatic check found something to look at:";
   return check.current
     ? result
-    : `You have edited this item since the automatic check, so this result applies to the earlier wording. ${result}`;
+    : `The question or options have changed since the automatic check, so this result applies to the earlier wording. ${result}`;
 }
 
 /**

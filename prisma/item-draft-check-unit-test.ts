@@ -200,7 +200,7 @@ async function main() {
       "The automatic check could not run for this item, so review it as usual.");
     const edited = assistantCheckOf(candidate({ stem: "Which value is on the latent ability scale?" }))!;
     assert.equal(edited.current, false);
-    assert.match(assistantCheckHeadline(edited, "A"), /^You have edited this item since the automatic check/);
+    assert.match(assistantCheckHeadline(edited, "A"), /^The question or options have changed since the automatic check/);
     assert.equal(assistantCheckOf(candidate({ check: null })), null);
   });
 

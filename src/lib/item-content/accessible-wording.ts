@@ -3,8 +3,9 @@
  * course materials, the assistant copies each item word for word and may also propose the same
  * item in simpler wording (a grade 8 to 10 reading level). This pure module decides, without the
  * model, whether that proposal may be offered: the proposal is used only when it keeps the option
- * count and letters, every key term and symbol, every formula, table line and number, and the key,
- * and when it does not make the key stand out. Otherwise the item keeps the instructor's wording
+ * count and letters, every key term and symbol, every formula, table line and number (in order),
+ * the words that decide what is asked (not, except, at least, more, increases ...), each option's
+ * idea under its own letter, and the key, and when it does not make the key stand out. Otherwise the item keeps the instructor's wording
  * and the teacher is told why in a plain sentence.
  *
  * The record built here travels with the review draft (McqImportCandidate.suggestion) so that the
@@ -101,9 +102,101 @@ function prose(text: string) {
     .join("\n");
 }
 
-/** The numbers in the prose of a text (formulas and tables are compared on their own). */
+/**
+ * The numbers in the prose of a text, in order, with a leading sign and a trailing percent sign
+ * (formulas and tables are compared on their own). Order matters: "a = 2, b = 3" and
+ * "a = 3, b = 2" differ.
+ */
 export function numbersIn(text: string): string[] {
-  return prose(text).match(/\d+(?:[.,]\d+)*/g) ?? [];
+  return (prose(text).match(/[-−+]?\d+(?:[.,]\d+)*%?/g) ?? [])
+    .map((value) => value.replace("\u2212", "-"));
+}
+
+/**
+ * Words that decide what a question asks or what an option claims. In each field, a simpler
+ * version must use every "exact" group (negation and scope: not, except, only, all ...) exactly
+ * as often as the original, and may not use a "kept" group (one side of an opposite pair such as
+ * least/most, increase/decrease or true/false) less often than the original. So dropping "not" or
+ * "except", or turning "at least" into "at most" or "increases" into "decreases", is caught, while
+ * "Which statement is accurate?" may become "Which statement is true?". Contractions such as
+ * "doesn't" count as "not".
+ */
+const MEANING_WORD_GROUPS: Array<{ name: string; rule: "exact" | "kept"; pattern: string }> = [
+  { name: "not", rule: "exact", pattern: String.raw`not|cannot|\p{L}+n['’]t` },
+  { name: "no", rule: "exact", pattern: "no" },
+  { name: "never", rule: "exact", pattern: "never" },
+  { name: "none", rule: "exact", pattern: "none" },
+  { name: "neither", rule: "exact", pattern: "neither|nor" },
+  { name: "except", rule: "exact", pattern: "except" },
+  { name: "without", rule: "exact", pattern: "without" },
+  { name: "only", rule: "exact", pattern: "only" },
+  { name: "all", rule: "exact", pattern: "all|every|always" },
+  { name: "unequal", rule: "exact", pattern: "unequal|unlike|dissimilar" },
+  { name: "least", rule: "kept", pattern: "least" },
+  { name: "most", rule: "kept", pattern: "most" },
+  { name: "more", rule: "kept", pattern: "more" },
+  { name: "less", rule: "kept", pattern: "less|fewer" },
+  { name: "higher", rule: "kept", pattern: "higher|highest|greater|greatest|larger|largest|above|exceeds?|exceeded|exceeding" },
+  { name: "lower", rule: "kept", pattern: "lower|lowest|smaller|smallest|below" },
+  { name: "increase", rule: "kept", pattern: "increase|increases|increased|increasing|rise|rises|rising|rose|risen|raise|raises|raised|raising" },
+  { name: "decrease", rule: "kept", pattern: "decrease|decreases|decreased|decreasing|reduce|reduces|reduced|reducing|fall|falls|falling|fell|fallen|drop|drops|dropped|dropping" },
+  { name: "same", rule: "kept", pattern: "same|equal|equals|equally|identical" },
+  { name: "different", rule: "kept", pattern: "different|differs?|differed" },
+  { name: "true", rule: "kept", pattern: "true|correct" },
+  { name: "false", rule: "kept", pattern: "false|incorrect|wrong" },
+  { name: "best", rule: "kept", pattern: "best" },
+  { name: "worst", rule: "kept", pattern: "worst" },
+  { name: "before", rule: "kept", pattern: "before" },
+  { name: "after", rule: "kept", pattern: "after" }
+];
+
+function meaningWordCounts(text: string): Map<string, number> {
+  const words = prose(text);
+  const counts = new Map<string, number>();
+  for (const group of MEANING_WORD_GROUPS) {
+    const pattern = new RegExp(`(?<![\\p{L}\\p{N}])(?:${group.pattern})(?![\\p{L}\\p{N}])`, "giu");
+    counts.set(group.name, (words.match(pattern) ?? []).length);
+  }
+  return counts;
+}
+
+/** The meaning-word groups a simpler version changed in a way that can change the meaning. */
+export function changedMeaningWords(original: string, accessible: string): string[] {
+  const before = meaningWordCounts(original);
+  const after = meaningWordCounts(accessible);
+  return MEANING_WORD_GROUPS.filter((group) => {
+    const was = before.get(group.name) ?? 0;
+    const now = after.get(group.name) ?? 0;
+    return group.rule === "exact" ? was !== now : now < was;
+  }).map((group) => group.name);
+}
+
+const COMMON_WORDS = new Set(["a", "an", "the", "of", "to", "in", "on", "for", "and", "or", "is", "are", "was", "were", "be",
+  "it", "its", "this", "that", "these", "those", "with", "as", "by", "at", "from", "which", "what", "does", "do", "has", "have"]);
+
+function contentWords(text: string): Set<string> {
+  return new Set((normalizeSpace(text).toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter((word) => !COMMON_WORDS.has(word)));
+}
+
+function overlap(left: Set<string>, right: Set<string>) {
+  if (left.size === 0 && right.size === 0) return 1;
+  let shared = 0;
+  for (const word of left) if (right.has(word)) shared += 1;
+  return shared / (left.size + right.size - shared);
+}
+
+/**
+ * Whether each rewritten option still corresponds to its own original option. A version in which
+ * option B's new text shares more words with the original option A than with the original B has
+ * moved an idea to another letter, so the key could point at a different answer.
+ */
+export function optionsKeptTheirPlace(original: WordingOption[], accessible: WordingOption[]): boolean {
+  const before = original.map((option) => contentWords(option.text));
+  return accessible.every((option, index) => {
+    const words = contentWords(option.text);
+    const own = overlap(words, before[index]!);
+    return before.every((other, otherIndex) => otherIndex === index || overlap(words, other) <= own);
+  });
 }
 
 /**
@@ -120,6 +213,22 @@ export function containsTerm(text: string, term: string): boolean {
     ? `[${first.toLowerCase()}${first.toUpperCase()}]`
     : escapeRegExp(first);
   const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${head}${escapeRegExp(wanted.slice(1))}(?![\\p{L}\\p{N}_])`, "u");
+  return pattern.test(normalizeSpace(text));
+}
+
+/**
+ * Whether a term the assistant listed appears in a text. Like containsTerm, but a term of more
+ * than one character that starts with a Latin letter matches in any case and also in its plural
+ * ("Standard Error of Measurement" matches "standard error of measurement", and "item parameter"
+ * matches "item parameters"), so that a term is not left unchecked because the list wrote it
+ * differently from the item. Symbols and one-character terms must still match exactly.
+ */
+export function containsListedTerm(text: string, term: string): boolean {
+  const wanted = normalizeSpace(term);
+  if (!wanted) return true;
+  if (wanted.length < 2 || !/^[A-Za-z]/.test(wanted)) return containsTerm(text, term);
+  const plural = /\p{L}$/u.test(wanted) ? "(?:s|es)?" : "";
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(wanted)}${plural}(?![\\p{L}\\p{N}_])`, "iu");
   return pattern.test(normalizeSpace(text));
 }
 
@@ -197,24 +306,36 @@ export function accessibleWordingProblems(input: {
   ];
   const terms = [...new Set([...input.key_terms.map(normalizeSpace).filter(Boolean)])];
   const missing = new Set<string>();
+  const meaningWords = new Set<string>();
   let formulaChanged = false;
   let tableChanged = false;
   let numberChanged = false;
   for (const field of fields) {
-    for (const term of [...terms, ...detectedTerms(field.original)]) {
+    for (const term of terms) {
+      if (containsListedTerm(field.original, term) && !containsListedTerm(field.accessible, term)) missing.add(term);
+    }
+    for (const term of detectedTerms(field.original)) {
       if (containsTerm(field.original, term) && !containsTerm(field.accessible, term)) missing.add(term);
     }
+    for (const word of changedMeaningWords(field.original, field.accessible)) meaningWords.add(word);
     if (!sameMultiset(formulaSegments(field.original), formulaSegments(field.accessible))) formulaChanged = true;
     if (!sameSequence(tableLines(field.original), tableLines(field.accessible))) tableChanged = true;
-    if (!sameMultiset(numbersIn(field.original), numbersIn(field.accessible))) numberChanged = true;
+    if (!sameSequence(numbersIn(field.original), numbersIn(field.accessible))) numberChanged = true;
   }
   if (missing.size > 0) {
     const names = [...missing].map((term) => `"${term}"`);
     problems.push(`it did not keep the ${missing.size === 1 ? "term" : "terms"} ${list(names)} exactly as written`);
   }
+  if (meaningWords.size > 0) {
+    const names = [...meaningWords].map((word) => `"${word}"`);
+    problems.push(`it added or removed ${meaningWords.size === 1 ? "the word" : "the words"} ${list(names)} or a word like ${meaningWords.size === 1 ? "it" : "them"}, which can change what the question asks`);
+  }
   if (formulaChanged) problems.push("it changed a formula");
   if (tableChanged) problems.push("it changed a table");
-  if (numberChanged) problems.push("it changed a number");
+  if (numberChanged) problems.push("it changed a number or the order of the numbers");
+  if (!optionsKeptTheirPlace(original.options, accessible.options)) {
+    problems.push("an option's new wording matched a different option's idea, so the key could point to a different answer");
+  }
 
   if (input.key && original.options.length >= 2) {
     if (longestLabel(accessible.options) === input.key && longestLabel(original.options) !== input.key) {
@@ -284,6 +405,20 @@ export function reviewAccessibleWording(input: {
     accessible,
     change_note: proposal.change_note
   };
+}
+
+/**
+ * The wording version stored after a teacher's update of one item. A request applies only to an
+ * item that has a wording record, and "accessible" only when a checked simpler version exists, so
+ * a client cannot choose a proposal that failed a check.
+ */
+export function wordingVersionAfterChoice(
+  record: AccessibleWordingRecord | null,
+  current: WordingVersion | null | undefined,
+  requested: WordingVersion | undefined
+): WordingVersion | null | undefined {
+  if (requested === undefined || !record) return current;
+  return requested === "accessible" && !record.accessible ? "as_written" : requested;
 }
 
 /** The wording a draft uses for a version; the original when no simpler version is available. */

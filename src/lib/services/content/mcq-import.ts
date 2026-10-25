@@ -11,6 +11,7 @@ import { docxTableLinearText, joinStemLines } from "@/lib/item-content/docx-tabl
 import {
   readAccessibleWordingRecord,
   wordingProvenance,
+  wordingVersionAfterChoice,
   type AccessibleWordingRecord,
   type WordingVersion
 } from "@/lib/item-content/accessible-wording";
@@ -1240,10 +1241,13 @@ async function applyDuplicateWarnings(
 
   const existing = await existingItemSignatures(input.teacher_user_db_id, input.assessment_db_id, db);
   for (const candidate of candidates) {
-    const signature = candidateSignature(candidate);
-    const stemHash = stemSignature(candidate.stem);
+    // An item read from course materials is compared in both of its wordings, so that items
+    // already in the bank in the instructor's wording are found when the import starts simpler.
+    const wordings = [candidate, ...alternateWordingsOf(candidate)];
+    const signatures = new Set(wordings.map((wording) => candidateSignature(wording)));
+    const stemHashes = new Set(wordings.map((wording) => stemSignature(wording.stem)));
     const matches = existing.filter(
-      (entry) => entry.signature === signature || entry.stem_signature === stemHash
+      (entry) => signatures.has(entry.signature) || stemHashes.has(entry.stem_signature)
     );
 
     for (const match of matches.slice(0, 3)) {
@@ -1702,6 +1706,14 @@ export const EXISTING_ITEMS_SOURCE_TYPE = "existing_items_from_materials";
  * the fields; what the assistant proposed waits as a suggestion for blank fields. The instructor
  * confirms every key before an item is added.
  */
+type ExistingItemCheck = {
+  status: "checked" | "unavailable";
+  independent_answer: string | null;
+  agrees_with_key: boolean;
+  revised: boolean;
+  remaining_problems: string[];
+};
+
 export async function createExistingItemsReviewBatch(input: {
   teacher_user_db_id: string;
   assessment_public_id: string;
@@ -1728,12 +1740,11 @@ export async function createExistingItemsReviewBatch(input: {
     suggested: string[];
     note_for_teacher: string | null;
   }>;
-  item_checks: Array<{
-    status: "checked" | "unavailable";
-    independent_answer: string | null;
-    agrees_with_key: boolean;
-    revised: boolean;
-    remaining_problems: string[];
+  item_checks: Array<ExistingItemCheck | null>;
+  /** For an item with a simpler version: the check of the wording it does not start with. */
+  other_wording_checks?: Array<{
+    check: ExistingItemCheck;
+    wording: { stem: string; options: Array<{ label: string; text: string }> };
   } | null>;
   generation_metadata: Record<string, unknown>;
 }) {
@@ -1746,6 +1757,7 @@ export async function createExistingItemsReviewBatch(input: {
 
   const candidates = input.drafts.map((draft, index) => {
     const check = input.item_checks[index] ?? null;
+    const otherCheck = input.other_wording_checks?.[index] ?? null;
     const checkFlags = !check
       ? []
       : check.status === "unavailable"
@@ -1799,6 +1811,14 @@ export async function createExistingItemsReviewBatch(input: {
             checked_options: candidate.options.map(({ label, text }) => ({ label, text }))
           }
         } : {}),
+        ...(otherCheck ? {
+          // The same check of the item's other wording, shown when the teacher switches to it.
+          assistant_check_other_wording: {
+            ...otherCheck.check,
+            checked_stem: otherCheck.wording.stem,
+            checked_options: otherCheck.wording.options.map(({ label, text }) => ({ label, text }))
+          }
+        } : {}),
         reviewer_warning: "Teacher review required before import."
       }
     };
@@ -1810,7 +1830,7 @@ export async function createExistingItemsReviewBatch(input: {
   });
   const summary = validationSummary(candidates, [
     input.drafts.some((draft) => draft.accessible_wording.status === "accessible")
-      ? "Items read from course materials keep your original wording. Where the assistant suggested simpler wording, the item starts with it, and you can switch each item back to your wording. Confirm every key and review the suggested notes before adding them."
+      ? "Your original wording of every item is kept. Where the assistant's simpler wording passed every check, you can switch the item between the two wordings; each item shows which one it uses. Confirm every key and review the suggested notes before adding them."
       : "Items read from course materials keep their wording; confirm every key and review the suggested notes before adding them."
   ]);
   const batch = await prisma.mcqItemImportBatch.create({
@@ -2204,6 +2224,12 @@ function accessibleWordingRecordOf(candidate: McqImportCandidate): AccessibleWor
   return readAccessibleWordingRecord(suggestionRecord(candidate).accessible_wording);
 }
 
+/** The instructor's wording and the checked simpler wording of an item, when they exist. */
+function alternateWordingsOf(candidate: McqImportCandidate) {
+  const record = accessibleWordingRecordOf(candidate);
+  return record ? [record.original, ...(record.accessible ? [record.accessible] : [])] : [];
+}
+
 /**
  * The teacher's wording choice for one item. It applies only to an item that has a wording
  * record, and "accessible" only when a checked simpler version exists; otherwise it is ignored.
@@ -2213,10 +2239,7 @@ function wordingVersionAfterUpdate(
   candidate: McqImportCandidate,
   requested: WordingVersion | undefined
 ): WordingVersion | null | undefined {
-  if (requested === undefined) return candidate.wording_version;
-  const record = accessibleWordingRecordOf(candidate);
-  if (!record) return candidate.wording_version;
-  return requested === "accessible" && !record.accessible ? "as_written" : requested;
+  return wordingVersionAfterChoice(accessibleWordingRecordOf(candidate), candidate.wording_version, requested);
 }
 
 function suggestionRecord(candidate: McqImportCandidate): Record<string, unknown> {
