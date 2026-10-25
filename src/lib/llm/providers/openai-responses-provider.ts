@@ -1,4 +1,4 @@
-import { zodTextFormat } from "openai/helpers/zod";
+import { structuredTextFormat } from "@/lib/llm/structured-output-format";
 import type { ZodType } from "zod";
 import {
   createOpenAIClient,
@@ -255,7 +255,7 @@ export function compileOpenAIResponsesRequestBody<TInput, TOutput>(
     ? `${request.instructions}\n\n${projection.instructions}` : request.instructions;
   const inputText = projection?.text ?? JSON.stringify(request.input);
   const text = {
-    format: zodTextFormat(request.output_schema, request.schema_name),
+    format: structuredTextFormat(request.output_schema, request.schema_name),
     ...(request.model_config.verbosity
       ? { verbosity: request.model_config.verbosity }
       : {})

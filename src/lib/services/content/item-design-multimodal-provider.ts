@@ -1,4 +1,4 @@
-import { zodTextFormat } from "openai/helpers/zod";
+import { structuredTextFormat } from "@/lib/llm/structured-output-format";
 import type {
   EasyInputMessage,
   ResponseInputContent
@@ -62,7 +62,7 @@ export function compileItemDesignMultimodalRequestBody<TInput, TOutput>(input: {
     instructions: request.instructions,
     input: [{ role: "user", content } satisfies EasyInputMessage],
     text: {
-      format: zodTextFormat(request.output_schema, request.schema_name),
+      format: structuredTextFormat(request.output_schema, request.schema_name),
       ...(request.model_config.verbosity
         ? { verbosity: request.model_config.verbosity }
         : {})

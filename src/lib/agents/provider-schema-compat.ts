@@ -1,4 +1,4 @@
-import { zodTextFormat } from "openai/helpers/zod";
+import { structuredTextFormat } from "@/lib/llm/structured-output-format";
 import { z } from "zod";
 import { agentOutputSchemas } from "@/lib/agents/contracts";
 import type { AgentName as AgentNameType } from "@/lib/agents/names";
@@ -185,7 +185,7 @@ function walkJsonSchema(
 }
 
 function compileSchema(schema: z.ZodType<unknown>, schemaName: string) {
-  const format = zodTextFormat(schema, schemaName);
+  const format = structuredTextFormat(schema, schemaName);
   return format.schema;
 }
 
