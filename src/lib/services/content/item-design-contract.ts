@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  reviewAccessibleWording,
+  wordingFor,
+  type AccessibleWordingRecord,
+  type WordingVersion
+} from "../../item-content/accessible-wording";
 
 export const ITEM_DESIGN_BLUEPRINT_VERSION = "evidence-centered-item-design-v1" as const;
 export const ITEM_DESIGN_ASSISTANT_PROMPT_VERSION = "evidence-centered-item-design-assistant-v9" as const;
@@ -9,7 +15,8 @@ export const ITEM_DESIGN_SOURCE_MATERIAL_VERSION = "evidence-centered-item-desig
 // v7 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
 // v7.1 (release CMCQ-20261025-15a): misconceptions are probed where incorrect options really rest
 // on them, and unprobed ones are reported to the teacher; a recovery attempt sees the problems.
-export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v7.1" as const;
+// v8: stems, options and student-facing notes at a grade 8 to 10 reading level, key terms kept.
+export const ITEM_GENERATION_PROMPT_VERSION = "evidence-centered-mcq-generation-v8" as const;
 export const ITEM_GENERATION_SCHEMA_VERSION = "evidence-centered-mcq-generation-output-v1" as const;
 
 export const ItemDesignCognitiveDemandBandSchema = z.enum([
@@ -428,7 +435,8 @@ export const ITEM_CHECK_PROMPT_VERSION = "evidence-centered-mcq-item-check-v2" a
 export const ITEM_CHECK_SCHEMA_VERSION = "evidence-centered-mcq-item-check-output-v1" as const;
 // v3: includes the v7 generation instructions (formulas and tables).
 // v3.1: includes the v7.1 generation instructions.
-export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v3.1" as const;
+// v4: revisions keep the grade 8 to 10 reading level and the key terms (and generation v8 rules).
+export const ITEM_REVISION_PROMPT_VERSION = "evidence-centered-mcq-revision-v4" as const;
 export const ITEM_REVISION_SCHEMA_VERSION = "evidence-centered-mcq-revision-output-v1" as const;
 
 export const ItemCheckProblemSchema = z.enum([
@@ -515,8 +523,10 @@ export function itemCheckSummary(input: {
  * item specifications the source lacks are proposed and marked as suggestions.
  */
 // v3 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
-export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v3" as const;
-export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v1" as const;
+// v4 / output v2: each item also carries an accessible version (grade 8 to 10 reading level) that
+// keeps key terms, numbers, formulas, tables, options and key; the verbatim copy is unchanged.
+export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v4" as const;
+export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v2" as const;
 export const EXISTING_ITEMS_MAX = 40;
 
 const OptionLabelSchema = z.string().trim().regex(/^[A-E]$/);
@@ -543,7 +553,17 @@ export const ExistingItemsOutputSchema = z.object({
       linked_misconception_ids: z.array(z.string().trim().min(1).max(80)).max(8)
     }).strict()).max(4),
     objective_ids: z.array(z.string().trim().min(1).max(80)).max(8),
-    note_for_teacher: z.string().trim().max(600).nullable()
+    note_for_teacher: z.string().trim().max(600).nullable(),
+    // A separate suggestion; the stem and options above stay word for word. Every field is
+    // required (strict structured outputs): an unchanged item has changed false, a null stem
+    // and no options.
+    accessible_version: z.object({
+      changed: z.boolean(),
+      stem: z.string().trim().max(4000).nullable(),
+      options: z.array(z.object({ label: OptionLabelSchema, text: z.string().trim().min(1).max(1500) }).strict()).max(5),
+      key_terms: z.array(z.string().trim().min(1).max(120)).max(20),
+      change_note: z.string().trim().max(400).nullable()
+    }).strict()
   }).strict()).max(EXISTING_ITEMS_MAX),
   skipped: z.array(z.object({
     source_label: z.string().trim().min(1).max(120),
@@ -555,8 +575,12 @@ export type ExistingItemsOutput = z.infer<typeof ExistingItemsOutputSchema>;
 
 export type ExistingItemDraft = {
   item_label: string;
+  /** The wording the draft starts with: the accessible version when it passed every check and was requested, else the source's. */
   stem: string;
   options: Array<{ label: string; text: string }>;
+  /** The source's wording, the accessible version (when usable) and why a proposal was not used. */
+  accessible_wording: AccessibleWordingRecord;
+  wording_version: WordingVersion;
   /** The key the source states; the instructor still confirms it. */
   stated_key: string | null;
   /** The assistant's answer when the source states no key; a suggestion only. */
@@ -580,7 +604,10 @@ export type ExistingItemDraft = {
  * and what the assistant proposes waits as a suggestion for the instructor. Options the
  * output does not list, rationales for the key and unknown links are dropped.
  */
-export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemDesignBlueprint): {
+export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemDesignBlueprint, settings: {
+  /** The teacher's import setting: start each changed item with its accessible wording (default). */
+  accessible_wording?: boolean;
+} = {}): {
   drafts: ExistingItemDraft[];
   other_topic_count: number;
 } {
@@ -603,10 +630,21 @@ export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemD
     (item.essential_elements_from_source ? fromSource : suggested).push("essential elements");
     if (notes.some((note) => note.from_source)) fromSource.push("notes on incorrect options");
     if (notes.some((note) => !note.from_source)) suggested.push("notes on incorrect options");
+    const wording = reviewAccessibleWording({
+      original: { stem: item.stem, options: item.options },
+      proposal: item.accessible_version,
+      key,
+      requested: settings.accessible_wording !== false,
+      prompt_version: EXISTING_ITEMS_PROMPT_VERSION
+    });
+    if (wording.status === "accessible") suggested.push("simpler wording");
+    const applied = wordingFor(wording, wording.default_version);
     return [{
       item_label: item.source_label,
-      stem: item.stem,
-      options: item.options.map(({ label, text }) => ({ label, text })),
+      stem: applied.stem,
+      options: applied.options,
+      accessible_wording: wording,
+      wording_version: wording.default_version,
       stated_key: statedKey,
       suggested_key: suggestedKey,
       target_reasoning_note: item.target_reasoning_from_source ? item.target_reasoning : null,

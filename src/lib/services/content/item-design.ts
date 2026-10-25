@@ -205,6 +205,7 @@ WRITING GOOD ITEMS
 PLAIN, NATURAL LANGUAGE
 Write stems, options, the target reasoning note and the essential elements (strong_reasoning_should_mention) in complete, natural, plain language that a student in this course understands on first reading: common words, short sentences, active voice, and no unexplained abbreviations. Students read the target reasoning note and the essential elements in their answer review, so write them to the student as a clear explanation. Write the teacher notes (option rationales, the explanation of the key, limitations) as short complete sentences a teacher understands at a glance. Do not use stock phrases or sentence fragments. Give each incorrect option an idea_label of two to six plain words that names its incorrect idea, using the same label for the same idea across items; the key's idea_label is null.
 Keep the reading load low: short stems, no context beyond what the question needs and no technical vocabulary the objective does not assess. The difficulty of an item comes from the reasoning it assesses, not from reading.
+Write stems, options and the student-facing notes at a grade 8 to 10 (middle to high school) reading level: short sentences, common words, active voice, one idea per sentence and no idioms. Keep the course's key terms and symbols exactly as the course writes them (for example θ, b, logit, Rasch, 3PL, ICC, local independence or reliability), with the numbers, formulas and tables the item needs; a key term is part of what is assessed, not a reading difficulty to remove.
 
 RULES
 ${ASSESSMENT_CONTENT_VALIDITY_INSTRUCTIONS}
@@ -247,7 +248,7 @@ export const ITEM_CHECK_PROMPT_HASH = createHash("sha256")
 
 const ITEM_REVISION_INSTRUCTIONS = `
 REVISION
-Instead of new drafts, revise the items in items_to_revise, in which a check found problems. check_findings gives, for each of these items in the same order, the answer the check chose without seeing the key, the options it found defensible, and the problems it reported. Revise each item so that exactly one option is defensible and every reported problem is fixed. Keep its item_label, objective_ids, misconception_hypothesis_ids, cognitive_demand, difficulty and option count. When the check's answer was right and the proposed key was wrong, correct the key, its explanation and the option rationales. Return exactly the items in items_to_revise, in the same order.
+Instead of new drafts, revise the items in items_to_revise, in which a check found problems. check_findings gives, for each of these items in the same order, the answer the check chose without seeing the key, the options it found defensible, and the problems it reported. Revise each item so that exactly one option is defensible and every reported problem is fixed, at the same grade 8 to 10 reading level and with the same key terms. Keep its item_label, objective_ids, misconception_hypothesis_ids, cognitive_demand, difficulty and option count. When the check's answer was right and the proposed key was wrong, correct the key, its explanation and the option rationales. Return exactly the items in items_to_revise, in the same order.
 `.trim();
 
 export const ITEM_REVISION_PROMPT_HASH = createHash("sha256")
@@ -267,11 +268,20 @@ READING THE ITEMS
 
 ITEM SPECIFICATIONS
 For every item, give the target reasoning, one to three essential elements, and a note for every incorrect option. Take each from the source when it states it, and mark it from_source. When the source lacks it, propose it and mark it as not from the source:
-- Target reasoning: what a student needs to understand to reach the correct answer, written to the student as a clear explanation in one to three sentences. An explanation of the key in the source (for example the text after "Key B.") supplies it: keep its content and as much of its wording as reads naturally to a student.
+- Target reasoning: what a student needs to understand to reach the correct answer, written to the student as a clear explanation in one to three sentences at a grade 8 to 10 reading level (see ACCESSIBLE WORDING). An explanation of the key in the source (for example the text after "Key B.") supplies it: keep its content and its key terms, and simplify its wording where a student would struggle to read it.
 - Essential elements: the points a strong explanation must state. A list such as "Required explanation evidence" in the source supplies them.
 - Option notes: for each incorrect option, the specific incorrect idea that would lead a student to choose it, and an idea_label of two to six plain words. Options that rest on the same idea, in this item or another, share the same idea_label. Link a note to a misconception hypothesis in the design when it describes the same idea.
 Link each item to the design's objective_ids it assesses. Use note_for_teacher, in one or two sentences, for anything the instructor should know, such as a stated key that seems doubtful or a source note you could not place.
 Write everything you propose and the note for the teacher in complete, natural, plain sentences, without stock phrases or field names.
+
+ACCESSIBLE WORDING
+Students should spend their effort on the assessed idea, not on reading. For every item, also give accessible_version: the same item at a grade 8 to 10 (middle to high school) reading level. It is a separate suggestion; the stem and options above stay word for word, and the instructor chooses which wording to use.
+- Use short sentences, common words and active voice, with one idea per sentence and no idioms.
+- Keep every key term and symbol of the course exactly as written (for example θ, b, logit, Rasch, 3PL, ICC, local independence or reliability), and list in key_terms each one the item uses. Keep every number, every formula between $ signs and every Markdown table line exactly as written.
+- Keep the meaning, the correct answer, the option letters and their order, and the specific incorrect idea that each wrong option rests on.
+- Never add hints or cues. Keep the options parallel and similar in length: the correct option must not become the longest option or the only one with a hedging word such as "usually".
+- When the item is already easy to read, set changed to false, stem to null, options to an empty list and change_note to null, and still list its key_terms. Otherwise set changed to true, give the whole stem and every option, including any you left as they were, and say in change_note, in one plain sentence for the instructor, what you changed.
+- When required_output.accessible_wording is false, the instructor keeps the wording as written: for every item set changed to false, stem to null, options and key_terms to empty lists and change_note to null.
 `.trim();
 
 export const EXISTING_ITEMS_PROMPT_HASH = createHash("sha256")
@@ -279,7 +289,8 @@ export const EXISTING_ITEMS_PROMPT_HASH = createHash("sha256")
   .digest("hex");
 
 const EXISTING_ITEMS_TIMEOUT_MS = 360_000;
-const EXISTING_ITEMS_MIN_OUTPUT_TOKENS = 24_000;
+// Room for the verbatim copy and the accessible version of up to 40 items.
+const EXISTING_ITEMS_MIN_OUTPUT_TOKENS = 32_000;
 
 export const ITEM_GENERATION_PROMPT_HASH = createHash("sha256")
   .update(
@@ -2320,7 +2331,14 @@ export async function importExistingItemsFromMaterials(input: {
   teacher_user_db_id: string;
   assessment_public_id: string;
   files?: IncomingItemDesignMaterial[];
+  /**
+   * The teacher's import setting. On (the default), each item whose simpler version passes every
+   * check starts with that wording; off keeps every item as written. Either way the teacher
+   * chooses the wording of each item in review, and nothing reaches students until it is added.
+   */
+  accessible_wording?: boolean;
 }) {
+  const accessibleWording = input.accessible_wording !== false;
   await assertAssessmentEditable(input);
   const design = await getAssessmentItemDesign(input);
   const attached = await prepareItemDesignMaterials({
@@ -2355,6 +2373,7 @@ export async function importExistingItemsFromMaterials(input: {
   const sourceHash = createHash("sha256").update(stableJson({
     prompt_version: EXISTING_ITEMS_PROMPT_VERSION,
     prompt_hash: EXISTING_ITEMS_PROMPT_HASH,
+    accessible_wording: accessibleWording,
     topic_id: topic?.topic_id ?? null,
     title: design.assessment.title,
     text_materials: textMaterials.map((material) => createHash("sha256").update(material.text).digest("hex")),
@@ -2423,7 +2442,7 @@ export async function importExistingItemsFromMaterials(input: {
     })),
     text_materials: textMaterials.map(({ material_id, file_name, text }) => ({ material_id, file_name, text })),
     attached_files: attachments.map((attachment) => ({ material_id: attachment.material_id, file_name: attachment.file_name })),
-    required_output: { schema_version: EXISTING_ITEMS_SCHEMA_VERSION, max_items: EXISTING_ITEMS_MAX }
+    required_output: { schema_version: EXISTING_ITEMS_SCHEMA_VERSION, max_items: EXISTING_ITEMS_MAX, accessible_wording: accessibleWording }
   };
   assertNoProhibitedProviderInput(context);
   const output = await auditedCheckCall<ExistingItemsOutput>({
@@ -2449,7 +2468,11 @@ export async function importExistingItemsFromMaterials(input: {
       { reason_code: "existing_item_import_failed" }
     );
   }
-  const { drafts, other_topic_count: otherTopicCount } = existingItemDrafts(output, design.blueprint);
+  // The accessible version is checked here, in code: a version that changes the options, a key
+  // term, a formula, a table, a number or the key, or that makes the key stand out, is not used.
+  const { drafts, other_topic_count: otherTopicCount } = existingItemDrafts(output, design.blueprint, {
+    accessible_wording: accessibleWording
+  });
   if (drafts.length === 0) {
     throw new ContentServiceError(
       "validation_failed",
@@ -2508,6 +2531,13 @@ export async function importExistingItemsFromMaterials(input: {
       prompt_version: EXISTING_ITEMS_PROMPT_VERSION,
       prompt_hash: EXISTING_ITEMS_PROMPT_HASH,
       schema_version: EXISTING_ITEMS_SCHEMA_VERSION,
+      accessible_wording: {
+        requested: accessibleWording,
+        accessible_count: drafts.filter((draft) => draft.accessible_wording.status === "accessible").length,
+        unchanged_count: drafts.filter((draft) => draft.accessible_wording.status === "unchanged").length,
+        fallback_count: drafts.filter((draft) => draft.accessible_wording.status === "fallback").length
+      },
+      // The check answers each item in the wording it starts with.
       item_check: { prompt_version: ITEM_CHECK_PROMPT_VERSION, prompt_hash: ITEM_CHECK_PROMPT_HASH },
       skipped: output.skipped,
       other_topic_count: otherTopicCount,
