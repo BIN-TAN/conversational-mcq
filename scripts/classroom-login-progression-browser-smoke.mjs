@@ -43,7 +43,9 @@ try {
   await page.goto(base);
   await page.getByRole("link", { name: "Instructor Dashboard" }).click();
   await page.getByLabel("Username", { exact: true }).fill("teacher_demo");
-  await page.getByLabel("Access code or password").fill("teacher_demo_password");
+  // The instructor sign-in page (/teacher/login, src/app/instructor-login/page.tsx) asks for a
+  // password only; "Access code or password" is the student label (src/components/login-form.tsx).
+  await page.getByLabel("Password", { exact: true }).fill("teacher_demo_password");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
   await page.waitForURL("**/teacher/dashboard");
   await page.getByRole("heading", { name: "Assessment dashboard" }).waitFor();
