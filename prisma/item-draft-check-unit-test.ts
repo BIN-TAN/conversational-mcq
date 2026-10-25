@@ -130,7 +130,7 @@ async function main() {
     assert(context.includes("item_label: checkLabel(index)"), "Items are named by position, since chunk labels can repeat");
     const revision = between(text, "function acceptableRevision", "/**\n * Checks the drafts before");
     for (const part of ["revised.item_label === original.item_label", "revised.cognitive_demand === original.cognitive_demand",
-      "revised.difficulty === original.difficulty", "sameSet(revised.objective_ids, original.objective_ids)"]) {
+      "cognitiveDemandBand(revised.cognitive_demand) === original.difficulty", "sameSet(revised.objective_ids, original.objective_ids)"]) {
       assert(revision.includes(part), part);
     }
     const pipeline = between(text, "async function checkGeneratedItems", "export async function generateAssessmentItemDrafts");

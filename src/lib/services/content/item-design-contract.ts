@@ -724,7 +724,7 @@ export function normalizeLegacyItemGenerationOutput(value: unknown): unknown {
   };
 }
 
-function cognitiveDemandBand(value: z.infer<typeof GeneratedItemCandidateSchema>["cognitive_demand"]) {
+export function cognitiveDemandBand(value: z.infer<typeof GeneratedItemCandidateSchema>["cognitive_demand"]) {
   if (value === "analyze") return "analyzing" as const;
   if (value === "evaluate") return "evaluating" as const;
   if (value === "create") return "creating" as const;

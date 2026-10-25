@@ -50,6 +50,7 @@ import {
   normalizeLegacyItemDesignAssistantOutput,
   normalizeLegacyItemDesignBlueprint,
   normalizeLegacyItemGenerationOutput,
+  cognitiveDemandBand,
   unprobedMisconceptionIds,
   validateGeneratedItemSet,
   type ItemDesignAssistantOutput,
@@ -220,7 +221,7 @@ OUTPUT
 
 const ITEM_GENERATION_RECOVERY_INSTRUCTIONS = `
 RECOVERY
-The previous attempt did not produce an acceptable complete chunk. previous_attempt_problems, when present, lists what was wrong with it. Write a fresh, complete response for the same chunk that fixes each of those problems, with the exact candidate and option counts, the assigned coverage and the cognitive-demand mapping. Keep the wording short enough to finish.
+The previous attempt did not produce an acceptable complete chunk. previous_attempt_problems, when present, lists what was wrong with it; a band (difficulty) is decided by the cognitive_demand label. Write a fresh, complete response for the same chunk that fixes each of those problems, with the exact candidate and option counts, the assigned coverage and the cognitive-demand mapping. Keep the wording short enough to finish.
 `.trim();
 
 export const ITEM_CHECK_INSTRUCTIONS = `
@@ -1583,18 +1584,23 @@ export function mergeItemGenerationChunkOutputs(input: {
     ).slice(0, 8),
     teacher_review_required: true
   });
-  // Misconception examples no draft probes are reported to the teacher, by their number in the
-  // design, ahead of the model's own notes.
-  const unprobed = new Set(unprobedMisconceptionIds(input.blueprint, merged));
-  if (unprobed.size === 0) return merged;
-  const numbers = input.blueprint.misconception_hypotheses.flatMap((entry, index) =>
+  return withUnprobedMisconceptionNote(input.blueprint, merged);
+}
+
+/**
+ * Misconception examples no draft probes are reported to the teacher, by their number in the
+ * design, ahead of the model's own notes. Run again whenever the drafts change (after revision
+ * or replay), so the note always describes the drafts the teacher sees.
+ */
+function withUnprobedMisconceptionNote(blueprint: ItemDesignBlueprint, output: ItemGenerationOutput): ItemGenerationOutput {
+  const others = output.set_level_limitations.filter((entry) => !entry.startsWith(UNPROBED_MISCONCEPTIONS_NOTE_START));
+  const unprobed = new Set(unprobedMisconceptionIds(blueprint, output));
+  if (unprobed.size === 0) return { ...output, set_level_limitations: others };
+  const numbers = blueprint.misconception_hypotheses.flatMap((entry, index) =>
     unprobed.has(entry.misconception_id) ? [String(index + 1)] : []);
   const list = numbers.length === 1 ? numbers[0]! : `${numbers.slice(0, -1).join(", ")} and ${numbers.at(-1)}`;
   const note = `${UNPROBED_MISCONCEPTIONS_NOTE_START} ${numbers.length === 1 ? "example" : "examples"} ${list}. Add or revise items if you want evidence on ${numbers.length === 1 ? "it" : "them"}.`;
-  return {
-    ...merged,
-    set_level_limitations: [note, ...merged.set_level_limitations.filter((entry) => entry !== note)].slice(0, 8)
-  };
+  return { ...output, set_level_limitations: [note, ...others].slice(0, 8) };
 }
 
 export function itemGenerationResultSupportsRecovery(
@@ -1835,7 +1841,8 @@ function acceptableRevision(
     sameSet(revised.objective_ids, original.objective_ids) &&
     sameSet(revised.misconception_hypothesis_ids, original.misconception_hypothesis_ids) &&
     revised.cognitive_demand === original.cognitive_demand &&
-    revised.difficulty === original.difficulty &&
+    // The band follows the cognitive_demand label, as in validateGeneratedItemSet.
+    cognitiveDemandBand(revised.cognitive_demand) === original.difficulty &&
     revised.options.length === blueprint.generation_settings.option_count &&
     revised.options.every((option) => option.linked_misconception_ids.every((id) => misconceptionIds.has(id)));
 }
@@ -2043,7 +2050,7 @@ export async function generateAssessmentItemDrafts(input: {
       continue;
     }
     try {
-      const replayedOutput = validateOutput(design.blueprint, call.output_payload);
+      const replayedOutput = withUnprobedMisconceptionNote(design.blueprint, validateOutput(design.blueprint, call.output_payload));
       const batch = await materializeGeneratedReviewBatch({
         teacher_user_db_id: input.teacher_user_db_id,
         assessment_public_id: input.assessment_public_id,
@@ -2195,7 +2202,9 @@ export async function generateAssessmentItemDrafts(input: {
         ) {
           previousAttemptProblems = result.status === "incomplete"
             ? ["The previous response stopped before it was complete."]
-            : [];
+            : result.error?.category === "schema_validation"
+              ? [`The previous response did not match the output format: ${result.error.message.slice(0, 280)}`]
+              : [];
           continue;
         }
         throw new ContentServiceError(
@@ -2271,7 +2280,8 @@ export async function generateAssessmentItemDrafts(input: {
     blueprint: design.blueprint,
     topic_map: design.assistant_state.topic_map
   });
-  const output = checked.output;
+  // A revision can probe a misconception the first drafts did not, so the note is rebuilt.
+  const output = withUnprobedMisconceptionNote(design.blueprint, checked.output);
   const primaryAgentCallPublicId = agentCallPublicIds.at(-1);
   if (!primaryAgentCallPublicId) {
     throw new ContentServiceError(
