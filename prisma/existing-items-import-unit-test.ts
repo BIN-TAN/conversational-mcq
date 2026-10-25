@@ -178,7 +178,7 @@ async function main() {
     assert(assistant.includes("When the teacher wants to adapt these items, set the number of items to the number of their items"));
     assert(assistant.includes("Word, Excel, CSV, JSON and text files are provided as safely extracted text."));
     const service = between(text, "export async function importExistingItemsFromMaterials", "\n}\n");
-    for (const part of ["existing_item_import:${input.assessment_public_id}", ":read`", ":check:1`", "existingItemDrafts(output, design.blueprint, {",
+    for (const part of ["existing_item_import:${input.assessment_public_id}", ":read`", ":check:${chunkIndex + 1}`", "existingItemDrafts(output, design.blueprint, {",
       "createExistingItemsReviewBatch(", "422", "runtime.provider !== \"openai\" || !runtime.live_calls_enabled"]) {
       assert(service.includes(part), part);
     }

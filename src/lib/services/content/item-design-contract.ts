@@ -452,6 +452,9 @@ export const ItemCheckProblemSchema = z.enum([
   "item_dependency"
 ]);
 
+/** The most items one check call answers; the existing-items import splits larger sets. */
+export const ITEM_CHECK_MAX_ITEMS = 12;
+
 export const ItemCheckOutputSchema = z.object({
   schema_version: z.literal(ITEM_CHECK_SCHEMA_VERSION),
   items: z.array(z.object({
@@ -462,7 +465,7 @@ export const ItemCheckOutputSchema = z.object({
       check: ItemCheckProblemSchema,
       detail: z.string().trim().min(1).max(400)
     }).strict()).max(8)
-  }).strict()).min(1).max(12)
+  }).strict()).min(1).max(ITEM_CHECK_MAX_ITEMS)
 }).strict();
 
 export type ItemCheckOutput = z.infer<typeof ItemCheckOutputSchema>;

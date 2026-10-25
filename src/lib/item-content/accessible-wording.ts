@@ -108,8 +108,9 @@ function prose(text: string) {
  * "a = 3, b = 2" differ.
  */
 export function numbersIn(text: string): string[] {
-  return (prose(text).match(/[-−+]?\d+(?:[.,]\d+)*%?/g) ?? [])
-    .map((value) => value.replace("\u2212", "-"));
+  // A sign counts only where it cannot be a range or a hyphen ("8-10" is 8 and 10; "-1.5" is -1.5).
+  const number = new RegExp(String.raw`(?:(?<![\p{L}\p{N}])[-−+])?\d+(?:[.,]\d+)*%?`, "gu");
+  return (prose(text).match(number) ?? []).map((value) => value.replace("\u2212", "-"));
 }
 
 /**
@@ -123,7 +124,7 @@ export function numbersIn(text: string): string[] {
  */
 const MEANING_WORD_GROUPS: Array<{ name: string; rule: "exact" | "kept"; pattern: string }> = [
   { name: "not", rule: "exact", pattern: String.raw`not|cannot|\p{L}+n['’]t` },
-  { name: "no", rule: "exact", pattern: "no" },
+  { name: "no", rule: "exact", pattern: String.raw`no(?!\.\s*\d)` },
   { name: "never", rule: "exact", pattern: "never" },
   { name: "none", rule: "exact", pattern: "none" },
   { name: "neither", rule: "exact", pattern: "neither|nor" },
@@ -147,7 +148,23 @@ const MEANING_WORD_GROUPS: Array<{ name: string; rule: "exact" | "kept"; pattern
   { name: "best", rule: "kept", pattern: "best" },
   { name: "worst", rule: "kept", pattern: "worst" },
   { name: "before", rule: "kept", pattern: "before" },
-  { name: "after", rule: "kept", pattern: "after" }
+  { name: "after", rule: "kept", pattern: "after" },
+  { name: "first", rule: "kept", pattern: "first" },
+  { name: "last", rule: "kept", pattern: "last" },
+  { name: "positive", rule: "kept", pattern: "positive|positively" },
+  { name: "negative", rule: "kept", pattern: "negative|negatively" },
+  { name: "maximum", rule: "kept", pattern: "maximum|maximal|maximize[sd]?|maximizing" },
+  { name: "minimum", rule: "kept", pattern: "minimum|minimal|minimize[sd]?|minimizing" },
+  { name: "likely", rule: "kept", pattern: "likely" },
+  { name: "unlikely", rule: "exact", pattern: "unlikely" },
+  { name: "valid", rule: "kept", pattern: "valid|validly" },
+  { name: "invalid", rule: "exact", pattern: "invalid|invalidly" },
+  { name: "overestimate", rule: "kept", pattern: "overestimate[sd]?|overestimating|overestimation" },
+  { name: "underestimate", rule: "kept", pattern: "underestimate[sd]?|underestimating|underestimation" },
+  { name: "strong", rule: "kept", pattern: "strong|stronger|strongest|strongly" },
+  { name: "weak", rule: "kept", pattern: "weak|weaker|weakest|weakly" },
+  { name: "high", rule: "kept", pattern: "high" },
+  { name: "low", rule: "kept", pattern: "low" }
 ];
 
 function meaningWordCounts(text: string): Map<string, number> {
@@ -227,8 +244,11 @@ export function containsListedTerm(text: string, term: string): boolean {
   const wanted = normalizeSpace(term);
   if (!wanted) return true;
   if (wanted.length < 2 || !/^[A-Za-z]/.test(wanted)) return containsTerm(text, term);
-  const plural = /\p{L}$/u.test(wanted) ? "(?:s|es)?" : "";
-  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${escapeRegExp(wanted)}${plural}(?![\\p{L}\\p{N}_])`, "iu");
+  // "parameter" also matches "parameters", and "ability" also matches "abilities".
+  const body = /[^aeiou]y$/i.test(wanted)
+    ? `${escapeRegExp(wanted.slice(0, -1))}(?:y|ies)`
+    : `${escapeRegExp(wanted)}${/\p{L}$/u.test(wanted) ? "(?:s|es)?" : ""}`;
+  const pattern = new RegExp(`(?<![\\p{L}\\p{N}_])${body}(?![\\p{L}\\p{N}_])`, "iu");
   return pattern.test(normalizeSpace(text));
 }
 
@@ -492,6 +512,8 @@ export function wordingProvenance(input: {
     rejected_proposal: record.rejected_proposal,
     key_terms: record.key_terms,
     change_note: record.change_note,
-    fallback_reasons: record.fallback_reasons
+    fallback_reasons: record.fallback_reasons,
+    // Why the item started in the instructor's wording although a simpler version passed every check.
+    teacher_note: record.teacher_note
   };
 }

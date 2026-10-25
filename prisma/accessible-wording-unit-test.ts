@@ -179,7 +179,15 @@ check("Each failed check falls back to the original wording with a plain note fo
     ["listed term in other case", { ...original, stem: "Under the Standard Error of Measurement, θ = 1.5 and b = 0.5. What is true?" },
       { ...original, stem: "Under the error, θ = 1.5 and b = 0.5. What is true?" }, ["standard error of measurement"], /term "standard error of measurement"/],
     ["listed term in plural", { ...original, stem: "The item parameters give θ = 1.5 and b = 0.5. What is true?" },
-      { ...original, stem: "These values give θ = 1.5 and b = 0.5. What is true?" }, ["item parameter"], /term "item parameter"/]
+      { ...original, stem: "These values give θ = 1.5 and b = 0.5. What is true?" }, ["item parameter"], /term "item parameter"/],
+    ["listed term in -ies plural", { ...original, stem: "Student abilities give θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "Students give θ = 1.5 and b = 0.5. What is true?" }, ["ability"], /term "ability"/],
+    ["negative to positive", { ...original, stem: "An item with negative discrimination has θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "An item with positive discrimination has θ = 1.5 and b = 0.5. What is true?" }, [], /the word "negative"/],
+    ["a range written with a hyphen", { ...original, stem: "For grades 8-10, θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "For grades 8 to 10, θ = 1.5 and b = 0.5. What is true?" }, [], /^$/],
+    ["Item No. is not the word no", { ...original, stem: "In item No. 3, θ = 1.5 and b = 0.5. What is true?" },
+      { ...original, stem: "In item 3, θ = 1.5 and b = 0.5. What is true?" }, [], /^$/]
   ];
   for (const [name, before, after, terms, reason] of meaning) {
     const problems = accessibleWordingProblems({ original: before, accessible: after, key_terms: terms, key: "B" });

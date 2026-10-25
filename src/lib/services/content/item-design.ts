@@ -27,6 +27,7 @@ import {
   ITEM_GENERATION_PROMPT_VERSION,
   ITEM_GENERATION_SCHEMA_VERSION,
   ITEM_CHECK_PROMPT_VERSION,
+  ITEM_CHECK_MAX_ITEMS,
   ITEM_CHECK_SCHEMA_VERSION,
   ITEM_REVISION_PROMPT_VERSION,
   ITEM_REVISION_SCHEMA_VERSION,
@@ -2492,32 +2493,33 @@ export async function importExistingItemsFromMaterials(input: {
   const keyed = drafts.flatMap((draft, index) => (draft.stated_key ?? draft.suggested_key) ? [index] : []);
   const withOriginalCheck = keyed.filter((index) => drafts[index]!.wording_version === "accessible");
   const originalCheckPosition = new Map(withOriginalCheck.map((index, position) => [index, drafts.length + position]));
-  const check = keyed.length > 0
-    ? await auditedCheckCall<ItemCheckOutput>({
-        ...setup,
-        invocation_key: `${invocationPrefix}:check:1`,
-        prompt_version: ITEM_CHECK_PROMPT_VERSION,
-        prompt_hash: ITEM_CHECK_PROMPT_HASH,
-        schema_version: ITEM_CHECK_SCHEMA_VERSION,
-        output_schema: ItemCheckOutputSchema,
-        instructions: ITEM_CHECK_INSTRUCTIONS,
-        context: itemCheckContext({
-          items: [
-            ...keyed.map((index) => ({ index, candidate: drafts[index]! })),
-            ...withOriginalCheck.map((index) => ({
-              index: originalCheckPosition.get(index)!,
-              candidate: { ...drafts[index]!, ...drafts[index]!.accessible_wording.original }
-            }))
-          ],
-          blueprint: design.blueprint,
-          topic_map: topicMap
-        }),
-        parse: (value: unknown) => ItemCheckOutputSchema.parse(value),
-        purpose: "teacher_existing_item_check",
-        min_output_tokens: ITEM_CHECK_MIN_OUTPUT_TOKENS
-      })
-    : null;
-  const findingAt = (position: number) => check?.items.find((entry) => entry.item_label === checkLabel(position));
+  const checkEntries = [
+    ...keyed.map((index) => ({ index, candidate: drafts[index]! })),
+    ...withOriginalCheck.map((index) => ({
+      index: originalCheckPosition.get(index)!,
+      candidate: { ...drafts[index]!, ...drafts[index]!.accessible_wording.original }
+    }))
+  ];
+  // One check call answers at most ITEM_CHECK_MAX_ITEMS entries; larger sets go in parallel calls.
+  const checkChunks: Array<typeof checkEntries> = [];
+  for (let start = 0; start < checkEntries.length; start += ITEM_CHECK_MAX_ITEMS) {
+    checkChunks.push(checkEntries.slice(start, start + ITEM_CHECK_MAX_ITEMS));
+  }
+  const checks = await Promise.all(checkChunks.map((entries, chunkIndex) => auditedCheckCall<ItemCheckOutput>({
+    ...setup,
+    invocation_key: `${invocationPrefix}:check:${chunkIndex + 1}`,
+    prompt_version: ITEM_CHECK_PROMPT_VERSION,
+    prompt_hash: ITEM_CHECK_PROMPT_HASH,
+    schema_version: ITEM_CHECK_SCHEMA_VERSION,
+    output_schema: ItemCheckOutputSchema,
+    instructions: ITEM_CHECK_INSTRUCTIONS,
+    context: itemCheckContext({ items: entries, blueprint: design.blueprint, topic_map: topicMap }),
+    parse: (value: unknown) => ItemCheckOutputSchema.parse(value),
+    purpose: "teacher_existing_item_check",
+    min_output_tokens: ITEM_CHECK_MIN_OUTPUT_TOKENS
+  })));
+  const checkFindings = checks.flatMap((result) => result?.items ?? []);
+  const findingAt = (position: number) => checkFindings.find((entry) => entry.item_label === checkLabel(position));
   const startingDrafts: typeof drafts = [];
   const itemChecks: Array<ItemCheckSummary | null> = [];
   const otherWordingChecks: Array<{ check: ItemCheckSummary; wording: { stem: string; options: Array<{ label: string; text: string }> } } | null> = [];
@@ -2542,10 +2544,12 @@ export async function importExistingItemsFromMaterials(input: {
     const record = draft.accessible_wording;
     const original = record.original;
     const accessible = { stem: draft.stem, options: draft.options };
-    const originalSummary = itemCheckSummary({ check: findingAt(originalPosition), proposed_key: key, revised: false });
-    // When the check ran and found a problem with the simpler wording, the item starts in the
-    // instructor's wording: the simpler version stays available, and the teacher can still choose it.
-    if (startingFinding && checkFindsProblem(startingFinding, key)) {
+    const originalFinding = findingAt(originalPosition);
+    const originalSummary = itemCheckSummary({ check: originalFinding, proposed_key: key, revised: false });
+    // When the check found a problem with the simpler wording but none with the instructor's, the
+    // item starts in the instructor's wording; the simpler version stays available to choose. When
+    // both wordings have a problem, the key or the item itself needs a look, and the item stays.
+    if (startingFinding && checkFindsProblem(startingFinding, key) && originalFinding && !checkFindsProblem(originalFinding, key)) {
       startedInOriginalAfterCheck += 1;
       startingDrafts.push({
         ...draft,
@@ -2555,7 +2559,7 @@ export async function importExistingItemsFromMaterials(input: {
         accessible_wording: {
           ...record,
           default_version: "as_written",
-          teacher_note: "The item starts in your wording because the automatic check found something to look at in the simpler wording. You can still switch to the simpler wording."
+          teacher_note: "The item starts in your wording because the automatic check found a problem in the simpler wording but not in yours. You can still switch to the simpler wording."
         }
       });
       itemChecks.push(originalSummary);

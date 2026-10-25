@@ -1700,12 +1700,6 @@ export async function createGeneratedMcqReviewBatch(input: {
 
 export const EXISTING_ITEMS_SOURCE_TYPE = "existing_items_from_materials";
 
-/**
- * The instructor's own items read from course materials (item-design.ts
- * importExistingItemsFromMaterials). Wording, a stated key and the notes the source gives fill
- * the fields; what the assistant proposed waits as a suggestion for blank fields. The instructor
- * confirms every key before an item is added.
- */
 type ExistingItemCheck = {
   status: "checked" | "unavailable";
   independent_answer: string | null;
@@ -1714,6 +1708,12 @@ type ExistingItemCheck = {
   remaining_problems: string[];
 };
 
+/**
+ * The instructor's own items read from course materials (item-design.ts
+ * importExistingItemsFromMaterials). Wording, a stated key and the notes the source gives fill
+ * the fields; what the assistant proposed waits as a suggestion for blank fields. The instructor
+ * confirms every key before an item is added.
+ */
 export async function createExistingItemsReviewBatch(input: {
   teacher_user_db_id: string;
   assessment_public_id: string;
@@ -1830,7 +1830,7 @@ export async function createExistingItemsReviewBatch(input: {
   });
   const summary = validationSummary(candidates, [
     input.drafts.some((draft) => draft.accessible_wording.status === "accessible")
-      ? "Your original wording of every item is kept. Where the assistant's simpler wording passed every check, you can switch the item between the two wordings; each item shows which one it uses. Confirm every key and review the suggested notes before adding them."
+      ? "Your original wording of every item is kept. Where the assistant suggested simpler wording that passed its checks, you can switch the item between the two wordings; each item shows which one it uses. Confirm every key and review the suggested notes before adding them."
       : "Items read from course materials keep their wording; confirm every key and review the suggested notes before adding them."
   ]);
   const batch = await prisma.mcqItemImportBatch.create({

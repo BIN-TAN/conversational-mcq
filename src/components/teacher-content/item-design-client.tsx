@@ -306,7 +306,7 @@ function ItemDesignAssistantWorkspace({
           type="checkbox"
         />
         <span>
-          Suggest simpler wording at a middle to high school reading level. Key terms, symbols, numbers, formulas, tables, the meaning of each answer choice and the key stay the same. In review, an item whose simpler wording passes every check starts with it, and you can switch any item back to your own wording. Clear this box to keep every item as written.
+          Suggest simpler wording at a middle to high school reading level. Key terms, symbols, numbers, formulas, tables, the answer letters and the key stay the same. You review every item before it is added. In review, an item whose simpler wording passes every check starts with it, and you can switch any item back to your own wording. Clear this box to keep every item as written.
         </span>
       </label>
       <label className="mt-2 block text-xs font-medium text-ink" htmlFor="existing-item-files">Files with your items (optional)</label>

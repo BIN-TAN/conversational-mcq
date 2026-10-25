@@ -34,9 +34,9 @@ const options = [
 ];
 
 const simplerOptions = [
-  { label: "A", text: "Item responses are not linked in the whole sample." },
+  { label: "A", text: "Item responses are unrelated in the whole sample." },
   { label: "B", text: "Item responses are independent once theta is fixed." },
-  { label: "C", text: "Each item measures its own ability." },
+  { label: "C", text: "Each item measures a different skill." },
   { label: "D", text: "Students answer each item without looking at the others." }
 ];
 

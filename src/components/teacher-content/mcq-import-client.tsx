@@ -1076,7 +1076,7 @@ function WordingChoice({
       </p>
       <p className="mt-1 text-xs leading-5 text-muted">
         {usingAccessible
-          ? "The assistant rewrote the question and options to make them easier to read. The checks found the same key terms, numbers, formulas and key, and each answer choice keeps its meaning. Your original wording is kept, and you can switch back."
+          ? "The assistant rewrote the question and options to make them easier to read. The checks found the same key terms, numbers, formulas, answer letters and key, and no change to words such as “not” or “at least”. Read it to make sure the meaning is the same. Your original wording is kept, and you can switch back."
           : "The assistant also suggested simpler wording for this item."}
         {record.change_note ? ` What changed: ${record.change_note}` : ""}
       </p>
@@ -1096,7 +1096,7 @@ function WordingChoice({
           {compare ? "Hide the comparison" : "Compare both versions"}
         </Button>
       </div>
-      <p className="mt-2 text-xs leading-5 text-muted">After you switch the wording, confirm the key of this item again.</p>
+      <p className="mt-2 text-xs leading-5 text-muted">Switching the wording clears the confirmed key of this item, so confirm it again afterwards.</p>
       {compare ? (
         <div className="mt-3 grid gap-3 md:grid-cols-2">
           <WordingPreview title="Your original wording" wording={record.original} />
