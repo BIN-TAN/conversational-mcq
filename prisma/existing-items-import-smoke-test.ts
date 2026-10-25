@@ -1,7 +1,10 @@
 /**
  * Release CMCQ-20261020-06, database smoke test: an instructor's existing items are read from
  * attached files (Word, text, CSV and Excel here), keep their wording and stated keys, and arrive
- * on the review page with suggested specifications for what the file lacks.
+ * on the review page with suggested specifications for what the file lacks. With accessible wording
+ * (existing-mcq-import-v4), an item whose simpler version passes the checks starts with it, the
+ * original wording is kept, the teacher's per-item choice is what is added, and the item's
+ * provenance records which wording it used; with the setting off, items stay as written.
  * Uses a stub provider; no live calls. Needs the database.
  * Run with: npx tsx prisma/existing-items-import-smoke-test.ts
  */
@@ -14,7 +17,7 @@ import type { LlmProvider, StructuredAgentRequest, StructuredAgentResult } from 
 import { createAssessment } from "../src/lib/services/content/assessments";
 import { ContentServiceError } from "../src/lib/services/content/errors";
 import { importExistingItemsFromMaterials, withItemGenerationProviderForTest } from "../src/lib/services/content/item-design";
-import { getMcqItemImportBatch } from "../src/lib/services/content/mcq-import";
+import { commitMcqItemImport, getMcqItemImportBatch } from "../src/lib/services/content/mcq-import";
 import { normalizeUserId } from "../src/lib/services/student-accounts/validation";
 
 const prisma = new PrismaClient();
@@ -27,6 +30,13 @@ const options = [
   { label: "A", text: "Item responses are uncorrelated in the whole sample." },
   { label: "B", text: "Item responses are independent once theta is held fixed." },
   { label: "C", text: "Each item measures a different ability." },
+  { label: "D", text: "Students answer each item without looking at the others." }
+];
+
+const simplerOptions = [
+  { label: "A", text: "Item responses are not linked in the whole sample." },
+  { label: "B", text: "Item responses are independent once theta is fixed." },
+  { label: "C", text: "Each item measures its own ability." },
   { label: "D", text: "Students answer each item without looking at the others." }
 ];
 
@@ -69,10 +79,16 @@ class ImportProvider implements LlmProvider {
         { label: "D", rationale: "Reads independence as a test-taking rule.", idea_label: "Independence as test behavior", from_source: false, linked_misconception_ids: [] }
       ],
       objective_ids: [],
-      note_for_teacher: statedKey ? null : "The file gives no key for this item; the suggested key needs your check."
+      note_for_teacher: statedKey ? null : "The file gives no key for this item; the suggested key needs your check.",
+      // D1 gets a simpler version that keeps every term; D2 is already easy to read.
+      accessible_version: statedKey && accessibleRequested
+        ? { changed: true, stem: `${label}. What does local independence mean?`, options: simplerOptions,
+            key_terms: ["local independence", "theta"], change_note: "Shorter question with more common words." }
+        : { changed: false, stem: null, options: [], key_terms: accessibleRequested ? ["local independence"] : [], change_note: null }
     });
+    const accessibleRequested = (request.input as { required_output?: { accessible_wording?: boolean } }).required_output?.accessible_wording === true;
     return done({
-      schema_version: "existing-mcq-import-output-v1",
+      schema_version: "existing-mcq-import-output-v2",
       items: [item("D1", "B"), item("D2", null)],
       skipped: [{ source_label: "D3", reason: "The stem has no options." }]
     });
@@ -145,7 +161,12 @@ async function main() {
     assert(batch.source_type === "existing_items_from_materials", "The batch is marked as the instructor's own items.");
     const [first, second] = batch.candidates;
     assert(first && second, "Two candidates.");
-    assert(first.stem === "D1. Which statement describes local independence?", "Wording is kept.");
+    assert(first.stem === "D1. What does local independence mean?" && first.wording_version === "accessible",
+      "An item whose simpler version passed the checks starts with it.");
+    const firstWording = (first.suggestion as Record<string, unknown>).accessible_wording as Record<string, unknown>;
+    assert((firstWording.original as { stem: string }).stem === "D1. Which statement describes local independence?", "The original wording is kept.");
+    assert(second.stem === "D2. Which statement describes local independence?" && second.wording_version === "as_written", "Unchanged wording stays as written.");
+    assert(JSON.stringify(provider.checkRequests[0]?.input).includes("D1. What does local independence mean?"), "The check answers the wording the item starts with.");
     assert(first.imported_key === "B" && first.llm_suggested_key === null, "A stated key is kept as the imported key.");
     assert(first.target_reasoning_note?.startsWith("Once ability is held fixed"), "A stated target reasoning fills the field.");
     assert(first.option_rationales.some((entry) => entry.label === "A" && entry.rationale === "Drops the conditioning on theta."), "A stated note fills the field.");
@@ -162,12 +183,43 @@ async function main() {
 
     const calls = await prisma.agentCall.findMany({ where: { agent_invocation_key: { startsWith: `existing_item_import:${assessmentPublicId}:` } } });
     assert(calls.length === 2 && calls.every((call) => call.call_status === "succeeded"), "Both calls are audited.");
-    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v3"), "The read call records its prompt version.");
+    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v4"), "The read call records its prompt version.");
     assert(!calls.some((call) => JSON.stringify(call.input_payload).includes(userId)), "No account identifiers reach the provider context.");
 
     const replay = await run();
     assert(replay.replayed && replay.batch_public_id === result.batch_public_id && provider.readRequests.length === 1,
       "The same files are not read again; the same review batch opens.");
+
+    // The teacher switches D1 back to the original wording; D2 is added as it is. Only D1 changes.
+    const committed = await commitMcqItemImport({
+      teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId, batch_public_id: result.batch_public_id,
+      data: {
+        expected_updated_at: batch.updated_at,
+        selected_candidate_public_ids: [first.candidate_public_id, second.candidate_public_id],
+        candidate_updates: [
+          { candidate_public_id: first.candidate_public_id, wording_version: "as_written", teacher_confirmed_key: "B",
+            stem: "D1. Which statement describes local independence?", options },
+          { candidate_public_id: second.candidate_public_id, teacher_confirmed_key: "B" }
+        ]
+      }
+    });
+    assert(committed.imported_count === 2, "Both items are added.");
+    const added = await prisma.item.findMany({ where: { item_public_id: { in: committed.imported_item_public_ids } }, orderBy: { item_order: "asc" } });
+    const wordingOf = (rules: unknown) => ((rules as Record<string, Record<string, unknown>>).import_provenance?.wording ?? null) as Record<string, unknown> | null;
+    assert(added[0]?.item_stem === "D1. Which statement describes local independence?", "The item contains the wording the teacher chose for it.");
+    assert(wordingOf(added[0]?.administration_rules)?.wording_version === "as_written" &&
+      wordingOf(added[0]?.administration_rules)?.edited_by_teacher === false &&
+      wordingOf(added[0]?.administration_rules)?.prompt_version === "existing-mcq-import-v4", "Provenance records the item's wording choice.");
+    assert(wordingOf(added[1]?.administration_rules)?.status === "unchanged" && wordingOf(added[1]?.administration_rules)?.wording_version === "as_written",
+      "Each item records its own wording.");
+
+    // With the setting off, the items are read again and every item stays as written.
+    const asWritten = await withItemGenerationProviderForTest({ provider, provider_label: "mock" }, () =>
+      importExistingItemsFromMaterials({ teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId!, files, accessible_wording: false }));
+    assert(!asWritten.replayed && (provider.readRequests.length as number) === 2, "A different setting is a new import.");
+    const offBatch = (await getMcqItemImportBatch({ teacher_user_db_id: teacher.id, assessment_public_id: assessmentPublicId, batch_public_id: asWritten.batch_public_id })).batch;
+    assert(offBatch.candidates[0]?.stem === "D1. Which statement describes local independence?" && offBatch.candidates[0]?.wording_version === "as_written",
+      "With the setting off, the wording stays as written.");
 
     provider.belongsToTopic = false;
     let rejected: unknown = null;

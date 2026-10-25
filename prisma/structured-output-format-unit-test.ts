@@ -5,7 +5,7 @@
  */
 import assert from "node:assert/strict";
 import { structuredTextFormat, withoutOneOf } from "../src/lib/llm/structured-output-format";
-import { ItemDesignAssistantOutputSchema } from "../src/lib/services/content/item-design-contract";
+import { ExistingItemsOutputSchema, ItemDesignAssistantOutputSchema } from "../src/lib/services/content/item-design-contract";
 import { InterpretationOutputV8Schema } from "../src/lib/services/student-assessment/interpretation-v8/contract";
 import { FeedbackV8OutputSchema } from "../src/lib/services/student-assessment/feedback-v8/contract";
 import { ItemPreparationOutputSchema } from "../src/lib/services/content/item-preparation/contract";
@@ -32,6 +32,23 @@ check("the v8 schemas carry no oneOf either", () => {
   for (const [name, schema] of [["interpretation", InterpretationOutputV8Schema], ["feedback", FeedbackV8OutputSchema], ["item_preparation", ItemPreparationOutputSchema]] as const) {
     assert(!JSON.stringify(structuredTextFormat(schema, name).schema).includes('"oneOf"'), name);
   }
+});
+
+check("the existing-item import schema (with the accessible version) has no oneOf and every field required", () => {
+  const schema = structuredTextFormat(ExistingItemsOutputSchema, "existing_items").schema as Record<string, unknown>;
+  const text = JSON.stringify(schema);
+  assert(!text.includes('"oneOf"'), "oneOf left in the existing-item import schema");
+  type Node = { $ref?: string; properties?: Record<string, Node>; items?: Node; required?: string[] };
+  const definitions = { ...(schema.$defs as Record<string, Node> | undefined), ...(schema.definitions as Record<string, Node> | undefined) };
+  const resolve = (node: Node | undefined): Node => {
+    if (node?.$ref) return resolve(definitions[node.$ref.split("/").at(-1)!]);
+    assert(node, "schema node");
+    return node;
+  };
+  const item = resolve(resolve(resolve(schema as Node).properties?.items).items);
+  assert(item.required?.includes("accessible_version"), "accessible_version is required");
+  const accessible = resolve(item.properties?.accessible_version);
+  assert.deepEqual([...(accessible.required ?? [])].sort(), Object.keys(accessible.properties ?? {}).sort(), "every accessible field is required");
 });
 
 check("the format still parses a valid output with the Zod schema", () => {

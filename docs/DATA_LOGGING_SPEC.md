@@ -1545,6 +1545,21 @@ teacher-confirmed key, missing fields at import, issue flags at import, and
 diagnostic suggestion review decisions. Teacher diagnostic notes and assistant
 suggestions remain teacher/research-facing guidance only.
 
+Items read from course materials (`existing_items_from_materials`, prompt
+`existing-mcq-import-v4`) also record their wording under
+`import_provenance.wording` (`accessible-wording-v1`): `status` (`accessible`,
+`unchanged`, `fallback` or `not_requested`), `wording_version` (`as_written` or
+`accessible`, the version the teacher used for this item), `default_version`,
+`edited_by_teacher` (the added stem or options differ from the chosen version),
+`original_wording` (the source's stem and options word for word),
+`accessible_wording`, `rejected_proposal` and `fallback_reasons` (a simpler
+version that failed a deterministic check), `key_terms`, `change_note` and
+`prompt_version`. The same record is kept on the review candidate
+(`suggestion.accessible_wording`, with `wording_version` on the candidate), and the
+batch's `suggestion_payload.accessible_wording` records the import setting and the
+number of items in each status. Items from earlier batches and other sources have
+`wording: null`. No readability score is computed or stored.
+
 Student-facing payloads, student previews, student transcripts, and default
 exports must not expose imported keys, teacher-confirmed keys as answer keys,
 raw teacher diagnostic notes, assistant suggestion payloads, source checksums,

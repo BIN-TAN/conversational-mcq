@@ -81,6 +81,7 @@ const item = (overrides: Partial<ExistingItemsOutput["items"][number]> = {}): Ex
   ],
   objective_ids: ["objective_1", "objective_99"],
   note_for_teacher: null,
+  accessible_version: { changed: false, stem: null, options: [], key_terms: ["local independence", "theta"], change_note: null },
   ...overrides
 });
 
@@ -89,8 +90,8 @@ const output = (items: ExistingItemsOutput["items"], skipped: ExistingItemsOutpu
 
 async function main() {
   await check("Versions, and the output carries up to 40 items with a list of what was skipped", () => {
-    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v3");
-    assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v1");
+    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v4");
+    assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v2");
     assert.equal(EXISTING_ITEMS_MAX, 40);
     assert.equal(output([item()], [{ source_label: "D9", reason: "The stem has no options." }]).skipped.length, 1);
     assert.throws(() => output([item({ options: [{ label: "A", text: "Only one" }] })]), "An item needs at least two options");
@@ -117,6 +118,8 @@ async function main() {
     assert.deepEqual(draft.misconception_hypothesis_ids, ["misconception_1"], "Unknown misconceptions are dropped");
     assert.deepEqual(draft.from_source, ["stem", "options", "key", "target reasoning", "essential elements", "notes on incorrect options"]);
     assert.deepEqual(draft.suggested, ["notes on incorrect options"]);
+    assert.equal(draft.accessible_wording.status, "unchanged", "Wording the assistant left unchanged stays as written");
+    assert.equal(draft.wording_version, "as_written");
   });
 
   await check("Without a stated key, the assistant's answer is only a suggestion and every missing spec is proposed", () => {
@@ -175,7 +178,7 @@ async function main() {
     assert(assistant.includes("When the teacher wants to adapt these items, set the number of items to the number of their items"));
     assert(assistant.includes("Word, Excel, CSV, JSON and text files are provided as safely extracted text."));
     const service = between(text, "export async function importExistingItemsFromMaterials", "\n}\n");
-    for (const part of ["existing_item_import:${input.assessment_public_id}", ":read`", ":check:1`", "existingItemDrafts(output, design.blueprint)",
+    for (const part of ["existing_item_import:${input.assessment_public_id}", ":read`", ":check:1`", "existingItemDrafts(output, design.blueprint, {",
       "createExistingItemsReviewBatch(", "422", "runtime.provider !== \"openai\" || !runtime.live_calls_enabled"]) {
       assert(service.includes(part), part);
     }

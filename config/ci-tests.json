@@ -11,6 +11,7 @@
     "timeoutMinutes": 10
   },
   "unit": [
+    "prisma/accessible-wording-unit-test.ts",
     "prisma/design-alignment-unit-test.ts",
     "prisma/existing-items-import-unit-test.ts",
     "prisma/feedback-chat-ux-unit-test.ts",
