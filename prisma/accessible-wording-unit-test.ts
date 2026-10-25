@@ -410,7 +410,7 @@ check("The teacher setting is on by default and reaches the import call", () => 
   const text = source("src/lib/services/content/item-design.ts");
   const service = between(text, "export async function importExistingItemsFromMaterials", "\n}\n");
   assert(service.includes("const accessibleWording = input.accessible_wording !== false;"));
-  assert(service.includes("accessible_wording: accessibleWording,\n    topic_id"), "A different setting is a different import, not a replay");
+  assert(service.includes("accessible_wording: accessibleWording,\n    attached_only: attachedOnly,\n    topic_id"), "A different setting is a different import, not a replay");
   assert(service.includes("existingItemDrafts(output, design.blueprint, {\n    accessible_wording: accessibleWording"));
 });
 

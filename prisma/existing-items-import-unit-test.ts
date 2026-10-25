@@ -148,6 +148,24 @@ async function main() {
     ]), blueprint);
     assert.deepEqual(drafts.map((draft) => draft.item_label), ["D1"]);
     assert.equal(other_topic_count, 1);
+    // One file the teacher chose for this mini test: every item is kept, and an item the assistant
+    // placed under another topic carries a note.
+    const chosen = existingItemDrafts(output([
+      item(),
+      item({ source_label: "D13", belongs_to_selected_topic: false, source_topic: "Polytomous models", note_for_teacher: null })
+    ]), blueprint, { include_other_topics: true });
+    assert.deepEqual(chosen.drafts.map((draft) => draft.item_label), ["D1", "D13"]);
+    assert.equal(chosen.other_topic_count, 1);
+    assert.equal(chosen.drafts[1]!.note_for_teacher,
+      "The assistant thinks this item belongs to another topic (Polytomous models). Check that it fits this mini test before you add it.");
+    assert.equal(chosen.drafts[0]!.note_for_teacher, drafts[0]!.note_for_teacher, "An item for this topic gets no topic note");
+    const service = source("src/lib/services/content/item-design.ts");
+    assert(service.includes("const stored = attachedOnly\n    ? []"), "Reading one chosen file skips the stored course materials");
+    assert(source("src/app/api/teacher/assessments/[assessmentPublicId]/item-design/existing-items/route.ts")
+      .includes('attachedOnly = form.get("attached_only") === "true";'));
+    const page = source("src/components/teacher-content/mcq-import-client.tsx");
+    assert(page.includes('form.append("attached_only", "true");') && page.includes("Read this file with the assistant"),
+      "The import page offers the assistant for a Word file the simple reader could not split");
   });
 
   await check("One plain sentence says what came from the file and what was suggested, and keeps a note for the teacher", () => {

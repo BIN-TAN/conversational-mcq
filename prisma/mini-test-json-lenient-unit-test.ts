@@ -122,7 +122,7 @@ check("Design settings outside their range are brought into range and reported; 
   const read = parseMiniTestJsonWithChanges(JSON.stringify(value));
   assert.equal(read.document.design?.generation_settings.target_item_count, 12);
   assert.deepEqual(read.document.design?.generation_settings.difficulty_mix, ["analyzing"]);
-  assert(read.changes.includes("Design: the number of items for drafts (20) is outside 3 to 12, so it is set to 12."));
+  assert(read.changes.includes("Design: the number of items for drafts (20) is outside 1 to 12, so it is set to 12."));
   assert(read.changes.some((change) => change.startsWith('Design: ignored the demand level "hard"')));
 });
 

@@ -154,7 +154,7 @@ For the selected topic, fill every part of the design panel yourself; do not ask
 Replace the default starting objective and any entries that belong to another topic. Keep entries the teacher wrote for this topic and their IDs unless the teacher asks to change them; give new entries concise unique IDs of lowercase letters, numbers and underscores. Ask a question only when an essential choice cannot be inferred from the materials or the conversation, and fill everything else in the same response.
 
 FINISHED ITEMS IN THE MATERIALS
-When the materials contain finished items for the selected topic (for example a quiz, or an item blueprint with keys and notes on the options), build the panel from them: learning objectives from what the items assess, such as a stated reasoning demand; evidence requirements from any stated explanation evidence; and misconception hypotheses from the notes on the incorrect options, one for each distinct incorrect idea, linked to every objective it concerns. Record the items as the topic's source items. When the teacher wants to adapt these items, set the number of items to the number of their items for the selected topic (within the allowed 3 to 12), and do not ask for anything the items already show. Then tell the teacher in one sentence that their items come into review with their wording and keys kept once the design is filled in (the "Import my items" button in the sidebar does this at any time), and that new drafts are optional.
+When the materials contain finished items for the selected topic (for example a quiz, or an item blueprint with keys and notes on the options), build the panel from them: learning objectives from what the items assess, such as a stated reasoning demand; evidence requirements from any stated explanation evidence; and misconception hypotheses from the notes on the incorrect options, one for each distinct incorrect idea, linked to every objective it concerns. Record the items as the topic's source items. When the teacher wants to adapt these items, set the number of items to the number of their items for the selected topic (1 to 12), and do not ask for anything the items already show. Then tell the teacher in one sentence that their items come into review with their wording and keys kept once the design is filled in (the "Import my items" button in the sidebar does this at any time), and that new drafts are optional.
 
 READING LOAD
 Students should spend their effort on the assessed idea, not on reading. Plan items with short stems, plain everyday wording, one idea per sentence, and only the context the question needs.
@@ -394,7 +394,7 @@ function defaultBlueprint(input: {
     misconception_hypotheses: [],
     exemplar_items: [],
     generation_settings: {
-      // 3-5 items per mini-test are recommended (D7); 3-12 remain allowed.
+      // 3-5 items per mini-test are recommended (D7); 1-12 drafts per generation are allowed.
       target_item_count: 4,
       option_count: 4,
       difficulty_mix: ["foundational", "analyzing", "evaluating", "creating"],
@@ -2340,8 +2340,14 @@ export async function importExistingItemsFromMaterials(input: {
    * chooses the wording of each item in review, and nothing reaches students until it is added.
    */
   accessible_wording?: boolean;
+  /**
+   * Read only the attached files, not the stored course materials, and keep every item in them
+   * (the "Read this file with the assistant" choice on the import page, for one file of items).
+   */
+  attached_only?: boolean;
 }) {
   const accessibleWording = input.accessible_wording !== false;
+  const attachedOnly = input.attached_only === true;
   await assertAssessmentEditable(input);
   const design = await getAssessmentItemDesign(input);
   const attached = await prepareItemDesignMaterials({
@@ -2349,8 +2355,13 @@ export async function importExistingItemsFromMaterials(input: {
     files: input.files ?? []
   });
   const attachedHashes = new Set(attached.map((material) => material.sha256));
-  const stored = (await sourceMaterialsForConceptUnit(design.concept_unit_public_id))
-    .filter((material) => !attachedHashes.has(material.sha256));
+  if (attachedOnly && attached.length === 0) {
+    throw new ContentServiceError("validation_failed", "Choose the file with your items first.", 400);
+  }
+  const stored = attachedOnly
+    ? []
+    : (await sourceMaterialsForConceptUnit(design.concept_unit_public_id))
+      .filter((material) => !attachedHashes.has(material.sha256));
   const textMaterials = [
     ...stored.flatMap((material) => material.extracted_text
       ? [{ material_id: material.material_id, file_name: material.file_name, sha256: material.sha256, text: material.extracted_text }]
@@ -2377,6 +2388,7 @@ export async function importExistingItemsFromMaterials(input: {
     prompt_version: EXISTING_ITEMS_PROMPT_VERSION,
     prompt_hash: EXISTING_ITEMS_PROMPT_HASH,
     accessible_wording: accessibleWording,
+    attached_only: attachedOnly,
     topic_id: topic?.topic_id ?? null,
     title: design.assessment.title,
     text_materials: textMaterials.map((material) => createHash("sha256").update(material.text).digest("hex")),
@@ -2474,7 +2486,8 @@ export async function importExistingItemsFromMaterials(input: {
   // The accessible version is checked here, in code: a version that changes the options, a key
   // term, a formula, a table, a number or the key, or that makes the key stand out, is not used.
   const { drafts, other_topic_count: otherTopicCount } = existingItemDrafts(output, design.blueprint, {
-    accessible_wording: accessibleWording
+    accessible_wording: accessibleWording,
+    include_other_topics: attachedOnly
   });
   if (drafts.length === 0) {
     throw new ContentServiceError(

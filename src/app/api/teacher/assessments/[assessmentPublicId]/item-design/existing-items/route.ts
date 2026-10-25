@@ -16,9 +16,12 @@ export async function POST(
     let files: Array<{ file_name: string; media_type: string; bytes: Buffer }> = [];
     // Accessible wording is on unless the teacher turned it off ("false").
     let accessibleWording = true;
+    // "true" when the teacher asked the assistant to read just this file (the import page).
+    let attachedOnly = false;
     if (contentType.startsWith("multipart/form-data")) {
       const form = await request.formData();
       accessibleWording = form.get("accessible_wording") !== "false";
+      attachedOnly = form.get("attached_only") === "true";
       files = await Promise.all(form.getAll("files").flatMap((entry) => entry instanceof File ? [entry] : [])
         .map(async (file) => ({ file_name: file.name, media_type: file.type, bytes: Buffer.from(await file.arrayBuffer()) })));
     } else if (contentType.startsWith("application/json")) {
@@ -30,7 +33,8 @@ export async function POST(
         teacher_user_db_id: auth.user.user_db_id,
         assessment_public_id: assessmentPublicId,
         files,
-        accessible_wording: accessibleWording
+        accessible_wording: accessibleWording,
+        attached_only: attachedOnly
       })
     );
   } catch (error) {

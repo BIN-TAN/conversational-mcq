@@ -344,7 +344,7 @@ function normalizeDesign(raw: unknown, changes: Changes): unknown {
     for (const field of Object.keys(settings)) {
       if (!SETTINGS_FIELDS.has(field)) { delete settings[field]; changes.ignore(field, "draft settings"); }
     }
-    for (const [field, min, max, name] of [["target_item_count", 3, 12, "number of items"], ["option_count", 3, 5, "number of options"]] as const) {
+    for (const [field, min, max, name] of [["target_item_count", 1, 12, "number of items"], ["option_count", 3, 5, "number of options"]] as const) {
       const value = typeof settings[field] === "string" ? Number(settings[field]) : settings[field];
       if (typeof value === "number" && Number.isFinite(value)) {
         const clamped = Math.min(max, Math.max(min, Math.round(value)));

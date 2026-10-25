@@ -37,7 +37,7 @@ export function itemDesignPathStarter(path: ItemDesignPath, settings: { target_i
       "I want to adapt my existing multiple-choice items. Read the items in the file I attach.",
       "Fill in the whole design panel from them: learning objectives from what the items assess, evidence requirements from any explanation evidence the file states, and misconception hypotheses from the incorrect options, one for each distinct incorrect idea (several options can rest on the same idea). Where the file does not state this information, propose it from the items and their options, and tell me which parts you proposed.",
       "Keep the items as this topic's source items. If the file covers several topics, build the course topic bank and choose the topic that fits this mini test.",
-      "Set the number of items to the number of my items for this topic (3 to 12). Ask only essential questions, one at a time. Prepare the design for my review; my items come into review after that."
+      "Set the number of items to the number of my items for this topic (1 to 12). Ask only essential questions, one at a time. Prepare the design for my review; my items come into review after that."
     ].join("\n\n");
   }
   return [

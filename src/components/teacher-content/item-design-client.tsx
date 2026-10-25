@@ -1492,12 +1492,12 @@ export function ItemDesignClient({
             ><Plus className="h-4 w-4" aria-hidden="true" /> Add exemplar item</Button>
 
             <div className="grid gap-4 border-t border-line pt-5 md:grid-cols-2">
-              <Field label="Number of draft items" hint="3-5 items per mini-test are recommended; 3-12 are allowed.">
+              <Field label="Number of draft items" hint="1 to 12. A mini test needs at least 3 items to publish, and 3 to 5 are recommended; to add to a mini test that already has items, ask for just the number you need.">
                 <input
                   className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={readOnly}
                   max={12}
-                  min={3}
+                  min={1}
                   onChange={(event) => updateBlueprint((current) => ({ ...current, generation_settings: { ...current.generation_settings, target_item_count: Number(event.target.value) } }))}
                   type="number"
                   value={blueprint.generation_settings.target_item_count}

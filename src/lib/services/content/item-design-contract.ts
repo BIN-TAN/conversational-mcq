@@ -54,7 +54,9 @@ export const ItemDesignExemplarSchema = z.object({
 }).strict();
 
 export const ItemDesignGenerationSettingsSchema = z.object({
-  target_item_count: z.number().int().min(3).max(12).default(4),
+  // 1 to 12 drafts per generation: a mini test needs at least 3 items to publish (publishing.ts),
+  // but a teacher can generate one or two more for a mini test that already has items.
+  target_item_count: z.number().int().min(1).max(12).default(4),
   option_count: z.number().int().min(3).max(5).default(4),
   difficulty_mix: z.array(ItemDesignCognitiveDemandBandSchema).min(1).max(4),
   // Notes for drafting (reading level, contexts to use or avoid, source pages). Long enough for a
@@ -610,13 +612,20 @@ export type ExistingItemDraft = {
 export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemDesignBlueprint, settings: {
   /** The teacher's import setting: start each changed item with its accessible wording (default). */
   accessible_wording?: boolean;
+  /**
+   * Keep items the assistant placed under another topic, with a note for the teacher. Used when
+   * the teacher chose one file for this mini test, so the file itself says what belongs here.
+   */
+  include_other_topics?: boolean;
 } = {}): {
   drafts: ExistingItemDraft[];
   other_topic_count: number;
 } {
   const objectiveIds = new Set(blueprint.objectives.map((objective) => objective.objective_id));
   const misconceptionIds = new Set(blueprint.misconception_hypotheses.map((entry) => entry.misconception_id));
-  const selected = output.items.filter((item) => item.belongs_to_selected_topic);
+  const selected = settings.include_other_topics
+    ? output.items
+    : output.items.filter((item) => item.belongs_to_selected_topic);
   const drafts = selected.flatMap((item) => {
     const labels = new Set(item.options.map((option) => option.label));
     if (labels.size !== item.options.length) return [];
@@ -661,10 +670,15 @@ export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemD
       source_topic: item.source_topic,
       from_source: fromSource,
       suggested,
-      note_for_teacher: item.note_for_teacher
+      note_for_teacher: [
+        item.note_for_teacher,
+        item.belongs_to_selected_topic
+          ? null
+          : `The assistant thinks this item belongs to another topic${item.source_topic ? ` (${item.source_topic})` : ""}. Check that it fits this mini test before you add it.`
+      ].filter(Boolean).join(" ") || null
     }];
   });
-  return { drafts, other_topic_count: output.items.length - selected.length };
+  return { drafts, other_topic_count: output.items.filter((item) => !item.belongs_to_selected_topic).length };
 }
 
 /** One sentence for the review page: what came from the instructor's file and what the assistant suggested. */

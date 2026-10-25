@@ -149,8 +149,11 @@ export function McqImportClient({
   const [savedCandidates, setSavedCandidates] = useState("");
   const [reviewNotes, setReviewNotes] = useState(false);
   const [checkedNotes, setCheckedNotes] = useState<string[]>([]);
+  // A Word file the simple reader could not split into questions and options (for example an
+  // item specification with keys and notes) can be read by the assistant instead.
+  const [offerAssistantReading, setOfferAssistantReading] = useState(false);
   const dirty = Boolean(batch && savedCandidates && JSON.stringify(batch.candidates) !== savedCandidates);
-  useUnsavedChanges(dirty || Boolean(busyAction && busyAction !== "reload"));
+  const { allowNavigation } = useUnsavedChanges(dirty || Boolean(busyAction && busyAction !== "reload"));
   function receiveBatch(next: McqImportBatch) {
     setBatch(next);
     setSavedCandidates(JSON.stringify(next.candidates));
@@ -255,6 +258,7 @@ export function McqImportClient({
     event.preventDefault();
     setError(null);
     setSuccess(null);
+    setOfferAssistantReading(false);
     setBusyAction("preview");
 
     try {
@@ -276,9 +280,35 @@ export function McqImportClient({
 
       receiveBatch(data.batch);
       setSuccess(`Preview created with ${data.batch.candidate_count} candidates.`);
+      if (sourceType === "docx" && sourceFile && data.batch.candidates.every((candidate) => (candidate.options ?? []).length < 2)) {
+        setOfferAssistantReading(true);
+      }
     } catch (caught) {
       setError(errorFromUnknown(caught));
+      if (sourceType === "docx" && sourceFile) setOfferAssistantReading(true);
     } finally {
+      setBusyAction(null);
+    }
+  }
+
+  /** Sends the Word file to the assistant, which reads items with their keys and notes. */
+  async function readWithAssistant() {
+    if (!sourceFile || busyAction) return;
+    setBusyAction("assistant_read");
+    setError(null);
+    setSuccess(null);
+    try {
+      const form = new FormData();
+      form.append("files", sourceFile, sourceFile.name);
+      form.append("attached_only", "true");
+      const imported = await apiRequest<{ review_url: string }>(
+        `/api/teacher/assessments/${assessmentPublicId}/item-design/existing-items`,
+        { method: "POST", body: form }
+      );
+      allowNavigation();
+      window.location.assign(imported.review_url);
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
       setBusyAction(null);
     }
   }
@@ -437,6 +467,7 @@ export function McqImportClient({
 
   function fileChanged(event: ChangeEvent<HTMLInputElement>) {
     setSourceFile(event.target.files?.[0] ?? null);
+    setOfferAssistantReading(false);
   }
 
   return (
@@ -537,6 +568,20 @@ export function McqImportClient({
             Missing fields remain blank. Import creates draft items only.
           </p>
         </div>
+        {offerAssistantReading && sourceFile ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950" role="status">
+            <p>
+              This file does not look like a simple list of questions with lettered options, so its items were not read correctly.
+              If it describes items with their options, key and notes, as an item specification does, the assistant can read it instead.
+              It keeps your wording and key, and you review every item before it is added.
+            </p>
+            <Button className="mt-3" disabled={busyAction !== null} onClick={readWithAssistant} type="button">
+              {busyAction === "assistant_read" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Sparkles className="h-4 w-4" aria-hidden="true" />}
+              {busyAction === "assistant_read" ? "Reading your file" : "Read this file with the assistant"}
+            </Button>
+            {busyAction === "assistant_read" ? <p className="mt-2 text-xs">This can take a few minutes. Keep this page open; the review opens when the assistant is done.</p> : null}
+          </div>
+        ) : null}
       </form> : null}
 
       {batch ? (
