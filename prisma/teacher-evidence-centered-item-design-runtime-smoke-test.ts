@@ -10,6 +10,9 @@ import type {
 import { createAssessment } from "../src/lib/services/content/assessments";
 import {
   generateAssessmentItemDrafts,
+  ITEM_CHECK_MIN_OUTPUT_TOKENS,
+  ITEM_GENERATION_MIN_OUTPUT_TOKENS,
+  ITEM_GENERATION_RECOVERY_MAX_OUTPUT_TOKENS,
   getAssessmentItemDesign,
   respondToAssessmentItemDesignAssistant,
   saveAssessmentItemDesign,
@@ -71,6 +74,8 @@ class ItemGenerationProvider implements LlmProvider {
   incompleteAssistantCalls = new Set<number>();
   failGenerationCalls = new Set<number>();
   generationCandidateCounts: number[] = [];
+  generationMaxOutputTokens: Array<number | undefined> = [];
+  checkMaxOutputTokens: Array<number | undefined> = [];
   assistantRequests: Array<{
     instructions: string;
     recoveryAttempt: string | undefined;
@@ -100,6 +105,9 @@ class ItemGenerationProvider implements LlmProvider {
     request: StructuredAgentRequest<TInput, TOutput>
   ): Promise<StructuredAgentResult<TOutput>> {
     this.callCount += 1;
+    if (request.metadata?.purpose === "teacher_item_draft_check" || request.metadata?.purpose === "teacher_item_draft_revision") {
+      this.checkMaxOutputTokens.push(request.model_config.max_output_tokens);
+    }
     if (request.metadata?.purpose === "teacher_item_draft_check") {
       this.checkCallCount += 1;
       if (this.failCheckCalls.has(this.checkCallCount)) {
@@ -232,6 +240,7 @@ class ItemGenerationProvider implements LlmProvider {
     }
 
     this.generationCallCount += 1;
+    this.generationMaxOutputTokens.push(request.model_config.max_output_tokens);
     if (this.failGenerationCalls.has(this.generationCallCount)) {
       return {
         provider: "mock",
@@ -525,6 +534,17 @@ async function main() {
     );
     assert(Boolean(recovered.batch_public_id), "A retryable chunk failure should recover without losing the saved design.");
     assert(Number(provider.generationCallCount) === 5, "Generation should include two initial chunks, one failed chunk, one bounded recovery, and the remaining chunk.");
+    // Calls 1, 2, 3 and 5 are first attempts; call 4 is the recovery of the failed call 3.
+    assert(
+      [0, 1, 2, 4].every((index) => provider.generationMaxOutputTokens[index] === ITEM_GENERATION_MIN_OUTPUT_TOKENS) &&
+        provider.generationMaxOutputTokens[3] === ITEM_GENERATION_RECOVERY_MAX_OUTPUT_TOKENS,
+      `Generation calls must get the draft output budget, not the role default (got ${provider.generationMaxOutputTokens.join(", ")}).`
+    );
+    assert(
+      provider.checkMaxOutputTokens.length > 0 &&
+        provider.checkMaxOutputTokens.every((tokens) => (tokens ?? 0) >= ITEM_CHECK_MIN_OUTPUT_TOKENS),
+      `Check and revision calls must get the check output budget (got ${provider.checkMaxOutputTokens.join(", ")}).`
+    );
 
     const recoveredReview = await getMcqItemImportBatch({
       teacher_user_db_id: teacher.id,
@@ -547,6 +567,11 @@ async function main() {
     assert(calls.length === 5, "Each chunk and recovery attempt should have a distinct persisted AgentCall.");
     assert(calls.filter((call) => call.call_status === "succeeded").length === 4, "Expected four successful generation chunks.");
     assert(calls.filter((call) => call.call_status === "failed").length === 1, "Expected one preserved failed generation call.");
+    assert(
+      calls.some((call) => call.retry_count === 1 && call.max_output_tokens === ITEM_GENERATION_RECOVERY_MAX_OUTPUT_TOKENS) &&
+        calls.filter((call) => call.retry_count === 0).every((call) => call.max_output_tokens === ITEM_GENERATION_MIN_OUTPUT_TOKENS),
+      "The audit records the output budget each generation call was sent."
+    );
     assert(calls.some((call) => JSON.stringify(call.raw_output).includes('"misconception_hypothesis_ids":[]')),
       "The original omitted provider index must remain preserved in the raw call evidence.");
 

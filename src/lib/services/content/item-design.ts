@@ -115,6 +115,16 @@ async function closeAbandonedCalls<T extends CallTiming>(calls: T[], staleAfterM
 export const ITEM_DESIGN_ASSISTANT_RECOVERY_MAX_OUTPUT_TOKENS = 20000 as const;
 export const ITEM_GENERATION_MAX_CANDIDATES_PER_CALL = 2 as const;
 export const ITEM_GENERATION_MAX_RECOVERY_ATTEMPTS = 1 as const;
+/**
+ * Output-token floors for draft generation and the draft check. The role's default budget
+ * (2,500 tokens) suits short assistant replies, not two complete drafts with rationales plus
+ * reasoning, so generation stopped at max_output_tokens on both attempts. A recovery attempt
+ * gets a larger budget, as the authoring assistant's does.
+ */
+export const ITEM_GENERATION_MIN_OUTPUT_TOKENS = 16_000 as const;
+export const ITEM_GENERATION_RECOVERY_MAX_OUTPUT_TOKENS = 24_000 as const;
+export const ITEM_CHECK_MIN_OUTPUT_TOKENS = 16_000 as const;
+const ITEM_GENERATION_TIMEOUT_MS = 300_000;
 
 export const ITEM_DESIGN_ASSISTANT_INSTRUCTIONS = `
 You are a teacher-facing evidence-centered assessment design partner. You do the design work for one mini test, and the teacher reviews it; you do not write its items here. current_topic_map shows the selected topic in full and the other topics briefly. Uploaded PDF and image content is provided as labeled multimodal attachments; Word, Excel, CSV, JSON and text files are provided as safely extracted text.
@@ -1817,7 +1827,8 @@ async function checkGeneratedItems(input: AuthoringCallSetup & {
       topic_map: input.topic_map
     }),
     parse: (value: unknown) => ItemCheckOutputSchema.parse(value),
-    purpose: "teacher_item_draft_check"
+    purpose: "teacher_item_draft_check",
+    min_output_tokens: ITEM_CHECK_MIN_OUTPUT_TOKENS
   });
   const findingFor = (result: ItemCheckOutput | null, index: number) =>
     result?.items.find((entry) => entry.item_label === checkLabel(index));
@@ -1872,7 +1883,8 @@ async function checkGeneratedItems(input: AuthoringCallSetup & {
       instructions: `${ITEM_GENERATION_INSTRUCTIONS}\n\n${ITEM_REVISION_INSTRUCTIONS}`,
       context: revisionContext,
       parse: (value: unknown) => ItemRevisionOutputSchema.parse(normalizeLegacyItemGenerationOutput(value)),
-      purpose: "teacher_item_draft_revision"
+      purpose: "teacher_item_draft_revision",
+      min_output_tokens: ITEM_GENERATION_MIN_OUTPUT_TOKENS
     });
   }));
   const accepted = new Map<number, ItemGenerationOutput["candidates"][number]>();
@@ -2056,6 +2068,15 @@ export async function generateAssessmentItemDrafts(input: {
         ? chunkPrefix
         : `${chunkPrefix}:attempt:${attemptNumber}`;
       const clientRequestId = `mcq_generate_${randomUUID()}`;
+      const requestModelConfig: AgentModelConfig = {
+        ...modelConfig,
+        max_output_tokens: Math.max(
+          modelConfig.max_output_tokens ?? 0,
+          recoveryIndex === 0
+            ? ITEM_GENERATION_MIN_OUTPUT_TOKENS
+            : ITEM_GENERATION_RECOVERY_MAX_OUTPUT_TOKENS
+        )
+      };
       let agentCall;
       try {
         agentCall = await prisma.agentCall.create({
@@ -2068,7 +2089,7 @@ export async function generateAssessmentItemDrafts(input: {
             client_request_id: clientRequestId,
             agent_invocation_key: invocationKey,
             prompt_hash: ITEM_GENERATION_PROMPT_HASH,
-            max_output_tokens: modelConfig.max_output_tokens ?? null,
+            max_output_tokens: requestModelConfig.max_output_tokens ?? null,
             reasoning_effort: modelConfig.reasoning_effort ?? null,
             prompt_version: ITEM_GENERATION_PROMPT_VERSION,
             schema_version: ITEM_GENERATION_SCHEMA_VERSION,
@@ -2093,7 +2114,7 @@ export async function generateAssessmentItemDrafts(input: {
 
       const result = await provider.executeStructured({
         agent_name: ITEM_GENERATION_AGENT_NAME,
-        model_config: modelConfig,
+        model_config: requestModelConfig,
         instructions: recoveryIndex === 0
           ? ITEM_GENERATION_INSTRUCTIONS
           : `${ITEM_GENERATION_INSTRUCTIONS}\n\n${ITEM_GENERATION_RECOVERY_INSTRUCTIONS}`,
@@ -2101,7 +2122,7 @@ export async function generateAssessmentItemDrafts(input: {
         output_schema: ItemGenerationOutputSchema,
         schema_name: ITEM_GENERATION_SCHEMA_VERSION.replace(/[^a-zA-Z0-9_-]/g, "_"),
         client_request_id: clientRequestId,
-        timeout_ms: 120000,
+        timeout_ms: ITEM_GENERATION_TIMEOUT_MS,
         metadata: {
           purpose: "teacher_evidence_centered_item_generation",
           prompt_version: ITEM_GENERATION_PROMPT_VERSION,
