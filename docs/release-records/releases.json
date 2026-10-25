@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated_at": "2026-10-25T02:00:39.396568+00:00",
+  "updated_at": "2026-10-25T20:30:00+00:00",
   "title": "Conversational MCQ 系统变更与部署记录",
   "purpose": "本记录用于教学实施报告、系统开发报告及研究方法说明。它区分应用修改、测试结果与线上部署证据，记录变更对学生体验、教师操作和研究数据的影响。原始学生数据不作为本档案内容，模型解释也不等同于已证实的学习成效。",
   "releases": [
@@ -4745,6 +4745,265 @@
         "E:\\New_Downloads\\cmcq-v8-release\\config\\ci-tests.json",
         "E:\\New_Downloads\\cmcq-v8-release\\docs\\CI.md",
         "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40150761723"
+      ]
+    },
+    {
+      "id": "CMCQ-20261025-13",
+      "date": "2026-10-25",
+      "title": "Release records for 08 to 12a; test fixes",
+      "application_commit": "527b3c8d29aebc99a283aebeac3a34c9b41fa9b8",
+      "push_status": "Pushed as release/cmcq-20261025-13 and fast-forwarded origin/main to 527b3c8 by the researcher running run-merge-13-v2.ps1. No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "pending",
+        "deployment_id": null,
+        "source_commit": "527b3c8d29aebc99a283aebeac3a34c9b41fa9b8",
+        "verified_at": null,
+        "evidence": [
+          "Not deployed on its own: it changes only release records and tests. Its commit is an ancestor of c096cbe, deployed as CMCQ-20261025-14 (dep-dbeno5gm7kps73efrddg)."
+        ]
+      },
+      "summary": "Recorded releases 08 to 10 (failed deploy), 12, 12a and 11 in the ledger and the Word record, and fixed ten test files so that the CI unit and database lists pass.",
+      "changes": [
+        {
+          "area": "Tests",
+          "problem": "Tests asserted wording and call orders from before releases 08 to 12, and some needed the mock provider.",
+          "fix": "Ten test commits: local test plan with the mock provider, demo students assigned to the demo instructor, v8 call order, the Import items card, the llm-usage legacy hash, the Password label, the /teacher/login redirect and the initial-preparation worker environment.",
+          "impact": "No change to the application."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 6 (40156439519)",
+          "result": "Success",
+          "detail": "Checks 153/153; database 56 passed, 12 allowed failures; browser (non-blocking) 6 of 9."
+        }
+      ],
+      "data_impact": [
+        "None."
+      ],
+      "limitations": [
+        "Three browser scripts still fail (initial-preparation-ux, student-usability, classroom-login-progression)."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\docs\\release-records\\releases.json",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40156439519"
+      ]
+    },
+    {
+      "id": "CMCQ-20261025-14",
+      "date": "2026-10-25",
+      "title": "Authoring assistant: structured outputs send anyOf instead of oneOf",
+      "application_commit": "c096cbe7d7b29b68a0ede934afe7b33f101ee93b",
+      "push_status": "Pushed as release/cmcq-20261025-14 (CI run 8) and fast-forwarded origin/main to c096cbe by the researcher running run-release-14-merge-main.ps1. No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "verified_live",
+        "deployment_id": "dep-dbeno5gm7kps73efrddg",
+        "source_commit": "c096cbe7d7b29b68a0ede934afe7b33f101ee93b",
+        "verified_at": "2026-10-25T03:53:00+00:00",
+        "evidence": [
+          "Manual deploy of the latest commit; no pending migrations; Next.js 15.5.28 ready; no errors in the application log.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Since the Zod 4 migration (release 12) every item-design assistant call failed with 'The authoring assistant could not respond', because Zod 4 writes a discriminated union as oneOf, which OpenAI strict structured outputs reject. Schemas are now sent with anyOf.",
+      "changes": [
+        {
+          "area": "Structured outputs",
+          "problem": "ItemDesignAssistantOutputSchema (blueprint_updates, a discriminated union) produced oneOf.",
+          "fix": "structuredTextFormat wraps zodTextFormat and rewrites oneOf to anyOf; used by the OpenAI provider, the item-design multimodal provider and the structured-output compatibility check. New unit test.",
+          "impact": "Each branch fixes a different update_type, so anyOf accepts exactly the same outputs; responses are still parsed by the Zod schema."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 8 (40158762912)",
+          "result": "Success",
+          "detail": "Checks 154/154; database 56 passed, 12 allowed failures."
+        }
+      ],
+      "data_impact": [
+        "None: the same outputs are accepted and stored."
+      ],
+      "limitations": [
+        "Only ItemDesignAssistantOutputSchema contained oneOf in the release 12 schema snapshot; new discriminated unions are covered by the same helper."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\llm\\structured-output-format.ts",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40158762912"
+      ]
+    },
+    {
+      "id": "CMCQ-20261025-15",
+      "date": "2026-10-25",
+      "title": "Draft generation: draft-sized output budget",
+      "application_commit": "b4b71a580a20f0fc1a58666a8c570d1635a9b14e",
+      "push_status": "Pushed as release/cmcq-20261025-15 and fast-forwarded origin/main to b4b71a5 by the researcher running run-release-15-merge-main.ps1. No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "verified_live",
+        "deployment_id": "dep-dbep5efb9u1s73afu3e0",
+        "source_commit": "b4b71a580a20f0fc1a58666a8c570d1635a9b14e",
+        "verified_at": "2026-10-25T05:31:00+00:00",
+        "evidence": [
+          "Manual deploy of the latest commit; no pending migrations; Next.js 15.5.28 ready; no errors in the application log.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Draft generation used the authoring role's default output budget of 2,500 tokens. Two complete drafts with rationales plus reasoning did not fit, so both attempts stopped at max_output_tokens and the instructor saw 'Draft generation did not complete' (validation_failed). Generation, check and revision calls now get draft-sized budgets.",
+      "changes": [
+        {
+          "area": "Output budgets",
+          "problem": "Generation chunks were cut off at 2,500 output tokens.",
+          "fix": "Generation at least 16,000 output tokens (24,000 on the recovery attempt) with a 300-second timeout; the draft check and revision at least 16,000.",
+          "impact": "Prompts and schemas unchanged; the audit records the budget each call was sent."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 40163843622",
+          "result": "Success",
+          "detail": "Checks passed; database 56 passed, 12 allowed failures, including the runtime test that now asserts the budgets."
+        }
+      ],
+      "data_impact": [
+        "AgentCall.max_output_tokens for generation, check and revision calls records the larger budget."
+      ],
+      "limitations": [
+        "Generation then failed on validation for Test 9; fixed in CMCQ-20261025-15a."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design.ts",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40163843622"
+      ]
+    },
+    {
+      "id": "CMCQ-20261025-15a",
+      "date": "2026-10-25",
+      "title": "Draft generation: misconception coverage reported, not a reason to reject",
+      "application_commit": "fa23f95a0b93c8eb7cb93a996dd957b876809928",
+      "push_status": "Pushed as release/cmcq-20261025-15a and fast-forwarded origin/main to fa23f95 by the researcher running run-release-15a-merge-main.ps1 (before CI finished; CI then passed). No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "pending",
+        "deployment_id": null,
+        "source_commit": "fa23f95a0b93c8eb7cb93a996dd957b876809928",
+        "verified_at": null,
+        "evidence": [
+          "Deployed by the researcher from the Render dashboard (Deploy latest commit). At 2026-10-25T06:36Z Claude saw fa23f95 marked Live on the service page, with no pending migrations, Next.js ready and no errors in the application log; the deployment ID was not recorded, so the entry stays pending until it is.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Test 9 (5 items, 5 objectives, 13 misconception examples) failed with 'The drafts did not match the saved design' on both attempts: a pair of drafts had to probe 6 misconceptions assigned by position, every misconception had to be linked, and the model's coverage counts and band labels were grounds for rejection.",
+      "changes": [
+        {
+          "area": "Generation plan",
+          "problem": "Misconceptions were spread across chunks by position, not by objective.",
+          "fix": "Each misconception goes to a chunk that assesses one of its linked objectives, in proportion to incorrect-option slots.",
+          "impact": "A chunk is not asked to probe a misconception about an objective it does not assess."
+        },
+        {
+          "area": "Validation",
+          "problem": "A set was rejected unless every misconception was linked; coverage counts and band labels from the model were checked.",
+          "fix": "Generation accepts drafts that leave a misconception unprobed and lists those misconception examples in a note at the top of the review page; the band follows the cognitive_demand label; coverage_summary is counted in code; the item-level misconception index may hold up to 40 IDs. The recovery attempt receives the previous attempt's problems.",
+          "impact": "Key, option-count, item-count, objective and band checks still reject a set. Prompts: generation v7.1, revision v3.1."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 40167956447",
+          "result": "Success",
+          "detail": "Checks 154/154; database 56 passed, 12 allowed failures; browser (non-blocking) 6 of 9."
+        }
+      ],
+      "data_impact": [
+        "Generated batches may carry validation_summary.review_notes (unprobed misconception examples).",
+        "AgentCall.validation_error for a rejected chunk now lists the specific problems.",
+        "Stored difficulty follows cognitive_demand; coverage_summary is computed from the candidates."
+      ],
+      "limitations": [
+        "Note numbering refers to the design's misconception order at generation time."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\services\\content\\item-design-contract.ts",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40167956447"
+      ]
+    },
+    {
+      "id": "CMCQ-20261025-17",
+      "date": "2026-10-25",
+      "title": "Simpler wording for imported items; assistant reading of item-specification Word files; 1 to 12 draft items",
+      "application_commit": "8b0bcc793f778376e232fcc517ec56a5ef266e1e",
+      "push_status": "Pushed as release/cmcq-20261025-17 (it contains the never-pushed releases 16 and 16b) and fast-forwarded origin/main to 8b0bcc7 by the researcher running run-release-17-merge-main.ps1 after CI passed. No force push.",
+      "deployment": {
+        "service": "conversational-mcq",
+        "service_id": "srv-d987t1vaqgkc73d5l5q0",
+        "url": "https://conversational-mcq.onrender.com",
+        "status": "pending",
+        "deployment_id": null,
+        "source_commit": "8b0bcc793f778376e232fcc517ec56a5ef266e1e",
+        "verified_at": null,
+        "evidence": [
+          "Deployed by the researcher from the Render dashboard on 2026-10-25; the researcher reported the features working at 14:03 MDT. Claude could not open the dashboard (signed out), so the deployment ID and logs were not recorded; the entry stays pending until they are.",
+          "No Render variable changed."
+        ]
+      },
+      "summary": "Items imported from course materials can come with a simpler version at a middle to high school reading level that keeps key terms, symbols, numbers (in order), formulas, tables, options, each option's idea and the key; rule-based checks set aside versions that change these or meaning words such as not, except, at least or increases. The instructor chooses the wording per item; no readability grade is computed or shown. Generation and revision write at the same level. On the Import MCQ items page, a Word file the simple reader cannot split can be read by the assistant. The number of draft items is 1 to 12.",
+      "changes": [
+        {
+          "area": "Accessible wording",
+          "problem": "Instructors wanted lower reading demands without changing what items assess.",
+          "fix": "existing-mcq-import-v4 (output v2) proposes an accessible version per item; src/lib/item-content/accessible-wording.ts checks it in code; items with a simpler version are checked in both wordings (in calls of at most 12 entries), and an item starts in the instructor's wording when the check finds a problem only in the simpler one; per-item switch on the review page; duplicate detection over both wordings. Generation v8 and revision v4 write at the same reading level.",
+          "impact": "On by default; the instructor can clear the setting or switch any item back."
+        },
+        {
+          "area": "Word import",
+          "problem": "The simple Word reader needs numbered stems, so item-specification files (D13_PCM_adjacent_thresholds.docx) were read as items without options.",
+          "fix": "When no item with two or more options is found, the import page offers 'Read this file with the assistant', which reads only that file (attached_only), keeps every item and notes items the assistant would place under another topic.",
+          "impact": "The assistant path keeps the source wording and stated key; everything goes through review."
+        },
+        {
+          "area": "Draft count",
+          "problem": "A mini test with three items could not generate one more.",
+          "fix": "Number of draft items 1 to 12; publishing still needs at least 3 items.",
+          "impact": "JSON import and the assistant's instructions use the same range."
+        }
+      ],
+      "tests": [
+        {
+          "name": "GitHub Actions CI run 40172367160",
+          "result": "Success",
+          "detail": "Checks 155/155 (including the new accessible-wording unit test); database 56 passed, 12 allowed failures (existing-items import and generation runtime tests pass); browser (non-blocking) 6 of 9."
+        },
+        {
+          "name": "Independent code reviews",
+          "result": "Findings fixed",
+          "detail": "Two reviews of the accessible-wording branch (meaning-word, number-order and option-correspondence checks; check-size limit) and one of release 15a; every blocker was fixed before the push."
+        }
+      ],
+      "data_impact": [
+        "Import review candidates carry suggestion.accessible_wording (original wording, checked simpler wording or rejected proposal with reasons, key terms, status) and wording_version; suggestion.assistant_check_other_wording holds the check of the other wording.",
+        "Added items record administration_rules.import_provenance.wording: the wording version used, whether the instructor edited it, both wordings and the prompt version.",
+        "Batch suggestion_payload.accessible_wording records the setting and counts per status.",
+        "Teacher-authoring calls record existing-mcq-import-v4, generation-v8 and revision-v4."
+      ],
+      "limitations": [
+        "The checks are strict: harmless rewrites such as 'went down' to 'dropped' keep the original wording.",
+        "Three browser scripts still fail as before."
+      ],
+      "references": [
+        "E:\\New_Downloads\\cmcq-v8-release\\src\\lib\\item-content\\accessible-wording.ts",
+        "E:\\New_Downloads\\cmcq-v8-release\\prisma\\accessible-wording-unit-test.ts",
+        "https://github.com/BIN-TAN/conversational-mcq/actions/runs/40172367160"
       ]
     }
   ],
