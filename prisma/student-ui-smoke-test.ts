@@ -25,6 +25,12 @@ const prisma = new PrismaClient();
 
 process.env.LLM_PROVIDER = "mock";
 process.env.LLM_LIVE_CALLS_ENABLED = "false";
+// The tutor opening checked after answer review is written by the feedback v8 runner, which
+// feedbackV8Plan (src/lib/services/student-assessment/feedback-v8/runner.ts) allows only through
+// its labelled local test plan here: mock provider and OPERATIONAL_AGENT_MODE=mock. The CI
+// database job sets "disabled", which refuses the opening. No provider is called.
+process.env.OPERATIONAL_AGENT_MODE = "mock";
+process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "false";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {

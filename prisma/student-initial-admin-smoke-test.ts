@@ -28,6 +28,13 @@ const prisma = new PrismaClient();
 
 process.env.LLM_PROVIDER = "mock";
 process.env.LLM_LIVE_CALLS_ENABLED = "false";
+// Completion must save the assistant-first opening. Since feedback v8 the opening is written by
+// the feedback v8 runner, and feedbackV8Plan (src/lib/services/student-assessment/feedback-v8/
+// runner.ts) gives it the labelled local test plan only with the mock provider and
+// OPERATIONAL_AGENT_MODE=mock; the CI database job sets "disabled", which refuses the opening.
+// Interpretation v8 (interpretation-v8/call.ts) follows the same mode. No provider is called.
+process.env.OPERATIONAL_AGENT_MODE = "mock";
+process.env.FORMATIVE_CONVERSATION_LIVE_CALLS_ENABLED = "false";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {

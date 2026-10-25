@@ -185,10 +185,7 @@
     "prisma/existing-items-import-smoke-test.ts",
     "prisma/feedback-display-completion-smoke-test.ts",
     "prisma/classroom-data-integrity-smoke-test.ts",
-    {
-      "path": "prisma/student-initial-admin-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: it expects an assistant-first formative opening, but its worker step uses deterministic_e1, which feedback v8 refuses since 19 Oct. Move it to the feedback v8 local test plan."
-    },
+    "prisma/student-initial-admin-smoke-test.ts",
     {
       "path": "prisma/student-package-feedback-recovery-smoke-test.ts",
       "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: it expects planning and formative opening calls first and finds student_profiling_agent (the v8 order). Update it to the v8 call order."
@@ -199,10 +196,7 @@
       "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: its fixture assessment is not available for new starts. Give the fixture a current availability window."
     },
     "prisma/student-attempt-lifecycle-smoke-test.ts",
-    {
-      "path": "prisma/student-ui-smoke-test.ts",
-      "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: it expects a persisted tutor opening after answer review, which the deterministic_e1 path no longer produces under feedback v8."
-    },
+    "prisma/student-ui-smoke-test.ts",
     {
       "path": "prisma/initial-preparation-smoke-test.ts",
       "allowFailure": "Fails the same way on d64d0b9 (run 10 baseline, 24 Oct), so it predates releases 08 to 12: a retry case ends 'completed' where it expects 'retryable'. Re-check the retry rule it asserts."
