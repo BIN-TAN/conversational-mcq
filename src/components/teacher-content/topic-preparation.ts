@@ -63,6 +63,8 @@ export async function prepareTopicMiniTests(input: {
   onUpdate: (state: TopicRunState) => void;
   shouldStop: () => boolean;
   newClientMessageId?: () => string;
+  /** The teacher's import setting; simpler wording is suggested unless this is false. */
+  accessible_wording?: boolean;
 }): Promise<TopicRunState[]> {
   const newId = input.newClientMessageId ?? (() => crypto.randomUUID());
   const results: TopicRunState[] = [];
@@ -118,7 +120,7 @@ export async function prepareTopicMiniTests(input: {
         try {
           const imported = await apiRequest<{ review_url: string; imported_count: number }>(`${designUrl}/existing-items`, {
             method: "POST",
-            body: JSON.stringify({})
+            body: JSON.stringify({ accessible_wording: input.accessible_wording !== false })
           });
           results.push(update("ready", imported.review_url,
             imported.imported_count === 1

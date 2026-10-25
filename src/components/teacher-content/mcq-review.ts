@@ -1,4 +1,11 @@
 import type { McqImportCandidate, McqImportOptionRationale } from "./types";
+import {
+  readAccessibleWordingRecord,
+  sameWording,
+  wordingFor,
+  type AccessibleWordingRecord,
+  type WordingVersion
+} from "../../lib/item-content/accessible-wording";
 
 export const noteFields = [
   { suggestion: "suggested_target_reasoning_note", field: "target_reasoning_note", label: "Target reasoning" },
@@ -283,4 +290,40 @@ export function keysTheCheckAgreedWith(candidates: McqImportCandidate[]) {
       check.remaining_problems.length === 0 && check.independent_answer === key &&
       candidate.options.some((option) => option.label === key));
   });
+}
+
+/** The accessible-wording record of an item read from course materials; null for other items and earlier batches. */
+export function accessibleWordingOf(candidate: McqImportCandidate): AccessibleWordingRecord | null {
+  const suggestion = candidate.suggestion && typeof candidate.suggestion === "object" && !Array.isArray(candidate.suggestion)
+    ? (candidate.suggestion as Record<string, unknown>)
+    : {};
+  return readAccessibleWordingRecord(suggestion.accessible_wording);
+}
+
+/** The wording this item uses: the teacher's choice for it, else the version it started with. */
+export function wordingVersionOf(candidate: McqImportCandidate): WordingVersion | null {
+  const record = accessibleWordingOf(candidate);
+  if (!record) return null;
+  const version = candidate.wording_version ?? record.default_version;
+  return version === "accessible" && record.accessible ? "accessible" : "as_written";
+}
+
+/** True when the stem or options no longer match the wording chosen for this item (the teacher edited them). */
+export function wordingEditedSinceChoice(candidate: McqImportCandidate) {
+  const record = accessibleWordingOf(candidate);
+  const version = wordingVersionOf(candidate);
+  if (!record || !version) return false;
+  return !sameWording({ stem: candidate.stem, options: candidate.options ?? [] }, wordingFor(record, version));
+}
+
+/**
+ * Switches one item to its original or its simpler wording. Only this item changes; its stem
+ * and options become that version, which is what the item contains when it is added.
+ */
+export function chooseWording(candidate: McqImportCandidate, version: WordingVersion): McqImportCandidate {
+  const record = accessibleWordingOf(candidate);
+  if (!record || isImported(candidate)) return candidate;
+  if (version === "accessible" && !record.accessible) return candidate;
+  const wording = wordingFor(record, version);
+  return { ...candidate, wording_version: version, stem: wording.stem, options: wording.options };
 }

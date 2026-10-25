@@ -247,6 +247,8 @@ export type McqImportCandidate = {
   }>;
   status: string;
   import_selected: boolean;
+  /** Items read from course materials: the wording the teacher uses for this item. */
+  wording_version?: "as_written" | "accessible" | null;
   original_source_text: string;
   source_metadata?: Record<string, unknown> | null;
   normalized_changed_wording: boolean;

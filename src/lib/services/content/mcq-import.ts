@@ -8,6 +8,12 @@ import { prisma } from "@/lib/db";
 import { generatePublicId } from "@/lib/services/ids";
 import { ITEM_MEDIA_PLACEMENTS } from "@/lib/item-content/media-placement";
 import { docxTableLinearText, joinStemLines } from "@/lib/item-content/docx-tables";
+import {
+  readAccessibleWordingRecord,
+  wordingProvenance,
+  type AccessibleWordingRecord,
+  type WordingVersion
+} from "@/lib/item-content/accessible-wording";
 import { toPrismaJson } from "@/lib/services/json";
 import {
   extractDocxForMcqImport,
@@ -247,6 +253,9 @@ export const McqFormattingSuggestionSchema = z.object({
   reviewer_warning: z.literal("Teacher review required before import.")
 }).strict();
 
+// Which wording of an imported item the teacher uses (items read from course materials only).
+const WordingVersionSchema = z.enum(["as_written", "accessible"]);
+
 const McqSuggestionFieldDecisionSchema = z.object({
   decision: McqSuggestionDecisionSchema,
   edited_value: z.string().optional().nullable()
@@ -352,6 +361,8 @@ const McqImportCandidateSchema = z.object({
     created_at: z.string()
   }).nullable().optional(),
   suggestion_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
+  // Set only for items with a stored accessible-wording record; earlier batches have none.
+  wording_version: WordingVersionSchema.nullable().optional(),
   imported_item_public_id: z.string().nullable().optional()
 });
 
@@ -377,7 +388,8 @@ const CandidateCommitUpdateSchema = z
     option_rationales: z.array(CandidateOptionRationaleSchema).optional(),
     media_assets: z.array(CandidateMediaAssetSchema).optional(),
     formatting_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
-    suggestion_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional()
+    suggestion_decisions: z.record(z.string(), McqSuggestionFieldDecisionSchema).optional(),
+    wording_version: WordingVersionSchema.optional()
   })
   .strict();
 
@@ -1701,6 +1713,8 @@ export async function createExistingItemsReviewBatch(input: {
     options: Array<{ label: string; text: string }>;
     stated_key: string | null;
     suggested_key: string | null;
+    accessible_wording: AccessibleWordingRecord;
+    wording_version: WordingVersion;
     target_reasoning_note: string | null;
     suggested_target_reasoning_note: string | null;
     essential_elements: string | null;
@@ -1765,8 +1779,10 @@ export async function createExistingItemsReviewBatch(input: {
     return {
       ...candidate,
       llm_suggested_key: suggestedKey,
+      wording_version: draft.wording_version,
       suggestion_status: "pending_teacher_review" as const,
       suggestion: {
+        accessible_wording: draft.accessible_wording,
         ...(suggestedKey ? { suggested_key: suggestedKey } : {}),
         ...(draft.suggested_target_reasoning_note ? { suggested_target_reasoning_note: draft.suggested_target_reasoning_note } : {}),
         ...(draft.suggested_essential_elements ? { suggested_strong_reasoning_should_mention: draft.suggested_essential_elements } : {}),
@@ -1793,7 +1809,9 @@ export async function createExistingItemsReviewBatch(input: {
     assessment_db_id: assessment.id
   });
   const summary = validationSummary(candidates, [
-    "Items read from course materials keep their wording; confirm every key and review the suggested notes before adding them."
+    input.drafts.some((draft) => draft.accessible_wording.status === "accessible")
+      ? "Items read from course materials keep your original wording. Where the assistant suggested simpler wording, the item starts with it, and you can switch each item back to your wording. Confirm every key and review the suggested notes before adding them."
+      : "Items read from course materials keep their wording; confirm every key and review the suggested notes before adding them."
   ]);
   const batch = await prisma.mcqItemImportBatch.create({
     data: {
@@ -2177,8 +2195,28 @@ function applyCandidateUpdate(
           ),
     media_assets: update.media_assets ?? candidate.media_assets,
     formatting_decisions: update.formatting_decisions ?? candidate.formatting_decisions,
-    suggestion_decisions: update.suggestion_decisions ?? candidate.suggestion_decisions
+    suggestion_decisions: update.suggestion_decisions ?? candidate.suggestion_decisions,
+    wording_version: wordingVersionAfterUpdate(candidate, update.wording_version)
   };
+}
+
+function accessibleWordingRecordOf(candidate: McqImportCandidate): AccessibleWordingRecord | null {
+  return readAccessibleWordingRecord(suggestionRecord(candidate).accessible_wording);
+}
+
+/**
+ * The teacher's wording choice for one item. It applies only to an item that has a wording
+ * record, and "accessible" only when a checked simpler version exists; otherwise it is ignored.
+ * The stem and options themselves come from the same update, as the teacher sees them.
+ */
+function wordingVersionAfterUpdate(
+  candidate: McqImportCandidate,
+  requested: WordingVersion | undefined
+): WordingVersion | null | undefined {
+  if (requested === undefined) return candidate.wording_version;
+  const record = accessibleWordingRecordOf(candidate);
+  if (!record) return candidate.wording_version;
+  return requested === "accessible" && !record.accessible ? "as_written" : requested;
 }
 
 function suggestionRecord(candidate: McqImportCandidate): Record<string, unknown> {
@@ -2369,7 +2407,14 @@ function importProvenanceRules(candidate: McqImportCandidate, batch: { batch_pub
       issue_flags_at_import: candidate.issue_flags,
       suggestion_review: candidate.suggestion_decisions ?? {},
       suggestion_status: candidate.suggestion_status ?? "none",
-      suggestion_metadata: candidate.suggestion_metadata ?? null
+      suggestion_metadata: candidate.suggestion_metadata ?? null,
+      // Items read from course materials: the original wording, the accessible version, and
+      // which of them the teacher used for this item (null for other sources and earlier batches).
+      wording: wordingProvenance({
+        record: accessibleWordingRecordOf(candidate),
+        wording_version: candidate.wording_version,
+        final: { stem: candidate.stem, options: candidate.options }
+      })
     }
   };
 }

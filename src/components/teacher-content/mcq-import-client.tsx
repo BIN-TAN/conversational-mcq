@@ -8,11 +8,13 @@ import { useUnsavedChanges } from "@/components/ui/use-unsaved-changes";
 import { MINI_TEST_JSON_SAMPLE_URL } from "@/lib/services/content/mini-test-json-contract";
 import { WorkbookGuides, WorkbookItemGuide, readWorkbookGuides } from "./workbook-guide";
 import {
+  accessibleWordingOf,
   applyNoteSuggestion,
   assistantCheckHeadline,
   assistantCheckOf,
   blankNoteSuggestions,
   candidateStatusLabel,
+  chooseWording,
   sourceLocationLabel,
   incorrectOptionLabels,
   isImported,
@@ -25,8 +27,11 @@ import {
   preparationProblems,
   setOptionRationale,
   suggestedOptionRationales,
+  wordingEditedSinceChoice,
+  wordingVersionOf,
   type PreparationProblemView
 } from "./mcq-review";
+import type { ItemWording, WordingVersion } from "@/lib/item-content/accessible-wording";
 import { apiRequest, errorFromUnknown } from "./api";
 import type {
   McqImportBatch,
@@ -206,7 +211,9 @@ export function McqImportClient({
       option_rationales: candidate.option_rationales ?? [],
       media_assets: candidate.media_assets,
       formatting_decisions: candidate.formatting_decisions,
-      suggestion_decisions: candidate.suggestion_decisions
+      suggestion_decisions: candidate.suggestion_decisions,
+      // This item's own wording choice (items read from course materials only).
+      ...(candidate.wording_version ? { wording_version: candidate.wording_version } : {})
     };
   }
 
@@ -645,6 +652,8 @@ export function McqImportClient({
                     </div>
                   ) : null}
 
+                  <WordingChoice candidate={candidate} onUpdate={updateCandidate} />
+
                   <div className="mt-4 grid gap-4">
                     <Field label="Item label">
                       <input
@@ -1000,6 +1009,101 @@ function FormattingReview({
         </Button>
       </div>
     </div>
+  );
+}
+
+function WordingPreview({ title, wording }: { title: string; wording: ItemWording }) {
+  return (
+    <div className="min-w-0 rounded-md border border-line bg-white p-3">
+      <p className="text-xs font-semibold text-ink">{title}</p>
+      <ItemContent as="div" className="mt-2 whitespace-pre-wrap break-words text-sm text-ink" text={wording.stem} />
+      <ul className="mt-2 space-y-1 text-sm text-ink">
+        {wording.options.map((option) => (
+          <li className="break-words" key={option.label}>
+            <ItemContent inline prefix={<span className="font-semibold">{option.label}.</span>} text={option.text} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * The wording of one item read from course materials. An item with a checked simpler version
+ * starts with it; the teacher can compare both versions and switch this item, and only this
+ * item, to either one. The stem and options below are what the item contains when it is added.
+ */
+function WordingChoice({
+  candidate,
+  onUpdate
+}: {
+  candidate: McqImportCandidate;
+  onUpdate: (
+    candidatePublicId: string,
+    updater: (candidate: McqImportCandidate) => McqImportCandidate
+  ) => void;
+}) {
+  const [compare, setCompare] = useState(false);
+  const record = accessibleWordingOf(candidate);
+  if (!record || record.status === "not_requested") return null;
+  if (record.status === "unchanged") {
+    return (
+      <p className="mt-4 text-xs leading-5 text-muted">
+        The assistant found this item already easy to read, so it keeps your wording.
+      </p>
+    );
+  }
+  if (record.status === "fallback" || !record.accessible) {
+    return record.teacher_note ? (
+      <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-950">
+        {record.teacher_note}
+      </p>
+    ) : null;
+  }
+  const accessible = record.accessible;
+  const usingAccessible = wordingVersionOf(candidate) === "accessible";
+  const edited = wordingEditedSinceChoice(candidate);
+  const checked = Boolean(assistantCheckOf(candidate));
+
+  function choose(version: WordingVersion) {
+    if (edited && !window.confirm("Switching the wording replaces the edits you made to the question and options of this item. Do you want to continue?")) return;
+    onUpdate(candidate.candidate_public_id, (entry) => chooseWording(entry, version));
+  }
+
+  return (
+    <section aria-label="Wording of this item" className="mt-4 rounded-md border border-line bg-[#F8FAF9] p-3 text-sm">
+      <p className="font-semibold text-ink">
+        {usingAccessible ? "This item uses simpler wording." : "This item uses your original wording."}
+      </p>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        {usingAccessible
+          ? "The assistant rewrote the question and options at a middle to high school reading level. Your key terms, numbers, formulas, options and key are the same, and your original wording is kept."
+          : "The assistant also suggested simpler wording for this item at a middle to high school reading level."}
+        {record.change_note ? ` What changed: ${record.change_note}` : ""}
+      </p>
+      {!usingAccessible && checked ? (
+        <p className="mt-1 text-xs leading-5 text-muted">The automatic check below answered the simpler wording of this item.</p>
+      ) : null}
+      {edited ? (
+        <p className="mt-1 text-xs leading-5 text-muted">You have edited the wording of this item, and your edits are what will be added.</p>
+      ) : null}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {usingAccessible ? (
+          <Button onClick={() => choose("as_written")} type="button" variant="secondary">Use my original wording</Button>
+        ) : (
+          <Button onClick={() => choose("accessible")} type="button" variant="secondary">Use the simpler wording</Button>
+        )}
+        <Button aria-expanded={compare} onClick={() => setCompare((value) => !value)} type="button" variant="secondary">
+          {compare ? "Hide the comparison" : "Compare both versions"}
+        </Button>
+      </div>
+      {compare ? (
+        <div className="mt-3 grid gap-3 md:grid-cols-2">
+          <WordingPreview title="Your original wording" wording={record.original} />
+          <WordingPreview title="Simpler wording" wording={accessible} />
+        </div>
+      ) : null}
+    </section>
   );
 }
 

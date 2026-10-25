@@ -222,6 +222,8 @@ function ItemDesignAssistantWorkspace({
   onImportExistingItems,
   existingItemFiles,
   onExistingItemFilesChange,
+  accessibleWording,
+  onAccessibleWordingChange,
   onPrepareOtherTopics,
   onStopTopicRun,
   topicRun,
@@ -251,6 +253,8 @@ function ItemDesignAssistantWorkspace({
   onImportExistingItems: () => void;
   existingItemFiles: File[];
   onExistingItemFilesChange: (files: File[]) => void;
+  accessibleWording: boolean;
+  onAccessibleWordingChange: (value: boolean) => void;
   onPrepareOtherTopics: () => void;
   onStopTopicRun: () => void;
   topicRun: TopicRunState[] | null;
@@ -293,6 +297,18 @@ function ItemDesignAssistantWorkspace({
       <p className="mt-1 text-xs leading-5 text-muted">
         The assistant reads the finished items for this topic in your course materials, or in files you attach here: PDF, Word, Excel, CSV, text or images. It keeps your wording and the keys your file states, and suggests any missing target reasoning, essential elements and notes on the wrong options. You review everything before an item is added.
       </p>
+      <label className="mt-2 flex items-start gap-2 text-xs leading-5 text-ink">
+        <input
+          checked={accessibleWording}
+          className="mt-1"
+          disabled={readOnly || busy !== null}
+          onChange={(event) => onAccessibleWordingChange(event.target.checked)}
+          type="checkbox"
+        />
+        <span>
+          Suggest simpler wording at a middle to high school reading level (grades 8 to 10). Key terms, symbols, numbers, formulas, tables, the options and the key stay the same. In review, each item starts with the simpler wording, and you can switch any item back to your own wording. Clear this box to keep every item as written.
+        </span>
+      </label>
       <label className="mt-2 block text-xs font-medium text-ink" htmlFor="existing-item-files">Files with your items (optional)</label>
       <input
         accept={ACCEPTED_ASSISTANT_FILES}
@@ -826,6 +842,8 @@ export function ItemDesignClient({
   const [success, setSuccess] = useState<string | null>(null);
   const [busy, setBusy] = useState<"load" | "save" | "assistant" | "generate" | "import" | null>("load");
   const [existingItemFiles, setExistingItemFiles] = useState<File[]>([]);
+  // Suggest simpler wording for imported items (on by default); the teacher chooses per item in review.
+  const [accessibleWording, setAccessibleWording] = useState(true);
   const [view, setView] = useState<"assistant" | "review">(initialView);
   const [assistantInput, setAssistantInput] = useState("");
   const [assistantFiles, setAssistantFiles] = useState<File[]>([]);
@@ -1078,6 +1096,7 @@ export function ItemDesignClient({
     try {
       const form = new FormData();
       files.forEach((file) => form.append("files", file, file.name));
+      form.append("accessible_wording", accessibleWording ? "true" : "false");
       const imported = await apiRequest<{ review_url: string }>(
         `/api/teacher/assessments/${assessmentPublicId}/item-design/existing-items`,
         { method: "POST", body: form }
@@ -1108,6 +1127,7 @@ export function ItemDesignClient({
         bank_assessment_public_id: assessmentPublicId,
         topics: topics.map((topic) => ({ topic_id: topic.topic_id, title: topic.title, has_source_items: topic.source_items.length > 0 })),
         existing: design.topic_mini_tests ?? [],
+        accessible_wording: accessibleWording,
         onUpdate: (state) => setTopicRun((current) =>
           current ? current.map((entry) => entry.topic_id === state.topic_id ? state : entry) : current),
         shouldStop: () => stopTopicRun.current
@@ -1228,6 +1248,8 @@ export function ItemDesignClient({
               onImportExistingItems={() => void handleImportExistingItems()}
               existingItemFiles={existingItemFiles}
               onExistingItemFilesChange={setExistingItemFiles}
+              accessibleWording={accessibleWording}
+              onAccessibleWordingChange={setAccessibleWording}
               onPrepareOtherTopics={() => void handlePrepareOtherTopics()}
               onStopTopicRun={() => { stopTopicRun.current = true; setTopicRunStopping(true); }}
               topicRun={topicRun}
