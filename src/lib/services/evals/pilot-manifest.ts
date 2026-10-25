@@ -34,8 +34,8 @@ const pilotManifestSchema = z.object({
   internal_holdout_cases_per_agent: z.literal(EVAL_PILOT_CASES_PER_STRATUM_PER_AGENT),
   replication_cases_per_agent: z.literal(EVAL_PILOT_CASES_PER_STRATUM_PER_AGENT),
   strata: z.object({
-    internal_holdout: z.record(AgentName, z.array(z.string().min(1))),
-    replication: z.record(AgentName, z.array(z.string().min(1)))
+    internal_holdout: z.partialRecord(AgentName, z.array(z.string().min(1))),
+    replication: z.partialRecord(AgentName, z.array(z.string().min(1)))
   }).strict()
 }).strict();
 

@@ -19,7 +19,7 @@ const manifestSchema = z.object({
   reasoning_effort: z.literal(EVAL_CANARY_REASONING_EFFORT),
   repetition_count: z.literal(EVAL_CANARY_REPETITIONS),
   cases_per_agent: z.literal(EVAL_CANARY_CASES_PER_AGENT),
-  agents: z.record(AgentName, z.array(z.string().min(1))),
+  agents: z.partialRecord(AgentName, z.array(z.string().min(1))),
   coverage_notes: z.record(z.string(), z.string()).optional()
 }).strict();
 

@@ -101,7 +101,7 @@ const CandidateConfigSchema = z.object({
   student_facing_output_human_review_required: z.boolean().optional(),
   student_facing_operational_use_approved: z.literal(false),
   teacher_tool_use_approved: z.literal(false),
-  roles: z.record(z.enum(liveModelRoles), CandidateRoleConfigSchema),
+  roles: z.partialRecord(z.enum(liveModelRoles), CandidateRoleConfigSchema),
   runtime_policy: CandidateRuntimePolicySchema.optional(),
   configuration_fingerprint: CandidateConfigurationFingerprintSchema.optional(),
   evaluation_cases: z.array(z.string().min(1)).optional(),

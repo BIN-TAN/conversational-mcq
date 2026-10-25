@@ -49,7 +49,7 @@ const approvedConfigSchema = z.object({
   generated_from_git_commit: z.string().min(1),
   model_snapshot: z.literal("gpt-5.4-mini-2026-03-17"),
   reasoning_effort: z.literal("low"),
-  agents: z.record(AgentName, agentConfigSchema),
+  agents: z.partialRecord(AgentName, agentConfigSchema),
   semantic_validator_version: z.literal("eval-semantic-v3"),
   safety_validator_version: z.literal("eval-safety-v3"),
   effective_result_version: z.literal("effective-system-eval-v2"),
