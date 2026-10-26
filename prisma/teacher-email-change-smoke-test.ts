@@ -169,6 +169,7 @@ async function main() {
     );
 
     const expectedNav = [
+      "Home",
       "Dashboard",
       "Assessment management",
       "Student accounts",
@@ -176,7 +177,7 @@ async function main() {
       "Data and outcomes",
       "LLM status"
     ];
-    assert(teacherPrimaryNavItems.length === expectedNav.length, "Teacher primary nav should remain six entries.");
+    assert(teacherPrimaryNavItems.length === expectedNav.length, "Teacher primary nav should remain seven entries.");
     assert(
       teacherPrimaryNavItems.every((item, index) => item.label === expectedNav[index]),
       "Teacher primary nav labels should remain canonical."

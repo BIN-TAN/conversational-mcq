@@ -134,6 +134,7 @@ function assertManagementSurface() {
   assertIncludes(workspaceHeader, "TeacherPrimaryNav", "Teacher workspace header");
   assertExcludes(contentLayout, "TeacherPrimaryNav", "Content layout navigation");
   const expectedNavLabels = [
+    "Home",
     "Dashboard",
     "Assessment management",
     "Student accounts",
