@@ -518,7 +518,7 @@ async function main() {
     assert.match(source("next.config.mjs"), /source: "\/teacher\/login", destination: "\/instructor-login"/);
     const page = source("src/app/instructor-login/page.tsx");
     assert.match(page, /<LoginForm audience="teacher" \/>/);
-    assert.match(page, /redirect\("\/teacher\/dashboard"\)/);
+    assert.match(page, /redirect\("\/teacher"\)/);
     // Students keep their own page, which still accepts every account.
     assert.match(source("src/app/student/login/page.tsx"), /<LoginForm \/>/);
     assert.match(source("src/components/login-form.tsx"), /audience === "teacher"\s*\? \{ user_id: userId\.trim\(\), password: credential \}/);
