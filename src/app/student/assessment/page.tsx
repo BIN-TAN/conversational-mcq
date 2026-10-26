@@ -10,7 +10,7 @@ export default async function StudentAssessmentPage() {
   }
 
   if (user.role !== "student") {
-    redirect("/teacher/dashboard");
+    redirect("/teacher");
   }
 
   if (user.must_change_password) {

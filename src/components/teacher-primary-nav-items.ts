@@ -7,6 +7,12 @@ export type TeacherPrimaryNavItem = {
 
 export const teacherPrimaryNavItems = [
   {
+    href: "/teacher",
+    label: "Home",
+    activePathPrefix: "/teacher",
+    exact: true
+  },
+  {
     href: "/teacher/dashboard",
     label: "Dashboard",
     activePathPrefix: "/teacher/dashboard",

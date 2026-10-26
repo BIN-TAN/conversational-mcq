@@ -16,7 +16,7 @@ export default async function StudentAssessmentSessionPage({
   }
 
   if (user.role !== "student") {
-    redirect("/teacher/dashboard");
+    redirect("/teacher");
   }
 
   if (user.must_change_password) {

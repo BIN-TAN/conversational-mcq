@@ -211,6 +211,7 @@ function assertDashboardSurface() {
 
 function assertStandardTeacherNav() {
   const expectedNavItems = [
+    { href: "/teacher", label: "Home" },
     { href: "/teacher/dashboard", label: "Dashboard" },
     { href: "/teacher/content", label: "Assessment management" },
     { href: "/teacher/students", label: "Student accounts" },

@@ -1,6 +1,7 @@
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
+import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
@@ -41,6 +42,8 @@ const assessmentOptionSelect = {
   title: true,
   status: true,
   folder_label: true,
+  folder_order_index: true,
+  assessment_order_index: true,
   updated_at: true,
   _count: {
     select: {
@@ -964,16 +967,11 @@ async function listAssessmentOptions(teacherUserDbId: string): Promise<Assessmen
       created_by_user_db_id: teacherUserDbId,
       status: { not: "archived" }
     },
-    select: assessmentOptionSelect,
-    orderBy: [
-      { status: "desc" },
-      { folder_order_index: "asc" },
-      { assessment_order_index: "asc" },
-      { updated_at: "desc" }
-    ]
+    select: assessmentOptionSelect
   });
 
-  return assessments.map((assessment) => ({
+  // The same order as the assessment library, so the selector lists mini tests by category.
+  return orderLikeAssessmentLibrary(assessments).map((assessment) => ({
     assessment_public_id: assessment.assessment_public_id,
     title: assessment.title,
     status: assessment.status,
@@ -1088,7 +1086,13 @@ export async function getTeacherAssessmentDashboard(input: {
   assessment_public_id?: string | null;
 }): Promise<TeacherAssessmentDashboard> {
   const assessments = await listAssessmentOptions(input.teacher_user_db_id);
-  const selectedPublicId = input.assessment_public_id || assessments[0]?.assessment_public_id || null;
+  // Without a choice, open the first mini test in library order that has student sessions, then
+  // the first published one, then the first.
+  const selectedPublicId = input.assessment_public_id ||
+    (assessments.find((assessment) => assessment.session_count > 0) ??
+      assessments.find((assessment) => assessment.status === "published") ??
+      assessments[0])?.assessment_public_id ||
+    null;
 
   if (!selectedPublicId) {
     return {

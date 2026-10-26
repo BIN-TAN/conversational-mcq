@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { teacherPrimaryNavItems } from "../src/components/teacher-primary-nav-items";
+import { teacherHomeSections } from "../src/components/teacher-home-sections";
+import { orderLikeAssessmentLibrary } from "../src/lib/assessment-library-order";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) {
@@ -22,6 +24,7 @@ function assertExcludes(sourceText: string, forbidden: string, label: string) {
 
 function assertPrimaryNavContract() {
   const expected = [
+    { label: "Home", href: "/teacher" },
     { label: "Dashboard", href: "/teacher/dashboard" },
     { label: "Assessment management", href: "/teacher/content" },
     { label: "Student accounts", href: "/teacher/students" },
@@ -199,8 +202,45 @@ function assertAdvancedRoutesRemainProtected() {
   assertIncludes(evalApi, "requireEvalTeacher", "Model evaluation API");
 }
 
+/** The instructor home page comes first after sign-in and describes every other section. */
+function assertInstructorHome() {
+  const page = source("src/app/teacher/page.tsx");
+  assertIncludes(page, "getTeacherHomeSummary", "Instructor home page");
+  assertIncludes(page, "teacherHomeSections", "Instructor home page");
+  assert(
+    teacherHomeSections.length === teacherPrimaryNavItems.length - 1 &&
+      teacherHomeSections.every((section) => section.description.length > 20) &&
+      !teacherHomeSections.some((section) => String(section.href) === "/teacher"),
+    "The home page describes every other section of the navigation."
+  );
+  assertIncludes(source("src/components/login-form.tsx"), '? "/teacher"\n', "Instructor sign-in goes to the home page");
+  assertIncludes(source("src/app/instructor-login/page.tsx"), 'redirect("/teacher");', "Signed-in instructors go to the home page");
+  assertIncludes(source("src/components/teacher-workspace-header.tsx"), '"Instructor home"', "Home page title");
+}
+
+/** The dashboard lists mini tests in the assessment library's order, grouped by category. */
+function assertDashboardUsesLibraryOrder() {
+  const row = (title: string, folder: string | null, folderIndex: number, index: number) =>
+    ({ title, folder_label: folder, folder_order_index: folderIndex, assessment_order_index: index });
+  const ordered = orderLikeAssessmentLibrary([
+    row("Test 10", "Lecture 5", 1, 0),
+    row("Loose", null, 0, 0),
+    row("Test 9", "Lecture 4", 0, 1),
+    row("Test 8", "Lecture 4", 0, 0),
+    row("Test 11", "Lecture 5", 1, 1)
+  ]).map((entry) => entry.title);
+  assert(JSON.stringify(ordered) === JSON.stringify(["Test 8", "Test 9", "Test 10", "Test 11", "Loose"]),
+    `Library order: categories by their order, mini tests by theirs, uncategorized last (got ${ordered.join(", ")}).`);
+  const service = source("src/lib/services/teacher-dashboard/assessment-dashboard.ts");
+  assertIncludes(service, "orderLikeAssessmentLibrary(assessments)", "Dashboard mini-test options");
+  assertExcludes(service, '{ status: "desc" },\n      { folder_order_index: "asc" }', "Dashboard mini-test options");
+  assertIncludes(source("src/components/teacher-dashboard/assessment-dashboard-client.tsx"), "<optgroup", "Dashboard selector groups by category");
+}
+
 function main() {
   assertPrimaryNavContract();
+  assertInstructorHome();
+  assertDashboardUsesLibraryOrder();
   assertPrimaryNavComponent();
   assertNormalTeacherPagesUseSharedNav();
   assertStudentAccountActionsRemainInPageContent();

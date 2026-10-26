@@ -75,6 +75,7 @@ const legacyUiPhrases: Array<string | RegExp> = [
 
 function assertPrimaryNavContract() {
   const expected = [
+    { label: "Home", href: "/teacher" },
     { label: "Dashboard", href: "/teacher/dashboard" },
     { label: "Assessment management", href: "/teacher/content" },
     { label: "Student accounts", href: "/teacher/students" },

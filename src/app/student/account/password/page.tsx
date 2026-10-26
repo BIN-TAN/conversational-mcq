@@ -11,7 +11,7 @@ export default async function StudentPasswordPage() {
   }
 
   if (user.role !== "student") {
-    redirect("/teacher/dashboard");
+    redirect("/teacher");
   }
 
   return (

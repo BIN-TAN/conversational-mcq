@@ -261,8 +261,8 @@ async function main() {
       "Teacher users should not be routed through the student password-change page."
     );
     assert(
-      teacherPasswordPage.headers.get("location")?.includes("/teacher/dashboard"),
-      "Teacher users should be redirected to the teacher dashboard from student password-change page."
+      teacherPasswordPage.headers.get("location")?.endsWith("/teacher"),
+      "Teacher users should be redirected to the instructor home page from student password-change page."
     );
 
     const permanentPassword = `${prefix}_PermanentPass9`;

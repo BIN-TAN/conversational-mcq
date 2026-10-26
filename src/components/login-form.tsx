@@ -51,7 +51,7 @@ export function LoginForm({ audience = "student" }: { audience?: "student" | "te
       // Discard redirects prefetched before the session cookie was established.
       window.location.replace(
         data.user.role === "teacher_researcher"
-          ? "/teacher/dashboard"
+          ? "/teacher"
           : data.user.must_change_password
             ? "/student/account/password"
             : "/student/assessment"

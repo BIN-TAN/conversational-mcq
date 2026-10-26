@@ -10,7 +10,7 @@ import { getCurrentUser } from "@/lib/auth";
 export default async function InstructorLoginPage() {
   const user = await getCurrentUser();
   if (user?.role === "teacher_researcher") {
-    redirect("/teacher/dashboard");
+    redirect("/teacher");
   }
 
   return (

@@ -20,6 +20,7 @@ const teacherSectionTitles = [
 ] as const;
 
 function sectionTitle(pathname: string | null) {
+  if (pathname === "/teacher" || pathname === "/teacher/") return "Instructor home";
   return (
     teacherSectionTitles.find(
       (section) =>

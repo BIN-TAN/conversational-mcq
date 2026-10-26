@@ -18,11 +18,24 @@ import type {
 import { followUpPriority } from "@/lib/services/teacher-dashboard/follow-up";
 import { ItemContent } from "@/components/item-content";
 import { hasRichItemContent } from "@/lib/item-content/rich-text";
+import { assessmentLibraryFolder } from "@/lib/assessment-library-order";
 
 
 type DashboardResponse = {
   dashboard: TeacherAssessmentDashboard;
 };
+
+/** Consecutive mini tests of one category, in the order the server sends them (the library's). */
+function assessmentGroups(assessments: TeacherAssessmentDashboard["assessments"]) {
+  const groups: Array<{ folder: string; assessments: TeacherAssessmentDashboard["assessments"] }> = [];
+  for (const assessment of assessments) {
+    const folder = assessmentLibraryFolder(assessment);
+    const last = groups.at(-1);
+    if (last && last.folder === folder) last.assessments.push(assessment);
+    else groups.push({ folder, assessments: [assessment] });
+  }
+  return groups;
+}
 
 function formatCount(value: number) {
   return new Intl.NumberFormat().format(value);
@@ -447,10 +460,15 @@ export function AssessmentDashboardClient({ initialDashboard }: { initialDashboa
               onChange={(event) => void selectAssessment(event.target.value)}
               value={selectedAssessmentId}
             >
-              {dashboard.assessments.map((assessment) => (
-                <option key={assessment.assessment_public_id} value={assessment.assessment_public_id}>
-                  {assessment.title}
-                </option>
+              {/* Grouped by category, in the assessment library's order (the server sends them in that order). */}
+              {assessmentGroups(dashboard.assessments).map((group) => (
+                <optgroup key={group.folder} label={group.folder}>
+                  {group.assessments.map((assessment) => (
+                    <option key={assessment.assessment_public_id} value={assessment.assessment_public_id}>
+                      {assessment.title}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </label>
