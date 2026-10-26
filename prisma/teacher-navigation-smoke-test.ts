@@ -202,16 +202,14 @@ function assertAdvancedRoutesRemainProtected() {
   assertIncludes(evalApi, "requireEvalTeacher", "Model evaluation API");
 }
 
-/** The instructor home page comes first after sign-in and describes every other section. */
+/** The instructor home page comes first after sign-in, with one card for every other section. */
 function assertInstructorHome() {
   const page = source("src/app/teacher/page.tsx");
-  assertIncludes(page, "getTeacherHomeSummary", "Instructor home page");
   assertIncludes(page, "teacherHomeSections", "Instructor home page");
   assert(
     teacherHomeSections.length === teacherPrimaryNavItems.length - 1 &&
-      teacherHomeSections.every((section) => section.description.length > 20) &&
       !teacherHomeSections.some((section) => String(section.href) === "/teacher"),
-    "The home page describes every other section of the navigation."
+    "The home page shows a card for every other section of the navigation."
   );
   assertIncludes(source("src/components/login-form.tsx"), '? "/teacher"\n', "Instructor sign-in goes to the home page");
   assertIncludes(source("src/app/instructor-login/page.tsx"), 'redirect("/teacher");', "Signed-in instructors go to the home page");
