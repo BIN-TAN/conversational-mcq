@@ -233,6 +233,8 @@ function assertDashboardUsesLibraryOrder() {
   assertIncludes(service, "orderLikeAssessmentLibrary(assessments)", "Dashboard mini-test options");
   assertExcludes(service, '{ status: "desc" },\n      { folder_order_index: "asc" }', "Dashboard mini-test options");
   assertIncludes(source("src/components/teacher-dashboard/assessment-dashboard-client.tsx"), "<optgroup", "Dashboard selector groups by category");
+  assertIncludes(source("src/lib/services/teacher-review/sessions.ts"), "orderLikeAssessmentLibrary(await prisma.assessment.findMany", "Student sessions mini-test filter");
+  assertIncludes(source("src/lib/services/teacher-simple-csv-export/service.ts"), "orderLikeAssessmentLibrary(await prisma.assessment.findMany", "Data explorer mini-test list");
 }
 
 function main() {

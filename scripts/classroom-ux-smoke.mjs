@@ -302,7 +302,8 @@ try {
       await page.getByText("Past attempt review", { exact: true }).waitFor();
       assert.equal(await page.locator("textarea,input:not([type=hidden])").count(), 0);
       assert.equal(await page.getByTestId("formative-conversation-response-pending").count(), 0);
-      assert.equal(await page.getByRole("button", { name: "End conversation", exact: true }).count(), 0);
+      // A past attempt offers no way to end or finish it (the end button is labelled "Finish ...").
+      assert.equal(await page.getByRole("button", { name: /^Finish (assessment|this conversation)$/ }).count(), 0);
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       await page.screenshot({ path: join(output, `ended-direct-${width}.png`) });
       await ctx.close();

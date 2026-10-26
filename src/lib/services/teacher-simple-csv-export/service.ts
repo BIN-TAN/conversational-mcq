@@ -13,6 +13,7 @@ import {
   sourceIdentityRow,
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
+import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
 
 export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v3" as const;
 
@@ -851,9 +852,18 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
     mergeCounts(countsByStudent, session.user.user_id, counts);
   }
 
+  // The page lists mini tests in the assessment library's order; exports keep their own order.
+  const libraryPosition = new Map(orderLikeAssessmentLibrary(await prisma.assessment.findMany({
+    where: { assessment_public_id: { in: assessments.map((assessment) => assessment.assessment_public_id) } },
+    select: { assessment_public_id: true, title: true, folder_label: true, folder_order_index: true, assessment_order_index: true }
+  })).map((assessment, index) => [assessment.assessment_public_id, index]));
+  const positionOf = (publicId: string) => libraryPosition.get(publicId) ?? Number.MAX_SAFE_INTEGER;
+  const orderedAssessments = [...assessments].sort((left, right) =>
+    positionOf(left.assessment_public_id) - positionOf(right.assessment_public_id));
+
   return {
     export_version: TEACHER_SIMPLE_CSV_EXPORT_VERSION,
-    assessments: assessments.map((assessment) => {
+    assessments: orderedAssessments.map((assessment) => {
       const counts = countsByAssessment.get(assessment.assessment_public_id) ?? emptyAvailabilityCounts();
       return {
         ...assessment,

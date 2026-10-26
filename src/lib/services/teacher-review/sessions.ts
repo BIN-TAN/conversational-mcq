@@ -4,6 +4,7 @@ import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob, workflowJobSummarySelect } from "@/lib/workflow/jobs";
 import type { SessionListQuery } from "./filters";
 import { serializeDate } from "./serializers";
+import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
 
 function sessionWhereFromQuery(query: SessionListQuery): Prisma.AssessmentSessionWhereInput {
   return {
@@ -124,16 +125,20 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
 
   // The list page asks for these options once and then omits them (include_filters=false).
   // Like the session list itself, they are not limited to one instructor's assessments.
+  // Listed in the assessment library's order (categories, then mini tests).
   const assessmentFilters = query.include_filters === false
     ? null
-    : await prisma.assessment.findMany({
+    : orderLikeAssessmentLibrary(await prisma.assessment.findMany({
         where: { assessment_sessions: { some: {} } },
         orderBy: [{ title: "asc" }, { assessment_public_id: "asc" }],
         select: {
           assessment_public_id: true,
-          title: true
+          title: true,
+          folder_label: true,
+          folder_order_index: true,
+          assessment_order_index: true
         }
-      });
+      })).map(({ assessment_public_id, title }) => ({ assessment_public_id, title }));
 
   return {
     sessions: sessions.map((session) => {

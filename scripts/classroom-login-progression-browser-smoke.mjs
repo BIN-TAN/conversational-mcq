@@ -50,7 +50,8 @@ try {
   // Sign-in opens the instructor home page; the dashboard is one click away.
   await page.waitForURL("**/teacher");
   await page.getByRole("heading", { name: "Instructor home" }).waitFor();
-  await page.getByRole("link", { name: "Dashboard", exact: true }).click();
+  // The home page shows a "Dashboard" card as well, so use the navigation link.
+  await page.getByRole("navigation", { name: "Teacher primary navigation" }).getByRole("link", { name: "Dashboard", exact: true }).click();
   await page.waitForURL("**/teacher/dashboard");
   await page.getByRole("heading", { name: "Assessment dashboard" }).waitFor();
   await page.reload();

@@ -127,7 +127,7 @@ try{
   await page.unroute(base+api+'/formative-conversation');await page.route(base+api+'/formative-conversation',route=>route.fulfill({json:{formative_conversation:pendingReply}}));
   await page.reload({waitUntil:'networkidle'});await inspect('conversation-failure-no-retry');
   record('no-retry-guidance',{text:await page.getByTestId('formative-conversation-controls').innerText()});
-  assert.match(await page.getByTestId('formative-conversation-controls').innerText(),/contact your teacher/);
+  assert.match(await page.getByTestId('formative-conversation-controls').innerText(),/contact your instructor/);
   assert.deepEqual(report.errors,[]);
   writeFileSync(resolve(out,'server.log'),logs);
 }catch(error){report.failure=String(error);console.error(error);process.exitCode=1;}

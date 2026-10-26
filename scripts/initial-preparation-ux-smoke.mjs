@@ -246,7 +246,8 @@ try {
   assert.equal(exposureRows.length, 4);
   assert.equal(exposureRows.find(row => row.event_type === "formative_feedback_shown").source_turn_sequence_index,
     String(state.formative_conversation.transcript[0].sequence_index));
-  await page.getByRole("button", { name: "End conversation", exact: true }).click();
+  // The end button is labelled "Finish assessment" on the last topic and "Finish this conversation" before it.
+  await page.getByRole("button", { name: /^Finish (assessment|this conversation)$/ }).click();
   await page.getByTestId("confirm-end-conversation").click();
   await page.getByTestId("finish-assessment").waitFor();
   assert.equal(await page.getByTestId("end-attempt").count(), 0, "Offer completion instead of a competing early exit");
@@ -287,13 +288,14 @@ try {
   const continuePath = `/api/student/sessions/${failedInput.session_public_id}/concept-units/${failedInput.concept_unit_public_id}/continue-without-feedback`;
   assert.equal((await fetch(base + continuePath, { method: "POST" })).status, 401);
   await page.goto(`${base}/student/assessment/${failedInput.session_public_id}`);
-  await page.getByText("Your responses are saved. AI feedback reached its response limit and could not finish.", { exact: true }).waitFor();
+  await page.getByText("Your answers are saved, but your feedback could not be finished this time.", { exact: true }).waitFor();
   assert.equal(await page.getByTestId("retry-initial-preparation").isEnabled(), true);
+  // Never a dead end: a failed preparation also lets the student finish without learning support.
+  assert.equal(await page.getByTestId("finish-without-learning-support").count(), 1);
   assert.equal(await page.getByTestId("continue-without-feedback").count(), 0);
   assert.equal(await page.getByTestId("end-after-feedback-failure").count(), 0);
-  assert.equal(await page.getByTestId("end-attempt").count(), 0);
-  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /try again or contact your teacher/);
-  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /Your attempt stays open/);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /You can try again, or finish now\./);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /your instructor will see that feedback was not available/);
   assert.equal((await context.request.post(base + continuePath)).status(), 410);
   assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
   for (const width of [1440, 390, 320]) {
@@ -303,17 +305,18 @@ try {
   }
   await page.reload();
   await page.getByTestId("initial-feedback-help").waitFor();
-  assert.equal(await page.getByTestId("end-attempt").count(), 0);
+  assert.equal(await page.getByTestId("retry-initial-preparation").count(), 1);
   assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
 
   await db.workflowJob.updateMany({ where: { assessment_session_db_id: failedFixture.session.id },
     data: { last_error_category: "preparation_source_conflict" } });
   await page.reload();
   await page.getByTestId("initial-feedback-help").waitFor();
-  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /Please contact your teacher for help with this test/);
+  assert.match(await page.getByTestId("initial-feedback-help").innerText(), /You can finish now\. Your answers are saved/);
   assert.equal(await page.getByTestId("retry-initial-preparation").count(), 0);
-  assert.equal(await page.getByTestId("end-attempt").count(), 0);
-  pass("source conflicts recommend teacher help without unsafe retry or forced termination");
+  assert.equal(await page.getByTestId("finish-without-learning-support").count(), 1);
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: failedFixture.session.id } })).status, "active");
+  pass("source conflicts offer finishing without learning support and no unsafe retry; nothing ends until the student chooses");
 
   await page.getByTestId("save-exit").click();
   await page.waitForURL(`${base}/student/assessment`);
@@ -331,7 +334,7 @@ try {
   assert.equal(await db.agentCall.count({ where: { assessment_session_db_id: failedFixture.session.id } }), 0);
   assert.deepEqual(await db.itemResponse.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } }), savedResponses);
   assert.deepEqual(await db.responsePackage.findMany({ where: { concept_unit_session_db_id: failedFixture.conceptUnitSession.id }, orderBy: { id: "asc" } }), savedPackages);
-  pass("capacity failure offers retry or teacher help; reload and pause/resume preserve the open attempt and all saved evidence at desktop/mobile widths");
+  pass("capacity failure offers a retry or finishing without learning support; reload and pause/resume preserve the open attempt and all saved evidence at desktop/mobile widths");
   await stop(server);
   const supervised = child(["scripts/start-app.mjs", "start", "-H", "127.0.0.1", "-p", String(port)]);
   await ready(supervised);
