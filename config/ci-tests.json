@@ -313,8 +313,7 @@
     },
     {
       "path": "prisma/participation-ui-smoke-test.ts",
-      "note": "Bundles a component with esbuild and opens it in Chromium; no database or app server.",
-      "allowFailure": "Not yet verified: it failed in the sandbox only because esbuild was missing. Remove allowFailure once CI shows it passing."
+      "note": "Bundles a component with esbuild and opens it in Chromium; no database or app server."
     }
   ],
   "excluded": {

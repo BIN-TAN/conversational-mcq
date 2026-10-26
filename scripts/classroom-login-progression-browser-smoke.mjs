@@ -120,7 +120,8 @@ try {
     await route.abort("failed");
   });
   await chat.getByTestId(/chat-option-card-.*-A$/).click();
-  await chat.getByRole("button", { name: /Retry/ }).click();
+  // The step shows the error with a "Try again" button that repeats the same request.
+  await chat.getByTestId("retry-save-action").click();
   await chat.getByTestId("reasoning-input").waitFor();
   assert.equal(submittedIds.length, 2);
   assert.equal(submittedIds[0], submittedIds[1], "A lost reply must retry the same operation");

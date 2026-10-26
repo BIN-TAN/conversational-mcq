@@ -248,24 +248,25 @@ try {
     String(state.formative_conversation.transcript[0].sequence_index));
   // The end button is labelled "Finish assessment" on the last topic and "Finish this conversation" before it.
   await page.getByRole("button", { name: /^Finish (assessment|this conversation)$/ }).click();
-  await page.getByTestId("confirm-end-conversation").click();
-  await page.getByTestId("finish-assessment").waitFor();
-  assert.equal(await page.getByTestId("end-attempt").count(), 0, "Offer completion instead of a competing early exit");
-  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } })).status, "active");
+  await page.getByTestId("confirm-end-conversation").waitFor();
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } })).status, "active",
+    "Opening the confirmation does not end anything");
   for (const width of [1440, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    await page.getByTestId("finish-assessment").scrollIntoViewIfNeeded();
+    await page.getByTestId("confirm-end-conversation").scrollIntoViewIfNeeded();
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
     await page.screenshot({ path: join(output, `finish-assessment-${width}.png`) });
   }
-  await page.getByTestId("finish-assessment").click();
+  // On the last topic one confirmation ends the conversation and finishes the assessment.
+  await page.getByTestId("confirm-end-conversation").click();
   await page.getByTestId("back-to-assessments").waitFor();
   const completed = await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id } });
   assert.equal(completed.status, "completed"); assert(completed.completed_at);
+  assert.equal(await page.getByTestId("end-attempt").count(), 0);
   await page.reload();
   await page.getByTestId("back-to-assessments").waitFor();
   assert.equal(await page.getByTestId("finish-assessment").count(), 0);
-  pass("explicit finish persists completed status, unlocks read-only review, and survives reload at desktop/mobile widths");
+  pass("one confirmation ends the conversation and finishes the assessment; completed status, read-only review and reload hold at desktop/mobile widths");
   await stop(worker);
   failedFixture = await createResponseCollectionFixture({ prisma: db, prefix: `${prefix}_capacity`, responseCollectionMode: "deterministic" });
   await db.itemResponse.createMany({ data: failedFixture.items.map(item => ({
