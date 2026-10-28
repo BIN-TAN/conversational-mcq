@@ -442,7 +442,7 @@ export function AssessmentDetailClient({
                 <div className="mt-4 rounded-md border border-line bg-slate-50 p-4 text-sm leading-6 text-muted">
                   <p>
                     {isLocked
-                      ? "Student data collection has started. This version is read-only so its questions, answer keys, and historical responses remain consistent."
+                      ? "Students have started this mini test, so its questions and answer keys are locked to keep their answers consistent. To fix a typo or unclear wording, choose View on the item, then Fix wording only; no new version is needed."
                       : "No student has started this mini test, so you can still return it to draft to make changes."}
                   </p>
                   {isLocked && assessment.superseded_by_assessment_public_id ? (

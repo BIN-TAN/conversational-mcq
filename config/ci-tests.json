@@ -165,13 +165,15 @@
     "prisma/process-data-summary-smoke-test.ts",
     "prisma/profile-item-identity-schema-smoke-test.ts",
     "prisma/provider-recovery-smoke-test.ts",
-    "prisma/item-content-unit-test.ts"
+    "prisma/item-content-unit-test.ts",
+    "prisma/item-wording-fix-unit-test.ts"
   ],
   "database": [
     "prisma/assessment-availability-smoke-test.ts",
     "prisma/attempt-policy-database-smoke-test.ts",
     "prisma/classroom-nonintervention-smoke-test.ts",
     "prisma/content-revision-smoke-test.ts",
+    "prisma/item-wording-fix-smoke-test.ts",
     {
       "path": "prisma/student-assessment-catalog-smoke-test.ts",
       "database": "conversational_mcq_classroom_audit_catalog_smoke",

@@ -31,15 +31,39 @@ import {
   ContentStateBadge,
   ErrorPanel,
   Field,
+  formatDate,
   LoadingRow,
   PageHeader,
   StatusBadge,
   SuccessPanel
 } from "./ui";
 
+type WordingCorrection = {
+  correction_public_id: string;
+  reason: string;
+  changed_fields: string[];
+  responses_before: number;
+  corrected_at: string;
+  corrected_by: string | null;
+};
+
 type ItemResponse = {
   item: ItemDetail;
+  wording_corrections?: WordingCorrection[];
 };
+
+const WORDING_FIX_FIELD_NAMES: Record<string, string> = {
+  item_stem: "item wording",
+  options: "option text",
+  distractor_rationales: "reasons for incorrect options",
+  expected_reasoning_patterns: "target reasoning",
+  teacher_notes: "teacher notes"
+};
+
+function wordingFixFieldList(fields: string[]) {
+  const names = fields.map((field) => WORDING_FIX_FIELD_NAMES[field] ?? field);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0] ?? "";
+}
 
 type AssessmentDetailResponse = {
   assessment: AssessmentDetail;
@@ -320,6 +344,12 @@ export function ItemEditorClient(props: ItemEditorProps) {
   const [showRevisionForm, setShowRevisionForm] = useState(false);
   const [revisionReason, setRevisionReason] = useState("");
   const [isCreatingRevision, setIsCreatingRevision] = useState(false);
+  // Wording fix (item-wording-fix-v1): edit wording in place after students have started.
+  const [wordingFixMode, setWordingFixMode] = useState(false);
+  const [wordingFixReason, setWordingFixReason] = useState("");
+  const [wordingFixNotesTouched, setWordingFixNotesTouched] = useState(false);
+  const [isSavingWordingFix, setIsSavingWordingFix] = useState(false);
+  const [wordingCorrections, setWordingCorrections] = useState<WordingCorrection[]>([]);
 
   const optionLabels = useMemo(
     () => options.map((option) => option.label.trim()).filter(Boolean),
@@ -358,6 +388,10 @@ export function ItemEditorClient(props: ItemEditorProps) {
       const data = await apiRequest<ItemResponse>(`/api/teacher/items/${itemPublicId}`);
       const loaded = data.item;
       setItem(loaded);
+      setWordingCorrections(data.wording_corrections ?? []);
+      setWordingFixMode(false);
+      setWordingFixReason("");
+      setWordingFixNotesTouched(false);
       setAssessmentContext(
         loaded.assessment_public_id
           ? {
@@ -431,6 +465,13 @@ export function ItemEditorClient(props: ItemEditorProps) {
     setHasUnsavedChanges(true);
   }
 
+  // A wording fix sends the teacher notes only when one of them was edited, so an untouched
+  // note is never rewritten or recorded as changed.
+  function markNotesEdited() {
+    markDirty();
+    setWordingFixNotesTouched(true);
+  }
+
   function updateOption(index: number, patch: Partial<ItemOption>) {
     markDirty();
     setOptions((current) =>
@@ -448,7 +489,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
   }
 
   function updateOptionNote(index: number, patch: Partial<Omit<OptionNoteDraft, "preserved">>) {
-    markDirty();
+    markNotesEdited();
     setOptionNotes((current) => {
       const next = [...current];
       while (next.length <= index) next.push(blankOptionNote());
@@ -650,6 +691,106 @@ export function ItemEditorClient(props: ItemEditorProps) {
     });
   }
 
+  // The item fields as the form shows them, for saving the item or a wording fix.
+  function buildItemPayload() {
+    const advancedRules = parseJsonObject(administrationRules, "Advanced settings");
+    const savedOptionNotes = optionNotesForSave(options, optionNotes, correctOption);
+    const legacyNoteToKeep = showLegacyDistractorNote ? legacyDistractorNote : "";
+    const administration_rules = buildItemAdministrationRulesFromTeacherMetadata({
+      administration_rules: advancedRules,
+      metadata: {
+        item_label: itemLabel,
+        item_purpose: "initial_item",
+        expected_reasoning_note: expectedReasoningNote,
+        item_diagnostic_value_note: itemDiagnosticValueNote,
+        plain_language_distractor_diagnostic_notes: legacyNoteToKeep,
+        correct_option_notes: {
+          target_reasoning_note: targetReasoningNote,
+          strong_reasoning_should_mention: strongReasoningNote
+        },
+        option_notes: savedOptionNotes
+      }
+    });
+    const derivedExpectedReasoning = [
+      expectedReasoningNote,
+      targetReasoningNote,
+      strongReasoningNote
+    ]
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    const payload = {
+      item_stem: itemStem,
+      options: options.map((option) => ({
+        label: option.label.trim(),
+        text: option.text
+      })),
+      correct_option: correctOption,
+      distractor_rationales: buildDistractorRationalesFromTeacherNotes({
+        option_labels: optionLabels,
+        correct_option: correctOption,
+        existing_rationales: {},
+        option_notes: savedOptionNotes,
+        plain_language_distractor_diagnostic_notes: legacyNoteToKeep
+      }),
+      expected_reasoning_patterns:
+        derivedExpectedReasoning,
+      possible_misconception_indicators: [],
+      administration_rules,
+      media_assets: mediaAssets.map(mediaDraftToInput),
+      included_in_published_set: includedInPublishedSet
+    };
+    return payload;
+  }
+
+  async function saveWordingFix() {
+    if (!itemPublicId || isSavingWordingFix) {
+      return;
+    }
+
+    setError(null);
+    setSuccess(null);
+    const reason = wordingFixReason.trim();
+    if (reason.length < 5) {
+      setError({
+        code: "validation_failed",
+        message: "Briefly say what you are fixing (at least 5 characters)."
+      });
+      return;
+    }
+
+    setIsSavingWordingFix(true);
+
+    try {
+      const payload = buildItemPayload();
+      const data = await apiRequest<ItemResponse>(`/api/teacher/items/${itemPublicId}/wording-fix`, {
+        method: "POST",
+        body: JSON.stringify({
+          reason,
+          item_stem: payload.item_stem,
+          options: payload.options,
+          correct_option: payload.correct_option,
+          ...(wordingFixNotesTouched
+            ? {
+                distractor_rationales: payload.distractor_rationales,
+                expected_reasoning_patterns: payload.expected_reasoning_patterns,
+                administration_rules: payload.administration_rules
+              }
+            : {})
+        })
+      });
+      setHasUnsavedChanges(false);
+      await loadItem();
+      setWordingCorrections(data.wording_corrections ?? []);
+      setSuccess(
+        "Wording fix saved. Students who reach this item from now on see the new wording. Answers already given keep the wording those students saw."
+      );
+    } catch (caught) {
+      setError(errorFromUnknown(caught));
+    } finally {
+      setIsSavingWordingFix(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isSubmitting) {
@@ -662,6 +803,11 @@ export function ItemEditorClient(props: ItemEditorProps) {
     );
     setError(null);
     setSuccess(null);
+
+    if (wordingFixMode) {
+      await saveWordingFix();
+      return;
+    }
 
     if (!isEditable) {
       setError({
@@ -681,52 +827,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
     setActiveSaveIntent(saveIntent);
 
     try {
-      const advancedRules = parseJsonObject(administrationRules, "Advanced settings");
-      const savedOptionNotes = optionNotesForSave(options, optionNotes, correctOption);
-      const legacyNoteToKeep = showLegacyDistractorNote ? legacyDistractorNote : "";
-      const administration_rules = buildItemAdministrationRulesFromTeacherMetadata({
-        administration_rules: advancedRules,
-        metadata: {
-          item_label: itemLabel,
-          item_purpose: "initial_item",
-          expected_reasoning_note: expectedReasoningNote,
-          item_diagnostic_value_note: itemDiagnosticValueNote,
-          plain_language_distractor_diagnostic_notes: legacyNoteToKeep,
-          correct_option_notes: {
-            target_reasoning_note: targetReasoningNote,
-            strong_reasoning_should_mention: strongReasoningNote
-          },
-          option_notes: savedOptionNotes
-        }
-      });
-      const derivedExpectedReasoning = [
-        expectedReasoningNote,
-        targetReasoningNote,
-        strongReasoningNote
-      ]
-        .map((entry) => entry.trim())
-        .filter(Boolean);
-      const payload = {
-        item_stem: itemStem,
-        options: options.map((option) => ({
-          label: option.label.trim(),
-          text: option.text
-        })),
-        correct_option: correctOption,
-        distractor_rationales: buildDistractorRationalesFromTeacherNotes({
-          option_labels: optionLabels,
-          correct_option: correctOption,
-          existing_rationales: {},
-          option_notes: savedOptionNotes,
-          plain_language_distractor_diagnostic_notes: legacyNoteToKeep
-        }),
-        expected_reasoning_patterns:
-          derivedExpectedReasoning,
-        possible_misconception_indicators: [],
-        administration_rules,
-        media_assets: mediaAssets.map(mediaDraftToInput),
-        included_in_published_set: includedInPublishedSet
-      };
+      const payload = buildItemPayload();
 
       if (assessmentPublicId) {
         await apiRequest<ItemResponse>(
@@ -869,8 +970,17 @@ export function ItemEditorClient(props: ItemEditorProps) {
         item.concept_unit_status === "draft" &&
         item.status !== "archived"
     );
+  // In a wording fix only the wording and the teacher notes open; the key, options, media and
+  // settings stay locked.
+  const canEditWording = isEditable || wordingFixMode;
+  const canFixWording = Boolean(
+    props.mode === "edit" &&
+      item?.is_content_locked &&
+      item.status !== "archived" &&
+      item.content_state !== "archived"
+  );
   const readOnlyReason = item?.is_content_locked
-    ? "Student data collection has started. The administered content is now read-only to preserve the session record."
+    ? "Students have started this mini test, so the answer key, the option letters and the media are locked to protect their answers. You can still fix the wording without a new version, or create a new version for bigger changes."
     : item?.concept_unit_status === "published"
       ? "Return the topic to draft before editing published items."
       : item?.status === "archived"
@@ -931,13 +1041,45 @@ export function ItemEditorClient(props: ItemEditorProps) {
               <div className="mb-5 rounded-md border border-line bg-slate-50 p-4 text-sm leading-6 text-muted">
                 <p>{readOnlyReason}</p>
                 {item.is_content_locked ? (
-                  <div className="mt-3">
-                    {!showRevisionForm ? (
-                      <Button onClick={() => setShowRevisionForm(true)} type="button" variant="secondary">
-                        <FilePenLine className="h-4 w-4" aria-hidden="true" />
-                        Correct for future attempts
-                      </Button>
+                  <div className="mt-3 space-y-3">
+                    {wordingFixMode ? (
+                      <div className="rounded-md border border-accent bg-white p-3 text-ink" data-testid="wording-fix-panel">
+                        <p className="font-semibold">Fixing the wording</p>
+                        <p className="mt-1 text-muted">
+                          You can now edit the item wording, the option text and the teacher notes below. The
+                          answer key, the option letters and their order, and the media stay as they are. Use this for typos,
+                          names and clearer phrasing that do not change what the item asks. Answers already given
+                          keep the wording those students saw. When you are done, give a reason and save at the
+                          bottom of the page.
+                        </p>
+                      </div>
                     ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {canFixWording ? (
+                          <Button
+                            data-testid="start-wording-fix"
+                            onClick={() => {
+                              setShowRevisionForm(false);
+                              setError(null);
+                              setSuccess(null);
+                              setWordingFixNotesTouched(false);
+                              setWordingFixMode(true);
+                            }}
+                            type="button"
+                          >
+                            <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                            Fix wording only
+                          </Button>
+                        ) : null}
+                        {!showRevisionForm ? (
+                          <Button onClick={() => setShowRevisionForm(true)} type="button" variant="secondary">
+                            <FilePenLine className="h-4 w-4" aria-hidden="true" />
+                            Correct for future attempts
+                          </Button>
+                        ) : null}
+                      </div>
+                    )}
+                    {showRevisionForm && !wordingFixMode ? (
                       <div className="space-y-3">
                         <Field label="Reason for correction">
                           <textarea
@@ -974,7 +1116,27 @@ export function ItemEditorClient(props: ItemEditorProps) {
                           </Button>
                         </div>
                       </div>
-                    )}
+                    ) : null}
+                    {wordingCorrections.length > 0 ? (
+                      <div data-testid="wording-fix-history">
+                        <p className="font-semibold text-ink">Wording fixes</p>
+                        <ul className="mt-1 space-y-2">
+                          {wordingCorrections.map((correction) => (
+                            <li key={correction.correction_public_id}>
+                              <span className="text-ink">{formatDate(correction.corrected_at)}</span>
+                              {": "}
+                              {correction.reason}
+                              <span className="block text-xs">
+                                Changed: {wordingFixFieldList(correction.changed_fields)}.{" "}
+                                {correction.responses_before === 1
+                                  ? "1 answer given before this fix keeps the earlier wording."
+                                  : `${correction.responses_before} answers given before this fix keep the earlier wording.`}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 ) : null}
               </div>
@@ -989,9 +1151,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
               <Field label="Item title / short label">
                 <input
                   className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
+                  disabled={!canEditWording}
                   onChange={(event) => {
-                    markDirty();
+                    markNotesEdited();
                     setItemLabel(event.target.value);
                   }}
                   placeholder="e.g. Theta scale boundary"
@@ -1045,7 +1207,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <Field label="Item wording">
                   <textarea
                     className="min-h-36 rounded-md border border-line bg-white px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                    disabled={!isEditable}
+                    disabled={!canEditWording}
                     onChange={(event) => {
                       markDirty();
                       setItemStem(event.target.value);
@@ -1341,7 +1503,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   <Field label="Text">
                     <input
                       className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                      disabled={!isEditable}
+                      disabled={!canEditWording}
                       onChange={(event) => updateOption(index, { text: event.target.value })}
                       required
                       value={option.text}
@@ -1393,9 +1555,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
               >
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
+                  disabled={!canEditWording}
                   onChange={(event) => {
-                    markDirty();
+                    markNotesEdited();
                     setTargetReasoningNote(event.target.value);
                   }}
                   value={targetReasoningNote}
@@ -1409,9 +1571,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 <textarea
                   aria-describedby="essential-elements-count"
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                  disabled={!isEditable}
+                  disabled={!canEditWording}
                   onChange={(event) => {
-                    markDirty();
+                    markNotesEdited();
                     setStrongReasoningNote(event.target.value);
                   }}
                   placeholder={"Reliability is consistency of scores\nHigh reliability does not establish validity"}
@@ -1449,7 +1611,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                       <Field label="Why a student might choose this option">
                         <textarea
                           className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
+                          disabled={!canEditWording}
                           onChange={(event) => updateOptionNote(index, { rationale: event.target.value })}
                           placeholder="The specific incorrect idea that could lead to this choice."
                           value={note.rationale}
@@ -1462,7 +1624,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                       >
                         <input
                           className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!isEditable}
+                          disabled={!canEditWording}
                           maxLength={IDEA_LABEL_MAX_LENGTH}
                           onChange={(event) => updateOptionNote(index, { idea_label: event.target.value })}
                           placeholder="reliability = validity"
@@ -1486,9 +1648,9 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 >
                   <textarea
                     className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                    disabled={!isEditable}
+                    disabled={!canEditWording}
                     onChange={(event) => {
-                      markDirty();
+                      markNotesEdited();
                       setLegacyDistractorNote(event.target.value);
                     }}
                     value={legacyDistractorNote}
@@ -1622,6 +1784,49 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   Cancel
                 </Button>
               </>
+            ) : wordingFixMode ? (
+              <div className="w-full space-y-3" data-testid="wording-fix-save">
+                <Field
+                  label="What are you fixing?"
+                  hint="Saved with the fix. For example: Fixed a typo in the stem and used Lily's name in the question."
+                >
+                  <textarea
+                    className="min-h-20 rounded-md border border-line bg-white px-3 py-2 text-ink outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                    data-testid="wording-fix-reason"
+                    maxLength={1000}
+                    onChange={(event) => setWordingFixReason(event.target.value)}
+                    value={wordingFixReason}
+                  />
+                </Field>
+                {error ? (
+                  <p className="text-sm text-red-800" role="alert">
+                    {error.message}
+                  </p>
+                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    data-testid="save-wording-fix"
+                    disabled={isSavingWordingFix}
+                    onClick={() => void saveWordingFix()}
+                    type="button"
+                  >
+                    <Save className="h-4 w-4" aria-hidden="true" />
+                    {isSavingWordingFix ? "Saving" : "Save wording fix"}
+                  </Button>
+                  <Button
+                    disabled={isSavingWordingFix}
+                    onClick={() => {
+                      setError(null);
+                      void loadItem();
+                    }}
+                    type="button"
+                    variant="secondary"
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                    Cancel the fix
+                  </Button>
+                </div>
+              </div>
             ) : (
               <>
                 <Button
@@ -1651,7 +1856,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                 </Button>
               </>
             )}
-            {props.mode === "edit" ? (
+            {props.mode === "edit" && !wordingFixMode ? (
               <Button
                 disabled={item?.is_content_locked || item?.status === "archived" || isArchiving}
                 onClick={archiveItem}

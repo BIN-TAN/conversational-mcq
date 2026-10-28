@@ -127,6 +127,17 @@ Published item content is not edited directly while its concept unit remains pub
 
 Once any `assessment_sessions` row exists for an assessment, research-relevant content is locked. Assessment metadata, concept-unit order/content, item membership/order/content, correct answers, rationales, and version-relevant fields become read-only.
 
+### Wording fixes after students have started (item-wording-fix-v1)
+
+After the lock, the item editor offers "Fix wording only" for an item that is not archived. It opens the item wording, the option text and the teacher notes (item label, target reasoning, essential elements, reasons for incorrect options); the answer key, option letters, their order and number, media, the published-set flag and every other administration rule stay locked (`src/lib/services/content/item-wording-fix-plan.ts`). The instructor gives a reason, and `POST /api/teacher/items/[itemPublicId]/wording-fix` saves the fix in place:
+
+- The item keeps its public ID and its `version`, so dashboards and exports keep all students' answers to it together, and no new mini-test version is created.
+- Answers already given keep their own `item_responses.item_snapshot`, the wording that student saw; `assessment_content.csv` is built from those snapshots.
+- Each fix is a row in `item_wording_corrections`: reason, changed fields, the fields before and after, the item version, and how many answers and attempts existed at that moment. The editor lists the fixes under the lock notice.
+- The fix is refused for a mini test no student has started (edit it normally) and for archived items or mini tests.
+
+Changing the key, the options or media still needs a new version ("Correct for future attempts").
+
 After locking, whole-assessment archive remains allowed to prevent future new sessions while preserving records. Individual concept-unit or item archive operations that mutate administered content are rejected.
 
 If an item already has student responses, destructive changes to `item_stem`, `options`, `correct_option`, or `distractor_rationales` are rejected. This preserves the research interpretation of `item_responses.item_snapshot` and `item_version_snapshot`.
@@ -217,6 +228,7 @@ The UI import page is `/teacher/content/import-json`. A sample import payload is
 - `GET /api/teacher/items/[itemPublicId]`
 - `PUT /api/teacher/items/[itemPublicId]`
 - `POST /api/teacher/items/[itemPublicId]/archive`
+- `POST /api/teacher/items/[itemPublicId]/wording-fix`
 - `POST /api/teacher/content/import-json`
 
 All routes require teacher_researcher authentication. Student users receive `403`.

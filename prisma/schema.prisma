@@ -524,6 +524,7 @@ model User {
   login_invitations_received                StudentLoginInvitation[]      @relation("LoginInvitationStudent")
   login_invitations_sent                    StudentLoginInvitation[]      @relation("LoginInvitationTeacher")
   item_review_decisions                     ItemReviewDecision[]          @relation("ItemReviewDecisionAuthor")
+  item_wording_corrections                  ItemWordingCorrection[]       @relation("ItemWordingCorrectionAuthor")
 
   @@index([email])
   @@index([email_normalized])
@@ -709,6 +710,7 @@ model Item {
   media_assets       ItemMediaAsset[]
   item_responses     ItemResponse[]
   review_decisions   ItemReviewDecision[]
+  wording_corrections ItemWordingCorrection[]
   conversation_turns ConversationTurn[]
   process_events     ProcessEvent[]
 
@@ -2660,4 +2662,27 @@ model ItemReviewDecision {
 
   @@index([item_db_id, superseded_at])
   @@map("item_review_decisions")
+}
+
+/// Wording fixes made to an item after students started its mini test (item-wording-fix-v1).
+/// The item keeps its identity and version; answers already given keep their own item_snapshot.
+model ItemWordingCorrection {
+  id                      String   @id @default(uuid()) @db.Uuid
+  correction_public_id    String   @unique @default(cuid())
+  item_db_id              String   @db.Uuid
+  corrected_by_user_db_id String   @db.Uuid
+  reason                  String   @db.Text
+  changed_fields          String[]
+  before_content          Json
+  after_content           Json
+  item_version            Int
+  responses_before        Int
+  sessions_before         Int
+  corrected_at            DateTime @default(now()) @db.Timestamptz(6)
+
+  item         Item @relation(fields: [item_db_id], references: [id], onDelete: Cascade)
+  corrected_by User @relation("ItemWordingCorrectionAuthor", fields: [corrected_by_user_db_id], references: [id], onDelete: Restrict)
+
+  @@index([item_db_id, corrected_at])
+  @@map("item_wording_corrections")
 }

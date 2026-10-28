@@ -7,6 +7,8 @@ export type ContentErrorCode =
   | "research_export_busy"
   | "cannot_modify_published_with_responses"
   | "content_locked_after_student_session"
+  | "wording_fix_changes_locked_content"
+  | "wording_fix_not_available"
   | "assessment_has_no_published_concept_units"
   | "concept_unit_item_count_invalid"
   | "item_archive_would_invalidate_published_concept_unit"
