@@ -2672,7 +2672,7 @@ model ItemWordingCorrection {
   item_db_id              String   @db.Uuid
   corrected_by_user_db_id String   @db.Uuid
   reason                  String   @db.Text
-  changed_fields          String[]
+  changed_fields          String[] @default([])
   before_content          Json
   after_content           Json
   item_version            Int

@@ -148,14 +148,18 @@ check("essential elements stay within one to three; rationales only for incorrec
     administration_rules: { teacher_diagnostic_context: { correct_option_notes: { strong_reasoning_should_mention: "" } } }
   })), "validation_failed", /one to three essential elements/);
   refused(() => planItemWordingFix(item, request({ distractor_rationales: { A: "The key." } })), "validation_failed", /not an incorrect option/);
+  // Stored rationales are kept as they are when the request does not send any (older imports).
+  const imported = { ...item, distractor_rationales: { A: "Why the key is right.", B: "Weights harder items more." } };
+  assert.deepEqual(planItemWordingFix(imported, request()).next.distractor_rationales, imported.distractor_rationales);
 });
 
-check("the service keeps the version, records the fix and only works on locked items", () => {
+check("the service keeps the version, records the fix and only works on locked items without a newer version", () => {
   const service = source("src/lib/services/content/item-wording-fix.ts");
   assert(!/version:\s*\{\s*increment/.test(service), "A wording fix must not raise the item version");
   assert(service.includes("INSERT INTO item_wording_corrections"));
   assert(service.includes("FOR UPDATE"));
   assert(service.includes("is_content_locked"));
+  assert(service.includes("supersedes_assessment_public_id: assessment.assessment_public_id"), "A newer version draft takes the fix instead");
   const migration = source("prisma/migrations/20261028120000_item_wording_corrections/migration.sql");
   for (const column of ["reason", "changed_fields", "before_content", "after_content", "item_version", "responses_before", "sessions_before"]) {
     assert(migration.includes(`"${column}"`), column);
@@ -164,12 +168,14 @@ check("the service keeps the version, records the fix and only works on locked i
   assert(source("src/app/api/teacher/items/[itemPublicId]/wording-fix/route.ts").includes("correctItemWording"));
 });
 
-check("the editor offers the fix for locked items and sends notes only when one was edited", () => {
+check("the editor offers the fix for locked items and sends only the notes that were edited", () => {
   const editor = source("src/components/teacher-content/item-editor-client.tsx");
   assert(editor.includes("Fix wording only"));
   assert(editor.includes("item?.is_content_locked &&"));
   assert(editor.includes("/wording-fix`"));
-  assert(editor.includes("...(wordingFixNotesTouched"));
+  assert(editor.includes("wordingFixBaseline.current = buildItemPayload();"));
+  assert(editor.includes("sameJson(payload.distractor_rationales, baseline.distractor_rationales)"));
+  assert(editor.includes("rulesWithUntouchedKeysStored("));
   assert(editor.includes("const canEditWording = isEditable || wordingFixMode;"));
   // The key, option letters, adding or removing options, media and the published-set flag stay on isEditable.
   assert(editor.includes("disabled={!isEditable || options.length >= 5}"));

@@ -30,7 +30,7 @@ export type ItemWordingCorrectionSummary = {
 type CorrectionRow = {
   correction_public_id: string;
   reason: string;
-  changed_fields: string[];
+  changed_fields: string[] | null;
   before_content: unknown;
   after_content: unknown;
   item_version: number;
@@ -91,7 +91,7 @@ export async function listItemWordingCorrections(input: {
   return rows.map((row) => ({
     correction_public_id: row.correction_public_id,
     reason: row.reason,
-    changed_fields: row.changed_fields as ItemWordingFixField[],
+    changed_fields: (row.changed_fields ?? []) as ItemWordingFixField[],
     before: record(row.before_content),
     after: record(row.after_content),
     item_version: Number(row.item_version),
@@ -130,6 +130,21 @@ export async function correctItemWording(input: {
   const result = await prisma.$transaction(async (tx) => {
     // Lock the item so two fixes saved at the same moment are recorded one after the other.
     await tx.$queryRaw`SELECT id FROM items WHERE id = ${owned.id}::uuid FOR UPDATE`;
+    // A new version made with "Correct for future attempts" copies this mini test and checks,
+    // when it is published, that the original has not changed since. While that version exists
+    // the fix belongs there, so the original is left as it is.
+    const newerVersion = await tx.assessment.findUnique({
+      where: { supersedes_assessment_public_id: assessment.assessment_public_id },
+      select: { title: true, status: true }
+    });
+    if (newerVersion) {
+      throw new ContentServiceError(
+        "wording_fix_not_available",
+        `A new version of this mini test already exists (${newerVersion.title}). Make the wording fix in that version instead.`,
+        409,
+        { item_public_id: owned.item_public_id, newer_version_status: newerVersion.status }
+      );
+    }
     const item = await tx.item.findUniqueOrThrow({ where: { id: owned.id } });
     const plan = planItemWordingFix(item, input.data);
     const [responsesBefore, sessionsBefore] = await Promise.all([

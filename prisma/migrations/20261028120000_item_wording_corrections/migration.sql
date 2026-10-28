@@ -6,7 +6,7 @@ CREATE TABLE "item_wording_corrections" (
   "item_db_id" UUID NOT NULL,
   "corrected_by_user_db_id" UUID NOT NULL,
   "reason" TEXT NOT NULL,
-  "changed_fields" TEXT[] NOT NULL,
+  "changed_fields" TEXT[] DEFAULT ARRAY[]::TEXT[],
   "before_content" JSONB NOT NULL,
   "after_content" JSONB NOT NULL,
   "item_version" INTEGER NOT NULL,

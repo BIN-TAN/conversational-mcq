@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Archive, ArrowLeft, FilePenLine, Image as ImageIcon, Link2, Plus, Save, Trash2, Video, X } from "lucide-react";
 import { apiRequest, errorFromUnknown } from "./api";
@@ -59,6 +59,33 @@ const WORDING_FIX_FIELD_NAMES: Record<string, string> = {
   expected_reasoning_patterns: "target reasoning",
   teacher_notes: "teacher notes"
 };
+
+function sameJson(left: unknown, right: unknown) {
+  return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
+}
+
+function plainRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/**
+ * Rules for a wording fix: a key whose value the form would rebuild exactly as it did when the fix
+ * started (its notes were not edited) keeps its stored value, so only notes the instructor changed
+ * are sent as changed. teacher_diagnostic_context is compared one level deeper.
+ */
+function rulesWithUntouchedKeysStored(current: unknown, baseline: unknown, stored: unknown, depth = 0): Record<string, unknown> {
+  const now = plainRecord(current);
+  const before = plainRecord(baseline);
+  const saved = plainRecord(stored);
+  const result: Record<string, unknown> = {};
+  for (const key of new Set([...Object.keys(now), ...Object.keys(before), ...Object.keys(saved)])) {
+    const value = depth === 0 && key === "teacher_diagnostic_context"
+      ? rulesWithUntouchedKeysStored(now[key], before[key], saved[key], 1)
+      : sameJson(now[key], before[key]) ? saved[key] : now[key];
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
 
 function wordingFixFieldList(fields: string[]) {
   const names = fields.map((field) => WORDING_FIX_FIELD_NAMES[field] ?? field);
@@ -347,7 +374,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
   // Wording fix (item-wording-fix-v1): edit wording in place after students have started.
   const [wordingFixMode, setWordingFixMode] = useState(false);
   const [wordingFixReason, setWordingFixReason] = useState("");
-  const [wordingFixNotesTouched, setWordingFixNotesTouched] = useState(false);
+  // The item fields as the form built them when the fix started, before any edit.
+  const wordingFixBaseline = useRef<ReturnType<typeof buildItemPayload> | null>(null);
   const [isSavingWordingFix, setIsSavingWordingFix] = useState(false);
   const [wordingCorrections, setWordingCorrections] = useState<WordingCorrection[]>([]);
 
@@ -391,7 +419,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
       setWordingCorrections(data.wording_corrections ?? []);
       setWordingFixMode(false);
       setWordingFixReason("");
-      setWordingFixNotesTouched(false);
+      wordingFixBaseline.current = null;
       setAssessmentContext(
         loaded.assessment_public_id
           ? {
@@ -465,13 +493,6 @@ export function ItemEditorClient(props: ItemEditorProps) {
     setHasUnsavedChanges(true);
   }
 
-  // A wording fix sends the teacher notes only when one of them was edited, so an untouched
-  // note is never rewritten or recorded as changed.
-  function markNotesEdited() {
-    markDirty();
-    setWordingFixNotesTouched(true);
-  }
-
   function updateOption(index: number, patch: Partial<ItemOption>) {
     markDirty();
     setOptions((current) =>
@@ -489,7 +510,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
   }
 
   function updateOptionNote(index: number, patch: Partial<Omit<OptionNoteDraft, "preserved">>) {
-    markNotesEdited();
+    markDirty();
     setOptionNotes((current) => {
       const next = [...current];
       while (next.length <= index) next.push(blankOptionNote());
@@ -762,6 +783,28 @@ export function ItemEditorClient(props: ItemEditorProps) {
 
     try {
       const payload = buildItemPayload();
+      // Notes are sent only when they differ from what the form built when the fix started, so a
+      // note the instructor did not edit is never rewritten or recorded as changed.
+      const baseline = wordingFixBaseline.current;
+      const notes = baseline
+        ? {
+            ...(sameJson(payload.distractor_rationales, baseline.distractor_rationales)
+              ? {}
+              : { distractor_rationales: payload.distractor_rationales }),
+            ...(sameJson(payload.expected_reasoning_patterns, baseline.expected_reasoning_patterns)
+              ? {}
+              : { expected_reasoning_patterns: payload.expected_reasoning_patterns }),
+            ...(sameJson(payload.administration_rules, baseline.administration_rules)
+              ? {}
+              : {
+                  administration_rules: rulesWithUntouchedKeysStored(
+                    payload.administration_rules,
+                    baseline.administration_rules,
+                    item?.administration_rules
+                  )
+                })
+          }
+        : {};
       const data = await apiRequest<ItemResponse>(`/api/teacher/items/${itemPublicId}/wording-fix`, {
         method: "POST",
         body: JSON.stringify({
@@ -769,13 +812,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
           item_stem: payload.item_stem,
           options: payload.options,
           correct_option: payload.correct_option,
-          ...(wordingFixNotesTouched
-            ? {
-                distractor_rationales: payload.distractor_rationales,
-                expected_reasoning_patterns: payload.expected_reasoning_patterns,
-                administration_rules: payload.administration_rules
-              }
-            : {})
+          ...notes
         })
       });
       setHasUnsavedChanges(false);
@@ -1062,7 +1099,11 @@ export function ItemEditorClient(props: ItemEditorProps) {
                               setShowRevisionForm(false);
                               setError(null);
                               setSuccess(null);
-                              setWordingFixNotesTouched(false);
+                              try {
+                                wordingFixBaseline.current = buildItemPayload();
+                              } catch {
+                                wordingFixBaseline.current = null;
+                              }
                               setWordingFixMode(true);
                             }}
                             type="button"
@@ -1153,7 +1194,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!canEditWording}
                   onChange={(event) => {
-                    markNotesEdited();
+                    markDirty();
                     setItemLabel(event.target.value);
                   }}
                   placeholder="e.g. Theta scale boundary"
@@ -1557,7 +1598,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!canEditWording}
                   onChange={(event) => {
-                    markNotesEdited();
+                    markDirty();
                     setTargetReasoningNote(event.target.value);
                   }}
                   value={targetReasoningNote}
@@ -1573,7 +1614,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                   disabled={!canEditWording}
                   onChange={(event) => {
-                    markNotesEdited();
+                    markDirty();
                     setStrongReasoningNote(event.target.value);
                   }}
                   placeholder={"Reliability is consistency of scores\nHigh reliability does not establish validity"}
@@ -1650,7 +1691,7 @@ export function ItemEditorClient(props: ItemEditorProps) {
                     className="min-h-24 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                     disabled={!canEditWording}
                     onChange={(event) => {
-                      markNotesEdited();
+                      markDirty();
                       setLegacyDistractorNote(event.target.value);
                     }}
                     value={legacyDistractorNote}

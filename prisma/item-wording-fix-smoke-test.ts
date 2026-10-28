@@ -15,6 +15,7 @@ import { createItem, updateItem } from "../src/lib/services/content/items";
 import { publishAssessment } from "../src/lib/services/content/publishing";
 import { ContentServiceError } from "../src/lib/services/content/errors";
 import { correctItemWording, listItemWordingCorrections } from "../src/lib/services/content/item-wording-fix";
+import { createEditableAssessmentRevision } from "../src/lib/services/content/assessment-revisions";
 import { generatePublicId } from "../src/lib/services/ids";
 
 const prisma = new PrismaClient();
@@ -217,6 +218,24 @@ async function main() {
       "Only the owner can fix an item"
     );
 
+    // Once a new version exists ("Correct for future attempts"), the fix belongs in that version:
+    // publishing it checks that the original has not changed since it was copied.
+    const revision = await createEditableAssessmentRevision({
+      teacher_user_db_id: teacher.id,
+      assessment_public_id: started.assessment.assessment_public_id,
+      data: { revision_reason: "The second item needs a new key.", source_item_public_id: started.items[1].item_public_id }
+    });
+    createdAssessmentPublicIds.push(revision.revision_assessment_public_id);
+    await refused(
+      () => correctItemWording({
+        teacher_user_db_id: teacher.id,
+        item_public_id: itemRow.item_public_id,
+        data: { reason: "Another typo.", item_stem: `${fixedStem} Again.`, options: itemInput(1).options }
+      }),
+      "wording_fix_not_available",
+      "A wording fix is refused while a newer version exists"
+    );
+
     console.log(JSON.stringify({
       status: "passed",
       version_unchanged: true,
@@ -225,6 +244,7 @@ async function main() {
       fix_recorded_with_reason: true,
       key_and_options_locked: true,
       unused_mini_test_refused: true,
+      refused_while_newer_version_exists: true,
       provider_calls: 0
     }));
   } finally {

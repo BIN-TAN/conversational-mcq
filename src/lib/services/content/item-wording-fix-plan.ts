@@ -198,7 +198,10 @@ export function planItemWordingFix(source: ItemWordingFixSource, rawInput: unkno
   const incorrectLabels = new Set(beforeLabels.filter((label) => label !== source.correct_option));
   const beforeRationales = stringRecord(source.distractor_rationales);
   const nextRationales = input.distractor_rationales ?? beforeRationales;
-  const strayRationale = Object.keys(nextRationales).find((label) => !incorrectLabels.has(label));
+  // Checked only when the request sends rationales: stored rationales are kept as they are.
+  const strayRationale = input.distractor_rationales
+    ? Object.keys(input.distractor_rationales).find((label) => !incorrectLabels.has(label))
+    : undefined;
   if (strayRationale) {
     throw new ContentServiceError(
       "validation_failed",
