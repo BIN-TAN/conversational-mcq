@@ -159,6 +159,13 @@ async function main() {
       assert.match(prompt, /Refer to items as the student saw them: Item 1, Item 2\./);
       assert.doesNotMatch(prompt, /Question 2/);
     }
+    // Doubt shown by low confidence or an unsure explanation is addressed, also for correct answers,
+    // and several points open with a short overview the student can choose from.
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /then a correct answer the student doubted \(low confidence, or an explanation that says they are unsure\)/);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /\nMORE THAN ONE POINT\nWhen the evidence shows more than one point worth discussing \(from levels 1 to 4\), begin with a short overview/);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /choose another point from the overview when there is one/);
+    assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the opening listed several points, follow the student's choice among them/);
+    assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself\./);
     assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.4");
     assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.5");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
