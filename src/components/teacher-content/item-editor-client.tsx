@@ -1603,8 +1603,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted">
               Students see only the target reasoning, as the &quot;Why&quot; in their answer review after they submit; everything
-              else here is for you and the assistant. Rationales describe ideas a student might hold; they are hypotheses,
-              not judgments of any student.
+              else here is for you and the assistant. Rationales describe ideas a student might hold;
+              they are hypotheses, not judgments of any student.
             </p>
             <div className="mt-5 grid gap-4">
               <Field
