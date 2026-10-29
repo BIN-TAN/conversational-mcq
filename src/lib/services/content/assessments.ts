@@ -53,7 +53,7 @@ const AssessmentOrganizationInputSchema = z
       .array(
         z
           .object({
-            from: z.string().trim().min(1).max(120),
+            from: z.string().trim().min(1),
             to: z.string().trim().max(120).nullable()
           })
           .strict()
@@ -372,7 +372,11 @@ export async function saveAssessmentOrganization(input: {
       }
 
       // Archived mini tests in a renamed or deleted folder follow it. They keep their own order
-      // within the folder and take the folder's new position.
+      // within the folder and take the folder's new position. The archived mini tests of every
+      // renamed folder are found before any of them moves, so renames in one save (a swap, or a
+      // deleted name given to another folder) never catch mini tests another rename just moved.
+      const activeIds = updates.map((update) => update.id);
+      const plannedRenames: Array<{ ids: string[]; target: string | null }> = [];
       const seenRenameSources = new Set<string>();
       for (const rename of data.folder_renames) {
         const from = normalizeFolderLabel(rename.from);
@@ -380,16 +384,24 @@ export async function saveAssessmentOrganization(input: {
         const target = to && to.toLowerCase() === "unfiled" ? null : to;
         if (!from || from === target || seenRenameSources.has(from)) continue;
         seenRenameSources.add(from);
-        const targetIndex = data.groups.findIndex((group) => normalizeFolderLabel(group.folder_label) === target);
-        await tx.assessment.updateMany({
+        const archivedInFolder = await tx.assessment.findMany({
           where: {
             created_by_user_db_id: input.teacher_user_db_id,
             status: "archived",
             folder_label: from,
-            id: { notIn: updates.map((update) => update.id) }
+            id: { notIn: activeIds }
           },
+          select: { id: true }
+        });
+        plannedRenames.push({ ids: archivedInFolder.map((entry) => entry.id), target });
+      }
+      for (const planned of plannedRenames) {
+        if (!planned.ids.length) continue;
+        const targetIndex = data.groups.findIndex((group) => normalizeFolderLabel(group.folder_label) === planned.target);
+        await tx.assessment.updateMany({
+          where: { id: { in: planned.ids } },
           data: {
-            folder_label: target,
+            folder_label: planned.target,
             ...(targetIndex >= 0 ? { folder_order_index: targetIndex } : {})
           }
         });

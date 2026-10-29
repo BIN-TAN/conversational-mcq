@@ -451,6 +451,36 @@ async function assertOrganizationPersistence() {
       !deleted.assessments.some((assessment) => assessment.folder_label === "Week 1" || assessment.folder_label === "Old units"),
       "Deleted folders no longer appear."
     );
+
+    // Renames in one save are applied together: swapping two folder names keeps each folder's
+    // archived mini tests with that folder.
+    await prisma.assessment.update({ where: { assessment_public_id: archived.assessment_public_id }, data: { folder_label: "Module 2" } });
+    const extra = await createMiniTest({
+      teacherUserDbId: teacher.id,
+      title: `${prefix} archived second`,
+      folderLabel: "Unit B",
+      folderOrder: 5,
+      assessmentOrder: 0
+    });
+    await prisma.assessment.update({ where: { assessment_public_id: extra.assessment_public_id }, data: { status: "archived" } });
+    const beforeSwap = computeAssessmentOrganizationRevision(await listAssessments({ teacher_user_db_id: teacher.id }));
+    const swapped = await saveAssessmentOrganization({
+      teacher_user_db_id: teacher.id,
+      data: {
+        expected_revision: beforeSwap,
+        groups: [
+          { folder_label: "Unit B", assessment_public_ids: [alpha.assessment_public_id, gamma.assessment_public_id] },
+          { folder_label: null, assessment_public_ids: [unfiled.assessment_public_id, beta.assessment_public_id] }
+        ],
+        folder_renames: [
+          { from: "Module 2", to: "Unit B" },
+          { from: "Unit B", to: "Module 2" }
+        ]
+      }
+    });
+    const swappedById = new Map(swapped.assessments.map((assessment) => [assessment.assessment_public_id, assessment]));
+    assert(swappedById.get(archived.assessment_public_id)?.folder_label === "Unit B", "Archived mini tests follow their own folder in a swap.");
+    assert(swappedById.get(extra.assessment_public_id)?.folder_label === "Module 2", "A swap does not move a folder's archived mini tests twice.");
   } finally {
     await cleanup(prefix);
   }

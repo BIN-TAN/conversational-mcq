@@ -806,7 +806,11 @@ export function AssessmentListClient() {
         ...Object.entries(folderOrigins)
           .filter(([folder, origin]) => folder !== origin)
           .map(([folder, origin]) => ({ from: origin, to: folder })),
-        ...deletedFolderOrigins.map((origin) => ({ from: origin, to: null }))
+        // A deleted folder whose name is in use again (a new or renamed folder) keeps its
+        // archived mini tests under that name instead of sending them to Unfiled.
+        ...deletedFolderOrigins
+          .filter((origin) => !folderOrder.includes(origin))
+          .map((origin) => ({ from: origin, to: null }))
       ];
       const emptyFolders = folderOrder.filter(
         (folder) => !groups.some((group) => group.folder_label === folder)
