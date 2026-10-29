@@ -166,7 +166,9 @@ async function main() {
       return { result, byId: new Map(result.items.map((item) => [item.item_public_id, item])) };
     };
 
-    let { result, byId } = await review();
+    const first = await review();
+    const result = first.result;
+    let byId = first.byId;
     assert.equal(result.item_review_version, "item-review-decisions-v2");
     assert.deepEqual(result.items.map((item) => item.item_number), [1, 2, 3], "Items are numbered as students saw them");
     assert.deepEqual(byId.get(item3)!.tutor_flags.map((flag) => flag.signal_public_id).sort(), [named3.signal_public_id, named1and3.signal_public_id].sort());
