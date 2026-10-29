@@ -25,6 +25,7 @@ import {
 import { toPrismaJson } from "@/lib/services/json";
 import { generatePublicId } from "@/lib/services/ids";
 import { logConversationTurn } from "@/lib/services/conversation-turns";
+import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
 import { getFollowupContextConfig } from "@/lib/agents/followup/context";
 import { logProcessEvent } from "@/lib/services/process-events";
 import { attemptBuildIdentity, DATA_COLLECTION_RULES_VERSION, updateAssessmentSessionPhase } from "@/lib/services/session-state";
@@ -2001,7 +2002,9 @@ async function inGroups<T>(values: T[], size: number, work: (value: T) => Promis
 
 export async function listAvailableAssessments(input: { student_user_db_id: string }) {
   const student = await assertActiveStudentAccount(input.student_user_db_id);
-  const assessments = await prisma.assessment.findMany({
+  // Students see their mini tests in the instructor's assessment-library order (categories,
+  // then mini tests); the newest first only breaks ties.
+  const assessments = orderLikeAssessmentLibrary(await prisma.assessment.findMany({
     where: studentAssessmentCatalogWhere({
       student_user_db_id: input.student_user_db_id,
       student_teacher_db_id: student.created_by_teacher_user_id
@@ -2017,9 +2020,12 @@ export async function listAvailableAssessments(input: { student_user_db_id: stri
       status: true,
       workflow_mode: true,
       release_at: true,
-      close_at: true
+      close_at: true,
+      folder_label: true,
+      folder_order_index: true,
+      assessment_order_index: true
     }
-  });
+  }));
   const availability = [];
   // One query for the student's sessions across the catalog, and the per-mini-test reads in
   // small parallel groups, instead of several sequential round trips per mini test.

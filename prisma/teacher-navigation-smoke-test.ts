@@ -235,6 +235,7 @@ function assertDashboardUsesLibraryOrder() {
   assertIncludes(source("src/components/teacher-dashboard/assessment-dashboard-client.tsx"), "<optgroup", "Dashboard selector groups by category");
   assertIncludes(source("src/lib/services/teacher-review/sessions.ts"), "orderLikeAssessmentLibrary(await prisma.assessment.findMany", "Student sessions mini-test filter");
   assertIncludes(source("src/lib/services/teacher-simple-csv-export/service.ts"), "orderLikeAssessmentLibrary(await prisma.assessment.findMany", "Data explorer mini-test list");
+  assertIncludes(source("src/lib/services/student-assessment/service.ts"), "const assessments = orderLikeAssessmentLibrary(await prisma.assessment.findMany", "Students' mini-test list");
 }
 
 function main() {
