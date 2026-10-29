@@ -152,7 +152,12 @@ function assertManagementSurface() {
   assertIncludes(legacyReorganizePage, 'redirect("/teacher/content/assessments")', "Legacy reorganize route");
   assertIncludes(legacyLibraryReorganizePage, 'redirect("/teacher/content/assessments")', "Legacy library reorganize route");
 
-  assertIncludes(libraryClient, "Reorder mini tests", "Assessment library");
+  assertIncludes(libraryClient, "Organize folders and mini tests", "Assessment library");
+  assertIncludes(libraryClient, "Add folder", "Assessment library");
+  assertIncludes(libraryClient, "Rename folder ${group.folder}", "Assessment library");
+  assertIncludes(libraryClient, "Delete folder ${group.folder}", "Assessment library");
+  assertIncludes(libraryClient, "Move folder ${group.folder} up", "Assessment library");
+  assertIncludes(libraryClient, "folder_renames: folderRenames", "Assessment library");
   assertIncludes(libraryClient, "Save organization", "Assessment library");
   assertIncludes(libraryClient, "Cancel", "Assessment library");
   assertIncludes(libraryClient, "Move to folder/week/module", "Assessment library");
@@ -396,6 +401,55 @@ async function assertOrganizationPersistence() {
         }),
       "conflict",
       "Concurrent organization changes should return a safe conflict."
+    );
+
+    // Folder management: rename a folder, move it first, and rename the archived-only folder;
+    // archived mini tests follow a renamed folder.
+    const beforeFolders = computeAssessmentOrganizationRevision(await listAssessments({ teacher_user_db_id: teacher.id }));
+    const renamed = await saveAssessmentOrganization({
+      teacher_user_db_id: teacher.id,
+      data: {
+        expected_revision: beforeFolders,
+        groups: [
+          { folder_label: "Module 2", assessment_public_ids: [alpha.assessment_public_id, gamma.assessment_public_id] },
+          { folder_label: "Week 1", assessment_public_ids: [beta.assessment_public_id] },
+          { folder_label: null, assessment_public_ids: [unfiled.assessment_public_id] }
+        ],
+        folder_renames: [
+          { from: "Week 2", to: "Module 2" },
+          { from: "Archive", to: "Old units" }
+        ]
+      }
+    });
+    const renamedById = new Map(renamed.assessments.map((assessment) => [assessment.assessment_public_id, assessment]));
+    assert(renamedById.get(alpha.assessment_public_id)?.folder_label === "Module 2", "A renamed folder keeps its mini tests.");
+    assert(renamedById.get(alpha.assessment_public_id)?.folder_order_index === 0, "A moved folder takes its new position.");
+    assert(renamedById.get(beta.assessment_public_id)?.folder_order_index === 1, "The other folder moves down.");
+    assert(renamedById.get(archived.assessment_public_id)?.folder_label === "Old units", "Archived mini tests follow a renamed folder.");
+    assert(renamedById.get(archived.assessment_public_id)?.status === "archived", "Renaming a folder does not restore archived mini tests.");
+
+    // Deleting a folder moves its mini tests (active and archived) to Unfiled; nothing is deleted.
+    const deleted = await saveAssessmentOrganization({
+      teacher_user_db_id: teacher.id,
+      data: {
+        expected_revision: renamed.organization_revision,
+        groups: [
+          { folder_label: "Module 2", assessment_public_ids: [alpha.assessment_public_id, gamma.assessment_public_id] },
+          { folder_label: null, assessment_public_ids: [unfiled.assessment_public_id, beta.assessment_public_id] }
+        ],
+        folder_renames: [
+          { from: "Week 1", to: null },
+          { from: "Old units", to: null }
+        ]
+      }
+    });
+    const deletedById = new Map(deleted.assessments.map((assessment) => [assessment.assessment_public_id, assessment]));
+    assert(deletedById.get(beta.assessment_public_id)?.folder_label === null, "A deleted folder's mini tests move to Unfiled.");
+    assert(deletedById.get(archived.assessment_public_id)?.folder_label === null, "Archived mini tests of a deleted folder move to Unfiled.");
+    assert(deleted.assessments.length === renamed.assessments.length, "Deleting a folder deletes no mini test.");
+    assert(
+      !deleted.assessments.some((assessment) => assessment.folder_label === "Week 1" || assessment.folder_label === "Old units"),
+      "Deleted folders no longer appear."
     );
   } finally {
     await cleanup(prefix);

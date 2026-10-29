@@ -45,6 +45,20 @@ const AssessmentOrganizationInputSchema = z
           })
           .strict()
       )
+      .default([]),
+    // Folders renamed (to a new name) or deleted (to null, "Unfiled") in this save. Active mini
+    // tests move with the groups above; this carries the change to archived mini tests that
+    // were in the folder, so a renamed or deleted folder does not linger with archived ones.
+    folder_renames: z
+      .array(
+        z
+          .object({
+            from: z.string().trim().min(1).max(120),
+            to: z.string().trim().max(120).nullable()
+          })
+          .strict()
+      )
+      .max(200)
       .default([])
   })
   .strict();
@@ -353,6 +367,30 @@ export async function saveAssessmentOrganization(input: {
             folder_label: update.folder_label,
             folder_order_index: update.folder_order_index,
             assessment_order_index: update.assessment_order_index
+          }
+        });
+      }
+
+      // Archived mini tests in a renamed or deleted folder follow it. They keep their own order
+      // within the folder and take the folder's new position.
+      const seenRenameSources = new Set<string>();
+      for (const rename of data.folder_renames) {
+        const from = normalizeFolderLabel(rename.from);
+        const to = normalizeFolderLabel(rename.to);
+        const target = to && to.toLowerCase() === "unfiled" ? null : to;
+        if (!from || from === target || seenRenameSources.has(from)) continue;
+        seenRenameSources.add(from);
+        const targetIndex = data.groups.findIndex((group) => normalizeFolderLabel(group.folder_label) === target);
+        await tx.assessment.updateMany({
+          where: {
+            created_by_user_db_id: input.teacher_user_db_id,
+            status: "archived",
+            folder_label: from,
+            id: { notIn: updates.map((update) => update.id) }
+          },
+          data: {
+            folder_label: target,
+            ...(targetIndex >= 0 ? { folder_order_index: targetIndex } : {})
           }
         });
       }
