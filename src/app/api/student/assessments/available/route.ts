@@ -14,7 +14,8 @@ export async function GET() {
       student_user_db_id: auth.user.user_db_id
     });
 
-    return NextResponse.json(result);
+    // Never reused from a cache: the list and its order change when the instructor edits the library.
+    return NextResponse.json(result, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {
     return studentAssessmentRouteError(error);
   }

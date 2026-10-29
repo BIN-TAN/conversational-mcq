@@ -135,9 +135,12 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
   const [expandedAttemptHistory, setExpandedAttemptHistory] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
-  async function loadAssessments() {
-    setError(null);
-    setIsLoading(true);
+  // A quiet reload (page shown again) keeps the list and any message on screen while it reads.
+  async function loadAssessments(options: { quiet?: boolean } = {}) {
+    if (!options.quiet) {
+      setError(null);
+      setIsLoading(true);
+    }
 
     try {
       const result = await fetchAvailableAssessments();
@@ -151,15 +154,30 @@ export function AvailableAssessmentsClient({ userId }: { userId: string }) {
         return [];
       }
 
-      setError(apiError);
+      if (!options.quiet) setError(apiError);
       return [];
     } finally {
-      setIsLoading(false);
+      if (!options.quiet) setIsLoading(false);
     }
   }
 
   useEffect(() => {
     void loadAssessments();
+    // When the browser shows this page again from its back-forward cache (for example after
+    // the Back button), or the tab comes back into view, read the list again so its order and
+    // availability are current without pressing Refresh.
+    const reloadIfRestored = (event: PageTransitionEvent) => {
+      if (event.persisted) void loadAssessments({ quiet: true });
+    };
+    const reloadWhenVisible = () => {
+      if (document.visibilityState === "visible") void loadAssessments({ quiet: true });
+    };
+    window.addEventListener("pageshow", reloadIfRestored);
+    document.addEventListener("visibilitychange", reloadWhenVisible);
+    return () => {
+      window.removeEventListener("pageshow", reloadIfRestored);
+      document.removeEventListener("visibilitychange", reloadWhenVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

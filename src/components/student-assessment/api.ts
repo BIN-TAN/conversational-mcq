@@ -306,6 +306,8 @@ async function get<T>(path: string, parse: (value: unknown) => T, signal?: Abort
     const response = await fetch(path, {
       signal: read.signal,
       method: "GET",
+      // Student pages always read the current state, never a cached copy.
+      cache: "no-store",
       headers: { Accept: "application/json" }
     });
 

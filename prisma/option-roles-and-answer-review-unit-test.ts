@@ -183,6 +183,12 @@ async function main() {
       row("Test 8 (earlier version)", "Lecture 4", 0, 0, "archived"), row("Test 6", "Lecture 3", 2, 0)
     ]).map((entry) => entry.title);
     assert.deepEqual(ordered, ["Test 1", "Test 4", "Test 6", "Test 8", "Test 8 (earlier version)"]);
+    // The list is never served from a cache, and is read again when the page is shown again.
+    assert(source("src/app/api/student/assessments/available/route.ts").includes('headers: { "Cache-Control": "no-store" }'));
+    assert(source("src/components/student-assessment/api.ts").includes('cache: "no-store",'));
+    const list = source("src/components/student-assessment/available-assessments-client.tsx");
+    assert(list.includes('window.addEventListener("pageshow", reloadIfRestored);'));
+    assert(list.includes('if (document.visibilityState === "visible") void loadAssessments({ quiet: true });'));
   });
 
   console.log(`${passed} option role and answer review checks passed; no database or provider calls.`);
