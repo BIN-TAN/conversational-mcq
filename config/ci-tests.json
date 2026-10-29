@@ -166,7 +166,9 @@
     "prisma/profile-item-identity-schema-smoke-test.ts",
     "prisma/provider-recovery-smoke-test.ts",
     "prisma/item-content-unit-test.ts",
-    "prisma/item-wording-fix-unit-test.ts"
+    "prisma/item-wording-fix-unit-test.ts",
+    "prisma/item-wording-corrections-export-unit-test.ts",
+    "prisma/transcript-visibility-unit-test.ts"
   ],
   "database": [
     "prisma/assessment-availability-smoke-test.ts",

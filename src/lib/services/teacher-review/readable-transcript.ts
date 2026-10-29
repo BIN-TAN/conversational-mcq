@@ -4,6 +4,7 @@ import { asRecord, serializeDate } from "./serializers";
 import { buildTurnResponseLatencyRows } from "./turn-response-latencies";
 import { conversationVisibility } from "../student-assessment/conversation-visibility";
 import { presentedItemPositions } from "./presented-item-positions";
+import { transcriptLimitationNote } from "./transcript-limitations";
 
 export type TeacherReadableTranscriptTurn = {
   turn_index: number;
@@ -187,6 +188,12 @@ export function reconstructReadableStudentAction(input: {
   return `[Recorded action] ${parts.length > 0 ? parts.join("\n") : "Response updated; historical details unavailable."}`;
 }
 
+export function withoutRepeatedTemptingLine(text: string | null | undefined, previous: string | null) {
+  if (!isNonEmptyText(text) || !previous) return text;
+  const match = /^(Option [^\n]+ was tempting\.)\n([\s\S]+)$/.exec(text.trim());
+  return match && match[1] === previous && match[2].trim() ? match[2].trim() : text;
+}
+
 function hasStructuredPayload(value: unknown) {
   return Object.keys(asRecord(value)).length > 0 || Array.isArray(value);
 }
@@ -339,12 +346,22 @@ export async function getTeacherReadableTranscript(
   });
   const latencyByPromptTurnIndex = new Map(latencyRows.map((row) => [row.prompt_turn_index, row]));
 
+  let previousStudentText: { item: string | null; text: string } | null = null;
   const projectedTurns = readableTurns.flatMap((turn) => {
     const turnIndex = turn.turn_index;
-    const reconstructedText = turn.actor_type === "student" ? reconstructReadableStudentAction({
+    const reconstructed = turn.actor_type === "student" ? reconstructReadableStudentAction({
       message_text: turn.message_text,
       structured_payload: turn.structured_payload
     }) : turn.message_text;
+    const itemKey = turn.item?.item_public_id ?? null;
+    // The reason for a tempting option is saved as "Option X was tempting." plus the reason; when
+    // the line before it already says that, only the reason is shown.
+    const reconstructedText = turn.actor_type === "student"
+      ? withoutRepeatedTemptingLine(reconstructed, previousStudentText?.item === itemKey ? previousStudentText.text : null)
+      : reconstructed;
+    if (turn.actor_type === "student" && isNonEmptyText(reconstructed)) {
+      previousStudentText = { item: itemKey, text: reconstructed.trim() };
+    }
 
     if (!isNonEmptyText(reconstructedText)) {
       limitations.add("empty_text_turns_hidden");
@@ -399,8 +416,8 @@ export function renderTeacherReadableTranscriptMarkdown(
     `Student: ${transcript.student_display_label}`,
     `Assessment: ${transcript.assessment_label}`,
     "",
-    "This teacher/research transcript omits structured payloads, answer keys, correctness labels, raw provider data, and process-event payloads.",
-    "Internal-only turns remain in the Assessment log, not this dialogue. Legacy turns without visibility metadata are not proof that a student viewed or read them.",
+    "This transcript is for instructors and research. It leaves out answer keys, correctness, raw model data and process-event details.",
+    "A message listed here was shown on the student's screen, but that does not show the student read it. Internal system steps are in the assessment log.",
     ""
   ];
 
@@ -422,7 +439,7 @@ export function renderTeacherReadableTranscriptMarkdown(
   }
 
   if (transcript.limitations.length > 0) {
-    lines.push("## Limitations", "", ...transcript.limitations.map((entry) => `- ${entry}`), "");
+    lines.push("## Limitations", "", ...transcript.limitations.map((entry) => `- ${transcriptLimitationNote(entry)}`), "");
   }
 
   return `${lines.join("\n").trim()}\n`;

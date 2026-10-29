@@ -332,7 +332,7 @@ type PackageCompletionOutcome = {
   response_package_hash: string;
   package_submission_status: "created" | "existing" | "missing";
   profile_status: "created" | "existing" | "missing";
-  feedback_status: "persisted" | "existing" | "missing";
+  feedback_status: "persisted" | "existing" | "missing" | "not_applicable";
   next_interaction_status:
     | "persisted"
     | "existing"
@@ -771,7 +771,9 @@ async function buildPackageCompletionOutcome(input: {
       : input.state.assessment_state;
   const safeWarnings: string[] = [];
 
-  if (!feedbackTurn) safeWarnings.push("package_feedback_turn_missing");
+  // With the formative conversation the feedback is its opening message, not a package_feedback
+  // turn, so a missing package_feedback turn is expected there and is not a warning.
+  if (!feedbackTurn && !usesFormativeConversation) safeWarnings.push("package_feedback_turn_missing");
   if (!usesFormativeConversation && !nextTurn) {
     safeWarnings.push("next_interaction_turn_missing");
   }
@@ -786,7 +788,7 @@ async function buildPackageCompletionOutcome(input: {
     response_package_hash: input.identity.response_package_hash,
     package_submission_status: input.response_package_status,
     profile_status: profileCount > 0 ? "existing" : "missing",
-    feedback_status: feedbackTurn ? "existing" : "missing",
+    feedback_status: feedbackTurn ? "existing" : usesFormativeConversation ? "not_applicable" : "missing",
     next_interaction_status: usesFormativeConversation
       ? "not_applicable"
       : nextTurn
@@ -1359,7 +1361,7 @@ async function logSameOptionTemptingRejected(input: {
     payload,
     occurred_at: now
   });
-  await logConversationTurn({
+  await logStudentShownTurn({
     assessment_session_db_id: input.session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
@@ -3907,6 +3909,29 @@ function itemAdministrationContext(input: {
   });
 }
 
+/**
+ * Turns written during item administration appear in the student's chat (the item, each
+ * follow-up question, the student's own actions and messages), so they are recorded as shown
+ * to the student (conversation-visibility-v1). Being shown does not prove the student read them.
+ * A payload that already states its visibility keeps it.
+ */
+function logStudentShownTurn(input: Parameters<typeof logConversationTurn>[0]) {
+  const payload = input.structured_payload;
+  const record =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : payload === undefined || payload === null
+        ? {}
+        : null;
+  const statesVisibility =
+    record !== null &&
+    ["visibility", "visibility_status", "student_visible", "shown_to_student"].some((key) => key in record);
+  return logConversationTurn({
+    ...input,
+    structured_payload: record && !statesVisibility ? { ...record, visibility: "student_visible" } : payload
+  });
+}
+
 async function logStudentTurnAndEvent(input: {
   session_db_id: string;
   concept_unit_session_db_id: string;
@@ -3929,7 +3954,7 @@ async function logStudentTurnAndEvent(input: {
     payload: input.structured_payload,
     occurred_at: now
   });
-  await logConversationTurn({
+  await logStudentShownTurn({
     assessment_session_db_id: input.session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
@@ -3977,7 +4002,7 @@ async function logInitialAgentPrompt(input: {
     payload,
     occurred_at: now
   });
-  await logConversationTurn({
+  await logStudentShownTurn({
     assessment_session_db_id: input.session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
@@ -4113,7 +4138,7 @@ async function logResponseQualityResult(input: {
     });
   }
 
-  await logConversationTurn({
+  await logStudentShownTurn({
     assessment_session_db_id: input.session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
@@ -4227,7 +4252,7 @@ async function logRejectedStudentText(input: {
   detected_response_language?: string;
   item_admin_collection?: Record<string, unknown>;
 }) {
-  await logConversationTurn({
+  await logStudentShownTurn({
     assessment_session_db_id: input.session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,
     item_db_id: input.item_db_id,
@@ -4908,7 +4933,7 @@ response: ItemResponse, data: { client_action_id?: string }, itemComplete: boole
           data.client_action_id ?? `transfer_failure_${response.id}`
       });
     } else {
-      await logConversationTurn({
+      await logStudentShownTurn({
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
@@ -5603,7 +5628,7 @@ export async function updatePackageReviewItemResponse(input: {
         where: { id: context.session.id },
         data: { last_activity_at: now }
       });
-      await logConversationTurn({
+      await logStudentShownTurn({
         assessment_session_db_id: context.session.id,
         concept_unit_session_db_id: context.conceptUnitSession.id,
         item_db_id: context.item.id,
@@ -5936,7 +5961,7 @@ export async function updateInFlowItemResponse(input: {
           where: { id: context.session.id },
           data: { last_activity_at: now }
         });
-        await logConversationTurn({
+        await logStudentShownTurn({
           assessment_session_db_id: context.session.id,
           concept_unit_session_db_id: context.conceptUnitSession.id,
           item_db_id: context.item.id,
@@ -6018,7 +6043,7 @@ export async function updateInFlowItemResponse(input: {
         }
 
         if (changedFields.includes("tempting_option")) {
-          await logConversationTurn({
+          await logStudentShownTurn({
             assessment_session_db_id: context.session.id,
             concept_unit_session_db_id: context.conceptUnitSession.id,
             item_db_id: context.item.id,

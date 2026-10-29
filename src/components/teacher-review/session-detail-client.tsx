@@ -70,6 +70,7 @@ import { profileCodeReadableLabel } from "@/lib/services/student-assessment/init
 import { ReviewResourceStatus, useReviewResource } from "./review-resource";
 import { readStoredSessionListQuery, sessionListHref } from "./session-list-query";
 import { ItemContent } from "@/components/item-content";
+import { transcriptLimitationNote } from "@/lib/services/teacher-review/transcript-limitations";
 
 const tabs = [
   "overview",
@@ -1805,11 +1806,11 @@ function ReadableTranscriptSection({
           </div>
         </dl>
         {data.limitations.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-2">
+          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-amber-900">
             {data.limitations.map((limitation) => (
-              <StatusPill key={limitation} value={limitation} tone="warn" />
+              <li key={limitation}>{transcriptLimitationNote(limitation)}</li>
             ))}
-          </div>
+          </ul>
         ) : null}
       </section>
 

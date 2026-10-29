@@ -111,6 +111,16 @@ import {
   type ParticipationAttempt
 } from "./study-participation-export";
 import { MAX_INCLUDED_STUDY_CODES, parseStudyCodeList } from "./study-code";
+import {
+  ITEM_WORDING_CORRECTIONS_FILE,
+  ITEM_WORDING_CORRECTIONS_README_LINES,
+  ITEM_WORDING_CORRECTIONS_RESTRICTED_COLUMNS
+} from "./item-wording-corrections-dictionary";
+import {
+  itemWordingCorrectionFile,
+  loadItemWordingCorrectionRecords,
+  type ItemWordingCorrectionRecord
+} from "./item-wording-corrections-export";
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
@@ -141,7 +151,9 @@ const restrictedDefaultColumns = new Set([
   // Interpretation v8 item ratings: correctness, withheld from default exports like item_responses.correctness.
   "answer_correct",
   // First-attempt scores in student_participation_summary.csv.
-  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS
+  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS,
+  // Item fields before and after a wording fix (distractor rationales, notes on the correct option).
+  ...ITEM_WORDING_CORRECTIONS_RESTRICTED_COLUMNS
 ]);
 
 const SECRET_PATTERNS = [
@@ -2924,6 +2936,7 @@ function sessionDiagnosticManifest(source: ExportSourceIdentity, sessions: Analy
         "interpretation_summaries.csv",
         "feedback_turn_records.csv",
         "item_review_decisions.csv",
+        ITEM_WORDING_CORRECTIONS_FILE,
         INTERPRETATION_V8_NOTES_FILE,
         "assessment_content.csv",
         "assessment_summary.csv",
@@ -3283,6 +3296,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
   const familyAttemptNumbers = new Map<string, number>();
   // Instructor item decisions (interpretation v8), loaded once per mini-test in scope.
   const decisionRecordsByAssessment = new Map<string, ItemReviewDecisionRecord[]>();
+  // Instructor wording fixes (item_wording_corrections), loaded once per mini-test in scope.
+  const correctionRecordsByAssessment = new Map<string, ItemWordingCorrectionRecord[]>();
   const instructorPseudonym = {
     instructor: (userId: string) => researchInstructorId(userId),
     version: researchPseudonymizationMetadata().research_pseudonym_version
@@ -3340,6 +3355,9 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
         if (!decisionRecordsByAssessment.has(assessmentPublicId)) {
           decisionRecordsByAssessment.set(assessmentPublicId, await loadItemReviewDecisionRecords(tx, assessmentPublicId, instructorPseudonym));
         }
+        if (!correctionRecordsByAssessment.has(assessmentPublicId)) {
+          correctionRecordsByAssessment.set(assessmentPublicId, await loadItemWordingCorrectionRecords(tx, assessmentPublicId, instructorPseudonym));
+        }
       }
       const decisions = currentItemDecisions(sessions.flatMap((session) =>
         decisionRecordsByAssessment.get(session.assessment.assessment_public_id) ?? []));
@@ -3363,6 +3381,8 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     }
     // One item_review_decisions.csv for every mini-test in scope (current and superseded decisions).
     for (const records of decisionRecordsByAssessment.values()) await emit(itemReviewDecisionFile(records));
+    // One item_wording_corrections.csv for every mini-test in scope (every wording fix, oldest first per item).
+    for (const records of correctionRecordsByAssessment.values()) await emit(itemWordingCorrectionFile(records, includeRestricted));
     // Instructor reports summarise a whole class, so they are exported only for
     // whole-cohort scopes that include incomplete attempts (the report's own rule),
     // and never with a participant filter: their inputs cover students outside the list.
@@ -3421,6 +3441,7 @@ async function generateAnalysisReadyFiles(input: AnalysisReadyExportInput, spool
     ...STUDY_PARTICIPATION_README_LINES,
     `Interpretation v8 (${INTERPRETATION_V8_EXPORT_VERSION}): interpretation_item_ratings.csv (one row per student, attempt and item), interpretation_claims.csv (possible misconceptions and ideas considered), interpretation_summaries.csv (stored label and the label with the instructor's current item decisions, counts, attempt role and feedback seen before the attempt), feedback_turn_records.csv (focus, strategy, student evidence and instructor-review flag of each opening and reply) and item_review_decisions.csv. Rules, rating definitions and boundaries are in ${INTERPRETATION_V8_NOTES_FILE}; every column is in research_data_dictionary.csv. Restricted exports add interpretation_process_audit.csv (process indicators sent to the profiling model and its process interpretations; audit only, never shown to instructors or students) and the answer_correct column.`,
     "Legacy profile columns (ability, engagement, integrated profile, evidence sufficiency, confidence alignment, misconception catalog counts, item-evidence format) are blank for interpretation v8 profiles in sessions.csv, assessment_summary.csv, agent_activity_records.csv and formative_conversation_sessions.csv, and so are the conversation-update and profile-transition columns (a v8 conversation never updates the profile); read interpretation_summary_label and the v8 files instead. profile_item_evidence.csv has no rows for v8 profiles. Earlier profiles and conversations are unchanged.",
+    ...ITEM_WORDING_CORRECTIONS_README_LINES,
     "Item administration v4 records collection decisions, not quality: see the item_admin_v4_* columns in item_responses.csv; insufficient-knowledge judgments are never recorded for v4 replies.",
     "Restricted exports only: ai_call_audit.csv lists every model call recorded for the exported attempts, plus instructor reports for whole-class scopes (inputs, raw output including rejected drafts, validated output, model, effort, prompt version and hash) for AI-output review; see ai_call_audit_data_dictionary.csv. Students never see this file.",
     "Correct answers and teacher-only fields are included only when restricted_fields_included is true in the manifest.",

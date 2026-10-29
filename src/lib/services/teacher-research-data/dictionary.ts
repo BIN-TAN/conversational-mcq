@@ -31,6 +31,18 @@ import {
   studyParticipationColumnDoc,
   type StudyParticipationTable
 } from "./study-participation-dictionary";
+import {
+  ITEM_WORDING_CORRECTIONS_ATTEMPT_POLICY,
+  ITEM_WORDING_CORRECTIONS_MEASUREMENT_LEVEL,
+  ITEM_WORDING_CORRECTIONS_NOT_APPLICABLE,
+  ITEM_WORDING_CORRECTIONS_RESTRICTED_COLUMNS,
+  ITEM_WORDING_CORRECTIONS_ROW_FUNCTION,
+  ITEM_WORDING_CORRECTIONS_SOURCE_FILE,
+  ITEM_WORDING_CORRECTIONS_TABLE_COLUMNS,
+  ITEM_WORDING_CORRECTIONS_TABLES,
+  isItemWordingCorrectionsTable,
+  itemWordingCorrectionColumnDoc
+} from "./item-wording-corrections-dictionary";
 
 export const RESEARCH_DATASET_EXPORT_VERSION = "research-dataset-v2" as const;
 export const ANALYSIS_READY_EXPORT_VERSION = RESEARCH_DATASET_EXPORT_VERSION;
@@ -46,6 +58,7 @@ export const RESEARCH_DATASET_TABLES = [
   "assessment_content",
   "assessment_summary",
   ...INTERPRETATION_V8_TABLES,
+  ...ITEM_WORDING_CORRECTIONS_TABLES,
   ...STUDY_PARTICIPATION_TABLES
 ] as const;
 
@@ -656,6 +669,7 @@ const TABLE_COLUMNS: Record<AnalysisReadyTableName, readonly string[]> = {
   assessment_content: ASSESSMENT_CONTENT_COLUMNS,
   assessment_summary: ASSESSMENT_SUMMARY_COLUMNS,
   ...INTERPRETATION_V8_TABLE_COLUMNS,
+  ...ITEM_WORDING_CORRECTIONS_TABLE_COLUMNS,
   ...STUDY_PARTICIPATION_TABLE_COLUMNS
 };
 
@@ -716,7 +730,7 @@ export const RESEARCH_CATEGORY_REGISTRY = [
     inclusion_criteria: "Assessment title/public ID, item order, item type, option labels/text, authored diagnostic notes when export policy permits, and administered snapshots.",
     exclusion_criteria: "Student responses, raw account data, and unrestricted answer-key fields in ordinary exports.",
     typical_measurement_levels: "assessment, item, option, snapshot",
-    included_datasets: "assessment_content; sessions; item_responses; mini_test_catalog",
+    included_datasets: "assessment_content; sessions; item_responses; mini_test_catalog; item_wording_corrections",
     examples_of_data_collected: "assessment_title, item_order, option text, media_public_ids, teacher diagnostic notes in restricted mode",
     interpretation_boundaries: "Context fields describe materials and design; they do not measure student understanding by themselves.",
     display_order: 2
@@ -1072,7 +1086,8 @@ const RESTRICTED_COLUMNS = new Set([
   "option_rationales_json",
   "answer_review_explanation",
   ...INTERPRETATION_V8_RESTRICTED_COLUMNS,
-  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS
+  ...STUDY_PARTICIPATION_RESTRICTED_COLUMNS,
+  ...ITEM_WORDING_CORRECTIONS_RESTRICTED_COLUMNS
 ]);
 
 const SENSITIVE_TEXT_COLUMNS = new Set([
@@ -2388,6 +2403,7 @@ function measurementLevel(table: string, variable: string) {
   if (table === "assessment_content") return variable.startsWith("assessment_") ? "assessment" : "item";
   if (isInterpretationV8Table(table)) return INTERPRETATION_V8_MEASUREMENT_LEVELS[table];
   if (isStudyParticipationTable(table)) return STUDY_PARTICIPATION_MEASUREMENT_LEVELS[table];
+  if (isItemWordingCorrectionsTable(table)) return ITEM_WORDING_CORRECTIONS_MEASUREMENT_LEVEL;
   return "not_applicable";
 }
 
@@ -2474,6 +2490,7 @@ function sourceServiceOrFunction(table: string, variable: string) {
   if (isStudyParticipationTable(table) && !/^research_student_id$|pseudonym/.test(variable)) {
     return STUDY_PARTICIPATION_ROW_FUNCTIONS[table];
   }
+  if (isItemWordingCorrectionsTable(table) && !/pseudonym/.test(variable)) return ITEM_WORDING_CORRECTIONS_ROW_FUNCTION;
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "profileRecordProvenance; profileEvidenceCounts";
   }
@@ -2508,6 +2525,9 @@ function sourceCodeReference(table: string, variable: string) {
   }
   if (isStudyParticipationTable(table) && !/^research_student_id$|pseudonym/.test(variable)) {
     return `src/lib/services/teacher-research-data/study-participation-export.ts:${STUDY_PARTICIPATION_ROW_FUNCTIONS[table]}`;
+  }
+  if (isItemWordingCorrectionsTable(table) && !/pseudonym/.test(variable)) {
+    return `${ITEM_WORDING_CORRECTIONS_SOURCE_FILE}:${ITEM_WORDING_CORRECTIONS_ROW_FUNCTION}`;
   }
   if (variable.startsWith("profile_") || (PROFILE_EVIDENCE_COLUMNS as readonly string[]).includes(variable)) {
     return "src/lib/services/student-assessment/profile-record.ts";
@@ -2644,6 +2664,34 @@ function withStudyParticipationDocumentation(entry: DataDictionaryEntry, table: 
   };
 }
 
+/**
+ * Instructor wording fixes (item-wording-corrections-dictionary.ts): every column carries its own
+ * definition and method; blank, zero and not-applicable meanings follow the file.
+ */
+function withItemWordingCorrectionDocumentation(entry: DataDictionaryEntry, table: string, variable: string): DataDictionaryEntry {
+  if (!isItemWordingCorrectionsTable(table)) return entry;
+  const doc = itemWordingCorrectionColumnDoc(table, variable);
+  const next = doc ? withColumnDoc(entry, doc) : { ...entry };
+  const restricted = RESTRICTED_COLUMNS.has(variable);
+  const numeric = next.data_type === "integer" || next.data_type === "decimal";
+  return {
+    ...next,
+    measurement_level: ITEM_WORDING_CORRECTIONS_MEASUREMENT_LEVEL,
+    missing_value_meaning: restricted
+      ? "Blank means the value was not recorded; the column is absent from default exports and present only in restricted exports."
+      : "Blank means the value does not apply to this row or was not recorded (for example no instructor account is linked); never read blank as zero or false.",
+    zero_value_meaning: numeric && next.unit === "count"
+      ? "Zero is an observed value: no answers or attempts existed when the fix was saved."
+      : next.zero_value_meaning,
+    not_applicable_condition: ITEM_WORDING_CORRECTIONS_NOT_APPLICABLE,
+    attempt_policy: ITEM_WORDING_CORRECTIONS_ATTEMPT_POLICY,
+    applicable_record_types: `all ${table} rows`,
+    notes: restricted
+      ? "Restricted exports only (include_restricted_fields true); the safety scan refuses it in a default export."
+      : next.notes
+  };
+}
+
 /** Applies one column's own documentation (definition, method, type, unit, category, timing) to its entry. */
 function withColumnDoc(entry: DataDictionaryEntry, doc: V8ColumnDoc): DataDictionaryEntry {
   const researchCategoryId = (doc.research_category_id ?? entry.research_category_id) as ResearchCategoryId;
@@ -2693,7 +2741,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
       const replacement = replacementVariable(tableName, variable);
       const deprecated = Boolean(replacement);
       const researchCategoryId = researchCategoryIdFor(tableName, variable);
-      entries.push(withStudyParticipationDocumentation(withInterpretationV8Documentation({
+      entries.push(withItemWordingCorrectionDocumentation(withStudyParticipationDocumentation(withInterpretationV8Documentation({
         entity_type: "research_variable",
         qualified_name: `${tableName}.${variable}`,
         dataset_name: tableName,
@@ -2764,7 +2812,7 @@ export function buildAnalysisReadyDictionaryEntries(): DataDictionaryEntry[] {
           : deprecated
             ? "Legacy or compatibility column retained for backward compatibility; use replacement_variable for the current analysis construct."
           : ""
-      }, tableName, variable), tableName, variable));
+      }, tableName, variable), tableName, variable), tableName, variable));
     }
   }
 
