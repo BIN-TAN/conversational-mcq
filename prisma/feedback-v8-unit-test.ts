@@ -149,6 +149,18 @@ async function main() {
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /TURN RECORD \(returned with each reply\)/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /The mini-test profile is never changed/);
     assert.equal(contract.FEEDBACK_V8_PROMPT_HASH.length, 64);
+    // v8.4/v8.5: inaccurate ideas in correct work come before an extension, an extension never
+    // asks for a restatement, a missing fact only a wrong option needs is not a flaw, and items
+    // are named as the student saw them.
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /then an inaccurate or overstated idea in the explanation of a correct answer or in the reason a tempting option appealed\./);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Do not ask the student to restate their answer or what an option says/);
+    for (const prompt of [contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
+      assert.match(prompt, /Information that only a wrong option would need is not a flaw: its absence is why that option is wrong\./);
+      assert.match(prompt, /Refer to items as the student saw them: Item 1, Item 2\./);
+      assert.doesNotMatch(prompt, /Question 2/);
+    }
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.4");
+    assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.5");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });
 
