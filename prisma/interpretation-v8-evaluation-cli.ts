@@ -257,7 +257,7 @@ function score(runDir: string) {
   if (stale.length) console.warn(`${stale.length} runs used an earlier prompt; their results do not describe the current prompt.`);
   console.log(`Report: ${path.join(dir, `report-${suffix}.md`)}`);
   for (const entry of [...(interpretation?.criteria ?? []), ...(feedbackReport?.criteria ?? [])]) {
-    console.log(`${entry.pass === null ? "n/a " : entry.pass ? "pass" : "FAIL"}  ${entry.name}: ${entry.value ?? "n/a"} (${entry.threshold})`);
+    console.log(`${entry.pass === null ? "n/a " : entry.pass ? "pass" : "FAIL"}  ${entry.name}: ${entry.value ?? "n/a"} (${entry.threshold})${entry.note ? ` - ${entry.note}` : ""}`);
   }
 }
 

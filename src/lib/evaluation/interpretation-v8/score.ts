@@ -622,6 +622,21 @@ export function stockPhrases(message: string) {
   return (message.match(new RegExp(STOCK_PHRASES, "gi")) ?? []).map((phrase) => phrase.toLowerCase().replace(/[!.,]$/, ""));
 }
 
+/** Item numbers the message names ("Item 2", "Items 1 and 4", "Items 1, 2 and 4"). */
+export function itemNumbersNamed(message: string) {
+  const numbers = new Set<number>();
+  for (const match of message.matchAll(/\bItems?\s+(\d+(?:\s*(?:,\s*(?:and|or|&)?|and|or|&)\s*\d+)*)/gi)) {
+    for (const digits of match[1].match(/\d+/g) ?? []) numbers.add(Number(digits));
+  }
+  return [...numbers].sort((left, right) => left - right);
+}
+
+/** Whether a message names at least one item of every expected overview point. */
+export function overviewNamesEveryPoint(message: string, points: readonly (readonly number[])[]) {
+  const named = new Set(itemNumbersNamed(message));
+  return points.length >= 2 && points.every((point) => point.some((number) => named.has(number)));
+}
+
 export function questionsAsked(message: string) {
   const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
   return (unquoted.match(/\?/g) ?? []).length;
@@ -647,7 +662,10 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       question_limit: questions <= expected.max_questions,
       no_false_corrected: !expected.must_not_mark_corrected || output.focus_status !== "corrected_reasoning_expressed",
       audience: studentFacingTextProblems(output.student_visible_message).length === 0,
-      natural_language: stockPhrases(output.student_visible_message).length === 0
+      natural_language: stockPhrases(output.student_visible_message).length === 0,
+      // Opening v8.4: several points open with an overview that names every point, each by
+      // at least one of its item numbers (expected.overview_points).
+      overview: !expected.expects_overview || overviewNamesEveryPoint(output.student_visible_message, expected.overview_points)
     };
     return {
       feedback_case_id: record.feedback_case_id,
@@ -663,6 +681,10 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     };
   });
   const scored = rows.filter((row) => row.checks);
+  const overviewShare = (delivered: typeof scored) => {
+    const expecting = delivered.filter((row) => byId.get(row.feedback_case_id)?.expected.expects_overview);
+    return expecting.length ? round(expecting.filter((row) => row.checks!.overview).length / expecting.length) : null;
+  };
   const share = (pick: (checks: NonNullable<(typeof rows)[number]["checks"]>) => boolean) =>
     scored.length ? round(scored.filter((row) => pick(row.checks!)).length / scored.length) : null;
   const failed = rows.filter((row) => !row.validated).length;
@@ -676,7 +698,9 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     criterion("Messages over the question limit", "<=", 0, scored.filter((row) => !row.checks!.question_limit).length),
     criterion("Echo or bare answer recorded as corrected reasoning", "<=", 0, scored.filter((row) => !row.checks!.no_false_corrected).length),
     criterion("Messages with a stock phrase (share)", "<=", GO_LIVE_THRESHOLDS.feedback_stock_phrase_max,
-      scored.length ? 1 - (share((checks) => checks.natural_language) ?? 1) : null)
+      scored.length ? 1 - (share((checks) => checks.natural_language) ?? 1) : null),
+    criterion("Openings with several points that give an overview (share)", ">=", 0.8,
+      overviewShare(scored), "Proposed threshold (opening v8.4); reported, not a go-live gate.")
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
   const byMode = (mode: "opening" | "reply") => {

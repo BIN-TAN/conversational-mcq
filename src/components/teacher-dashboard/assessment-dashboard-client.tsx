@@ -407,10 +407,16 @@ const dashboardTabs: ReadonlyArray<readonly [DashboardView, string]> = [
   ["report", "Instructor report"]
 ];
 
-export function AssessmentDashboardClient({ initialDashboard }: { initialDashboard: TeacherAssessmentDashboard }) {
-  const [view, setViewState] = useState<DashboardView>("overview");
+export function AssessmentDashboardClient({
+  initialDashboard,
+  initialView = "overview"
+}: {
+  initialDashboard: TeacherAssessmentDashboard;
+  initialView?: DashboardView;
+}) {
+  const [view, setViewState] = useState<DashboardView>(initialView);
   // Panels stay mounted (hidden) once opened, so switching tabs does not reload them.
-  const [visited, setVisited] = useState<ReadonlySet<DashboardView>>(() => new Set<DashboardView>(["overview"]));
+  const [visited, setVisited] = useState<ReadonlySet<DashboardView>>(() => new Set<DashboardView>([initialView]));
   function setView(next: DashboardView) {
     setViewState(next);
     setVisited((current) => current.has(next) ? current : new Set([...current, next]));

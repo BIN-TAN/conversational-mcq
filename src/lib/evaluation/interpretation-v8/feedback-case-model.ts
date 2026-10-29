@@ -23,7 +23,7 @@ import {
  * coding rather than from a model profile, so the feedback model is judged on its own: the
  * focus it chooses, the strategy, the turn record and the audience rules.
  */
-export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-2" as const;
+export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-3" as const;
 export const EVALUATION_MAX_STUDENT_TURNS = 6;
 
 const QuoteSource = z.enum(["explanation", "explanation_first_version", "tempting_option_reason"]);
@@ -44,6 +44,18 @@ export const FeedbackCaseSchema = z.object({
   considered_ideas: z.array(z.object({ item_id: z.string(), idea: z.string(), quote: z.string() })).default([]),
   saved_questions: z.array(z.object({ item_id: z.string().nullable(), question: z.string() })).default([]),
   transcript: z.array(z.object({ actor: z.enum(["student", "tutor"]), text: z.string().min(1) })).default([]),
+  /**
+   * Changes to the simulated student's responses for this case only (cases-3): for example a
+   * correct answer given with low confidence and an unsure explanation. The base case, and the
+   * interpretation evaluation that uses it, are unchanged; the reference quality still applies.
+   */
+  response_overrides: z.array(z.object({
+    item_id: z.string(),
+    confidence: z.enum(["low", "medium", "high"]).optional(),
+    explanation: z.string().optional(),
+    tempting_option: z.string().nullable().optional(),
+    tempting_option_reason: z.string().nullable().optional()
+  }).strict()).default([]),
   expected: z.object({
     focus_types: z.array(z.enum(FOCUS_TYPES)).min(1),
     strategies: z.array(z.enum(STRATEGIES)).min(1),
@@ -53,6 +65,13 @@ export const FeedbackCaseSchema = z.object({
     review_flags: z.array(z.enum(REVIEW_FLAGS)).min(1),
     max_questions: z.number().int().min(0),
     must_not_mark_corrected: z.boolean().default(false),
+    /** The opening should begin with an overview of several points (opening v8.4). */
+    expects_overview: z.boolean().default(false),
+    /**
+     * The points the overview should name, each as the item numbers that identify it; the
+     * opening must name at least one item of every point. Required when expects_overview.
+     */
+    overview_points: z.array(z.array(z.number().int().min(1)).min(1)).default([]),
     notes: z.string().default("")
   })
 });
@@ -64,8 +83,24 @@ export const FeedbackCaseFileSchema = z.object({
 });
 export type FeedbackCaseFile = z.infer<typeof FeedbackCaseFileSchema>;
 
+/** The base case with this feedback case's response overrides applied. */
+export function feedbackCaseStudent(base: EvaluationCase, feedbackCase: Pick<FeedbackCase, "response_overrides">): EvaluationCase {
+  if (!feedbackCase.response_overrides?.length) return base;
+  const overrides = new Map(feedbackCase.response_overrides.map((entry) => [entry.item_id, entry]));
+  return {
+    ...base,
+    responses: base.responses.map((response) => {
+      const override = overrides.get(response.item_id);
+      if (!override) return response;
+      const { item_id: _item, ...changes } = override;
+      return { ...response, ...Object.fromEntries(Object.entries(changes).filter(([, value]) => value !== undefined)) };
+    })
+  };
+}
+
 /** The feedback input for a case, shaped exactly like compileFeedbackV8Context's output. */
-export function buildFeedbackCaseInput(bank: ItemBank, base: EvaluationCase, feedbackCase: FeedbackCase): FeedbackV8Input {
+export function buildFeedbackCaseInput(bank: ItemBank, baseCase: EvaluationCase, feedbackCase: FeedbackCase): FeedbackV8Input {
+  const base = feedbackCaseStudent(baseCase, feedbackCase);
   const interpretationInput = buildCaseInput(bank, base);
   const numberById = new Map(interpretationInput.items.map((item, index) => [item.item_id, index + 1]));
   const responseById = new Map(base.responses.map((response) => [response.item_id, response]));
@@ -174,8 +209,18 @@ export function checkFeedbackFixtures(baseCases: ReadonlyMap<string, EvaluationC
   const problems: string[] = [];
   for (const feedbackCase of file.cases) {
     const id = feedbackCase.feedback_case_id;
-    const base = baseCases.get(feedbackCase.base_case_id);
-    if (!base) { problems.push(`${id}: unknown base case ${feedbackCase.base_case_id}`); continue; }
+    const baseCase = baseCases.get(feedbackCase.base_case_id);
+    if (!baseCase) { problems.push(`${id}: unknown base case ${feedbackCase.base_case_id}`); continue; }
+    for (const entry of feedbackCase.response_overrides) {
+      if (!baseCase.responses.some((response) => response.item_id === entry.item_id)) problems.push(`${id}: response override for unknown item ${entry.item_id}`);
+    }
+    if (feedbackCase.expected.expects_overview && feedbackCase.expected.overview_points.length < 2) {
+      problems.push(`${id}: an expected overview needs at least two overview points`);
+    }
+    for (const point of feedbackCase.expected.overview_points) {
+      if (point.some((number) => number > baseCase.responses.length)) problems.push(`${id}: overview point names an item beyond ${baseCase.responses.length}`);
+    }
+    const base = feedbackCaseStudent(baseCase, feedbackCase);
     const responses = new Map(base.responses.map((response) => [response.item_id, response]));
     for (const entry of feedbackCase.misconceptions) {
       const response = responses.get(entry.item_id);

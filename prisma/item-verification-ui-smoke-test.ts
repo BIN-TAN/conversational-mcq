@@ -17,6 +17,9 @@ async function main() {
   const prefix = `phase7d_item_verification_ui_${Date.now()}`;
   process.env.LLM_PROVIDER = "mock";
   process.env.LLM_LIVE_CALLS_ENABLED = "false";
+  // The CI database job sets OPERATIONAL_AGENT_MODE=disabled, which skips the item check and
+  // leaves only the deterministic fallback; the local test stand-in needs mock mode.
+  process.env.OPERATIONAL_AGENT_MODE = "mock";
   await cleanupItemVerificationFixture(prisma, prefix);
 
   try {

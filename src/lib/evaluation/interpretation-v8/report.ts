@@ -20,7 +20,7 @@ function criteriaTable(criteria: Array<{ name: string; threshold: string; value:
   return [
     "| Criterion | Threshold | Value | Result |",
     "|---|---|---:|---|",
-    ...criteria.map((entry) => `| ${cell(entry.name)} | ${entry.threshold} | ${num(entry.value)} | ${entry.pass === null ? `not assessed${entry.note ? ` (${entry.note})` : ""}` : entry.pass ? "pass" : "**fail**"} |`)
+    ...criteria.map((entry) => `| ${cell(entry.name)} | ${entry.threshold} | ${num(entry.value)} | ${entry.pass === null ? "not assessed" : entry.pass ? "pass" : "**fail**"}${entry.note ? ` (${entry.note})` : ""} |`)
   ].join("\n");
 }
 

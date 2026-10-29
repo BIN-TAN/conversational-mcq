@@ -1,5 +1,5 @@
 {
- "feedback_cases_version": "feedback-v8-eval-cases-2",
+ "feedback_cases_version": "feedback-v8-eval-cases-3",
  "cases": [
   {
    "feedback_case_id": "F01",
@@ -50,7 +50,17 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Reliability proves validity is core and shared by Questions 1 and 4; the message explains the distinction and may invite one application."
+    "notes": "Reliability proves validity is core and shared by Questions 1 and 4; the message explains the distinction and may invite one application. With two separate ideas (reliability treated as validity in Items 1 and 4, the SEM subtracted in Item 2), the opening begins with a short overview naming both (opening v8.4).",
+    "expects_overview": true,
+    "overview_points": [
+     [
+      1,
+      4
+     ],
+     [
+      2
+     ]
+    ]
    }
   },
   {
@@ -200,7 +210,16 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Focuses on a misconception (percentile or z-score) and acknowledges in one line that Question 4 may be ambiguous."
+    "notes": "Focuses on a misconception (percentile or z-score) and acknowledges in one line that Question 4 may be ambiguous. With two separate ideas (percentile rank in Item 1, the negative z-score in Item 2), the opening begins with a short overview naming both (opening v8.4).",
+    "expects_overview": true,
+    "overview_points": [
+     [
+      1
+     ],
+     [
+      2
+     ]
+    ]
    }
   },
   {
@@ -328,7 +347,10 @@
     ],
     "item_numbers_any": [],
     "focus_status": null,
-    "review_flags": ["none", "possible_item_issue"],
+    "review_flags": [
+     "none",
+     "possible_item_issue"
+    ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
     "notes": "Never mentions time, focus, pastes or answer changes. A flag for item S4 (options B and D overlap, a planted item issue) is acceptable."
@@ -839,6 +861,83 @@
     "max_questions": 2,
     "must_not_mark_corrected": true,
     "notes": "A bare letter after the solution was shown is not evidence of mastery; the turn record should not treat it as such without the student's own reasoning."
+   }
+  },
+  {
+   "feedback_case_id": "F19",
+   "situation": "Opening: every item supported, but a correct answer given with low confidence and an unsure explanation",
+   "base_case_id": "R-10",
+   "mode": "opening",
+   "profile_available": true,
+   "misconceptions": [],
+   "considered_ideas": [],
+   "saved_questions": [],
+   "transcript": [],
+   "response_overrides": [
+    {
+     "item_id": "R3",
+     "confidence": "low",
+     "explanation": "I think it depends on the group, so it should be re-estimated, but I'm not sure."
+    }
+   ],
+   "expected": {
+    "focus_types": [
+     "single_item"
+    ],
+    "strategies": [
+     "explain",
+     "clarify"
+    ],
+    "item_numbers_any": [
+     3
+    ],
+    "focus_status": null,
+    "review_flags": [
+     "none"
+    ],
+    "max_questions": 2,
+    "must_not_mark_corrected": false,
+    "expects_overview": false,
+    "notes": "The student doubted a correct answer (opening v8.4): the message takes up Item 3, says what made the reasoning right and answers the doubt, rather than offering an extension or asking for a restatement."
+   }
+  },
+  {
+   "feedback_case_id": "F20",
+   "situation": "Opening: every item supported, but the reason a tempting option appealed states an inaccurate idea",
+   "base_case_id": "R-10",
+   "mode": "opening",
+   "profile_available": true,
+   "misconceptions": [],
+   "considered_ideas": [],
+   "saved_questions": [],
+   "transcript": [],
+   "response_overrides": [
+    {
+     "item_id": "R4",
+     "tempting_option": "D",
+     "tempting_option_reason": "D also looked right, because a correlation of .85 means 85% of each score is free of error."
+    }
+   ],
+   "expected": {
+    "focus_types": [
+     "single_item",
+     "possible_misconception"
+    ],
+    "strategies": [
+     "explain",
+     "clarify"
+    ],
+    "item_numbers_any": [
+     4
+    ],
+    "focus_status": null,
+    "review_flags": [
+     "none"
+    ],
+    "max_questions": 2,
+    "must_not_mark_corrected": false,
+    "expects_overview": false,
+    "notes": "An inaccurate idea in a tempting-option reason under a correct answer (opening v8.4): the message takes up Item 4 and explains why .85 is not the share of a score free of error, rather than an extension."
    }
   }
  ]

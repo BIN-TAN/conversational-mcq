@@ -168,7 +168,8 @@
     "prisma/item-content-unit-test.ts",
     "prisma/item-wording-fix-unit-test.ts",
     "prisma/item-wording-corrections-export-unit-test.ts",
-    "prisma/transcript-visibility-unit-test.ts"
+    "prisma/transcript-visibility-unit-test.ts",
+    "prisma/item-flags-and-feedback-cases-unit-test.ts"
   ],
   "database": [
     "prisma/assessment-availability-smoke-test.ts",
@@ -194,29 +195,13 @@
     "prisma/student-initial-admin-smoke-test.ts",
     "prisma/student-package-feedback-recovery-smoke-test.ts",
     "prisma/research-data-quality-audit.ts",
-    {
-      "path": "prisma/student-activity-runtime-ui-smoke-test.ts",
-      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window (the demo has none); the test student is now assigned to the demo instructor. Not verified past that point: the test then drives the legacy activity runtime (startStudentActivityForSession and its profile/plan turn cycle) on a session whose completion, since interpretation v8 (19 Oct), creates a formative conversation without a planning decision, and it could not be run outside CI. Remove allowFailure if CI shows it passing; otherwise it needs the same decision as the targeted-feedback and transfer-item tests."
-    },
     "prisma/student-attempt-lifecycle-smoke-test.ts",
     "prisma/student-ui-smoke-test.ts",
     "prisma/initial-preparation-smoke-test.ts",
     "prisma/initial-feedback-failure-smoke-test.ts",
-    {
-      "path": "prisma/student-formative-conversation-runtime-smoke-test.ts",
-      "allowFailure": "Known failure since release CMCQ-20261020-02: it still expects formative-conversation-host-v5.3 (the code is v5.4); scripts/classroom-audit.mjs lists it as a historical blocker."
-    },
     "prisma/student-formative-conversation-profile-handoff-smoke-test.ts",
     "prisma/student-formative-conversation-foundation-smoke-test.ts",
     "prisma/student-lifecycle-command-result-smoke-test.ts",
-    {
-      "path": "prisma/student-targeted-feedback-smoke-test.ts",
-      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window; the test student is now assigned to the demo instructor. It still fails by design after completion: submitFormativeActivityResponse needs an active follow-up round (active_followup_round_required, submitChatNativeFormativeActivityResponse in formative-profile.ts), and completion since interpretation v8 (19 Oct) creates a formative conversation with no planning decision or follow-up round, so the legacy activity, targeted feedback and revision path cannot be reached from completion. Decide whether to rebuild the test on a hand-made legacy session or retire it."
-    },
-    {
-      "path": "prisma/student-transfer-item-smoke-test.ts",
-      "allowFailure": "The start failure is fixed (24 Oct): \"This assessment is not available for new starts\" came from the catalog rule (canStartAssessmentFromCatalog in catalog-access.ts refuses the legacy demo assessment to students without its instructor), not from an availability window; the test student is now assigned to the demo instructor. It still fails by design after completion: its activity response, revision and next choice B need an active follow-up round (active_followup_round_required, submitChatNativeFormativeActivityResponse in formative-profile.ts), and completion since interpretation v8 (19 Oct) creates a formative conversation with no planning decision or follow-up round, so the legacy transfer-item path cannot be reached from completion. Decide whether to rebuild the test on a hand-made legacy session or retire it."
-    },
     "prisma/student-demo-recovery-smoke-test.ts",
     "prisma/student-production-schema-readiness-smoke-test.ts",
     "prisma/teacher-dashboard-smoke-test.ts",
@@ -249,38 +234,8 @@
     "prisma/content-smoke-test.ts",
     "prisma/student-item-admin-audit-smoke-test.ts",
     "prisma/teacher-mcq-item-builder-smoke-test.ts",
-    {
-      "path": "prisma/eval-effective-system-blind-export-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/eval-pilot-blind-export-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/eval-pilot-stability-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/eval-targeted-remediation-blind-export-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/eval-targeted-remediation-manifest-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/item-verification-ui-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/student-followup-ui-smoke-test.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    },
-    {
-      "path": "prisma/student-formative-value-review.ts",
-      "allowFailure": "Needs the database (failed only with PrismaClientInitializationError in the database-free baseline) but no recent release has run it. Remove allowFailure once it passes in CI."
-    }
+    "prisma/item-verification-ui-smoke-test.ts",
+    "prisma/item-review-tutor-flags-smoke-test.ts"
   ],
   "browser": [
     {
@@ -325,6 +280,17 @@
     "prisma/student-live-llm-diagnostics.ts": "Helper module for live diagnostics; running it alone does nothing.",
     "prisma/student-live-llm-loop.ts": "Helper module for the live loop; running it alone does nothing.",
     "prisma/formative-conversation-v17-fixture-materialize.ts": "Fixture generator, not a test; it rewrites tracked fixture files.",
-    "prisma/teacher-email-security-live-smoke-test.ts": "Live e-mail check; without RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1 it only prints 'skipped'."
+    "prisma/teacher-email-security-live-smoke-test.ts": "Live e-mail check; without RUN_LIVE_TEACHER_EMAIL_SECURITY_SMOKE=1 it only prints 'skipped'.",
+    "prisma/student-activity-runtime-ui-smoke-test.ts": "Retired path (28 Oct 2026): tests the formative activity runtime that mini tests used before the feedback v8 conversation; failing in CI (formative_turn_current_profile_or_plan_missing). Rewrite it if the activity runtime is used again.",
+    "prisma/student-formative-conversation-runtime-smoke-test.ts": "Retired path (28 Oct 2026): expects formative-conversation-host-v5.3 from before feedback v8; failing in CI since release CMCQ-20261020-02. The v8 conversation is covered by the feedback v8 tests.",
+    "prisma/student-targeted-feedback-smoke-test.ts": "Retired path (28 Oct 2026): targeted feedback before feedback v8; failing in CI on its fixture. Rewrite it if targeted feedback is used again.",
+    "prisma/student-transfer-item-smoke-test.ts": "Retired path (28 Oct 2026): transfer items of the pre-v8 follow-up flow; failing in CI on its fixture. Rewrite it if transfer items are used again.",
+    "prisma/student-followup-ui-smoke-test.ts": "Retired path (28 Oct 2026): the pre-v8 follow-up UI; failing in CI (the fixture cannot start under the catalog rule and never reaches followup_active).",
+    "prisma/student-formative-value-review.ts": "Retired path (28 Oct 2026): formative value review of the pre-v8 follow-up flow; failing in CI (the fixture cannot start under the catalog rule).",
+    "prisma/eval-effective-system-blind-export-smoke-test.ts": "Retired evaluation (28 Oct 2026): blind export for the pre-v8 student profiling agent, whose fixtures no longer match its input schema. Interpretation and feedback v8 are evaluated with prisma/interpretation-v8-evaluation-cli.ts.",
+    "prisma/eval-pilot-blind-export-smoke-test.ts": "Retired evaluation (28 Oct 2026): pre-v8 student profiling agent pilot export; fixtures no longer match its input schema. See prisma/interpretation-v8-evaluation-cli.ts.",
+    "prisma/eval-pilot-stability-smoke-test.ts": "Retired evaluation (28 Oct 2026): pre-v8 student profiling agent stability run; fixtures no longer match its input schema. See prisma/interpretation-v8-evaluation-cli.ts.",
+    "prisma/eval-targeted-remediation-blind-export-smoke-test.ts": "Retired evaluation (28 Oct 2026): targeted remediation export for the pre-v8 profiling agent; fixtures no longer match its input schema.",
+    "prisma/eval-targeted-remediation-manifest-smoke-test.ts": "Retired evaluation (28 Oct 2026): targeted remediation manifest for the pre-v8 profiling agent; fixtures no longer match its input schema."
   }
 }
