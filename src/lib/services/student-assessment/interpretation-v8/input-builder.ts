@@ -5,7 +5,7 @@ import {
   type InterpretationItemInputV8,
   type InterpretationReference
 } from "./contract";
-import { optionIdeaLabels } from "@/lib/services/content/teacher-diagnostic-context";
+import { notDiagnosticOptions, optionIdeaLabels } from "@/lib/services/content/teacher-diagnostic-context";
 import { computeProcessIndicators, type IndicatorEvent } from "./indicators";
 
 /**
@@ -48,6 +48,10 @@ export function itemReferences(itemId: string, response: Record<string, unknown>
   for (const label of optionLabels) {
     if (label.toUpperCase() === correctOption.toUpperCase()) continue;
     const note = optionNotes.find((entry) => text(entry.label)?.toUpperCase() === label.toUpperCase());
+    // An option the instructor marked as not tied to an idea has no rationale to cite: choosing it
+    // is never a misconception by itself, and an idea the student states is judged against the
+    // target reasoning, the essential elements or the topic (release 22).
+    if (note?.diagnostic_role === "not_diagnostic") continue;
     const rationale = text(rationales[label]) ?? text(note?.misconception_reasoning_pattern) ?? text(note?.why_tempting);
     if (rationale) {
       references.push({ reference_id: `${itemId}:option:${label}`, kind: "distractor_rationale", option_label: label, text: rationale });
@@ -147,6 +151,25 @@ export function chosenOptionTagsFromPackage(packagePayload: unknown): Map<string
     const chosen = text(response.selected_answer_final) ?? text(response.selected_option);
     const labels = optionIdeaLabels(response.teacher_diagnostic_context);
     return [itemId, chosen ? labels.get(chosen.toUpperCase()) ?? null : null] as const;
+  }));
+}
+
+/**
+ * Incorrect options the instructor marked as not tied to a specific idea, for each item, with
+ * what rules each out (null when not written), read from the item context sealed in the
+ * response package (release 22).
+ */
+export function notDiagnosticOptionsFromPackage(packagePayload: unknown): Map<string, Array<{ option_label: string; what_rules_it_out: string | null }>> {
+  const payload = record(packagePayload);
+  const responses = (Array.isArray(payload.item_responses) ? payload.item_responses : []).map(record);
+  return new Map(responses.map((response, index) => {
+    const snapshot = record(response.item_snapshot);
+    const itemId = text(response.item_public_id) ?? text(snapshot.item_public_id) ?? `item-${index + 1}`;
+    const correct = (text(response.correct_option_snapshot) ?? text(snapshot.correct_option) ?? "").toUpperCase();
+    const entries = [...notDiagnosticOptions(response.teacher_diagnostic_context).entries()]
+      .filter(([label]) => label !== correct)
+      .map(([label, note]) => ({ option_label: label, what_rules_it_out: note || null }));
+    return [itemId, entries] as const;
   }));
 }
 

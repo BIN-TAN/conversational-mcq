@@ -199,6 +199,10 @@ A possible misconception is reported only when both conditions hold, and the stu
 
 Distractor rationales are hypotheses written by the instructor. The model may say that a student's quoted idea matches one, but a match never replaces the two conditions.
 
+**Options not tied to an idea (release 22).** The instructor may mark an incorrect option as plausible but not tied to a specific idea, with a note on what rules it out; most options rest on an idea, and publishing warns when more than half of an item's incorrect options do not. Such an option has no rationale, idea label or reference, so choosing it never supports a possible misconception and never forms an answer pattern. The two conditions above still apply to what the student writes: an idea a student states and accepts is reported against the target reasoning, the essential elements or the topic, and the dashboard lists these ideas by item and option ("Ideas stated on options not tied to an idea") so the instructor can describe a recurring one as the option's idea. The interpretation prompt is unchanged (its rules already require the student's own words, and the option simply has no rationale to cite). The feedback prompts receive the option with what rules it out: when the student's own words show no specific idea, the tutor shows how to reach the correct answer instead of suggesting a misconception (formative-opening-v8.5, formative-conversation-v8.6).
+
+**Answer review explanation (release 22).** The "Why" in the student's answer review is the item's target reasoning, which the item notes write to the student, or else its expected reasoning note. It is never the essential elements, which are criteria for judging an explanation; imported items had stored the essential elements as their only expected reasoning pattern, which put them in the answer review. Packages sealed earlier keep their sealed text for exports, and the review page shows the target reasoning from the sealed item context.
+
 ### Evidence binding
 
 Every substantive judgment must be traceable to the student's words.
@@ -334,7 +338,7 @@ When formatting imported items, keep the instructor's wording even where it brea
 FOR EVERY ITEM, PROPOSE
 - Target reasoning: what a student needs to understand to reach the correct answer, in one to three sentences. This is shown to students in the answer review, so write it to the student as a clear explanation.
 - Essential elements: one to three points a strong explanation must state, consistent with the target reasoning.
-- One distractor rationale per incorrect option: the specific incorrect idea that could lead a student to choose it, with an idea label of two to six plain words. Use the same label for options that rest on the same idea. A rationale is a hypothesis about a possible idea, not a judgment of any student.
+- One distractor rationale per incorrect option: the specific incorrect idea that could lead a student to choose it, with an idea label of two to six plain words. Use the same label for options that rest on the same idea. A rationale is a hypothesis about a possible idea, not a judgment of any student. Only when the instructor marked an option as not tied to a specific idea, or no plausible incorrect idea leads to it, set not_tied_to_an_idea to true, give instead what rules the option out, and leave the idea label empty. Most options rest on an idea, so do this rarely.
 
 CHECKS
 First answer each item yourself without relying on its key. Then report, for each item and field, only real problems:
@@ -346,7 +350,8 @@ First answer each item yourself without relying on its key. Then report, for eac
 - does_not_assess_objective: the item does not draw out evidence of its learning objective;
 - unrelated_reading_demand: more reading or context than the assessed idea needs;
 - not_plain_language: words, sentences or abbreviations a student of this course would struggle to read;
-- item_dependency: the item gives away another item's answer.
+- item_dependency: the item gives away another item's answer;
+- typo_or_inconsistent_name: a misspelled word, a repeated or missing word, or a name, symbol or abbreviation written two ways (for example a person named in the stem and called something else in the question, or "2Pl" beside "2PL"); say what it probably should be.
 Write each message as one or two complete sentences that tell the instructor what to change.
 
 RULES
@@ -368,6 +373,8 @@ From release CMCQ-20261020-06 the builder offers two starting points, and the te
 Excel, CSV, JSON and text files are read as text (spreadsheets sheet by sheet, without macros or formulas). The import call and the import page's suggestion and layout tasks are teacher-authoring calls and are not hash-gated; the pre-publish check remains gated by the item-preparation approval.
 
 **Accessible wording (import v4 with output v2, generation v8, revision v4).** The researcher asked that the language of the items be made more accessible while keeping the key terminology, at a middle to high school reading level. The import (`existing-mcq-import-v4`, output `existing-mcq-import-output-v2`) still copies each stem and its options word for word, and also returns for each item an accessible version at a grade 8 to 10 reading level: short sentences, common words, active voice, one idea per sentence and no idioms, with every key term and symbol (for example θ, b, logit, Rasch, 3PL, ICC, local independence, reliability), every number, formula and table line, the meaning, the option letters and order, the key and the incorrect idea behind each wrong option kept, and no added cues. Items that are already easy to read are left unchanged. The proposed target reasoning is written at the same level. Code, not the model, decides whether the accessible version may be used (`src/lib/item-content/accessible-wording.ts`): the same number of options with the same letters in the same order, every listed key term and every detected symbol or capitalized abbreviation of a field still present verbatim in that field, formulas, table lines and numbers unchanged, the key still an option, and the key not made the only longest or the only hedged option. A version that fails any check is not used; the item keeps the instructor's wording, and the review page says why in one sentence. The setting "Suggest simpler wording" next to "Import my items" is on by default; when it is off, the import asks for no accessible versions and every item stays as written. On the review page, each item with a checked accessible version starts with it; the teacher can compare both versions side by side and switch that item, and only that item, to the original wording and back. Whatever the teacher chooses is what the item contains when it is added, and nothing reaches students before the teacher adds and publishes it. The check that answers each item without its key answers the wording the item starts with. The item's provenance records the original wording, the accessible version, the version the teacher used for that item (`wording_version`) and whether the teacher edited it afterwards (see `docs/DATA_LOGGING_SPEC.md`, MCQ Import Provenance). New drafts (generation v8) and their revisions (revision v4) are written at the same grade 8 to 10 level with the course's key terms kept. These are teacher-authoring prompts and are not hash-gated; the interpretation, feedback, instructor report and item-preparation v8.3 prompts are unchanged.
+
+**Options not tied to an idea and typo notes (item-preparation-v8.4 with output v8.2; import v5 with output v3; release 22).** An incorrect option may be marked as plausible but not tied to a specific idea (section 5). The item preparation prompt proposes this only when the instructor marked the option that way or no plausible idea leads to it, and then gives what rules the option out instead of a rationale; each proposed rationale carries not_tied_to_an_idea. Its checks add typo_or_inconsistent_name (a misspelled, repeated or missing word, or a name, symbol or abbreviation written two ways), shown to the instructor as a possible ambiguity. The existing-items import (`existing-mcq-import-v5`, output `existing-mcq-import-output-v3`) does the same for its option notes, still copies items word for word, and names likely typos and inconsistent names in the note for the instructor (up to 1,200 characters). The item preparation approval hash changes with the prompt; the import is not hash-gated.
 
 ### 9.3 Item administration
 
@@ -471,7 +478,7 @@ ROLE
 You write the first message a student reads after submitting a mini-test. The student has just seen the answer review, which shows each item's result, the correct option and the instructor's explanation. Your purpose is to help the student start examining one part of their reasoning. Continuing the conversation is optional.
 
 INPUT
-The item specifications, the student's responses, and the mini-test profile: each item's explanation rating with its quoted evidence, any possible misconceptions, ideas considered but not endorsed, answer patterns, questions saved during the mini-test, the uncertainty notes, and the process interpretations from profiling. After a rejected attempt, previous_attempt_rejected_for lists the problems to correct.
+The item specifications (for each incorrect option, the idea that may lead to it or, for an option the instructor marked as not tied to a specific idea, what rules it out), the student's responses, and the mini-test profile: each item's explanation rating with its quoted evidence, any possible misconceptions, ideas considered but not endorsed, answer patterns, questions saved during the mini-test, the uncertainty notes, and the process interpretations from profiling. After a rejected attempt, previous_attempt_rejected_for lists the problems to correct.
 
 CHOOSING ONE FOCUS (use the first that applies)
 1. student_question: a question or request the student wrote in a response, including questions saved during the mini-test.
@@ -485,12 +492,12 @@ MORE THAN ONE POINT
 When the evidence shows more than one point worth discussing (from levels 1 to 4), begin with a short overview: say how many points there are and name each in a few plain words with its item numbers, most important first, at most five, joining points that share one idea. Then take up the first point. When there is only one point, give no overview.
 
 CHOOSING THE STRATEGY
-- explain: for a possible misconception, explain the difference between the student's idea and the correct principle, then, if useful, invite one application. For a correct answer the student doubted, say what their reasoning got right and address the doubt itself.
+- explain: for a possible misconception, explain the difference between the student's idea and the correct principle, then, if useful, invite one application. For a correct answer the student doubted, say what their reasoning got right and address the doubt itself. For a wrong answer on an option not tied to a specific idea, when the student's own words show no specific idea, show how to reach the correct answer: what to notice in the item and the step that rules their option out. Do not suggest that the student holds a misconception. When their words do show a specific idea, address that idea.
 - clarify: for unclear or limited reasoning, ask one neutral clarifying question and do not assume an error; for an answer pattern from choices only, ask one neutral question about the shared idea and claim nothing.
 - extend: for adequate reasoning, say specifically what was right and offer an optional extension that takes the idea somewhere new: a new case, a limit, or a link to another item. Do not ask the student to restate their answer or what an option says, and do not invent a weakness.
 - answer_request: when the student asked something, answer it directly.
 - acknowledge_item_issue: for a possible item issue, acknowledge the ambiguity, treat the student's reading as possibly defensible, and flag it for the instructor.
-- invite_explanation: for no usable explanation, invite the student to explain one item in their own words, without judgment.
+- invite_explanation: for no usable explanation, invite the student to explain one item in their own words, without judgment. For a wrong answer on an option not tied to a specific idea, explain applies instead.
 Ask a question only when the evidence calls for one, and ask at most one. Write explanations and definitions as statements, not as rhetorical questions, and never turn an explanation into a sequence of questions.
 
 RULES
@@ -514,13 +521,13 @@ ROLE
 You are a formative learning assistant supporting a student after a mini-test. Your purpose is to help the student examine and develop their reasoning with accurate, responsive instruction.
 
 INPUT
-The instructor-reviewed item specifications, the student's mini-test responses, the mini-test profile including its process interpretations, the opening message, and the conversation so far up to the student's latest message. The student has already seen the answer review with the correct answers and the instructor's explanations. After a rejected attempt, previous_attempt_rejected_for lists the problems to correct.
+The instructor-reviewed item specifications (for each incorrect option, the idea that may lead to it or, for an option the instructor marked as not tied to a specific idea, what rules it out), the student's mini-test responses, the mini-test profile including its process interpretations, the opening message, and the conversation so far up to the student's latest message. The student has already seen the answer review with the correct answers and the instructor's explanations. After a rejected attempt, previous_attempt_rejected_for lists the problems to correct.
 
 INSTRUCTIONAL RULES
 1. Identify the student's current question or learning need before choosing a response, and work on one manageable focus at a time: the student's explicit question first, then a well-supported conceptual difficulty. When the opening listed several points, follow the student's choice among them; when a point is settled, offer the next one in one sentence, without pressing.
 2. If the student's reasoning is correct, say so accurately and extend it only when useful. Do not invent a weakness. When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself.
 3. If the reasoning is unclear, ask a neutral clarifying question rather than assuming a misconception.
-4. If a specific conceptual error is supported by the evidence, explain the relevant distinction clearly. Invite the student to apply or reconsider it when appropriate.
+4. If a specific conceptual error is supported by the evidence, explain the relevant distinction clearly. Invite the student to apply or reconsider it when appropriate. When the student chose an option not tied to a specific idea and their own words show no specific idea, show how to reach the correct answer, without suggesting a misconception.
 5. If the student asks for a direct explanation, give one rather than a sequence of questions.
 6. Avoid repeated praise, unnecessary questions, excessive scaffolding, and content unrelated to the student's immediate need. Length is fine when it serves that need. Write explanations and definitions as statements, not as rhetorical questions, and ask at most one question in a reply.
 7. Agreement, repeating your explanation, silence, or a correct answer just after the solution was shown is never evidence of new learning, and neither is a student message that echoes your previous message.

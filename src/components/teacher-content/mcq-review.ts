@@ -73,7 +73,7 @@ export function needsNotes(candidate: McqImportCandidate) {
   );
 }
 
-type SuggestedOptionRationale = { label: string; rationale: string; idea_label: string | null };
+type SuggestedOptionRationale = { label: string; rationale: string; idea_label: string | null; not_tied_to_an_idea: boolean };
 
 export function suggestedOptionRationales(candidate: McqImportCandidate): SuggestedOptionRationale[] {
   const value = (candidate.suggestion as Record<string, unknown> | null)?.suggested_option_rationales;
@@ -82,8 +82,9 @@ export function suggestedOptionRationales(candidate: McqImportCandidate): Sugges
     const record = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
     const label = typeof record.label === "string" ? record.label : "";
     const rationale = typeof record.rationale === "string" ? record.rationale.trim() : "";
-    const ideaLabel = typeof record.idea_label === "string" && record.idea_label.trim() ? record.idea_label.trim() : null;
-    return label && rationale ? [{ label, rationale, idea_label: ideaLabel }] : [];
+    const notTied = record.not_tied_to_an_idea === true;
+    const ideaLabel = !notTied && typeof record.idea_label === "string" && record.idea_label.trim() ? record.idea_label.trim() : null;
+    return label && rationale ? [{ label, rationale, idea_label: ideaLabel, not_tied_to_an_idea: notTied }] : [];
   });
 }
 
@@ -104,7 +105,9 @@ export function blankNoteSuggestions(candidate: McqImportCandidate) {
       ? [{
           suggestion,
           field: "option_rationales",
-          label: `Why a student might choose option ${entry.label}${entry.idea_label ? ` (idea: ${entry.idea_label})` : ""}`,
+          label: entry.not_tied_to_an_idea
+            ? `What rules out option ${entry.label} (suggested as not tied to a specific idea)`
+            : `Why a student might choose option ${entry.label}${entry.idea_label ? ` (idea: ${entry.idea_label})` : ""}`,
           value: entry.rationale
         }]
       : [];
@@ -122,11 +125,15 @@ export function applyNoteSuggestion(candidate: McqImportCandidate, suggestion: s
     const label = suggestion.slice(OPTION_RATIONALE_PREFIX.length);
     const proposed = suggestedOptionRationales(candidate).find((entry) => entry.label === label);
     const current = optionRationaleFor(candidate, label);
+    const notTied = proposed?.not_tied_to_an_idea === true;
     return {
-      ...setOptionRationale(candidate, label, {
-        rationale: value,
-        idea_label: current.idea_label?.trim() ? current.idea_label : proposed?.idea_label ?? null
-      }),
+      ...setOptionRationale(candidate, label, notTied
+        ? { rationale: value, idea_label: null, not_tied_to_an_idea: true }
+        : {
+            rationale: value,
+            idea_label: current.idea_label?.trim() ? current.idea_label : proposed?.idea_label ?? null,
+            not_tied_to_an_idea: false
+          }),
       suggestion_decisions: decisions
     };
   }

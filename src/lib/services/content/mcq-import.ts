@@ -129,7 +129,9 @@ const CandidateOptionSchema = z.object({
 const CandidateOptionRationaleSchema = z.object({
   label: z.string(),
   rationale: z.string().nullable(),
-  idea_label: z.string().nullable()
+  idea_label: z.string().nullable(),
+  // Release 22: plausible but not tied to a specific idea; rationale then says what rules it out.
+  not_tied_to_an_idea: z.boolean().optional()
 });
 
 const CandidateMediaAssetSchema = z.object({
@@ -1082,7 +1084,9 @@ function parseProjectJsonItems(text: string): CandidateDraft[] {
       distractor_rationales: record.distractor_rationales,
       option_labels: options.map((option) => option.label),
       correct_option: importedKey ?? ""
-    }).map((entry) => ({ label: entry.label, rationale: entry.rationale || null, idea_label: entry.idea_label || null }));
+    }).map((entry) => entry.diagnostic_role === "not_diagnostic"
+      ? { label: entry.label, rationale: entry.what_rules_it_out || null, idea_label: null, not_tied_to_an_idea: true }
+      : { label: entry.label, rationale: entry.rationale || null, idea_label: entry.idea_label || null });
     return {
       item_label: metadata.item_label || compactString(record.item_label),
       stem,
@@ -1731,8 +1735,8 @@ export async function createExistingItemsReviewBatch(input: {
     suggested_target_reasoning_note: string | null;
     essential_elements: string | null;
     suggested_essential_elements: string | null;
-    option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
-    suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+    option_rationales: Array<{ label: string; rationale: string; idea_label: string | null; not_tied_to_an_idea?: boolean }>;
+    suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null; not_tied_to_an_idea?: boolean }>;
     objective_ids: string[];
     misconception_hypothesis_ids: string[];
     source_topic: string | null;
@@ -2496,6 +2500,7 @@ export async function commitMcqItemImport(input: {
         existing_rationales: {},
         option_notes: metadata.option_notes.map((note) => ({
           label: note.label,
+          diagnostic_role: note.diagnostic_role,
           misconception_reasoning_pattern: note.misconception_reasoning_pattern
         }))
       });

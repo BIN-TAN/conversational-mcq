@@ -2548,7 +2548,7 @@ const FORMATIVE_CONVERSATION_DEFINITIONS: Record<string, string> = {
   agent_version: "Runtime version label of the call (formative-feedback-runtime-v8 for feedback v8).",
   provider: "Provider of the call: openai for live calls, mock for local test output (never live model evidence).",
   model_name: "Model identifier recorded for the call.",
-  prompt_version: "Version of the instructions sent with the call (feedback v8: formative-opening-v8.4+formative-conversation-v8.5).",
+  prompt_version: "Version of the instructions sent with the call (feedback v8: formative-opening-v8.5+formative-conversation-v8.6).",
   schema_version: "Output contract version (feedback v8: formative-feedback-v8).",
   context_version: "Version of the conversation context sent to the model.",
   call_status: "Outcome of the call: succeeded, invalid_output (output rejected by validation, after the allowed regeneration), failed (provider or transport failure), needs_review, or started (no outcome recorded).",

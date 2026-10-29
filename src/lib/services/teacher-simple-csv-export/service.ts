@@ -855,7 +855,7 @@ export async function listSimpleCsvExplorerOptions(input: { teacher_user_db_id: 
   // The page lists mini tests in the assessment library's order; exports keep their own order.
   const libraryPosition = new Map(orderLikeAssessmentLibrary(await prisma.assessment.findMany({
     where: { assessment_public_id: { in: assessments.map((assessment) => assessment.assessment_public_id) } },
-    select: { assessment_public_id: true, title: true, folder_label: true, folder_order_index: true, assessment_order_index: true }
+    select: { assessment_public_id: true, title: true, folder_label: true, folder_order_index: true, assessment_order_index: true, status: true }
   })).map((assessment, index) => [assessment.assessment_public_id, index]));
   const positionOf = (publicId: string) => libraryPosition.get(publicId) ?? Number.MAX_SAFE_INTEGER;
   const orderedAssessments = [...assessments].sort((left, right) =>

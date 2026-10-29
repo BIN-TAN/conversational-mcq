@@ -530,8 +530,11 @@ export function itemCheckSummary(input: {
 // v3 (release CMCQ-20261024-11): formulas may be written in LaTeX between $ signs, tables as Markdown.
 // v4 / output v2: each item also carries an accessible version (grade 8 to 10 reading level) that
 // keeps key terms, numbers, formulas, tables, options and key; the verbatim copy is unchanged.
-export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v4" as const;
-export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v2" as const;
+// v5 / output v3 (release 22): an option note may mark an option as not tied to a specific idea
+// (its rationale then says what rules it out, and it has no idea label), and note_for_teacher
+// names likely typos and inconsistent names or symbols, which are copied as they are.
+export const EXISTING_ITEMS_PROMPT_VERSION = "existing-mcq-import-v5" as const;
+export const EXISTING_ITEMS_SCHEMA_VERSION = "existing-mcq-import-output-v3" as const;
 export const EXISTING_ITEMS_MAX = 40;
 
 const OptionLabelSchema = z.string().trim().regex(/^[A-E]$/);
@@ -553,12 +556,14 @@ export const ExistingItemsOutputSchema = z.object({
     option_notes: z.array(z.object({
       label: OptionLabelSchema,
       rationale: z.string().trim().min(1).max(1000),
-      idea_label: z.string().trim().min(1).max(60),
+      idea_label: z.string().trim().min(1).max(60).nullable(),
+      not_tied_to_an_idea: z.boolean(),
       from_source: z.boolean(),
       linked_misconception_ids: z.array(z.string().trim().min(1).max(80)).max(8)
     }).strict()).max(4),
     objective_ids: z.array(z.string().trim().min(1).max(80)).max(8),
-    note_for_teacher: z.string().trim().max(600).nullable(),
+    // Up to 1200 characters (output v3): room for typo and name notes as well.
+    note_for_teacher: z.string().trim().max(1200).nullable(),
     // A separate suggestion; the stem and options above stay word for word. Every field is
     // required (strict structured outputs): an unchanged item has changed false, a null stem
     // and no options.
@@ -594,8 +599,8 @@ export type ExistingItemDraft = {
   suggested_target_reasoning_note: string | null;
   essential_elements: string | null;
   suggested_essential_elements: string | null;
-  option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
-  suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null }>;
+  option_rationales: Array<{ label: string; rationale: string; idea_label: string | null; not_tied_to_an_idea?: boolean }>;
+  suggested_option_rationales: Array<{ label: string; rationale: string; idea_label: string | null; not_tied_to_an_idea?: boolean }>;
   objective_ids: string[];
   misconception_hypothesis_ids: string[];
   source_topic: string | null;
@@ -634,7 +639,9 @@ export function existingItemDrafts(output: ExistingItemsOutput, blueprint: ItemD
     const key = statedKey ?? suggestedKey;
     const notes = item.option_notes.filter((note, index, all) =>
       labels.has(note.label) && note.label !== key && all.findIndex((entry) => entry.label === note.label) === index);
-    const asRationale = (note: (typeof notes)[number]) => ({ label: note.label, rationale: note.rationale, idea_label: note.idea_label });
+    const asRationale = (note: (typeof notes)[number]) => note.not_tied_to_an_idea
+      ? { label: note.label, rationale: note.rationale, idea_label: null, not_tied_to_an_idea: true }
+      : { label: note.label, rationale: note.rationale, idea_label: note.idea_label };
     const elements = item.essential_elements.join("\n");
     const fromSource = ["stem", "options", ...(statedKey ? ["key"] : [])];
     const suggested = suggestedKey ? ["key"] : [];

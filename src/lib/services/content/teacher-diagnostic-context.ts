@@ -1,5 +1,20 @@
+/**
+ * The role of an incorrect option (release 22). By default an option is linked to an incorrect
+ * idea: its rationale describes the idea and may become the reference for a possible
+ * misconception. An option marked "not_diagnostic" is plausible but not tied to a specific idea
+ * (use sparingly): it has no rationale and no idea label, only a note on what rules it out.
+ * Choosing it is never read as a misconception, but an idea a student states in their own words
+ * is still interpreted against the target reasoning and the topic.
+ */
+export const OPTION_DIAGNOSTIC_ROLES = ["linked_idea", "not_diagnostic"] as const;
+export type OptionDiagnosticRole = (typeof OPTION_DIAGNOSTIC_ROLES)[number];
+
 export type TeacherDiagnosticOptionNote = {
   label: string;
+  /** Absent means linked_idea. */
+  diagnostic_role?: "not_diagnostic";
+  /** For a not_diagnostic option: what makes it wrong, or what a careful reader notices that rules it out. */
+  what_rules_it_out?: string;
   /**
    * A few words naming the incorrect idea behind this option (for example
    * "reliability = validity"). Two chosen incorrect options in one mini-test with the
@@ -107,12 +122,16 @@ function optionNoteFromUnknown(entry: unknown): TeacherDiagnosticOptionNote | nu
     return null;
   }
 
+  const notDiagnostic = value.diagnostic_role === "not_diagnostic";
   return compactRecord({
     label,
-    idea_label: trimString(value.idea_label),
+    diagnostic_role: notDiagnostic ? "not_diagnostic" : undefined,
+    what_rules_it_out: notDiagnostic ? trimString(value.what_rules_it_out) : undefined,
+    // An option not tied to an idea has no idea of its own.
+    idea_label: notDiagnostic ? undefined : trimString(value.idea_label),
     distractor_diagnostic_value: trimString(value.distractor_diagnostic_value),
     why_tempting: trimString(value.why_tempting),
-    misconception_reasoning_pattern: trimString(value.misconception_reasoning_pattern),
+    misconception_reasoning_pattern: notDiagnostic ? undefined : trimString(value.misconception_reasoning_pattern),
     strengthens_hypothesis: trimString(value.strengthens_hypothesis),
     weakens_hypothesis: trimString(value.weakens_hypothesis),
     follow_up_probe_suggestion: trimString(value.follow_up_probe_suggestion),
@@ -158,7 +177,17 @@ export function readTeacherItemMetadata(value: unknown): Required<TeacherItemMet
   };
 }
 
+export function isNotDiagnosticOption(note: Pick<TeacherDiagnosticOptionNote, "diagnostic_role"> | null | undefined) {
+  return note?.diagnostic_role === "not_diagnostic";
+}
+
 function optionDiagnosticText(note: TeacherDiagnosticOptionNote): string {
+  if (isNotDiagnosticOption(note)) {
+    return [
+      "Plausible but not tied to a specific incorrect idea.",
+      note.what_rules_it_out ? `What rules it out: ${note.what_rules_it_out}` : undefined
+    ].filter((entry): entry is string => Boolean(entry)).join(" ");
+  }
   return [
     note.distractor_diagnostic_value,
     note.why_tempting ? `Tempting because: ${note.why_tempting}` : undefined,
@@ -220,6 +249,7 @@ export function buildItemAdministrationRulesFromTeacherMetadata(input: {
   );
   const optionMisconceptionMap = Object.fromEntries(
     cleanOptionNotes
+      .filter((note) => !isNotDiagnosticOption(note))
       .map((note) => [
         note.label,
         [
@@ -273,6 +303,8 @@ export function buildDistractorRationalesFromTeacherNotes(input: {
   return Object.fromEntries(
     input.option_labels
       .filter((label) => label !== input.correct_option)
+      // An option not tied to an idea has no rationale, so it never becomes a misconception reference.
+      .filter((label) => !isNotDiagnosticOption(notesByLabel.get(label)))
       .map((label) => {
         const existing = trimString(input.existing_rationales[label]);
         const note = notesByLabel.get(label);
@@ -321,9 +353,12 @@ export function blanketDistractorRationale(input: {
 
 export type OptionRationaleEntry = {
   label: string;
-  /** "Why a student might choose this option"; empty when the instructor has not written one. */
+  /** "Why a student might choose this option"; empty when the instructor has not written one, and for an option not tied to an idea. */
   rationale: string;
   idea_label: string;
+  diagnostic_role: OptionDiagnosticRole;
+  /** For an option not tied to an idea: what rules it out; empty otherwise. */
+  what_rules_it_out: string;
 };
 
 /**
@@ -351,12 +386,17 @@ export function readOptionRationales(input: {
 
   return incorrect.map((label, index) => {
     const note = noteFor(label);
+    if (isNotDiagnosticOption(note)) {
+      return { label, rationale: "", idea_label: "", diagnostic_role: "not_diagnostic" as const, what_rules_it_out: trimString(note?.what_rules_it_out) ?? "" };
+    }
     const itemValue = itemValues[index];
     const itemRationale = itemValue && itemValue !== legacyNote && !blanket ? itemValue : "";
     return {
       label,
       rationale: trimString(note?.misconception_reasoning_pattern) ?? itemRationale,
-      idea_label: trimString(note?.idea_label) ?? ""
+      idea_label: trimString(note?.idea_label) ?? "",
+      diagnostic_role: "linked_idea" as const,
+      what_rules_it_out: ""
     };
   });
 }
@@ -383,9 +423,23 @@ export function optionIdeaLabels(value: unknown): Map<string, string> {
     const note = record(entry);
     const label = trimString(note.label);
     const idea = trimString(note.idea_label);
-    if (label && idea) labels.set(label.toUpperCase(), idea);
+    if (label && idea && note.diagnostic_role !== "not_diagnostic") labels.set(label.toUpperCase(), idea);
   }
   return labels;
+}
+
+/**
+ * Options not tied to an idea, by option label (upper-cased), with what rules each out (empty
+ * when not written). Reads the same shapes as optionIdeaLabels.
+ */
+export function notDiagnosticOptions(value: unknown): Map<string, string> {
+  const options = new Map<string, string>();
+  for (const entry of optionNotesFromAnyShape(value)) {
+    const note = record(entry);
+    const label = trimString(note.label);
+    if (label && note.diagnostic_role === "not_diagnostic") options.set(label.toUpperCase(), trimString(note.what_rules_it_out) ?? "");
+  }
+  return options;
 }
 
 // A leading dash, star or bullet, or a list marker such as "1." "2)" "(a)" "b." before a space.

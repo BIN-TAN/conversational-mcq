@@ -106,15 +106,13 @@ export function validatePublishableItemWarnings(
   const metadata = readTeacherItemMetadata(item.administration_rules);
   const warnings: ContentValidationIssue[] = [];
 
-  if (
-    !metadata.expected_reasoning_note &&
-    metadata.correct_option_notes.target_reasoning_note === ""
-  ) {
+  // The target reasoning is the explanation students see in their answer review (release 22).
+  if (metadata.correct_option_notes.target_reasoning_note === "") {
     warnings.push(
       validationIssue(
-        `${pathPrefix}.teacher_diagnostic_context.expected_reasoning_note`,
+        `${pathPrefix}.teacher_diagnostic_context.correct_option_notes.target_reasoning_note`,
         "teacher_expected_reasoning_note_missing",
-        "Teacher expected-reasoning note is recommended for LLM-supported interpretation."
+        `Item ${typeof item.item_order === "number" ? item.item_order : itemIndex + 1}: add the target reasoning. Students see it as the explanation in their answer review; without it they see only the correct option.`
       )
     );
   }

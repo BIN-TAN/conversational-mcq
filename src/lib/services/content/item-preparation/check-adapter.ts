@@ -17,6 +17,7 @@ import {
   ITEM_PREPARATION_SCHEMA_VERSION,
   PROBLEM_CODE_LABELS,
   type ItemPreparationInput,
+  type ItemPreparationOptionRationale,
   type ItemPreparationProblem,
   type ItemPreparationResult
 } from "./contract";
@@ -81,9 +82,13 @@ export function preparationInputForItemCheck(input: {
           distractor_rationales: item.distractor_rationales,
           option_labels: itemOptions.map((option) => option.label),
           correct_option: item.correct_option
-        })
-          .filter((entry) => entry.rationale)
-          .map((entry) => ({ option_label: entry.label, rationale: entry.rationale, idea_label: entry.idea_label || null })),
+        }).flatMap((entry): ItemPreparationOptionRationale[] => entry.diagnostic_role === "not_diagnostic"
+          ? entry.what_rules_it_out
+            ? [{ option_label: entry.label, rationale: entry.what_rules_it_out, idea_label: null, not_tied_to_an_idea: true }]
+            : []
+          : entry.rationale
+            ? [{ option_label: entry.label, rationale: entry.rationale, idea_label: entry.idea_label || null, not_tied_to_an_idea: false }]
+            : []),
         imported_text: null
       };
     }),
@@ -103,6 +108,8 @@ const ISSUE_BY_CODE: Record<ItemPreparationProblem["code"], ItemVerificationIssu
   does_not_assess_objective: "possible_learning_objective_misalignment",
   not_plain_language: "possible_ambiguity",
   item_dependency: "possible_answer_cue",
+  // A typo or a name written two ways can make a student read the item two ways.
+  typo_or_inconsistent_name: "possible_ambiguity",
   other: "possible_ambiguity",
   // A key change the check proposed is reported as a doubtful key, never applied.
   key_change_not_applied: "possible_answer_key_inconsistency",

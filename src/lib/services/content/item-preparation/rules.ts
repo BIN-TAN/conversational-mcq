@@ -255,7 +255,13 @@ export function applyItemPreparationRules(
       }
       const rationale = clean(entry.rationale);
       if (!rationale || !options.some((option) => option.label === label)) continue;
-      rationales.push({ option_label: label, rationale, idea_label: clean(entry.idea_label)?.slice(0, 60) ?? null });
+      const notTied = entry.not_tied_to_an_idea === true;
+      rationales.push({
+        option_label: label,
+        rationale,
+        idea_label: notTied ? null : clean(entry.idea_label)?.slice(0, 60) ?? null,
+        not_tied_to_an_idea: notTied
+      });
     }
     if (key) {
       for (const option of options) {

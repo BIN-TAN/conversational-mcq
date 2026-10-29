@@ -806,9 +806,9 @@ async function main() {
     assert.equal(notes.essential_elements, "distance from the mean|applies to every value");
     const options = JSON.parse(notes.option_rationales_json!) as Array<{ label: string; reference_id: string | null; rationale: string | null; idea_label: string | null }>;
     assert.deepEqual(options, [
-      { label: "A", reference_id: "q9:option:A", rationale: "Confuses a larger mean with larger spread.", idea_label: "mean = spread" },
-      { label: "B", reference_id: "q9:option:B", rationale: "Equal ranges look alike.", idea_label: null },
-      { label: "D", reference_id: null, rationale: null, idea_label: null }
+      { label: "A", reference_id: "q9:option:A", rationale: "Confuses a larger mean with larger spread.", idea_label: "mean = spread", not_tied_to_an_idea: false, what_rules_it_out: null },
+      { label: "B", reference_id: "q9:option:B", rationale: "Equal ranges look alike.", idea_label: null, not_tied_to_an_idea: false, what_rules_it_out: null },
+      { label: "D", reference_id: null, rationale: null, idea_label: null, not_tied_to_an_idea: false, what_rules_it_out: null }
     ]);
     const modelInput = buildInterpretationInputV8FromPackage(packagePayload([item]), new Map()).items[0];
     const exported = new Map<string, string | null>([["q9:target", notes.target_reasoning_note],

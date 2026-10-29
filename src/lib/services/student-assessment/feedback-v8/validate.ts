@@ -65,7 +65,8 @@ export function validateFeedbackV8Output(input: FeedbackV8Input, output: Feedbac
   const courseTerms = courseContentTermsFromTexts([
     input.topic.title, input.topic.learning_objective, input.topic.description,
     ...input.items.flatMap((item) => [item.stem, ...item.options.map((option) => option.text), item.instructor_explanation,
-      item.essential_elements, ...item.distractor_rationales.map((entry) => entry.rationale)])
+      item.essential_elements, ...item.distractor_rationales.map((entry) => entry.rationale),
+      ...(item.options_not_tied_to_an_idea ?? []).map((entry) => entry.what_rules_it_out)])
   ]);
   const push = (path: string, code: string, message: string) => issues.push({ path, code, message });
 

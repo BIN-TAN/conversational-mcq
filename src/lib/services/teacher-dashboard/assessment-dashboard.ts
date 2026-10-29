@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
 import { ContentServiceError } from "@/lib/services/content/errors";
-import { readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
+import { notDiagnosticOptions, readTeacherItemMetadata } from "@/lib/services/content/teacher-diagnostic-context";
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
 import { sortStudentsToFollowUp, type StudentFollowUpRow } from "./follow-up";
@@ -1260,11 +1260,15 @@ export async function getTeacherAssessmentDashboard(input: {
     return stored ? [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: profile!.created_at, stored }] : [];
   });
   const v8Split = splitFirstAndLaterAttempts(v8Entries);
+  // Options the instructor marked as not tied to an idea (their current item notes), so ideas
+  // students stated on them can be listed for the instructor.
+  const untiedOptions = new Map(assessment.concept_units.flatMap((conceptUnit) => conceptUnit.items).map((item) =>
+    [item.item_public_id, new Set(notDiagnosticOptions(item.administration_rules).keys())] as const));
   const interpretationV8 = v8Entries.length
     ? {
         version: INTERPRETATION_V8_DASHBOARD_VERSION,
-        first_attempts: summarizeV8Group(v8Split.first, itemDecisions),
-        later_attempts: summarizeV8Group(v8Split.later, itemDecisions),
+        first_attempts: summarizeV8Group(v8Split.first, itemDecisions, untiedOptions),
+        later_attempts: summarizeV8Group(v8Split.later, itemDecisions, untiedOptions),
         items_awaiting_review: new Set(v8Entries.flatMap((entry) => entry.stored.items
           .filter((item) => item.item_review_flag && !itemDecisions.has(item.item_id)).map((item) => item.item_id))).size,
         conversations: await loadFeedbackV8ConversationStats(sessions.filter((session) => eligibleKeys.has(session.user.user_id)).map((session) => session.id))

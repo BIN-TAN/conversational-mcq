@@ -77,7 +77,7 @@ function loadFixtures() {
   const feedbackPath = option("--feedback-cases") ?? (option("--cases") ? null : path.join(FIXTURES, "feedback-cases.json"));
   const { bank, cases, problems } = parseEvaluationFixtures(readJson(bankPath), readJson(casesPath));
   const feedback: FeedbackCaseFile | null = feedbackPath ? FeedbackCaseFileSchema.parse(readJson(feedbackPath)) : null;
-  const feedbackProblems = feedback ? checkFeedbackFixtures(new Map(cases.cases.map((entry) => [entry.case_id, entry])), feedback) : [];
+  const feedbackProblems = feedback ? checkFeedbackFixtures(new Map(cases.cases.map((entry) => [entry.case_id, entry])), feedback, bank) : [];
   const placeholders = unwrittenPlaceholders(cases);
   return { bank, cases, feedback, problems: [...problems, ...feedbackProblems, ...placeholders.map((entry) => `${entry} is not written yet`)], paths: { bankPath, casesPath, feedbackPath } };
 }

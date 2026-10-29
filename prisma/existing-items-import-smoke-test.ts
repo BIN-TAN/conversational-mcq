@@ -79,9 +79,9 @@ class ImportProvider implements LlmProvider {
       essential_elements: ["Conditions on theta"],
       essential_elements_from_source: Boolean(statedKey),
       option_notes: [
-        { label: "A", rationale: "Drops the conditioning on theta.", idea_label: "Independence without conditioning", from_source: Boolean(statedKey), linked_misconception_ids: [] },
-        { label: "C", rationale: "Confuses local independence with separate abilities.", idea_label: "Independence as separate abilities", from_source: false, linked_misconception_ids: [] },
-        { label: "D", rationale: "Reads independence as a test-taking rule.", idea_label: "Independence as test behavior", from_source: false, linked_misconception_ids: [] }
+        { label: "A", rationale: "Drops the conditioning on theta.", idea_label: "Independence without conditioning", not_tied_to_an_idea: false, from_source: Boolean(statedKey), linked_misconception_ids: [] },
+        { label: "C", rationale: "Confuses local independence with separate abilities.", idea_label: "Independence as separate abilities", not_tied_to_an_idea: false, from_source: false, linked_misconception_ids: [] },
+        { label: "D", rationale: "Reads independence as a test-taking rule.", idea_label: "Independence as test behavior", not_tied_to_an_idea: false, from_source: false, linked_misconception_ids: [] }
       ],
       objective_ids: [],
       note_for_teacher: statedKey ? null : "The file gives no key for this item; the suggested key needs your check.",
@@ -93,7 +93,7 @@ class ImportProvider implements LlmProvider {
     });
     const accessibleRequested = (request.input as { required_output?: { accessible_wording?: boolean } }).required_output?.accessible_wording === true;
     return done({
-      schema_version: "existing-mcq-import-output-v2",
+      schema_version: "existing-mcq-import-output-v3",
       items: [item("D1", "B"), item("D2", null)],
       skipped: [{ source_label: "D3", reason: "The stem has no options." }]
     });
@@ -193,7 +193,7 @@ async function main() {
 
     const calls = await prisma.agentCall.findMany({ where: { agent_invocation_key: { startsWith: `existing_item_import:${assessmentPublicId}:` } } });
     assert(calls.length === 2 && calls.every((call) => call.call_status === "succeeded"), "Both calls are audited.");
-    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v4"), "The read call records its prompt version.");
+    assert(calls.some((call) => call.prompt_version === "existing-mcq-import-v5"), "The read call records its prompt version.");
     assert(!calls.some((call) => JSON.stringify(call.input_payload).includes(userId)), "No account identifiers reach the provider context.");
 
     const replay = await run();
@@ -219,7 +219,7 @@ async function main() {
     assert(added[0]?.item_stem === "D1. Which statement describes local independence?", "The item contains the wording the teacher chose for it.");
     assert(wordingOf(added[0]?.administration_rules)?.wording_version === "as_written" &&
       wordingOf(added[0]?.administration_rules)?.edited_by_teacher === false &&
-      wordingOf(added[0]?.administration_rules)?.prompt_version === "existing-mcq-import-v4", "Provenance records the item's wording choice.");
+      wordingOf(added[0]?.administration_rules)?.prompt_version === "existing-mcq-import-v5", "Provenance records the item's wording choice.");
     assert(wordingOf(added[1]?.administration_rules)?.status === "unchanged" && wordingOf(added[1]?.administration_rules)?.wording_version === "as_written",
       "Each item records its own wording.");
 

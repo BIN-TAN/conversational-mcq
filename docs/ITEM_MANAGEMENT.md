@@ -70,6 +70,18 @@ Required item fields for publishing:
 
 Distractor rationales and misconception indicators matter because later profiling should reason from selected options, reasoning quality, confidence alignment, and distractor-aligned evidence. They are not shown through student-facing endpoints.
 
+### Options not tied to an idea (release 22)
+
+In the item editor and the import review, each incorrect option is either **rests on a specific incorrect idea** (the default: "Why a student might choose this option" and an optional idea label) or **plausible, but not tied to a specific idea** ("What rules this option out"). The second is stored in the option's note as `diagnostic_role: "not_diagnostic"` with `what_rules_it_out`; the option then has no `distractor_rationales` entry and no idea label. Use it sparingly: publishing warns when such an option has no note, and when more than half of an item's incorrect options are not tied to an idea. The existing-items import (existing-mcq-import-v5) and the item preparation assistant (item-preparation-v8.4) may suggest it only when the source says an option is a filler or no plausible idea leads to it. A change of role is a teacher-note change, so it is allowed as a wording fix; responses already submitted keep the notes sealed in their package.
+
+### What students see
+
+Students see the item and, after they submit, the answer review: their answer, the correct answer and the **target reasoning** as its "Why". The essential elements, rationales, idea labels and other notes are never shown to students.
+
+### Typos and inconsistent names
+
+The existing-items import copies items word for word and names likely typos and inconsistent names or symbols (for example "2Pl" beside "2PL", or a person called by two names) in the note for the instructor on each item. The item preparation check (item-preparation-v8.4, once approved) reports them as "Typo or inconsistent name". Fix them before students start, or afterwards with a wording fix.
+
 ## Publishing Validation
 
 A concept unit can be published only if:

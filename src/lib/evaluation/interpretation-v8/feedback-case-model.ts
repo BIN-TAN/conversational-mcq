@@ -13,6 +13,7 @@ import { answerPatterns, itemStatus } from "@/lib/services/student-assessment/in
 import {
   buildCaseInput,
   chosenOptionTags,
+  itemOf,
   type EvaluationCase,
   type ItemBank
 } from "./case-model";
@@ -23,7 +24,7 @@ import {
  * coding rather than from a model profile, so the feedback model is judged on its own: the
  * focus it chooses, the strategy, the turn record and the audience rules.
  */
-export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-3" as const;
+export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-4" as const;
 export const EVALUATION_MAX_STUDENT_TURNS = 6;
 
 const QuoteSource = z.enum(["explanation", "explanation_first_version", "tempting_option_reason"]);
@@ -55,6 +56,16 @@ export const FeedbackCaseSchema = z.object({
     explanation: z.string().optional(),
     tempting_option: z.string().nullable().optional(),
     tempting_option_reason: z.string().nullable().optional()
+  }).strict()).default([]),
+  /**
+   * Incorrect options treated as not tied to a specific idea in this case only (cases-4,
+   * release 22): their rationale is withheld and the input lists them with what rules them out.
+   * The item bank, and the interpretation evaluation that uses it, are unchanged.
+   */
+  option_role_overrides: z.array(z.object({
+    item_id: z.string(),
+    option_label: z.string(),
+    what_rules_it_out: z.string().min(1)
   }).strict()).default([]),
   expected: z.object({
     focus_types: z.array(z.enum(FOCUS_TYPES)).min(1),
@@ -104,6 +115,7 @@ export function buildFeedbackCaseInput(bank: ItemBank, baseCase: EvaluationCase,
   const interpretationInput = buildCaseInput(bank, base);
   const numberById = new Map(interpretationInput.items.map((item, index) => [item.item_id, index + 1]));
   const responseById = new Map(base.responses.map((response) => [response.item_id, response]));
+  const notTied = feedbackCase.option_role_overrides;
   const items: FeedbackV8Item[] = interpretationInput.items.map((item, index) => {
     const response = responseById.get(item.item_id)!;
     const quality = response.expected.quality[0];
@@ -118,8 +130,12 @@ export function buildFeedbackCaseInput(bank: ItemBank, baseCase: EvaluationCase,
       instructor_explanation: item.target_reasoning,
       essential_elements: item.essential_elements,
       distractor_rationales: item.references
-        .filter((reference) => reference.kind === "distractor_rationale" && reference.option_label)
+        .filter((reference) => reference.kind === "distractor_rationale" && reference.option_label &&
+          !notTied.some((entry) => entry.item_id === item.item_id && entry.option_label === reference.option_label))
         .map((reference) => ({ option_label: reference.option_label!, rationale: reference.text })),
+      options_not_tied_to_an_idea: notTied
+        .filter((entry) => entry.item_id === item.item_id)
+        .map((entry) => ({ option_label: entry.option_label, what_rules_it_out: entry.what_rules_it_out })),
       student_response: {
         selected_option: item.response.selected_option,
         answer_correct: item.response.answer_correct,
@@ -150,6 +166,10 @@ export function buildFeedbackCaseInput(bank: ItemBank, baseCase: EvaluationCase,
     };
   });
   const tags = chosenOptionTags(bank, base);
+  // An option not tied to an idea has no idea label, so it never forms an answer pattern.
+  for (const response of base.responses) {
+    if (notTied.some((entry) => entry.item_id === response.item_id && entry.option_label === response.selected_option)) tags.set(response.item_id, null);
+  }
   const patterns = answerPatterns(interpretationInput.items.map((item) => ({
     item_id: item.item_id,
     answer_correct: item.response.answer_correct,
@@ -205,7 +225,7 @@ export function buildFeedbackCaseInput(bank: ItemBank, baseCase: EvaluationCase,
 }
 
 /** Structural checks of the feedback fixtures against the simulated students. */
-export function checkFeedbackFixtures(baseCases: ReadonlyMap<string, EvaluationCase>, file: FeedbackCaseFile) {
+export function checkFeedbackFixtures(baseCases: ReadonlyMap<string, EvaluationCase>, file: FeedbackCaseFile, bank?: ItemBank) {
   const problems: string[] = [];
   for (const feedbackCase of file.cases) {
     const id = feedbackCase.feedback_case_id;
@@ -213,6 +233,17 @@ export function checkFeedbackFixtures(baseCases: ReadonlyMap<string, EvaluationC
     if (!baseCase) { problems.push(`${id}: unknown base case ${feedbackCase.base_case_id}`); continue; }
     for (const entry of feedbackCase.response_overrides) {
       if (!baseCase.responses.some((response) => response.item_id === entry.item_id)) problems.push(`${id}: response override for unknown item ${entry.item_id}`);
+    }
+    for (const entry of feedbackCase.option_role_overrides) {
+      if (!baseCase.responses.some((response) => response.item_id === entry.item_id)) {
+        problems.push(`${id}: option role override for unknown item ${entry.item_id}`);
+        continue;
+      }
+      if (!bank) continue;
+      const item = itemOf(bank, entry.item_id);
+      if (!item.options.some((option) => option.label === entry.option_label) || item.key === entry.option_label) {
+        problems.push(`${id}: option role override names ${entry.option_label}, which is not an incorrect option of ${entry.item_id}`);
+      }
     }
     if (feedbackCase.expected.expects_overview && feedbackCase.expected.overview_points.length < 2) {
       problems.push(`${id}: an expected overview needs at least two overview points`);

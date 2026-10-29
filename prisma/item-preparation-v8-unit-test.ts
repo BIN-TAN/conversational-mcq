@@ -406,9 +406,9 @@ async function main() {
     target_reasoning: "Consistency differs from validity.",
     essential_elements: ["Consistency is not validity"],
     distractor_rationales: [
-      { option_label: "B", rationale: "Idea B", idea_label: "shared" },
-      { option_label: "C", rationale: "Idea C", idea_label: null },
-      { option_label: "D", rationale: "Idea D", idea_label: null }
+      { option_label: "B", rationale: "Idea B", idea_label: "shared", not_tied_to_an_idea: false },
+      { option_label: "C", rationale: "Idea C", idea_label: null, not_tied_to_an_idea: false },
+      { option_label: "D", rationale: "Idea D", idea_label: null, not_tied_to_an_idea: false }
     ],
     ...overrides
   });
@@ -634,7 +634,7 @@ async function main() {
     });
     assert.equal(modelInput.items[0].item_ref, adapter.candidateItemRef(0));
     assert.deepEqual(modelInput.items[0].essential_elements, ["One", "Two"]);
-    assert.deepEqual(modelInput.items[0].distractor_rationales, [{ option_label: "B", rationale: "Own B", idea_label: "shared" }]);
+    assert.deepEqual(modelInput.items[0].distractor_rationales, [{ option_label: "B", rationale: "Own B", idea_label: "shared", not_tied_to_an_idea: false }]);
     assert.ok(modelInput.items[0].imported_text?.includes("Answer: A"));
     const result = applyItemPreparationRules(modelInput, output({ proposed_key: "C" }));
     const suggestion = adapter.suggestionFromPreparedItem({ candidate, item: result.items[0], result, agent_name: "x" });
@@ -669,7 +669,7 @@ async function main() {
     const pending = review.blankNoteSuggestions(candidate);
     assert.deepEqual(pending.map((entry) => entry.suggestion), [review.optionRationaleSuggestionKey("C")]);
     const applied = review.applyNoteSuggestion(candidate, pending[0].suggestion, pending[0].value);
-    assert.deepEqual(review.optionRationaleFor(applied, "C"), { label: "C", rationale: "Proposed C", idea_label: "shared" });
+    assert.deepEqual(review.optionRationaleFor(applied, "C"), { label: "C", rationale: "Proposed C", idea_label: "shared", not_tied_to_an_idea: false });
     assert.equal(review.optionRationaleFor(applied, "B").rationale, "Teacher B");
     assert.equal(review.blankNoteSuggestions(applied).length, 0);
     const complete = review.setOptionRationale(applied, "D", { rationale: "Teacher D" });

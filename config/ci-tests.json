@@ -169,7 +169,8 @@
     "prisma/item-wording-fix-unit-test.ts",
     "prisma/item-wording-corrections-export-unit-test.ts",
     "prisma/transcript-visibility-unit-test.ts",
-    "prisma/item-flags-and-feedback-cases-unit-test.ts"
+    "prisma/item-flags-and-feedback-cases-unit-test.ts",
+    "prisma/option-roles-and-answer-review-unit-test.ts"
   ],
   "database": [
     "prisma/assessment-availability-smoke-test.ts",

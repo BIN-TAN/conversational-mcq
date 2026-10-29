@@ -1,7 +1,7 @@
 import { isBlockedPasteEvent } from "@/lib/services/student-assessment/blocked-paste";
 import { studentSafeAnswerExplanationFromResponse } from "@/lib/services/student-assessment/evidence-integrated-profile";
 import { itemReferences } from "@/lib/services/student-assessment/interpretation-v8/input-builder";
-import { essentialElementsList, optionIdeaLabels } from "@/lib/services/content/teacher-diagnostic-context";
+import { essentialElementsList, notDiagnosticOptions, optionIdeaLabels } from "@/lib/services/content/teacher-diagnostic-context";
 
 /**
  * Item-level research columns derived from an item's own process events and its sealed
@@ -49,14 +49,15 @@ export function itemProcessColumns(input: {
 
 /** Restricted: the answer explanation shown in the student's answer review (it reveals the key). */
 export function answerReviewExplanation(packageItem: Record<string, unknown> | undefined) {
-  return packageItem ? studentSafeAnswerExplanationFromResponse(packageItem) : null;
+  return packageItem ? studentSafeAnswerExplanationFromResponse(packageItem, { as_sealed: true }) : null;
 }
 
 /**
  * The item references interpretation v8 judged explanations against, rebuilt from the sealed
  * package item with the profiling input builder's own itemReferences(): the target reasoning
  * (<item>:target), the essential elements (<item>:elements) and one rationale per incorrect
- * option (<item>:option:<label>). Options without a rationale had no reference.
+ * option (<item>:option:<label>). Options without a rationale had no reference; an option marked
+ * as not tied to an idea is listed with not_tied_to_an_idea and what rules it out.
  */
 export function itemReferenceColumns(packageItem: Record<string, unknown> | undefined, itemPublicId: string) {
   if (!packageItem) return { target_reasoning_note: null, essential_elements: null, option_rationales_json: null };
@@ -68,13 +69,18 @@ export function itemReferenceColumns(packageItem: Record<string, unknown> | unde
   const correct = text(packageItem.correct_option_snapshot) ?? text(snapshot.correct_option) ?? "";
   const { target, essential, references } = itemReferences(itemPublicId, packageItem, labels, correct);
   const ideas = optionIdeaLabels(packageItem.teacher_diagnostic_context);
+  const notTied = notDiagnosticOptions(packageItem.teacher_diagnostic_context);
   const options = labels.filter((label) => label.toUpperCase() !== correct.toUpperCase()).map((label) => {
     const reference = references.find((entry) => entry.kind === "distractor_rationale" && entry.option_label === label);
+    const ruledOutBy = notTied.get(label.toUpperCase());
     return {
       label,
       reference_id: reference?.reference_id ?? null,
       rationale: reference?.text ?? null,
-      idea_label: ideas.get(label.toUpperCase()) ?? null
+      idea_label: ideas.get(label.toUpperCase()) ?? null,
+      // Release 22: an option the instructor marked as not tied to an idea (no rationale or reference).
+      not_tied_to_an_idea: ruledOutBy !== undefined,
+      what_rules_it_out: ruledOutBy || null
     };
   });
   return {

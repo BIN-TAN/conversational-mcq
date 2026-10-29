@@ -30,7 +30,7 @@ export type PreparationCandidate = {
   teacher_confirmed_key: string | null;
   target_reasoning_note: string | null;
   strong_reasoning_should_mention: string | null;
-  option_rationales?: Array<{ label: string; rationale: string | null; idea_label: string | null }> | null;
+  option_rationales?: Array<{ label: string; rationale: string | null; idea_label: string | null; not_tied_to_an_idea?: boolean }> | null;
   original_source_text: string;
   source_location: string;
 };
@@ -73,9 +73,16 @@ export function preparationInputFromCandidates(input: {
       source_key: candidate.imported_key,
       target_reasoning: candidate.target_reasoning_note,
       essential_elements: essentialElementsList(candidate.strong_reasoning_should_mention ?? ""),
+      // An option the instructor marked as not tied to an idea is sent even before it has a note,
+      // so the assistant keeps that choice.
       distractor_rationales: (candidate.option_rationales ?? [])
-        .filter((entry) => entry.rationale && entry.label !== candidate.teacher_confirmed_key)
-        .map((entry) => ({ option_label: entry.label, rationale: entry.rationale!, idea_label: entry.idea_label })),
+        .filter((entry) => (entry.rationale || entry.not_tied_to_an_idea) && entry.label !== candidate.teacher_confirmed_key)
+        .map((entry) => ({
+          option_label: entry.label,
+          rationale: entry.rationale ?? "",
+          idea_label: entry.not_tied_to_an_idea ? null : entry.idea_label,
+          not_tied_to_an_idea: entry.not_tied_to_an_idea === true
+        })),
       imported_text: input.task === "format_imported" ? bounded(candidate.original_source_text, MAX_IMPORTED_TEXT_CHARS) : null
     })),
     source_material: null,
@@ -124,7 +131,8 @@ export function suggestionFromPreparedItem(input: {
     suggested_option_rationales: input.item.distractor_rationales.map((entry) => ({
       label: entry.option_label,
       rationale: entry.rationale,
-      idea_label: entry.idea_label
+      idea_label: entry.idea_label,
+      ...(entry.not_tied_to_an_idea ? { not_tied_to_an_idea: true } : {})
     })),
     problems,
     evidence_justification_summary:

@@ -110,13 +110,17 @@ type SaveIntent = "add_another" | "return" | "stay";
 type OptionNoteDraft = {
   rationale: string;
   idea_label: string;
+  /** linked_idea (default), or not_diagnostic for an option not tied to a specific idea. */
+  role: "linked_idea" | "not_diagnostic";
+  /** For an option not tied to an idea: what rules it out. */
+  what_rules_it_out: string;
   preserved: TeacherDiagnosticOptionNote | null;
 };
 
 const IDEA_LABEL_MAX_LENGTH = 60;
 
 function blankOptionNote(): OptionNoteDraft {
-  return { rationale: "", idea_label: "", preserved: null };
+  return { rationale: "", idea_label: "", role: "linked_idea", what_rules_it_out: "", preserved: null };
 }
 
 function optionNotesForSave(
@@ -124,7 +128,7 @@ function optionNotesForSave(
   drafts: OptionNoteDraft[],
   correctOption: string
 ): TeacherDiagnosticOptionNote[] {
-  return options.flatMap((option, index) => {
+  return options.flatMap((option, index): TeacherDiagnosticOptionNote[] => {
     const label = option.label.trim();
     if (!label || label === correctOption) return [];
     const draft = drafts[index] ?? blankOptionNote();
@@ -132,6 +136,16 @@ function optionNotesForSave(
     delete preserved.label;
     delete preserved.misconception_reasoning_pattern;
     delete preserved.idea_label;
+    delete preserved.diagnostic_role;
+    delete preserved.what_rules_it_out;
+    if (draft.role === "not_diagnostic") {
+      return [{
+        ...preserved,
+        label,
+        diagnostic_role: "not_diagnostic" as const,
+        what_rules_it_out: draft.what_rules_it_out.trim() || undefined
+      }];
+    }
     return [{
       ...preserved,
       label,
@@ -459,6 +473,8 @@ export function ItemEditorClient(props: ItemEditorProps) {
           return {
             rationale: entry?.rationale || preserved?.misconception_reasoning_pattern || "",
             idea_label: entry?.idea_label || preserved?.idea_label || "",
+            role: entry?.diagnostic_role === "not_diagnostic" ? "not_diagnostic" : "linked_idea",
+            what_rules_it_out: entry?.what_rules_it_out || "",
             preserved
           };
         })
@@ -1586,13 +1602,14 @@ export function ItemEditorClient(props: ItemEditorProps) {
               Reasoning and distractors
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted">
-              Teacher-only. Students never see the key or these notes. Rationales describe ideas a student might
-              hold; they are hypotheses, not judgments of any student.
+              Students see only the target reasoning, as the &quot;Why&quot; in their answer review after they submit; everything
+              else here is for you and the assistant. Rationales describe ideas a student might hold; they are hypotheses,
+              not judgments of any student.
             </p>
             <div className="mt-5 grid gap-4">
               <Field
-                label="Target reasoning note (optional)"
-                hint="What a student needs to understand to reach the correct answer."
+                label="Target reasoning (shown to students after they submit)"
+                hint="Write it to the student: what they need to understand to reach the correct answer. It is the explanation in their answer review; the essential elements below are never shown to them."
               >
                 <textarea
                   className="min-h-20 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
@@ -1649,29 +1666,64 @@ export function ItemEditorClient(props: ItemEditorProps) {
                           <ItemContent as="span" className="ml-2 font-normal text-muted" text={option.text} />
                         ) : null}
                       </p>
-                      <Field label="Why a student might choose this option">
-                        <textarea
-                          className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                          disabled={!canEditWording}
-                          onChange={(event) => updateOptionNote(index, { rationale: event.target.value })}
-                          placeholder="The specific incorrect idea that could lead to this choice."
-                          value={note.rationale}
-                        />
-                      </Field>
-                      <ItemContentAuthoringPreview showHint={false} text={note.rationale} />
                       <Field
-                        label="Idea label (optional)"
-                        hint="A few words. Two chosen options in a mini test with the same label show as an answer pattern."
+                        label="This option"
+                        hint="Most options should rest on a specific incorrect idea. Mark an option as not tied to an idea only when no plausible idea leads to it."
                       >
-                        <input
-                          className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                        <select
+                          className="rounded-md border border-line bg-white px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                          data-testid={`option-role-${option.label}`}
                           disabled={!canEditWording}
-                          maxLength={IDEA_LABEL_MAX_LENGTH}
-                          onChange={(event) => updateOptionNote(index, { idea_label: event.target.value })}
-                          placeholder="reliability = validity"
-                          value={note.idea_label}
-                        />
+                          onChange={(event) => updateOptionNote(index, { role: event.target.value === "not_diagnostic" ? "not_diagnostic" : "linked_idea" })}
+                          value={note.role}
+                        >
+                          <option value="linked_idea">Rests on a specific incorrect idea</option>
+                          <option value="not_diagnostic">Plausible, but not tied to a specific idea</option>
+                        </select>
                       </Field>
+                      {note.role === "not_diagnostic" ? (
+                        <>
+                          <Field
+                            label="What rules this option out"
+                            hint="The tutor uses this to show a student who chose it how to reach the correct answer. If a student's explanation shows a clear incorrect idea, it is still reported to you."
+                          >
+                            <textarea
+                              className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!canEditWording}
+                              onChange={(event) => updateOptionNote(index, { what_rules_it_out: event.target.value })}
+                              placeholder="What a careful reader notices in the item that makes this option wrong."
+                              value={note.what_rules_it_out}
+                            />
+                          </Field>
+                          <ItemContentAuthoringPreview showHint={false} text={note.what_rules_it_out} />
+                        </>
+                      ) : (
+                        <>
+                          <Field label="Why a student might choose this option">
+                            <textarea
+                              className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!canEditWording}
+                              onChange={(event) => updateOptionNote(index, { rationale: event.target.value })}
+                              placeholder="The specific incorrect idea that could lead to this choice."
+                              value={note.rationale}
+                            />
+                          </Field>
+                          <ItemContentAuthoringPreview showHint={false} text={note.rationale} />
+                          <Field
+                            label="Idea label (optional)"
+                            hint="A few words. Two chosen options in a mini test with the same label show as an answer pattern."
+                          >
+                            <input
+                              className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                              disabled={!canEditWording}
+                              maxLength={IDEA_LABEL_MAX_LENGTH}
+                              onChange={(event) => updateOptionNote(index, { idea_label: event.target.value })}
+                              placeholder="reliability = validity"
+                              value={note.idea_label}
+                            />
+                          </Field>
+                        </>
+                      )}
                       {earlier && earlier !== legacyDistractorNote.trim() ? (
                         <p className="text-xs leading-5 text-muted">
                           <span className="font-semibold">Earlier note for this option (kept):</span> {earlier}
@@ -1768,10 +1820,19 @@ export function ItemEditorClient(props: ItemEditorProps) {
                         option.label === correctOption ? null : (
                           <li key={`preview-rationale-${index}`}>
                             <span className="font-semibold">{option.label}.</span>{" "}
-                            <ItemContent inline text={optionNotes[index]?.rationale.trim() || "No rationale yet."} />
-                            {optionNotes[index]?.idea_label.trim() ? (
-                              <span className="ml-1 text-muted">({optionNotes[index]?.idea_label.trim()})</span>
-                            ) : null}
+                            {optionNotes[index]?.role === "not_diagnostic" ? (
+                              <>
+                                <span className="text-muted">Not tied to a specific idea. </span>
+                                <ItemContent inline text={optionNotes[index]?.what_rules_it_out.trim() || "No note on what rules it out yet."} />
+                              </>
+                            ) : (
+                              <>
+                                <ItemContent inline text={optionNotes[index]?.rationale.trim() || "No rationale yet."} />
+                                {optionNotes[index]?.idea_label.trim() ? (
+                                  <span className="ml-1 text-muted">({optionNotes[index]?.idea_label.trim()})</span>
+                                ) : null}
+                              </>
+                            )}
                           </li>
                         )
                       )}

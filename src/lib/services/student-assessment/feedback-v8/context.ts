@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/db";
 import { InterpretationOutputV8Schema } from "@/lib/services/student-assessment/interpretation-v8/contract";
-import { buildInterpretationInputV8FromPackage } from "@/lib/services/student-assessment/interpretation-v8/input-builder";
+import { buildInterpretationInputV8FromPackage, notDiagnosticOptionsFromPackage } from "@/lib/services/student-assessment/interpretation-v8/input-builder";
 import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { formativeConversationTurnLimit } from "@/lib/services/student-assessment/formative-conversation/lifecycle-contract-v18r2";
 import {
@@ -57,6 +57,7 @@ export async function compileFeedbackV8Context(input: { conversation_public_id: 
   });
   if (!responsePackage) throw new FeedbackV8ContextError("response_package_missing");
   const built = buildInterpretationInputV8FromPackage(responsePackage.payload, new Map());
+  const notTiedByItem = notDiagnosticOptionsFromPackage(responsePackage.payload);
 
   const call = conversation.initial_student_profile?.based_on_agent_call;
   const parsedProfiling = call?.output_validated && call.call_status === "succeeded"
@@ -84,6 +85,7 @@ export async function compileFeedbackV8Context(input: { conversation_public_id: 
       distractor_rationales: item.references
         .filter((reference) => reference.kind === "distractor_rationale" && reference.option_label)
         .map((reference) => ({ option_label: reference.option_label!, rationale: reference.text })),
+      options_not_tied_to_an_idea: notTiedByItem.get(item.item_id) ?? [],
       student_response: {
         selected_option: item.response.selected_option,
         answer_correct: item.response.answer_correct,

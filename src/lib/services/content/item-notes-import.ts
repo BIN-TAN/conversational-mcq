@@ -17,8 +17,11 @@ export const OPTION_NOTE_LABELS = ["A", "B", "C", "D", "E", "F"] as const;
 
 export type ImportedOptionRationale = {
   label: string;
+  /** The idea that leads to the option; for an option not tied to an idea, what rules it out. */
   rationale: string | null;
   idea_label: string | null;
+  /** Release 22: the option is plausible but not tied to a specific idea (use sparingly). */
+  not_tied_to_an_idea?: boolean;
 };
 
 const text = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : null);
@@ -129,9 +132,15 @@ export function normalizeImportedOptionRationales(
     const label = entry.label.trim().toUpperCase();
     if (!allowed.has(label)) continue;
     const rationale = text(entry.rationale);
-    const ideaLabel = text(entry.idea_label);
-    if (rationale || ideaLabel) {
-      byLabel.set(label, { label, rationale, idea_label: ideaLabel ? ideaLabel.slice(0, IDEA_LABEL_MAX_LENGTH) : null });
+    const notTied = entry.not_tied_to_an_idea === true;
+    const ideaLabel = notTied ? null : text(entry.idea_label);
+    if (rationale || ideaLabel || notTied) {
+      byLabel.set(label, {
+        label,
+        rationale,
+        idea_label: ideaLabel ? ideaLabel.slice(0, IDEA_LABEL_MAX_LENGTH) : null,
+        ...(notTied ? { not_tied_to_an_idea: true } : {})
+      });
     }
   }
   return optionLabels.map((label) => byLabel.get(label.trim().toUpperCase())).filter((entry): entry is ImportedOptionRationale => Boolean(entry));
@@ -154,6 +163,9 @@ export function teacherOptionNotesFromImport(input: {
     .filter((label) => label !== input.correct_option)
     .map((label) => {
       const entry = entries.find((candidate) => candidate.label === label.trim().toUpperCase());
+      if (entry?.not_tied_to_an_idea) {
+        return { label, diagnostic_role: "not_diagnostic" as const, what_rules_it_out: entry.rationale ?? undefined };
+      }
       return {
         label,
         misconception_reasoning_pattern: entry?.rationale ?? undefined,

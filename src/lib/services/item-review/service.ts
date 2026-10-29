@@ -62,7 +62,7 @@ export function itemNumbersInText(text: string) {
 
 /**
  * The item numbers (as the student saw them) a tutor flag is about. The prompts ask the tutor to
- * name the item in the reason (formative-opening-v8.4, formative-conversation-v8.5), so items named
+ * name the item in the reason (from formative-opening-v8.4, formative-conversation-v8.5), so items named
  * there come first. Otherwise: the focus items the student's interpretation also flagged, then
  * the single item that interpretation flagged, then a focus on one item. A flag that fits none of
  * these stays untied to an item rather than being guessed.
@@ -413,7 +413,7 @@ export async function listItemsAwaitingReview(input: { teacher_user_db_id: strin
   const assessments = candidateIds.length
     ? await prisma.assessment.findMany({
         where: { id: { in: candidateIds }, ...owned },
-        select: { assessment_public_id: true, title: true, folder_label: true, folder_order_index: true, assessment_order_index: true }
+        select: { assessment_public_id: true, title: true, folder_label: true, folder_order_index: true, assessment_order_index: true, status: true }
       })
     : [];
   const results: AwaitingReview = [];

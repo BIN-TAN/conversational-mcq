@@ -229,6 +229,19 @@ function assertDashboardUsesLibraryOrder() {
   ]).map((entry) => entry.title);
   assert(JSON.stringify(ordered) === JSON.stringify(["Test 8", "Test 9", "Test 10", "Test 11", "Loose"]),
     `Library order: categories by their order, mini tests by theirs, uncategorized last (got ${ordered.join(", ")}).`);
+  // Archived mini tests keep a stale order (saving a new order renumbers only active ones), so
+  // they never decide where a category goes and come after the active ones (students still see
+  // archived mini tests they attempted).
+  const withArchived = orderLikeAssessmentLibrary([
+    row("Test 1", "Lecture 1", 0, 0),
+    { ...row("Test 8 (old version)", "Lecture 4", 0, 0), status: "archived" },
+    row("Test 4", "Lecture 2", 1, 0),
+    { ...row("Test 8", "Lecture 4", 3, 0), status: "published" },
+    { ...row("Old only", "Retired", 0, 0), status: "archived" },
+    row("Test 6", "Lecture 3", 2, 0)
+  ]).map((entry) => entry.title);
+  assert(JSON.stringify(withArchived) === JSON.stringify(["Test 1", "Test 4", "Test 6", "Test 8", "Test 8 (old version)", "Old only"]),
+    `Archived mini tests follow the active order (got ${withArchived.join(", ")}).`);
   const service = source("src/lib/services/teacher-dashboard/assessment-dashboard.ts");
   assertIncludes(service, "orderLikeAssessmentLibrary(assessments)", "Dashboard mini-test options");
   assertExcludes(service, '{ status: "desc" },\n      { folder_order_index: "asc" }', "Dashboard mini-test options");

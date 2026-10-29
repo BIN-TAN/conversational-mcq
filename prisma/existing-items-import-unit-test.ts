@@ -74,10 +74,10 @@ const item = (overrides: Partial<ExistingItemsOutput["items"][number]> = {}): Ex
   essential_elements: ["Conditions on theta", "Explains what independence means for two items"],
   essential_elements_from_source: true,
   option_notes: [
-    { label: "A", rationale: "Drops the conditioning on theta.", idea_label: "Independence without conditioning", from_source: true, linked_misconception_ids: ["misconception_1"] },
-    { label: "B", rationale: "This is the key; no note should be kept.", idea_label: "Key", from_source: true, linked_misconception_ids: [] },
-    { label: "C", rationale: "Confuses local independence with multidimensionality.", idea_label: "Independence as separate abilities", from_source: false, linked_misconception_ids: ["made_up"] },
-    { label: "D", rationale: "Reads independence as a test-taking rule.", idea_label: "Independence as test behavior", from_source: false, linked_misconception_ids: [] }
+    { label: "A", rationale: "Drops the conditioning on theta.", idea_label: "Independence without conditioning", not_tied_to_an_idea: false, from_source: true, linked_misconception_ids: ["misconception_1"] },
+    { label: "B", rationale: "This is the key; no note should be kept.", idea_label: "Key", not_tied_to_an_idea: false, from_source: true, linked_misconception_ids: [] },
+    { label: "C", rationale: "Confuses local independence with multidimensionality.", idea_label: "Independence as separate abilities", not_tied_to_an_idea: false, from_source: false, linked_misconception_ids: ["made_up"] },
+    { label: "D", rationale: "Reads independence as a test-taking rule.", idea_label: "Independence as test behavior", not_tied_to_an_idea: false, from_source: false, linked_misconception_ids: [] }
   ],
   objective_ids: ["objective_1", "objective_99"],
   note_for_teacher: null,
@@ -90,8 +90,8 @@ const output = (items: ExistingItemsOutput["items"], skipped: ExistingItemsOutpu
 
 async function main() {
   await check("Versions, and the output carries up to 40 items with a list of what was skipped", () => {
-    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v4");
-    assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v2");
+    assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v5");
+    assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v3");
     assert.equal(EXISTING_ITEMS_MAX, 40);
     assert.equal(output([item()], [{ source_label: "D9", reason: "The stem has no options." }]).skipped.length, 1);
     assert.throws(() => output([item({ options: [{ label: "A", text: "Only one" }] })]), "An item needs at least two options");

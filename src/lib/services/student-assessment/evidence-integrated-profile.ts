@@ -490,27 +490,50 @@ function stringArrayValue(value: unknown): string[] {
     .filter((entry) => entry.length > 0 && !/^correct answer\.?$/i.test(entry));
 }
 
-/** The answer explanation the student's answer review shows for one sealed package item. */
-export function studentSafeAnswerExplanationFromResponse(response: ResponsePackageItem | undefined) {
+/**
+ * The answer explanation the student's answer review shows for one sealed package item.
+ * Release 22: the item's target reasoning from the sealed item context comes first, then its
+ * expected reasoning note, so the review never shows the essential elements (criteria for
+ * judging an explanation) that packages sealed earlier could hold as their explanation. With
+ * as_sealed, the text sealed in the package is returned as it was (research exports: what the
+ * review showed when the package was sealed).
+ */
+export function studentSafeAnswerExplanationFromResponse(response: ResponsePackageItem | undefined, options: { as_sealed?: boolean } = {}) {
   if (!response) {
     return null;
   }
 
+  const context = recordValue(recordValue(response.teacher_diagnostic_context).teacher_diagnostic_context);
+  const correctNotes = recordValue(context.correct_option_notes);
+  const normalize = (value: string) => value.replace(/\s+/g, " ").trim();
+  if (!options.as_sealed) {
+    const target = stringValue(correctNotes.target_reasoning_note);
+    if (target) {
+      return normalize(target);
+    }
+  }
+
   const explicit = stringValue(response.student_safe_answer_explanation);
-  if (explicit) {
+  // Packages sealed before release 22 could hold the essential elements as their explanation;
+  // the review page no longer shows them (exports, with as_sealed, keep the sealed text).
+  const essential = stringValue(correctNotes.strong_reasoning_should_mention);
+  const sealedIsEssentialElements = Boolean(explicit && essential && normalize(explicit) === normalize(essential));
+  if (explicit && (options.as_sealed || !sealedIsEssentialElements)) {
     return explicit;
   }
 
   const itemSnapshot = recordValue(response.item_snapshot);
   const correctOption = stringValue(response.correct_option_snapshot);
-  const expectedPatterns = stringArrayValue(response.expected_reasoning_patterns).slice(0, 2);
+  const expectedPatterns = stringArrayValue(response.expected_reasoning_patterns)
+    .filter((pattern) => options.as_sealed || !essential || pattern !== normalize(essential))
+    .slice(0, 2);
   if (expectedPatterns.length > 0) {
     return expectedPatterns.join(" ");
   }
 
   const correctOptionText = optionText(itemSnapshot.options, correctOption);
   if (correctOption && correctOptionText) {
-    return `Option ${correctOption} fits the item because it states the relevant measurement relationship: ${correctOptionText}`;
+    return `The correct answer is ${correctOption}: ${correctOptionText}`;
   }
 
   return null;

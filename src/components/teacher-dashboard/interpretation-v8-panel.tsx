@@ -84,6 +84,28 @@ function GroupSummary({ title, description, group }: { title: string; descriptio
             </>
           ) : null}
 
+          {group.ideas_on_untied_options?.length ? (
+            <>
+              <h4 className="mt-5 text-sm font-semibold text-ink">Ideas students wrote for options without a linked idea</h4>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                You marked these options as plausible but not tied to a specific idea. Students who chose them still stated an idea in
+                their own words. If several state the same idea, consider describing it as the option&apos;s idea.
+              </p>
+              <ul className="mt-2 space-y-2 text-sm leading-6">
+                {group.ideas_on_untied_options.map((entry) => (
+                  <li key={`${entry.item_number}-${entry.option_label}`} className="rounded-md border border-line bg-slate-50 p-3">
+                    <p className="text-xs text-muted">
+                      Question {entry.item_number}, option {entry.option_label}: {entry.students} {entry.students === 1 ? "student" : "students"}
+                    </p>
+                    <ul className="mt-1 list-disc pl-5 text-ink">
+                      {entry.example_ideas.map((idea) => <li key={idea}>{idea}</li>)}
+                    </ul>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+
           <h4 className="mt-5 text-sm font-semibold text-ink">Item status</h4>
           <div className="mt-2 overflow-x-auto">
             <table className="w-full min-w-[520px] text-left text-sm">

@@ -1,5 +1,5 @@
 {
- "feedback_cases_version": "feedback-v8-eval-cases-3",
+ "feedback_cases_version": "feedback-v8-eval-cases-4",
  "cases": [
   {
    "feedback_case_id": "F01",
@@ -939,6 +939,105 @@
     "expects_overview": false,
     "notes": "An inaccurate idea in a tempting-option reason under a correct answer (opening v8.4): the message takes up Item 4 and explains why .85 is not the share of a score free of error, rather than an extension."
    }
+  },
+  {
+   "feedback_case_id": "F21",
+   "situation": "Opening: a wrong answer with no explanation, on an option not tied to a specific idea",
+   "base_case_id": "S-05",
+   "mode": "opening",
+   "profile_available": true,
+   "misconceptions": [],
+   "considered_ideas": [],
+   "saved_questions": [],
+   "transcript": [],
+   "option_role_overrides": [
+    {
+     "item_id": "S1",
+     "option_label": "A",
+     "what_rules_it_out": "A percentile rank compares a score with the scores of a group of students; it does not count how many items were answered correctly."
+    }
+   ],
+   "expected": {
+    "focus_types": [
+     "single_item"
+    ],
+    "strategies": [
+     "explain"
+    ],
+    "item_numbers_any": [
+     1
+    ],
+    "focus_status": null,
+    "review_flags": [
+     "none"
+    ],
+    "max_questions": 2,
+    "must_not_mark_corrected": false,
+    "expects_overview": false,
+    "overview_points": [],
+    "notes": "Release 22: option A of Item 1 is marked as not tied to a specific idea and the student wrote no explanation. The message shows how to reach the correct answer (what a percentile rank compares and what rules out A) and does not suggest that the student holds a misconception."
+   }
+  },
+  {
+   "feedback_case_id": "F22",
+   "situation": "Opening: misconceptions stated in the student's words, one on an option not tied to a specific idea",
+   "base_case_id": "S-02",
+   "mode": "opening",
+   "profile_available": true,
+   "misconceptions": [
+    {
+     "item_id": "S1",
+     "idea": "A percentile rank is the percent of questions answered correctly.",
+     "quote": "Percentile means the percent of questions she got right",
+     "quote_source": "explanation",
+     "endorsement": "endorsed"
+    },
+    {
+     "item_id": "S2",
+     "idea": "A negative z-score means the lowest score in the group.",
+     "quote": "Negative z-scores are the bottom of the distribution",
+     "quote_source": "explanation",
+     "endorsement": "endorsed"
+    }
+   ],
+   "considered_ideas": [],
+   "saved_questions": [],
+   "transcript": [],
+   "expected": {
+    "focus_types": [
+     "possible_misconception"
+    ],
+    "strategies": [
+     "explain"
+    ],
+    "item_numbers_any": [
+     1,
+     2
+    ],
+    "focus_status": null,
+    "review_flags": [
+     "possible_item_issue"
+    ],
+    "max_questions": 2,
+    "must_not_mark_corrected": false,
+    "notes": "Release 22: as F05, but option A of Item 1 is marked as not tied to a specific idea. The student's own explanation states the percentile idea, so the message still addresses it as an idea to examine, with an overview of the two points (Item 1, Item 2), and may acknowledge Item 4 in one line.",
+    "expects_overview": true,
+    "overview_points": [
+     [
+      1
+     ],
+     [
+      2
+     ]
+    ]
+   },
+   "option_role_overrides": [
+    {
+     "item_id": "S1",
+     "option_label": "A",
+     "what_rules_it_out": "A percentile rank compares a score with the scores of a group of students; it does not count how many items were answered correctly."
+    }
+   ]
   }
  ]
 }

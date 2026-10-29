@@ -45,6 +45,13 @@ export type V8AttemptGroupSummary = {
   }>;
   considered_ideas: Array<{ reference_id: string; item_number: number | null; example_idea: string; students: number }>;
   answer_patterns: Array<{ shared_idea: string; students: number }>;
+  /**
+   * Ideas students stated in their own words on options the instructor marked as not tied to a
+   * specific idea (release 22): one entry per item and option, with how many students chose it and
+   * stated an idea there, and up to three example ideas. Several students stating the same idea
+   * suggests linking the option to that idea.
+   */
+  ideas_on_untied_options: Array<{ item_number: number; option_label: string; students: number; example_ideas: string[] }>;
   item_status: Array<{
     item_id: string;
     item_number: number;
@@ -66,7 +73,9 @@ function median(values: number[]) {
 
 export function summarizeV8Group(
   entries: V8StudentEntry[],
-  decisions: ReadonlyMap<string, InstructorItemDecision>
+  decisions: ReadonlyMap<string, InstructorItemDecision>,
+  /** Options marked as not tied to an idea, by item public ID (upper-case labels). */
+  untiedOptions: ReadonlyMap<string, ReadonlySet<string>> = new Map()
 ): V8AttemptGroupSummary {
   const summaries: TopicSummary[] = entries.map((entry) => decisionAdjustedTopicSummary(entry.stored, decisions));
   const interpreted = entries.filter((entry) => entry.stored.generation_mode !== "fallback");
@@ -76,6 +85,7 @@ export function summarizeV8Group(
   const misconceptions = new Map<string, V8AttemptGroupSummary["possible_misconceptions"][number] & { keys: Set<string> }>();
   const considered = new Map<string, V8AttemptGroupSummary["considered_ideas"][number] & { keys: Set<string> }>();
   const patterns = new Map<string, Set<string>>();
+  const untiedIdeas = new Map<string, { item_number: number; option_label: string; keys: Set<string>; example_ideas: string[] }>();
   const items = new Map<string, V8AttemptGroupSummary["item_status"][number]>();
   for (const entry of interpreted) {
     for (const claim of entry.stored.possible_misconceptions) {
@@ -98,6 +108,15 @@ export function summarizeV8Group(
         if (number > 0 && !current.item_numbers.includes(number)) current.item_numbers.push(number);
       }
       misconceptions.set(claim.contradicts_reference_id, current);
+      for (const id of claim.item_ids) {
+        const chosen = entry.stored.items.find((item) => item.item_id === id)?.selected_option?.toUpperCase();
+        if (!chosen || !untiedOptions.get(id)?.has(chosen)) continue;
+        const key = `${id}:${chosen}`;
+        const ideas = untiedIdeas.get(key) ?? { item_number: itemNumber(entry, id), option_label: chosen, keys: new Set<string>(), example_ideas: [] };
+        ideas.keys.add(entry.student_key);
+        if (ideas.example_ideas.length < 3 && !ideas.example_ideas.includes(claim.idea)) ideas.example_ideas.push(claim.idea);
+        untiedIdeas.set(key, ideas);
+      }
     }
     for (const idea of entry.stored.considered_ideas) {
       const current = considered.get(idea.contradicts_reference_id) ?? {
@@ -151,6 +170,9 @@ export function summarizeV8Group(
     considered_ideas: [...considered.values()].map(strip).sort((a, b) => b.students - a.students),
     answer_patterns: [...patterns.entries()].map(([shared_idea, keys]) => ({ shared_idea, students: keys.size }))
       .sort((a, b) => b.students - a.students),
+    ideas_on_untied_options: [...untiedIdeas.values()]
+      .map(({ keys, ...rest }) => ({ ...rest, students: keys.size }))
+      .sort((a, b) => b.students - a.students || a.item_number - b.item_number),
     item_status: [...items.values()].sort((a, b) => a.item_number - b.item_number)
   };
 }

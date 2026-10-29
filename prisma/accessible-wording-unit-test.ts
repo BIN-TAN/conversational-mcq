@@ -240,7 +240,7 @@ check("Provenance records the wording the teacher used for the item and whether 
   assert.equal(used?.wording_version, "accessible");
   assert.equal(used?.edited_by_teacher, false);
   assert.deepEqual(used?.original_wording, original);
-  assert.equal(used?.prompt_version, "existing-mcq-import-v4");
+  assert.equal(used?.prompt_version, "existing-mcq-import-v5");
   const back = wordingProvenance({ record, wording_version: "as_written", final: original });
   assert.equal(back?.wording_version, "as_written");
   assert.equal(back?.edited_by_teacher, false);
@@ -281,8 +281,8 @@ const parsedOutput = (items: ExistingItemsOutput["items"]) =>
   ExistingItemsOutputSchema.parse({ schema_version: EXISTING_ITEMS_SCHEMA_VERSION, items, skipped: [] });
 
 check("The output schema requires the accessible version on every item", () => {
-  assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v4");
-  assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v2");
+  assert.equal(EXISTING_ITEMS_PROMPT_VERSION, "existing-mcq-import-v5");
+  assert.equal(EXISTING_ITEMS_SCHEMA_VERSION, "existing-mcq-import-output-v3");
   const parsed = parsedOutput([outputItem(simpler)]);
   assert.equal(parsed.items[0]!.accessible_version.changed, true);
   const unchanged = parsedOutput([outputItem({ changed: false, stem: null, options: [], key_terms: [], change_note: null })]);

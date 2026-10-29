@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../db";
 import { ResponsePackageTypeSchema } from "../domain/enums";
-import { teacherDiagnosticContextForProvider } from "./content/teacher-diagnostic-context";
+import { readTeacherItemMetadata, teacherDiagnosticContextForProvider } from "./content/teacher-diagnostic-context";
 import {
   llmMediaContextForAssets,
   serializeItemMediaAsset
@@ -62,12 +62,26 @@ function optionText(options: unknown, label: string | null): string | null {
   return null;
 }
 
-function conciseStudentAnswerExplanation(input: {
+/**
+ * The "Why" the student's answer review shows (sealed in the package). Release 22: the item's
+ * target reasoning, which the item notes write to the student, comes first. The essential elements are criteria for judging explanations ("State what
+ * .326 means..."), not an explanation, so they are never shown; imported items stored them as
+ * their only expected reasoning pattern, which put them in the answer review.
+ */
+export function conciseStudentAnswerExplanation(input: {
   options: unknown;
   correct_option: string;
   expected_reasoning_patterns: unknown;
+  administration_rules?: unknown;
 }) {
-  const patterns = stringArrayValue(input.expected_reasoning_patterns).slice(0, 2);
+  const metadata = readTeacherItemMetadata(input.administration_rules);
+  const target = metadata.correct_option_notes.target_reasoning_note?.trim();
+  if (target) return target.replace(/\s+/g, " ");
+
+  const essential = (metadata.correct_option_notes.strong_reasoning_should_mention ?? "").replace(/\s+/g, " ").trim();
+  const patterns = [...new Set(stringArrayValue(input.expected_reasoning_patterns))]
+    .filter((pattern) => !essential || pattern !== essential)
+    .slice(0, 2);
 
   if (patterns.length > 0) {
     return patterns.join(" ");
@@ -75,10 +89,10 @@ function conciseStudentAnswerExplanation(input: {
 
   const correctText = optionText(input.options, input.correct_option);
   if (correctText) {
-    return `Option ${input.correct_option} fits the item because it states the relevant measurement relationship: ${correctText}`;
+    return `The correct answer is ${input.correct_option}: ${correctText}`;
   }
 
-  return `Option ${input.correct_option} best matches the measurement relationship described in this item.`;
+  return `The correct answer is ${input.correct_option}.`;
 }
 
 function elapsedMs(from: Date | null | undefined, to: Date | null | undefined): number | null {
@@ -362,7 +376,8 @@ export async function createResponsePackage(input: CreateResponsePackageInput, d
         student_safe_answer_explanation: conciseStudentAnswerExplanation({
           options: response.item.options,
           correct_option: response.correct_option_snapshot,
-          expected_reasoning_patterns: response.item.expected_reasoning_patterns
+          expected_reasoning_patterns: response.item.expected_reasoning_patterns,
+          administration_rules: response.item.administration_rules
         }),
         student_safe_distractor_boundary: null,
         skipped_reasoning: response.skipped_reasoning,

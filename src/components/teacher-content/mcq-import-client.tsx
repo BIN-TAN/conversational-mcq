@@ -1297,7 +1297,25 @@ function OptionRationalesEditor({
               <span className="font-semibold">Option {label}.</span>{" "}
               <span className="text-muted">{option?.text || "Option text"}</span>
             </p>
-            <Field label={`Why a student might choose option ${label}`}>
+            <Field label="This option" hint="Most options rest on a specific incorrect idea; use the other choice sparingly.">
+              <select
+                className="rounded-md border border-line bg-white px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                onChange={(event) =>
+                  onUpdate(candidate.candidate_public_id, (current) =>
+                    // The text means something else for each role (the idea, or what rules the option
+                    // out), so a role change starts the note afresh.
+                    setOptionRationale(current, label, event.target.value === "not_diagnostic"
+                      ? { not_tied_to_an_idea: true, idea_label: null, rationale: null }
+                      : { not_tied_to_an_idea: false, rationale: null })
+                  )
+                }
+                value={entry.not_tied_to_an_idea ? "not_diagnostic" : "linked_idea"}
+              >
+                <option value="linked_idea">Rests on a specific incorrect idea</option>
+                <option value="not_diagnostic">Plausible, but not tied to a specific idea</option>
+              </select>
+            </Field>
+            <Field label={entry.not_tied_to_an_idea ? `What rules option ${label} out` : `Why a student might choose option ${label}`}>
               <textarea
                 className="min-h-16 rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
                 onChange={(event) =>
@@ -1308,23 +1326,30 @@ function OptionRationalesEditor({
                 value={entry.rationale ?? ""}
               />
             </Field>
-            <Field label="Idea label (optional)" hint="A few words, shared by options that rest on the same idea.">
-              <input
-                className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
-                maxLength={60}
-                onChange={(event) =>
-                  onUpdate(candidate.candidate_public_id, (current) =>
-                    setOptionRationale(current, label, { idea_label: event.target.value || null })
-                  )
-                }
-                value={entry.idea_label ?? ""}
-              />
-            </Field>
+            {entry.not_tied_to_an_idea ? null : (
+              <Field label="Idea label (optional)" hint="A few words, shared by options that rest on the same idea.">
+                <input
+                  className="rounded-md border border-line px-3 py-2 outline-none transition focus:border-accent focus:ring-2 focus:ring-accent-soft"
+                  maxLength={60}
+                  onChange={(event) =>
+                    onUpdate(candidate.candidate_public_id, (current) =>
+                      setOptionRationale(current, label, { idea_label: event.target.value || null })
+                    )
+                  }
+                  value={entry.idea_label ?? ""}
+                />
+              </Field>
+            )}
             {proposal && !decision && proposal.rationale !== (entry.rationale ?? "").trim() ? (
               <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-950 md:col-span-2">
                 <p>
                   <span className="font-semibold">Suggested:</span> {proposal.rationale}
-                  {proposal.idea_label ? <span className="text-blue-900"> (idea: {proposal.idea_label})</span> : null}
+                  {proposal.not_tied_to_an_idea
+                    ? <span className="text-blue-900"> (not tied to a specific idea; this says what rules the option out)</span>
+                    : proposal.idea_label ? <span className="text-blue-900"> (idea: {proposal.idea_label})</span> : null}
+                  {Boolean(proposal.not_tied_to_an_idea) !== Boolean(entry.not_tied_to_an_idea)
+                    ? <span className="block text-xs text-blue-900">Using this suggestion also changes what this option is marked as.</span>
+                    : null}
                 </p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   <Button

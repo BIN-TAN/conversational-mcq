@@ -45,7 +45,8 @@ export function buildLocalTestItemPreparation(input: ItemPreparationInput, mockM
             .map((option) => existing.get(option.label.toUpperCase()) ?? {
               option_label: option.label,
               rationale: `${PLACEHOLDER} an incorrect idea that could lead to option ${option.label}.`,
-              idea_label: null
+              idea_label: null,
+              not_tied_to_an_idea: false
             })
         : []
     };
@@ -62,7 +63,8 @@ export function buildLocalTestItemPreparation(input: ItemPreparationInput, mockM
       distractor_rationales: ["B", "C", "D"].map((label) => ({
         option_label: label,
         rationale: `${PLACEHOLDER} an incorrect idea that could lead to option ${label}.`,
-        idea_label: null
+        idea_label: null,
+        not_tied_to_an_idea: false
       }))
     });
   }

@@ -214,8 +214,10 @@ export type ImportResult = {
 
 export type McqImportOptionRationale = {
   label: string;
+  /** For an option not tied to an idea: what rules it out. */
   rationale: string | null;
   idea_label: string | null;
+  not_tied_to_an_idea?: boolean;
 };
 
 export type McqImportCandidate = {

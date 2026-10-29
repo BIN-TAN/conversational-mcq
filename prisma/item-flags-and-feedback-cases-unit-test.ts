@@ -38,11 +38,18 @@ async function main() {
   const caseById = new Map(cases.cases.map((entry) => [entry.case_id, entry]));
   const feedbackById = new Map(feedback.cases.map((entry) => [entry.feedback_case_id, entry]));
 
-  await check("the feedback cases are version 3 and pass their structural checks", () => {
+  await check("the feedback cases (version 4 since release 22) pass their structural checks", () => {
     assert.equal(feedback.feedback_cases_version, FEEDBACK_EVALUATION_CASES_VERSION);
-    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-3");
-    assert.deepEqual(checkFeedbackFixtures(caseById, feedback), []);
-    for (const id of ["F19", "F20"]) assert(feedbackById.has(id), id);
+    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-4");
+    assert.deepEqual(checkFeedbackFixtures(caseById, feedback, bank), []);
+    for (const id of ["F19", "F20", "F21", "F22"]) assert(feedbackById.has(id), id);
+    // Release 22: an option treated as not tied to an idea loses its rationale and is listed with what rules it out.
+    const f21 = buildFeedbackCaseInput(bank, caseById.get("S-05")!, feedbackById.get("F21")!);
+    const item1 = f21.items.find((item) => item.item_id === "S1")!;
+    assert(!item1.distractor_rationales.some((entry) => entry.option_label === "A"));
+    assert.deepEqual(item1.options_not_tied_to_an_idea.map((entry) => entry.option_label), ["A"]);
+    assert.deepEqual(checkFeedbackFixtures(caseById, { ...feedback, cases: [{ ...feedbackById.get("F21")!, option_role_overrides: [{ item_id: "S1", option_label: "B", what_rules_it_out: "x" }] }] }, bank),
+      ["F21: option role override names B, which is not an incorrect option of S1"]);
     assert.equal(feedbackById.get("F01")!.expected.expects_overview, true);
     assert.equal(feedbackById.get("F05")!.expected.expects_overview, true);
     assert.equal(feedbackById.get("F02")!.expected.expects_overview, false);

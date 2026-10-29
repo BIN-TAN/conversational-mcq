@@ -35,6 +35,7 @@ async function main() {
     item_number: n, item_id: `q${n}`, stem: `Stem ${n}`, options: [{ label: "A", text: "Set 1" }, { label: "B", text: "Set 2" }],
     correct_option: "B", instructor_explanation: "Set 2 values are further from the mean.", essential_elements: "distance from the mean",
     distractor_rationales: [{ option_label: "A", rationale: "Confuses a larger mean with larger spread." }],
+    options_not_tied_to_an_idea: [],
     student_response: { selected_option: "A", answer_correct: false, reported_confidence: "high", explanation: "the mean is bigger so it spreads more", tempting_option: null, tempting_option_reason: null },
     interpretation: status ? { explanation_quality: "incorrect", adds_beyond_option_text: true, evidence_quote: "the mean is bigger so it spreads more",
       missing_elements: null, rationale: "Treats a larger mean as larger spread.", error_source: "conceptual", uncertainty_note: null, item_status: status, possible_item_issue: false } : null,
@@ -166,8 +167,8 @@ async function main() {
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /choose another point from the overview when there is one/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the opening listed several points, follow the student's choice among them/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself\./);
-    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.4");
-    assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.5");
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.5");
+    assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.6");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });
 

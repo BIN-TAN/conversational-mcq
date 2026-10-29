@@ -9,8 +9,8 @@ import { z } from "zod";
  * (rules.ts), and records every call with this prompt's version and hash.
  */
 export const ITEM_PREPARATION_AGENT_VERSION = "8" as const;
-export const ITEM_PREPARATION_PROMPT_VERSION = "item-preparation-v8.3" as const;
-export const ITEM_PREPARATION_SCHEMA_VERSION = "item-preparation-output-v8.1" as const;
+export const ITEM_PREPARATION_PROMPT_VERSION = "item-preparation-v8.4" as const;
+export const ITEM_PREPARATION_SCHEMA_VERSION = "item-preparation-output-v8.2" as const;
 export const ITEM_PREPARATION_INPUT_VERSION = "item-preparation-input-v8" as const;
 
 /** Section 9.2, verbatim. */
@@ -40,7 +40,7 @@ When formatting imported items, keep the instructor's wording even where it brea
 FOR EVERY ITEM, PROPOSE
 - Target reasoning: what a student needs to understand to reach the correct answer, in one to three sentences. This is shown to students in the answer review, so write it to the student as a clear explanation.
 - Essential elements: one to three points a strong explanation must state, consistent with the target reasoning.
-- One distractor rationale per incorrect option: the specific incorrect idea that could lead a student to choose it, with an idea label of two to six plain words. Use the same label for options that rest on the same idea. A rationale is a hypothesis about a possible idea, not a judgment of any student.
+- One distractor rationale per incorrect option: the specific incorrect idea that could lead a student to choose it, with an idea label of two to six plain words. Use the same label for options that rest on the same idea. A rationale is a hypothesis about a possible idea, not a judgment of any student. Only when the instructor marked an option as not tied to a specific idea, or no plausible incorrect idea leads to it, set not_tied_to_an_idea to true, give instead what rules the option out, and leave the idea label empty. Most options rest on an idea, so do this rarely.
 
 CHECKS
 First answer each item yourself without relying on its key. Then report, for each item and field, only real problems:
@@ -52,7 +52,8 @@ First answer each item yourself without relying on its key. Then report, for eac
 - does_not_assess_objective: the item does not draw out evidence of its learning objective;
 - unrelated_reading_demand: more reading or context than the assessed idea needs;
 - not_plain_language: words, sentences or abbreviations a student of this course would struggle to read;
-- item_dependency: the item gives away another item's answer.
+- item_dependency: the item gives away another item's answer;
+- typo_or_inconsistent_name: a misspelled word, a repeated or missing word, or a name, symbol or abbreviation written two ways (for example a person named in the stem and called something else in the question, or "2Pl" beside "2PL"); say what it probably should be.
 Write each message as one or two complete sentences that tell the instructor what to change.
 
 RULES
@@ -99,6 +100,7 @@ export const MODEL_PROBLEM_CODES = [
   "does_not_assess_objective",
   "not_plain_language",
   "item_dependency",
+  "typo_or_inconsistent_name",
   "other"
 ] as const;
 /** Problems the application adds when it enforces the rules on a proposal. */
@@ -124,6 +126,7 @@ export const PROBLEM_CODE_LABELS: Record<ModelProblemCode | ApplicationProblemCo
   does_not_assess_objective: "Item does not assess its learning objective",
   not_plain_language: "Wording that is hard to read",
   item_dependency: "Item gives away another item's answer",
+  typo_or_inconsistent_name: "Typo or inconsistent name",
   other: "Other",
   key_change_not_applied: "Key change not applied",
   key_not_stated_in_source: "Key not stated in the source",
@@ -135,8 +138,11 @@ export const PROBLEM_CODE_LABELS: Record<ModelProblemCode | ApplicationProblemCo
 
 export type ItemPreparationOptionRationale = {
   option_label: string;
+  /** The incorrect idea; for an option not tied to an idea, what rules it out. */
   rationale: string;
   idea_label: string | null;
+  /** v8.4: the option is plausible but not tied to a specific idea. */
+  not_tied_to_an_idea: boolean;
 };
 
 export type ItemPreparationItemInput = {
@@ -183,7 +189,10 @@ const RationaleSchema = z.object({
   idea_label: z
     .string()
     .nullable()
-    .describe("A few words naming that idea, or null. Use the same words for options in this mini-test that rest on the same idea.")
+    .describe("A few words naming that idea, or null. Use the same words for options in this mini-test that rest on the same idea."),
+  not_tied_to_an_idea: z
+    .boolean()
+    .describe("True only when the option is not tied to a specific incorrect idea; the rationale then says what rules the option out.")
 }).strict();
 
 const ItemSchema = z.object({

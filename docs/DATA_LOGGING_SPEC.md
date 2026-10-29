@@ -1546,7 +1546,9 @@ diagnostic suggestion review decisions. Teacher diagnostic notes and assistant
 suggestions remain teacher/research-facing guidance only.
 
 Items read from course materials (`existing_items_from_materials`, prompt
-`existing-mcq-import-v4`) also record their wording under
+`existing-mcq-import-v4`, from release 22 `existing-mcq-import-v5` with output
+`existing-mcq-import-output-v3`, which adds `not_tied_to_an_idea` to each option note and
+names likely typos in the note for the instructor) also record their wording under
 `import_provenance.wording` (`accessible-wording-v1`): `status` (`accessible`,
 `unchanged`, `fallback` or `not_requested`), `wording_version` (`as_written` or
 `accessible`, the version the teacher used for this item), `default_version`,

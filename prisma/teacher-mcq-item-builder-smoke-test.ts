@@ -229,7 +229,7 @@ function assertItemEditorSupportsDynamicOptionsAndSafePreview() {
   assert(!source.includes("Follow-up probe suggestion"), "Structured distractor subfields should be hidden.");
   assert(!source.includes("Student-safe feedback hint"), "Structured distractor subfields should be hidden.");
   assert(source.includes("Reasoning and distractors"), "The editor should group reasoning and distractor guidance.");
-  assert(source.includes("Target reasoning note (optional)"), "Correct-option notes should mark target reasoning optional.");
+  assert(source.includes("Target reasoning (shown to students after they submit)"), "The target reasoning says students see it in the answer review.");
   assert(
     source.includes("Essential elements (1 to 3)") && source.includes("Required before publishing."),
     "Item preparation v8 should identify one to three essential elements as required before publishing."

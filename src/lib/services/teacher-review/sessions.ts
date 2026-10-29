@@ -136,7 +136,8 @@ export async function listTeacherReviewSessions(query: SessionListQuery) {
           title: true,
           folder_label: true,
           folder_order_index: true,
-          assessment_order_index: true
+          assessment_order_index: true,
+          status: true
         }
       })).map(({ assessment_public_id, title }) => ({ assessment_public_id, title }));
 
