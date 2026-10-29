@@ -14,7 +14,7 @@ import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { ContentServiceError } from "@/lib/services/content/errors";
 import { toPrismaJson } from "@/lib/services/json";
-import { assembleInstructorReportV8, reportInputProblems, type AssembledInstructorReport } from "./assemble";
+import { assembleInstructorReportV8, currentApplicationNotes, reportInputProblems, type AssembledInstructorReport } from "./assemble";
 import {
   INSTRUCTOR_REPORT_AGENT_NAME,
   INSTRUCTOR_REPORT_DAILY_LIMIT_PER_MINI_TEST,
@@ -33,7 +33,7 @@ import {
   type LegacyInstructorReportV1EvidenceIndex,
   type LegacyInstructorReportV1Output
 } from "./contract";
-import { buildLocalTestNarrative, buildReportRecord, narrativeUnavailableReason } from "./deterministic";
+import { buildLocalTestNarrative, buildReportRecord, countsOnlyNote, narrativeUnavailableReason } from "./deterministic";
 import { loadInstructorReportRecords } from "./evidence";
 import { validateInstructorReportV8, type InstructorReportIssue } from "./validate";
 
@@ -201,7 +201,14 @@ export function storedReportFromCall(call: {
     if (!stored.counts || typeof stored.counts !== "object") return null;
     const narrative = stored.narrative ? InstructorReportV8OutputSchema.safeParse(stored.narrative) : null;
     if (narrative && !narrative.success) return null;
-    return { ...stored, ...base, kind: "v8" };
+    // Notes are shown in the current wording, also for reports saved before it changed.
+    return {
+      ...stored,
+      ...base,
+      kind: "v8",
+      narrative_note: stored.narrative_reason_code ? countsOnlyNote(stored.narrative_reason_code) : stored.narrative_note,
+      application_notes: currentApplicationNotes(stored.counts, Array.isArray(stored.application_notes) ? stored.application_notes : [])
+    };
   }
   const legacy = LegacyInstructorReportV1OutputSchema.safeParse(payload.report);
   if (!legacy.success) return null;

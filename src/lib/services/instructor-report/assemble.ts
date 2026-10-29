@@ -429,7 +429,7 @@ function studentEvidence(
   const summary = current ? summaryLabel(current, decisions) : null;
   const conversation = prepared.conversation;
   if (conversation && conversation.turns.length > INSTRUCTOR_REPORT_LIMITS.max_conversation_turns_per_student) {
-    truncationNotes.push(`${entry.label} (${section === "first_attempts" ? "first attempt" : "later attempt"}): only the first ${INSTRUCTOR_REPORT_LIMITS.max_conversation_turns_per_student} conversation messages were given to the model.`);
+    truncationNotes.push(`${entry.label} (${section === "first_attempts" ? "first attempt" : "later attempt"}): the written findings draw on the first ${INSTRUCTOR_REPORT_LIMITS.max_conversation_turns_per_student} conversation messages.`);
   }
   return {
     student_label: entry.label,
@@ -598,7 +598,7 @@ export function assembleInstructorReportV8(records: LoadedReportRecords): Assemb
   const evidence = Object.fromEntries(ATTEMPT_SECTIONS.map((section) => {
     const entries = sections[section];
     if (entries.length > INSTRUCTOR_REPORT_LIMITS.max_students) {
-      truncationNotes.push(`${section === "first_attempts" ? "First attempts" : "Later attempts"}: only the first ${INSTRUCTOR_REPORT_LIMITS.max_students} of ${entries.length} students were given to the model; the counts include every student.`);
+      truncationNotes.push(`${section === "first_attempts" ? "First attempts" : "Later attempts"}: the written findings draw on the first ${INSTRUCTOR_REPORT_LIMITS.max_students} of ${entries.length} students; the counts include every student.`);
     }
     return [section, entries.slice(0, INSTRUCTOR_REPORT_LIMITS.max_students).map((entry) => studentEvidence(entry, items, itemLabelById, decisions, truncationNotes, section))];
   })) as Record<AttemptSection, ReportStudentEvidence[]>;
@@ -653,25 +653,25 @@ export function applicationNotes(counts: InstructorReportCounts) {
   const sum = (pick: (section: SectionCounts) => number) => pick(counts.first_attempts) + pick(counts.later_attempts);
   const earlier = sum((section) => section.records.earlier_version);
   if (earlier > 0) {
-    notes.push(`${earlier} records (first attempts: ${counts.first_attempts.records.earlier_version}; later attempts: ${counts.later_attempts.records.earlier_version}) are earlier-version records, saved before the current interpretation. Their responses and conversations are included; they have no item ratings under the current rules and are left out of the item status, summary, misconception and idea counts.`);
+    notes.push(`${earlier === 1 ? "1 attempt was" : `${earlier} attempts were`} submitted before explanations were rated, so ${earlier === 1 ? "it has" : "they have"} no explanation ratings, summary label or recorded misconceptions. ${earlier === 1 ? "Its" : "Their"} answers and learning conversations are included.`);
   }
   const fallback = sum((section) => section.records.current_version_fallback);
   if (fallback > 0) {
-    notes.push(`${fallback} profiles are fallback profiles: no checked interpretation was available. They have no item ratings, are left out of the item status counts and count as Unavailable / insufficient evidence in the summary distribution.`);
+    notes.push(`For ${fallback === 1 ? "1 attempt" : `${fallback} attempts`}, the explanations could not be rated, so ${fallback === 1 ? "it counts" : "they count"} as Unavailable / insufficient evidence in the summary.`);
   }
   const intermediate = counts.later_attempts.attempts_submitted - counts.later_attempts.students;
   if (intermediate > 0) {
-    notes.push(`Later-attempt counts use each student's most recent later attempt; ${intermediate} other later attempts appear only in the attempt totals.`);
+    notes.push(`For students with more than one later attempt, the later-attempt section uses the most recent one; ${intermediate === 1 ? "1 other later attempt counts" : `${intermediate} other later attempts count`} only in the totals.`);
   }
   if (counts.left_out.restored_attempts > 0) {
-    notes.push(`${counts.left_out.restored_attempts} attempts whose chance was restored after a technical problem are left out.`);
+    notes.push(`${counts.left_out.restored_attempts === 1 ? "1 attempt" : `${counts.left_out.restored_attempts} attempts`} restarted after a technical problem ${counts.left_out.restored_attempts === 1 ? "is" : "are"} left out.`);
   }
   if (counts.left_out.responses_to_unpublished_items > 0) {
-    notes.push(`${counts.left_out.responses_to_unpublished_items} recorded responses are left out because their items are no longer in the published mini-test.`);
+    notes.push(`${counts.left_out.responses_to_unpublished_items === 1 ? "1 answer is" : `${counts.left_out.responses_to_unpublished_items} answers are`} left out because the item is no longer in the mini test.`);
   }
   const flagged = sum((section) => section.item_status.reduce((total, item) => total + item.possible_item_issue_flags, 0));
   if (flagged > 0) {
-    notes.push("Items flagged as a possible item issue stay counted until the instructor decides; a label that the flag could change is shown as Pending item review.");
+    notes.push("Items flagged as a possible item problem stay counted until you decide in Item review; a summary label that depends on such an item shows as Pending item review.");
   }
   return notes;
 }
@@ -702,4 +702,22 @@ export function reportInputProblems(input: unknown, identifiers: string[]) {
   };
   walk(input, "input");
   return problems;
+}
+
+/**
+ * The notes shown with a stored report. Notes are rebuilt from the stored counts so that reports
+ * saved before the plain-language wording read the same way; the notes on what the written
+ * findings drew on are kept, in the current wording. Falls back to the stored notes.
+ */
+export function currentApplicationNotes(counts: InstructorReportCounts, storedNotes: string[]) {
+  try {
+    const kept = storedNotes
+      .filter((note) => /^(First attempts|Later attempts): |\((first|later) attempt\): /.test(note))
+      .map((note) => note
+        .replace(/only the first (\d+) of (\d+) students were given to the model/, "the written findings draw on the first $1 of $2 students")
+        .replace(/only the first (\d+) conversation messages were given to the model\./, "the written findings draw on the first $1 conversation messages."));
+    return [...applicationNotes(counts), ...kept];
+  } catch {
+    return storedNotes;
+  }
 }

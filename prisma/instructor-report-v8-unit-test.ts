@@ -340,7 +340,7 @@ async function main() {
     assert.equal(index.students[S5].first_attempts, undefined);
     assert.deepEqual(input.first_attempts.map((student) => student.student_label).sort(), [S1, S2, S3, S4].sort());
     assert.deepEqual(input.later_attempts.map((student) => student.student_label).sort(), [S1, S4, S5].sort());
-    assert.ok(built.application_notes.some((note) => /most recent later attempt; 1 other later attempts/.test(note)));
+    assert.ok(built.application_notes.some((note) => /uses the most recent one; 1 other later attempt counts only in the totals/.test(note)));
   });
 
   await check("Possible misconceptions are counted by students, with endorsement, per section", () => {
@@ -371,8 +371,10 @@ async function main() {
     assert.equal(earlier.record, "earlier_version");
     assert.equal(earlier.topic_summary, null);
     assert.ok(earlier.responses.length === 3 && earlier.conversation?.turns.length === 2, "Earlier-version records keep responses and conversations");
-    assert.ok(built.application_notes.some((note) => /earlier-version records/.test(note)));
-    assert.ok(built.application_notes.some((note) => /fallback profiles/.test(note)));
+    assert.ok(built.application_notes.some((note) => /submitted before explanations were rated/.test(note)));
+    assert.ok(built.application_notes.some((note) => /could not be rated/.test(note)));
+    // Notes are for the instructor: no system terms.
+    for (const note of built.application_notes) assert.doesNotMatch(note, /earlier-version|fallback profile|the model|the application|current rules/i, note);
   });
 
   await check("Conversation counts use turn records and review flags; item numbers become labels", () => {
@@ -407,7 +409,7 @@ async function main() {
     const section = doc.slice(doc.indexOf("### 9.7 Instructor reporting"));
     const block = /```text\n([\s\S]*?)\n```/.exec(section)![1];
     assert.equal(contract.INSTRUCTOR_REPORT_V8_INSTRUCTIONS, block);
-    assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, "instructor-report-prompt-v8.2");
+    assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, "instructor-report-prompt-v8.3");
     assert.equal(contract.INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, "instructor-report-output-v8");
     assert.equal(contract.INSTRUCTOR_REPORT_V8_PROMPT_HASH, createHash("sha256")
       .update([contract.INSTRUCTOR_REPORT_V8_PROMPT_VERSION, contract.INSTRUCTOR_REPORT_V8_SCHEMA_VERSION, block].join("\n")).digest("hex"));
@@ -531,12 +533,13 @@ async function main() {
     const record = deterministic.buildReportRecord(built, { generation_mode: "counts_only", reason_code: "validation_failed" });
     assert.equal(record.narrative, null);
     assert.equal(record.generation_mode, "counts_only");
-    assert.match(record.narrative_note!, /^The narrative could not be generated: the generated narrative did not pass the application's checks after one regeneration\./);
+    assert.match(record.narrative_note!, /^The written summary could not be generated: the written summary did not pass the quality checks, even after a second try\./);
     assert.deepEqual(record.counts, counts);
     assert.deepEqual(record.finding_counts, []);
     assert.ok(record.application_notes.length > 0);
     for (const code of ["prompt_not_approved", "provider_failure", "live_calls_disabled", "configuration_credential_missing"]) {
       assert.match(deterministic.countsOnlyNote(code), /could not be generated/);
+      assert.doesNotMatch(deterministic.countsOnlyNote(code), /[A-Z]{2,}_[A-Z_]+|instructor-report-prompt|application's/, "No setting names or system terms");
     }
     const stored = service.storedReportFromCall({
       agent_call_public_id: "c1", created_at: new Date("2026-10-19T00:00:00Z"), model_name: "application-counts-only", provider: "application",
@@ -544,6 +547,30 @@ async function main() {
     });
     assert.equal(stored?.kind, "v8");
     assert.equal(stored?.kind === "v8" && stored.narrative, null);
+    // A report saved with the earlier wording is shown in the current wording.
+    const older = service.storedReportFromCall({
+      agent_call_public_id: "c0", created_at: new Date("2026-10-19T00:00:00Z"), model_name: "application-counts-only", provider: "application",
+      output_payload: JSON.parse(JSON.stringify({
+        ...record,
+        narrative_note: "The narrative could not be generated: the report prompt has not been approved (INSTRUCTOR_REPORT_V8_APPROVED_PROMPT_HASH).",
+        narrative_reason_code: "prompt_not_approved",
+        application_notes: [
+          "3 records are earlier-version records, saved before the current interpretation.",
+          "First attempts: only the first 60 of 70 students were given to the model; the counts include every student.",
+          "S2 (later attempt): only the first 40 conversation messages were given to the model."
+        ]
+      }))
+    });
+    assert.ok(older?.kind === "v8");
+    if (older?.kind === "v8") {
+      assert.equal(older.narrative_note, deterministic.countsOnlyNote("prompt_not_approved"));
+      assert.deepEqual(older.application_notes, [
+        ...assemble.applicationNotes(record.counts),
+        "First attempts: the written findings draw on the first 60 of 70 students; the counts include every student.",
+        "S2 (later attempt): the written findings draw on the first 40 conversation messages."
+      ]);
+      for (const note of older.application_notes) assert.doesNotMatch(note, /earlier-version|the model|[A-Z]{2,}_[A-Z_]+/, note);
+    }
   });
 
   await check("Live narrative needs the approved prompt hash; otherwise reports carry counts only", () => {

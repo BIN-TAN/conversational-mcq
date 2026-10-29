@@ -19,7 +19,9 @@ import { requestErrorMessage, SERVER_UNAVAILABLE_MESSAGE } from "@/components/se
 // docs/AI_MODULE_REDESIGN_2026-10-19.md). Every count is computed by the application, with
 // first attempts (initial diagnosis) and later attempts (change after feedback) shown
 // separately. The narrative, when present, passed the application's checks; each quote links
-// to the student's attempt record so the instructor can check it against the evidence.
+// to the student's attempt record so the instructor can check it against the evidence. How the
+// report was made (model, checks, record versions) is stored with it but not shown: the page
+// speaks about students and items only.
 
 const SECTIONS: Array<{ key: AttemptSection; title: string; empty: string }> = [
   { key: "first_attempts", title: "First attempts (initial diagnosis)", empty: "No first attempt has been submitted." },
@@ -56,10 +58,13 @@ const legacySourceLabels: Record<string, string> = {
 
 const plural = (count: number, singular: string, pluralForm = `${singular}s`) => `${count} ${count === 1 ? singular : pluralForm}`;
 
+// What the instructor needs about the report itself: when it was made, and whether it has a
+// written summary. The model and the checks are recorded with the report, not shown here.
 function generationLabel(report: StoredInstructorReportV8) {
-  if (report.generation_mode === "live_model") return `Narrative by ${report.model_name}, checked by the application`;
-  if (report.generation_mode === "local_test") return "Local test report, not AI-generated";
-  return "Counts-only report, no narrative";
+  const when = `Generated ${new Date(report.generated_at).toLocaleString()}`;
+  if (report.generation_mode === "local_test") return `${when} · test report, not written by AI`;
+  if (report.generation_mode !== "live_model") return `${when} · counts only`;
+  return when;
 }
 
 export function InstructorReportPanel({ assessmentPublicId }: { assessmentPublicId: string }) {
@@ -120,9 +125,9 @@ export function InstructorReportPanel({ assessmentPublicId }: { assessmentPublic
         <div className="max-w-3xl">
           <h2 className="text-xl font-semibold text-ualberta-green-dark">Instructor report</h2>
           <p className="mt-1 text-sm leading-6 text-muted">
-            A review of every student&apos;s submitted responses and learning conversation for this mini test. The application
-            computes every count, with first attempts and later attempts shown separately. The narrative is an interpretation
-            to check against the linked student records; it is shown only after it passes the application&apos;s checks.
+            A summary of students&apos; submitted answers, explanations and learning conversations for this mini test, with first
+            attempts and later attempts shown separately. The written findings are interpretations: each one links to the
+            students&apos; records so you can check it.
           </p>
         </div>
         <button
@@ -169,9 +174,7 @@ function ReportV8View({ report }: { report: StoredInstructorReportV8 }) {
 
   return (
     <article className="space-y-6" data-testid="instructor-report">
-      <p className="text-xs text-muted">
-        {generationLabel(report)} · {new Date(report.generated_at).toLocaleString()} · {plural(report.student_count, "student")} · {plural(report.item_count, "item")}
-      </p>
+      <p className="text-xs text-muted">{generationLabel(report)}</p>
 
       {report.narrative_note ? (
         <p role="note" className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950" data-testid="instructor-report-counts-only-note">
@@ -263,29 +266,29 @@ function SectionView({ title, empty, counts, findings, link }: {
   link: (label: string) => string | null;
 }) {
   const statusById = new Map(counts.item_status.map((row) => [row.item_label, row]));
+  // Ratings exist only for attempts submitted since explanations were rated; without any, the
+  // rating columns, summary and misconception lines would show only zeros. "Limits of the
+  // evidence" says, once, which attempts have no ratings.
+  const hasRatings = counts.records.current_version > 0;
   return (
     <section className="space-y-4 rounded-lg border border-border-light bg-white p-4 shadow-soft" aria-label={title} data-testid={`instructor-report-${counts.attempts}`}>
       <div>
         <h3 className="text-lg font-semibold text-ualberta-green-dark">{title}</h3>
         <p className="mt-1 text-xs text-muted">
-          {plural(counts.students, "student")} · {plural(counts.attempts_submitted, "attempt")} submitted
-          {counts.attempts_by_number.length ? ` (${counts.attempts_by_number.map((entry) => `attempt ${entry.attempt_number}: ${entry.attempts}`).join(", ")})` : ""}
-          {" "}· {counts.attempts_finished} finished · current-version profiles {counts.records.current_version}, fallback profiles {counts.records.current_version_fallback}, earlier-version records {counts.records.earlier_version}
+          {plural(counts.students, "student")} · {plural(counts.attempts_submitted, "attempt")} submitted · {counts.attempts_finished} finished
         </p>
       </div>
 
       {counts.students === 0 ? <p className="text-sm text-muted">{empty}</p> : (
         <>
-          <div>
-            <h4 className="text-sm font-semibold text-ink">Summary distribution</h4>
-            <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              {counts.summary_distribution.labels.map((entry) => <li key={entry.label}>{entry.label}: <span className="font-medium">{entry.students}</span></li>)}
-              <li className="text-muted">Earlier-version records (no summary under the current rules): {counts.summary_distribution.earlier_version_records}</li>
-            </ul>
-            {counts.summary_distribution.fallback_profiles ? (
-              <p className="mt-1 text-xs text-muted">Unavailable includes {plural(counts.summary_distribution.fallback_profiles, "fallback profile")}.</p>
-            ) : null}
-          </div>
+          {hasRatings ? (
+            <div>
+              <h4 className="text-sm font-semibold text-ink">Summary distribution</h4>
+              <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {counts.summary_distribution.labels.map((entry) => <li key={entry.label}>{entry.label}: <span className="font-medium">{entry.students}</span></li>)}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="overflow-x-auto border-y border-line" tabIndex={0} role="region" aria-label={`${title}: responses and item status`}>
             <table className="w-full min-w-[760px] text-left text-sm">
@@ -295,11 +298,15 @@ function SectionView({ title, empty, counts, findings, link }: {
                   <th className="p-2">Options chosen (key marked)</th>
                   <th className="p-2">I don&apos;t know yet</th>
                   <th className="p-2">No answer</th>
-                  <th className="p-2">Supported</th>
-                  <th className="p-2">Partly supported</th>
-                  <th className="p-2">Not supported</th>
-                  <th className="p-2">Not interpretable</th>
-                  <th className="p-2">Possible item issue flags</th>
+                  {hasRatings ? (
+                    <>
+                      <th className="p-2">Supported</th>
+                      <th className="p-2">Partly supported</th>
+                      <th className="p-2">Not supported</th>
+                      <th className="p-2">Not interpretable</th>
+                      <th className="p-2">Possible item problem flags</th>
+                    </>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -317,11 +324,15 @@ function SectionView({ title, empty, counts, findings, link }: {
                       </td>
                       <td className="p-2">{row.i_dont_know}</td>
                       <td className="p-2">{row.no_answer}</td>
-                      <td className="p-2">{statusRow?.supported ?? 0}</td>
-                      <td className="p-2">{statusRow?.partly_supported ?? 0}</td>
-                      <td className="p-2">{statusRow?.not_supported ?? 0}</td>
-                      <td className="p-2">{statusRow?.not_interpretable ?? 0}<span className="block text-xs text-muted">of {statusRow?.rated ?? 0} rated</span></td>
-                      <td className="p-2">{statusRow?.possible_item_issue_flags ?? 0}</td>
+                      {hasRatings ? (
+                        <>
+                          <td className="p-2">{statusRow?.supported ?? 0}</td>
+                          <td className="p-2">{statusRow?.partly_supported ?? 0}</td>
+                          <td className="p-2">{statusRow?.not_supported ?? 0}</td>
+                          <td className="p-2">{statusRow?.not_interpretable ?? 0}</td>
+                          <td className="p-2">{statusRow?.possible_item_issue_flags ?? 0}</td>
+                        </>
+                      ) : null}
                     </tr>
                   );
                 })}
@@ -338,7 +349,7 @@ function SectionView({ title, empty, counts, findings, link }: {
               }))}
               headings={["Grouped by", "Items", "Students", "Endorsed", "Tentative", "Ideas as recorded"]}
             />
-          ) : <p className="text-xs text-muted">No possible misconception is recorded in the current-version profiles.</p>}
+          ) : hasRatings ? <p className="text-xs text-muted">No student stated a possible misconception in their own words.</p> : null}
 
           {counts.considered_ideas.length ? (
             <GroupTable
@@ -367,14 +378,13 @@ function SectionView({ title, empty, counts, findings, link }: {
             <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
               <li>Held: <span className="font-medium">{counts.conversations.held}</span></li>
               <li>Ended by the student: <span className="font-medium">{counts.conversations.ended_by_student}</span></li>
-              <li>With turn records: <span className="font-medium">{counts.conversations.students_with_turn_records}</span></li>
               <li>Corrected reasoning expressed after support: <span className="font-medium">{counts.conversations.corrected_reasoning_expressed_after_support}</span></li>
               <li>Difficulty still evident: <span className="font-medium">{counts.conversations.difficulty_still_evident}</span></li>
               {counts.conversations.instructor_review_flags.map((flag) => (
                 <li key={flag.flag}>{flagLabels[flag.flag] ?? flag.flag}: <span className="font-medium">{flag.students}</span></li>
               ))}
             </ul>
-            <p className="mt-1 text-xs text-muted">Counts of students. Corrected reasoning expressed after support describes what a student wrote with help; it is not evidence of mastery.</p>
+            <p className="mt-1 text-xs text-muted">Counts of students. &ldquo;Corrected reasoning expressed after support&rdquo; describes what a student wrote with help, not mastery.</p>
           </div>
         </>
       )}
@@ -423,7 +433,7 @@ function FindingView({ finding, number, counts, link }: {
         <span className="text-xs text-muted">{findingTypeLabels[finding.type] ?? finding.type}{finding.item_labels.length ? ` · ${finding.item_labels.join(", ")}` : ""}</span>
       </div>
       <p className="mt-1 text-xs text-muted">
-        Students covered (counted by the application): <span className="font-medium text-ink">{counts?.students_covered ?? labels.length}</span>
+        Students: <span className="font-medium text-ink">{counts?.students_covered ?? labels.length}</span>
         {labels.length ? " · " : ""}
         {labels.map((label, index) => {
           const href = link(label);
@@ -434,12 +444,10 @@ function FindingView({ finding, number, counts, link }: {
             </span>
           );
         })}
-        {counts?.earlier_version_students ? ` · ${plural(counts.earlier_version_students, "earlier-version record")}` : ""}
       </p>
-      {counts?.profile_misconceptions ? (
+      {counts?.profile_misconceptions && counts.profile_misconceptions.endorsed + counts.profile_misconceptions.tentative > 0 ? (
         <p className="text-xs text-muted">
-          Profiles of these students on these items: {counts.profile_misconceptions.endorsed} endorsed, {counts.profile_misconceptions.tentative} tentative,
-          {" "}{counts.profile_misconceptions.none_recorded} with no possible misconception recorded.
+          In their rated explanations, {counts.profile_misconceptions.endorsed} stated this idea firmly and {counts.profile_misconceptions.tentative} tentatively.
         </p>
       ) : null}
       <p className="mt-2 text-sm leading-6 text-ink">{finding.description}</p>
@@ -473,11 +481,11 @@ function LegacyReportView({ report }: { report: StoredInstructorReportLegacy }) 
   return (
     <article className="space-y-5" data-testid="instructor-report">
       <p role="note" className="rounded-md border border-line bg-slate-50 p-3 text-sm text-muted">
-        This report was produced by an earlier version of the report module. Its counts were written by the model and its findings
-        combine first and later attempts. Generate a new report for application counts with first and later attempts shown separately.
+        This report was made in an older format that combines first and later attempts. Generate a new report to see them
+        separately.
       </p>
       <p className="text-xs text-muted">
-        {report.generation_mode === "local_test_summary" ? "Local test summary, not AI-generated." : `Generated by ${report.model_name}`} · {new Date(report.generated_at).toLocaleString()} · {plural(report.student_count, "student")} · {plural(report.item_count, "item")}
+        Generated {new Date(report.generated_at).toLocaleString()}{report.generation_mode === "local_test_summary" ? " · test report, not written by AI" : ""}
       </p>
       <div className="space-y-2 text-sm leading-6 text-ink">
         <p>{report.report.overview}</p>

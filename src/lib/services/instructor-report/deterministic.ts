@@ -18,24 +18,25 @@ import { MIN_REPORT_QUOTE_WORDS, normalizeReportQuote } from "./validate";
  */
 
 /** Instructor-facing reasons why the narrative is missing. */
+// Plain words for the instructor; the reason code itself is kept in the stored report.
 export const NARRATIVE_UNAVAILABLE_REASONS: Record<string, string> = {
-  live_calls_disabled: "live AI calls are disabled in this environment.",
-  model_not_configured: "no model is set for instructor reports (OPENAI_MODEL_MODULE_INSTRUCTOR_REPORTING).",
-  prompt_not_approved: "the report prompt (instructor-report-prompt-v8) has not been approved for live use (INSTRUCTOR_REPORT_V8_APPROVED_PROMPT_HASH).",
-  daily_limit_reached: "the daily limit for narrative reports on this mini-test has been reached.",
-  validation_failed: "the generated narrative did not pass the application's checks after one regeneration.",
-  provider_failure: "the AI model could not be reached.",
-  input_check_failed: "the evidence prepared for the model did not pass the application's checks.",
-  local_test_rejected: "the local test narrative did not pass the application's checks."
+  live_calls_disabled: "AI calls are switched off on this site.",
+  model_not_configured: "no AI model is set up for instructor reports.",
+  prompt_not_approved: "the AI instructions for the report have not been approved for use yet.",
+  daily_limit_reached: "today's limit for written reports on this mini test has been reached. Try again tomorrow.",
+  validation_failed: "the written summary did not pass the quality checks, even after a second try.",
+  provider_failure: "the AI service could not be reached. Try again in a few minutes.",
+  input_check_failed: "the students' records could not be prepared for the written summary.",
+  local_test_rejected: "the test summary did not pass the quality checks."
 };
 
 export function narrativeUnavailableReason(code: string) {
-  if (code.startsWith("configuration_")) return `the AI configuration is incomplete (${code.slice("configuration_".length)}).`;
-  return NARRATIVE_UNAVAILABLE_REASONS[code] ?? "the narrative could not be produced.";
+  if (code.startsWith("configuration_")) return "the AI setup for reports is incomplete.";
+  return NARRATIVE_UNAVAILABLE_REASONS[code] ?? "the written summary could not be produced.";
 }
 
 export function countsOnlyNote(reasonCode: string) {
-  return `The narrative could not be generated: ${narrativeUnavailableReason(reasonCode)} The counts below are computed by the application from the stored records; this report has no findings, quotes or teaching actions.`;
+  return `The written summary could not be generated: ${narrativeUnavailableReason(reasonCode)} The counts below come from the students' saved answers; this report has no findings, quotes or teaching actions.`;
 }
 
 /** Counts the students each finding lists, from the application's own records. */
