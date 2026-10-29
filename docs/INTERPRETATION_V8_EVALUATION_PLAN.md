@@ -142,7 +142,7 @@ Every delivered message must also pass the audience checks, which reject interna
 | F18 | Reply: bare letter right after the solution was shown | misconception or single item, Q2 | explain, clarify or extend | never "corrected" |
 | F19 | Opening: every item supported, but low confidence and "I'm not sure" on one correct answer | single item, Q3 | explain or clarify | |
 | F20 | Opening: every item supported, but an inaccurate idea in the reason a tempting option appealed | single item or misconception, Q4 | explain or clarify | |
-| F21 | Opening: a wrong answer with no explanation on an option not tied to an idea | single item, Q1 | explain | shows the way to the correct answer; no misconception suggested (reading) |
+| F21 | Opening: a wrong answer with no explanation on an option not tied to an idea | single item, Q1 | explain | shows the way to the correct answer; no misconception suggested (reading); flag for Item 4 acceptable |
 | F22 | Opening: as F05, but the percentile option is not tied to an idea | possible misconception, Q1 or Q2 | explain | the stated idea is still addressed; overview |
 
 F01, F05 and F22 have more than one point worth discussing, so their openings are also checked for an overview: the message names every expected point by at least one of its items (F01: Items 1 or 4, and Item 2; F05 and F22: Item 1 and Item 2). Discussing only the focus does not count. The share of such openings is reported (target ≥ 0.8) but not gated, because the overview is new in formative-opening-v8.4.

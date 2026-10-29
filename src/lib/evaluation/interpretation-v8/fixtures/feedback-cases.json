@@ -969,13 +969,14 @@
     ],
     "focus_status": null,
     "review_flags": [
-     "none"
+     "none",
+     "possible_item_issue"
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
     "expects_overview": false,
     "overview_points": [],
-    "notes": "Release 22: option A of Item 1 is marked as not tied to a specific idea and the student wrote no explanation. The message shows how to reach the correct answer (what a percentile rank compares and what rules out A) and does not suggest that the student holds a misconception."
+    "notes": "Release 22: option A of Item 1 is marked as not tied to a specific idea and the student wrote no explanation. The message shows how to reach the correct answer (what a percentile rank compares and what rules out A) and does not suggest that the student holds a misconception. Item 4 (S4) has a planted overlap between options B and D, so a flag for it is acceptable, as in F09."
    }
   },
   {
