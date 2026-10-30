@@ -40,9 +40,9 @@ async function main() {
 
   await check("the feedback cases (version 4 since release 22) pass their structural checks", () => {
     assert.equal(feedback.feedback_cases_version, FEEDBACK_EVALUATION_CASES_VERSION);
-    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-4");
+    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-5");
     assert.deepEqual(checkFeedbackFixtures(caseById, feedback, bank), []);
-    for (const id of ["F19", "F20", "F21", "F22"]) assert(feedbackById.has(id), id);
+    for (const id of ["F19", "F20", "F21", "F22", "F23"]) assert(feedbackById.has(id), id);
     // Release 22: an option treated as not tied to an idea loses its rationale and is listed with what rules it out.
     const f21 = buildFeedbackCaseInput(bank, caseById.get("S-05")!, feedbackById.get("F21")!);
     const item1 = f21.items.find((item) => item.item_id === "S1")!;

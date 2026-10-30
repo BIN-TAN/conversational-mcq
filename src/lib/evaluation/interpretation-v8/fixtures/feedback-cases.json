@@ -1,5 +1,5 @@
 {
- "feedback_cases_version": "feedback-v8-eval-cases-4",
+ "feedback_cases_version": "feedback-v8-eval-cases-5",
  "cases": [
   {
    "feedback_case_id": "F01",
@@ -1039,6 +1039,73 @@
      "what_rules_it_out": "A percentile rank compares a score with the scores of a group of students; it does not count how many items were answered correctly."
     }
    ]
+  },
+  {
+   "feedback_case_id": "F23",
+   "situation": "Reply: after the first point of an overview is settled, the student asks to go on",
+   "base_case_id": "R-02",
+   "mode": "reply",
+   "profile_available": true,
+   "misconceptions": [
+    {
+     "item_id": "R1",
+     "idea": "Consistent scores make a test valid for a decision.",
+     "quote": "a test that works properly is valid for hiring",
+     "quote_source": "explanation",
+     "endorsement": "endorsed"
+    },
+    {
+     "item_id": "R2",
+     "idea": "Subtracting the SEM from an observed score gives the true score.",
+     "quote": "you subtract it from 76 and get the true score of 73",
+     "quote_source": "explanation",
+     "endorsement": "endorsed"
+    },
+    {
+     "item_id": "R4",
+     "idea": "A high reliability coefficient shows the test measures the intended skill.",
+     "quote": "A high correlation like .85 shows the test measures the skill it is supposed to.",
+     "quote_source": "explanation",
+     "endorsement": "endorsed"
+    }
+   ],
+   "considered_ideas": [],
+   "saved_questions": [],
+   "transcript": [
+    {
+     "actor": "tutor",
+     "text": "There are two points to go through. Items 1 and 4: your explanations treat consistent scores as showing that a test measures the intended skill or suits a hiring decision. Item 2: your explanation subtracts the standard error of measurement from the observed score to get the true score. I will go through them one at a time, starting with Items 1 and 4. Reliability is about consistency: would students get similar scores again? Validity is about whether the scores support a particular interpretation or use, such as hiring. A test can give very consistent scores that still say little about job performance. The next point follows when you are ready; you can also choose the other point, ask about anything else, or stop here."
+    },
+    {
+     "actor": "student",
+     "text": "Okay, so a test can be consistent and still not measure the skill needed for the job. That makes sense. Can we go on to the next one?"
+    }
+   ],
+   "expected": {
+    "focus_types": [
+     "possible_misconception",
+     "single_item",
+     "student_question"
+    ],
+    "strategies": [
+     "explain",
+     "answer_request"
+    ],
+    "item_numbers_any": [
+     2
+    ],
+    "focus_status": [
+     "not_discussed_further",
+     "difficulty_still_evident",
+     "corrected_reasoning_expressed"
+    ],
+    "review_flags": [
+     "none"
+    ],
+    "max_questions": 1,
+    "must_not_mark_corrected": false,
+    "notes": "Release 26 (conversation v8.7): the first point is settled and the student asks to go on, so the reply closes it briefly and takes up the next listed point, Item 2 (the SEM is not subtracted to get the true score). Staying on Items 1 and 4 or only offering the next point is a miss."
+   }
   }
  ]
 }
