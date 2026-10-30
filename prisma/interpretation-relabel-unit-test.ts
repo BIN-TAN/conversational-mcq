@@ -49,12 +49,15 @@ async function main() {
   const relabelMeta = { relabel_version: "interpretation-relabel-v1", reason: "rules update", reinterpreted_at: "2026-10-30T20:00:00Z",
     previous_profile_record_id: null, previous_label: "Still developing", previous_interpretation_version: "earlier" };
 
-  await check("The rating rule asks for the key reason, not every essential element (student-profiling-v8.4)", () => {
-    assert.equal(contract.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.4");
+  await check("The rating rule asks for the key reason, not every essential element (student-profiling-v8.5)", () => {
+    assert.equal(contract.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.5");
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /Judge whether each explanation gives the key reason/);
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /they describe a strong explanation and are not a checklist/);
     assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /- adequate: the key reason is stated or clearly implied/);
-    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /An overstatement or extra claim beside a correct key reason is not incorrect: record it as the side remark\./);
+    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /An overstatement or extra claim beside a correct key reason, one the reasoning does not rest on, is not incorrect: record it as the side remark\./);
+    // v8.4 (evaluated, not used) let a wrong rule beside a correct conclusion pass as a side remark.
+    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /A wrong account of the central concept is the reason itself, never a side remark\./);
+    assert.match(contract.INTERPRETATION_V8_INSTRUCTIONS, /The selected option is part of the answer, so the explanation need not restate it/);
     assert.doesNotMatch(contract.INTERPRETATION_V8_INSTRUCTIONS, /every essential element is stated/);
     const doc = readFileSync("docs/AI_MODULE_REDESIGN_2026-10-19.md", "utf8");
     assert.ok(doc.includes(contract.INTERPRETATION_V8_INSTRUCTIONS), "Section 9.4 carries the prompt verbatim");
