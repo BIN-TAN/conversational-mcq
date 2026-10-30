@@ -1258,9 +1258,10 @@ export async function getTeacherAssessmentDashboard(input: {
     if (!eligibleKeys.has(session.user.user_id)) return [];
     const profile = initialLearningProfile(session);
     const stored = profile ? readStoredInterpretationV8(profile.item_level_evidence) : null;
+    if (!profile || !stored) return [];
     // Ordered by when the attempt was submitted, also when its labels were reinterpreted later.
-    const submittedAt = (submissionLearningProfile(session) ?? profile!).created_at;
-    return stored ? [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: submittedAt, stored }] : [];
+    const submittedAt = (submissionLearningProfile(session) ?? profile).created_at;
+    return [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: submittedAt, stored }];
   });
   const v8Split = splitFirstAndLaterAttempts(v8Entries);
   // Options the instructor marked as not tied to an idea (their current item notes), so ideas
