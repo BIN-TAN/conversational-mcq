@@ -46,7 +46,7 @@ async function loadUnits(teacherUserDbId: string) {
       response_packages: {
         where: { package_type: "initial_concept_unit_response_package" },
         orderBy: { created_at: "desc" },
-        select: { id: true }
+        select: { id: true, created_at: true }
       },
       latest_student_profile: { select: profileSelect },
       relabeled_student_profile: { select: profileSelect },
@@ -92,25 +92,35 @@ function labelOf(profile: UnitProfile | null) {
 
 /**
  * current: already interpreted under the current rules; to_do: to interpret again;
- * preview_ready: a new interpretation awaits the instructor; not_ready: no interpretation saved
- * yet (submission still being prepared), left to the ordinary preparation.
+ * preview_ready: a new interpretation awaits the instructor; not_ready: submitted within the
+ * last two hours with no interpretation saved yet, so its own preparation may still be running.
+ * An older submission without an interpretation (its preparation stopped) is interpreted too.
  */
 export type RelabelUnitState = "current" | "to_do" | "preview_ready" | "not_ready";
+export const RELABEL_PREPARATION_GRACE_MS = 2 * 60 * 60 * 1000;
 
 export function relabelUnitState(unit: {
   record_evidence: unknown;
   pending_evidence: unknown;
+  submitted_at?: Date | null;
+  now?: Date;
 }): RelabelUnitState {
-  if (unit.record_evidence === null || unit.record_evidence === undefined) return "not_ready";
-  if (isCurrentInterpretation(unit.record_evidence)) return "current";
+  const hasRecord = unit.record_evidence !== null && unit.record_evidence !== undefined;
+  if (hasRecord && isCurrentInterpretation(unit.record_evidence)) return "current";
   if (isCurrentInterpretation(unit.pending_evidence)) return "preview_ready";
+  if (!hasRecord) {
+    const submittedAt = unit.submitted_at?.getTime();
+    const now = (unit.now ?? new Date()).getTime();
+    if (submittedAt === undefined || now - submittedAt < RELABEL_PREPARATION_GRACE_MS) return "not_ready";
+  }
   return "to_do";
 }
 
 function stateOf(unit: Unit): RelabelUnitState {
   return relabelUnitState({
     record_evidence: profileOfRecord(unit)?.item_level_evidence,
-    pending_evidence: unit.pending_relabel_student_profile?.item_level_evidence
+    pending_evidence: unit.pending_relabel_student_profile?.item_level_evidence,
+    submitted_at: unit.response_packages[0]?.created_at ?? null
   });
 }
 

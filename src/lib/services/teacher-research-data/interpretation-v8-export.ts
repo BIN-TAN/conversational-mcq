@@ -28,6 +28,8 @@ import {
   ITEM_REVIEW_DECISIONS_COLUMNS,
   PROCESS_AUDIT_INDICATOR_COLUMNS,
   V8_BLANKED_LEGACY_COLUMNS,
+  CONVERSATION_UPDATE_LEGACY_COLUMNS,
+  CONVERSATION_TRANSITION_LEGACY_COLUMNS,
   interpretationV8NotesText
 } from "./interpretation-v8-dictionary";
 
@@ -625,14 +627,28 @@ export function interpretationV8ProfileColumns(itemLevelEvidence: unknown, decis
  * path writes only because the database requires them) and adds the v8 columns. Rows for
  * earlier profiles keep every value and get blank v8 columns.
  */
+const CONVERSATION_LEGACY_COLUMNS: ReadonlySet<string> = new Set([...CONVERSATION_UPDATE_LEGACY_COLUMNS, ...CONVERSATION_TRANSITION_LEGACY_COLUMNS]);
+
+/**
+ * The conversation columns describe the conversation, which ran with the profile saved at
+ * submission. When the attempt's labels were later reinterpreted under v8 (release 27), pass that
+ * submission profile as submission_item_level_evidence: the conversation columns are blanked only
+ * when the conversation itself was a v8 conversation, and an earlier conversation keeps its values.
+ */
 export function withInterpretationV8ProfileColumns<T extends Record<string, unknown>>(
   table: keyof typeof V8_BLANKED_LEGACY_COLUMNS,
   row: T,
   itemLevelEvidence: unknown,
-  decisions: CurrentItemDecisions
+  decisions: CurrentItemDecisions,
+  options: { submission_item_level_evidence?: unknown } = {}
 ): T & Record<ProfileColumnKey, Cell> {
   const { is_v8: isV8, ...columns } = interpretationV8ProfileColumns(itemLevelEvidence, decisions);
-  const blanked = isV8 ? Object.fromEntries(V8_BLANKED_LEGACY_COLUMNS[table].filter((column) => column in row).map((column) => [column, null])) : {};
+  const conversationIsV8 = "submission_item_level_evidence" in options
+    ? Boolean(readStoredInterpretationV8(options.submission_item_level_evidence))
+    : isV8;
+  const blanked = Object.fromEntries(V8_BLANKED_LEGACY_COLUMNS[table]
+    .filter((column) => column in row && (CONVERSATION_LEGACY_COLUMNS.has(column) ? conversationIsV8 : isV8))
+    .map((column) => [column, null]));
   return { ...row, ...blanked, ...columns };
 }
 

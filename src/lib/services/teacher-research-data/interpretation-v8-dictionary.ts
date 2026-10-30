@@ -296,11 +296,11 @@ export const ITEM_ADMINISTRATION_V4_COLUMNS = [
  * Conversation-update columns (profile transitions recommended during the conversation). A v8
  * conversation never updates the profile (section 8), so they are legacy for v8 attempts.
  */
-const CONVERSATION_UPDATE_LEGACY_COLUMNS = [
+export const CONVERSATION_UPDATE_LEGACY_COLUMNS = [
   "conversation_profile_update", "conversation_profile_update_count", "conversation_updated_understanding_label",
   "conversation_updated_profile_record_id"
 ] as const;
-const CONVERSATION_TRANSITION_LEGACY_COLUMNS = [
+export const CONVERSATION_TRANSITION_LEGACY_COLUMNS = [
   "profile_reassessment_status", "profile_transition_count", "latest_profile_transition_public_id",
   "validated_formative_outcome", "semantic_teacher_assistance_recommended"
 ] as const;
@@ -334,7 +334,7 @@ export const V8_BLANKED_LEGACY_COLUMNS: Record<string, readonly string[]> = {
 };
 
 export const V8_CONVERSATION_LEGACY_NOTE =
-  "Blank for attempts whose mini-test profile comes from interpretation v8: a v8 conversation never updates the profile (section 8 of the redesign); its turn records and instructor-review flags are in feedback_turn_records.csv. Earlier conversations are unchanged.";
+  "Blank for attempts whose mini-test profile at submission came from interpretation v8: a v8 conversation never updates the profile (section 8 of the redesign); its turn records and instructor-review flags are in feedback_turn_records.csv. Earlier conversations are unchanged, also when their attempt's labels were later reinterpreted under v8 (release 27).";
 
 export const V8_LEGACY_BLANK_NOTE =
   `Blank for interpretation v8 profiles (item_level_evidence.profile_schema ${INTERPRETATION_V8_PROFILE_SCHEMA}): the legacy profile columns hold fixed placeholder values that v8 does not produce (section 4.5 of the redesign). Use interpretation_summary_label, interpretation_summaries.csv and interpretation_item_ratings.csv for v8 profiles; earlier profiles are unchanged.`;

@@ -3,7 +3,7 @@ import { isConfidenceRevisionEvent } from "../student-assessment/response-revisi
 import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
 import { isUnappliedReinterpretation } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
-import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, submissionLearningProfile, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { initialProfileTransferRule } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
@@ -1481,7 +1481,9 @@ function sessionRows(source: ExportSourceIdentity, sessions: AnalysisSession[], 
         : "no_valid_profile_output_recorded",
       unsupported_correct_response_count: unsupportedCorrectCount,
       estimated_guessing_risk_max: null
-    } satisfies CsvRow, profile?.item_level_evidence, decisions);
+    } satisfies CsvRow, profile?.item_level_evidence, decisions, {
+      submission_item_level_evidence: submissionLearningProfile(session)?.item_level_evidence
+    });
   });
 }
 

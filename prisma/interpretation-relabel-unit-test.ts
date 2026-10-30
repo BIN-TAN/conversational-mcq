@@ -72,9 +72,13 @@ async function main() {
     assert.equal(service.relabelUnitState({ record_evidence: stored(contract.INTERPRETATION_V8_PROMPT_VERSION, { generation_mode: "fallback" }), pending_evidence: null }),
       "to_do", "A fallback under the current rules is tried again");
     assert.equal(service.relabelUnitState({ record_evidence: stored("student-profiling-v8.3"), pending_evidence: current }), "preview_ready");
-    assert.equal(service.relabelUnitState({ record_evidence: null, pending_evidence: null }), "not_ready",
-      "An attempt whose interpretation is still being prepared is left to the preparation");
-    assert.equal(service.relabelUnitState({ record_evidence: undefined, pending_evidence: current }), "not_ready");
+    const now = new Date("2026-10-30T20:00:00Z");
+    assert.equal(service.relabelUnitState({ record_evidence: null, pending_evidence: null, submitted_at: new Date("2026-10-30T19:30:00Z"), now }), "not_ready",
+      "An attempt submitted in the last two hours without an interpretation is left to its own preparation");
+    assert.equal(service.relabelUnitState({ record_evidence: null, pending_evidence: null, now }), "not_ready");
+    assert.equal(service.relabelUnitState({ record_evidence: null, pending_evidence: null, submitted_at: new Date("2026-10-04T19:30:00Z"), now }), "to_do",
+      "An older submission whose preparation stopped without an interpretation is interpreted");
+    assert.equal(service.relabelUnitState({ record_evidence: null, pending_evidence: current, submitted_at: new Date("2026-10-04T19:30:00Z"), now }), "preview_ready");
   });
 
   await check("A reinterpretation not applied is never read; an applied one replaces the original in item review", () => {
@@ -152,6 +156,36 @@ async function main() {
       "src/lib/services/student-assessment/assessment-interpretation-context.ts",
       "src/lib/workflow/initial-preparation.ts"
     ]) assert.match(readFileSync(file, "utf8"), /attemptAgentCallWhere/, file);
+  });
+
+  await check("An earlier conversation keeps its update columns when its attempt's labels were reinterpreted under v8", () => {
+    const row = { session_public_id: "s", conversation_profile_update: "Sound understanding", conversation_profile_update_count: 1,
+      conversation_updated_understanding_label: "Mostly understood", conversation_updated_profile_record_id: "profile_u",
+      evidence_sufficiency: "sufficient" };
+    const relabeled = stored(contract.INTERPRETATION_V8_PROMPT_VERSION, { relabel: relabelMeta });
+    const legacy = { evidence_integrated_profile_v2: {} };
+    const kept = exportV8.withInterpretationV8ProfileColumns("sessions", row, relabeled, new Map(), { submission_item_level_evidence: legacy });
+    assert.equal(kept.conversation_profile_update, "Sound understanding");
+    assert.equal(kept.conversation_profile_update_count, 1);
+    assert.equal(kept.conversation_updated_understanding_label, "Mostly understood");
+    assert.equal(kept.evidence_sufficiency, null, "Legacy label columns describe the profile of record and stay blank for v8");
+    assert.equal(kept.interpretation_summary_label, "Mostly understood");
+    const v8Conversation = exportV8.withInterpretationV8ProfileColumns("sessions", row, relabeled, new Map(),
+      { submission_item_level_evidence: stored("student-profiling-v8.3") });
+    assert.equal(v8Conversation.conversation_profile_update, null, "A v8 conversation never updates the profile");
+    assert.equal(exportV8.withInterpretationV8ProfileColumns("sessions", row, relabeled, new Map()).conversation_profile_update, null,
+      "Without a submission profile the profile of record decides, as before");
+    assert.equal(exportV8.withInterpretationV8ProfileColumns("sessions", row, legacy, new Map()).conversation_profile_update, "Sound understanding");
+  });
+
+  await check("The submission profile ignores an applied reinterpretation", async () => {
+    const summary = await import("../src/lib/services/student-assessment/learning-profile-summary");
+    const original = { id: "p-original", created_at: new Date("2026-10-01T00:00:00Z") };
+    const relabeled = { id: "p-relabel", created_at: new Date("2026-10-30T20:00:00Z") };
+    const session = { concept_unit_sessions: [{ id: "u", latest_student_profile: original, relabeled_student_profile: relabeled }],
+      formative_conversation_sessions: [] } as unknown as Parameters<typeof summary.submissionLearningProfile>[0];
+    assert.equal(summary.initialLearningProfile(session)?.id, "p-relabel");
+    assert.equal(summary.submissionLearningProfile(session)?.id, "p-original");
   });
 
   console.log(`\n${passed} interpretation relabel checks passed; no database or provider calls.`);

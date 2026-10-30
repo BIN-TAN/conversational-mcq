@@ -87,6 +87,18 @@ export function initialLearningProfile(session: LearningSession): LearningProfil
   return initialLearningProfilePair(session)?.profile ?? null;
 }
 
+/**
+ * The profile saved when the student submitted the mini-test, ignoring an applied
+ * reinterpretation. It is what the conversation ran with, so conversation variables are read
+ * against it (release 27).
+ */
+export function submissionLearningProfile(session: LearningSession): LearningProfile | null {
+  return initialLearningProfilePair({
+    ...session,
+    concept_unit_sessions: session.concept_unit_sessions.map((entry) => ({ ...entry, relabeled_student_profile: null }))
+  })?.profile ?? null;
+}
+
 export const CONVERSATION_UPDATE_SUMMARY_VERSION = "conversation-update-summary-v1" as const;
 export const CONVERSATION_UPDATE_LABELS = [
   "Sound understanding", "Largely improved understanding", "Instructor assistance recommended", "No profile update"

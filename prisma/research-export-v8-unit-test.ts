@@ -644,7 +644,7 @@ async function main() {
     for (const [table, columns] of Object.entries(v8dictionary.V8_BLANKED_LEGACY_COLUMNS)) {
       for (const column of columns) {
         const note = v8dictionary.interpretationV8LegacyNote(table, column);
-        assert.match(note ?? "", /^Blank for (interpretation v8 profiles|attempts whose mini-test profile comes from interpretation v8)/);
+        assert.match(note ?? "", /^Blank for (interpretation v8 profiles|attempts whose mini-test profile (at submission )?came from interpretation v8|attempts whose mini-test profile comes from interpretation v8)/);
         if (table !== "formative_conversation_sessions") assert.ok(byName.get(`${table}.${column}`)?.definition.endsWith(note!), `${table}.${column}`);
       }
     }

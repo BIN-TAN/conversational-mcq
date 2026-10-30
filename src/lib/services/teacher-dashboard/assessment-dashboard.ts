@@ -7,7 +7,7 @@ import { notDiagnosticOptions, readTeacherItemMetadata } from "@/lib/services/co
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
 import { sortStudentsToFollowUp, type StudentFollowUpRow } from "./follow-up";
-import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, submissionLearningProfile, learningConversationSelect, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
 import { loadItemReviewDecisionsForAssessment } from "@/lib/services/item-review/service";
 import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import type { InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
@@ -1258,7 +1258,9 @@ export async function getTeacherAssessmentDashboard(input: {
     if (!eligibleKeys.has(session.user.user_id)) return [];
     const profile = initialLearningProfile(session);
     const stored = profile ? readStoredInterpretationV8(profile.item_level_evidence) : null;
-    return stored ? [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: profile!.created_at, stored }] : [];
+    // Ordered by when the attempt was submitted, also when its labels were reinterpreted later.
+    const submittedAt = (submissionLearningProfile(session) ?? profile!).created_at;
+    return stored ? [{ student_key: session.user.user_id, attempt_number: session.attempt_number, submitted_at: submittedAt, stored }] : [];
   });
   const v8Split = splitFirstAndLaterAttempts(v8Entries);
   // Options the instructor marked as not tied to an idea (their current item notes), so ideas
