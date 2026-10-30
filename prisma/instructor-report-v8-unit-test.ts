@@ -359,9 +359,8 @@ async function main() {
     const label = (name: string) => first.summary_distribution.labels.find((entry) => entry.label === name)?.students;
     assert.equal(first.summary_distribution.fallback_profiles, 1);
     assert.equal(first.summary_distribution.earlier_version_records, 1);
-    assert.equal(label("Unavailable / insufficient evidence"), 1, "The fallback profile is Unavailable");
-    assert.equal(label("Need more work"), 1);
-    assert.equal(label("Still developing"), 1);
+    assert.equal(label("Not enough evidence"), 1, "The fallback profile has not enough evidence");
+    assert.equal(label("Address errors or misconceptions"), 2, "Both rated profiles have an item that is not supported");
     const total = first.summary_distribution.labels.reduce((sum, entry) => sum + entry.students, 0) + first.summary_distribution.earlier_version_records;
     assert.equal(total, first.students);
     const fallbackStudent = input.first_attempts.find((student) => student.student_label === S2)!;
@@ -369,7 +368,7 @@ async function main() {
     assert.ok(fallbackStudent.responses.every((response) => response.rating === null));
     const earlier = input.first_attempts.find((student) => student.student_label === S3)!;
     assert.equal(earlier.record, "earlier_version");
-    assert.equal(earlier.topic_summary, null);
+    assert.equal(earlier.attempt_summary, null);
     assert.ok(earlier.responses.length === 3 && earlier.conversation?.turns.length === 2, "Earlier-version records keep responses and conversations");
     assert.ok(built.application_notes.some((note) => /submitted before explanations were rated/.test(note)));
     assert.ok(built.application_notes.some((note) => /could not be rated/.test(note)));

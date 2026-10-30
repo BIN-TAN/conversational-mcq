@@ -167,6 +167,18 @@ Checks of the rules:
 - A one-item mini-test never gets a label (answers correct are still shown); a two-item mini-test needs both items interpretable.
 - Every item excluded by the instructor gives no label.
 
+**Attempt summary for instructors (attempt-summary-v1, release 29, 30 Oct 2026).** The label above folded two things into one judgment: whether the answers were correct and how much reasoning the student wrote. In the pilot (dataset 11, first attempts of eight students), 18 of the 29 attempts labelled Still developing had every answer correct, and 11 of those had no wrong answer, no contradicting reasoning and no possible misconception. Instructor views therefore show an attempt summary instead of the label: answers correct, reasoning shown, brief, incorrect or absent (from the item ratings), the items with a possible misconception, and the follow-up the evidence suggests. Students never see it, and nothing is asked of a model.
+
+| Follow-up | Rule, applied in this order to the counted items |
+| --- | --- |
+| Not enough evidence | No counted items; fewer than two interpretable items; fewer than half of the counted items interpretable; or no valid profile |
+| Address errors or misconceptions | Any counted item is not supported (a wrong answer, or reasoning that contradicts the item), or a possible misconception names a counted item |
+| Check reasoning | Otherwise, when supported items are half of the counted items or fewer |
+| No follow-up needed | All other cases |
+| Pending item review | A flagged item awaits the instructor's decision and leaving it out changes the follow-up |
+
+The summary appears in the session detail, the instructor report (the follow-up counts and each student's summary line) and the exports (follow_up and the counts in interpretation_summaries.csv; interpretation_follow_up and interpretation_attempt_summary on the profile rows). The label above is still computed and exported for comparison. The dashboard overview shows participation and the item-level view only; misconception patterns are reported in the instructor report.
+
 ### 4.5 Removed
 
 The ability profile and flags, engagement profile and flags, integrated profile, evidence sufficiency, confidence alignment, independence, the seven reasoning-basis codes, and the two model confidence ratings. "Transfer-ready" and "correct but independence uncertain" disappear with them. Earlier profiles keep their stored labels and are exported as before.

@@ -1,3 +1,4 @@
+import { FOLLOW_UP_CATEGORIES } from "@/lib/services/student-assessment/interpretation-v8/attempt-summary";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 
@@ -139,17 +140,16 @@ export type ItemStatusCounts = {
   possible_item_issue_flags: number;
 };
 
-export const SUMMARY_DISTRIBUTION_LABELS = [
-  "Mostly understood",
-  "Still developing",
-  "Need more work",
-  "Unavailable / insufficient evidence",
-  "Pending item review"
-] as const;
+/**
+ * The follow-up categories of the instructor-facing attempt summary (attempt-summary-v1,
+ * release 29). Reports saved before release 29 hold the earlier understanding labels here.
+ */
+export const SUMMARY_DISTRIBUTION_LABELS = FOLLOW_UP_CATEGORIES;
 
 export type SummaryDistribution = {
-  labels: Array<{ label: (typeof SUMMARY_DISTRIBUTION_LABELS)[number]; students: number }>;
-  /** Fallback profiles (no valid interpretation); included in "Unavailable / insufficient evidence". */
+  /** label is a follow-up category; a report saved before release 29 holds an earlier understanding label. */
+  labels: Array<{ label: string; students: number }>;
+  /** Fallback profiles (no valid interpretation); included in "Not enough evidence". */
   fallback_profiles: number;
   /** Records saved before the current interpretation; they have no summary under the current rules. */
   earlier_version_records: number;
@@ -239,7 +239,8 @@ export type ReportStudentEvidence = {
   student_label: string;
   attempt_number: number;
   record: ReportRecordKind;
-  topic_summary: { label: string; based_on_interpretable_items: number; items_administered: number } | null;
+  /** The attempt summary (release 29): follow-up and the one-line summary; null for earlier-version records. */
+  attempt_summary: { follow_up: string; summary: string; counted_items: number; items_administered: number } | null;
   responses: Array<{
     item_label: string;
     selected_option: string | null;

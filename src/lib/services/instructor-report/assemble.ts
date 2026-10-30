@@ -1,7 +1,8 @@
 import { FeedbackV8OutputSchema, type FeedbackV8Output } from "@/lib/services/student-assessment/feedback-v8/contract";
 import { itemReferences } from "@/lib/services/student-assessment/interpretation-v8/input-builder";
-import { readStoredInterpretationV8, summaryItemsOf, type StoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
-import { topicSummary, type InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
+import { readStoredInterpretationV8, type StoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import { type InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
+import { attemptSummary } from "@/lib/services/student-assessment/interpretation-v8/attempt-summary";
 import {
   ATTEMPT_SECTIONS,
   INSTRUCTOR_REPORT_LIMITS,
@@ -224,11 +225,9 @@ function prepareConversation(
   };
 }
 
-function summaryLabel(v8: StoredInterpretationV8, decisions: ReadonlyMap<string, InstructorItemDecision>) {
-  return topicSummary(
-    summaryItemsOf(v8.items),
-    decisions
-  );
+// The instructor-facing attempt summary (release 29) replaces the understanding label here.
+function summaryOf(v8: StoredInterpretationV8, decisions: ReadonlyMap<string, InstructorItemDecision>) {
+  return attemptSummary(v8, decisions);
 }
 
 type SectionEntry = { label: string; record: PreparedRecord };
@@ -316,11 +315,11 @@ function sectionCounts(
   let earlierVersion = 0;
   for (const entry of entries) {
     if (entry.record.kind === "current_version") {
-      const label = summaryLabel(entry.record.v8!, decisions).label;
+      const label = summaryOf(entry.record.v8!, decisions).follow_up;
       labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
     } else if (entry.record.kind === "current_version_fallback") {
       fallbackProfiles += 1;
-      labelCounts.set("Unavailable / insufficient evidence", (labelCounts.get("Unavailable / insufficient evidence") ?? 0) + 1);
+      labelCounts.set("Not enough evidence", (labelCounts.get("Not enough evidence") ?? 0) + 1);
     } else {
       earlierVersion += 1;
     }
@@ -426,7 +425,7 @@ function studentEvidence(
   const current = prepared.kind === "current_version" ? prepared.v8 : null;
   const label = (id: string | null) => (id ? itemLabelById.get(id) ?? null : null);
   const ratings = new Map((current?.items ?? []).map((item) => [item.item_id, item]));
-  const summary = current ? summaryLabel(current, decisions) : null;
+  const summary = current ? summaryOf(current, decisions) : null;
   const conversation = prepared.conversation;
   if (conversation && conversation.turns.length > INSTRUCTOR_REPORT_LIMITS.max_conversation_turns_per_student) {
     truncationNotes.push(`${entry.label} (${section === "first_attempts" ? "first attempt" : "later attempt"}): the written findings draw on the first ${INSTRUCTOR_REPORT_LIMITS.max_conversation_turns_per_student} conversation messages.`);
@@ -435,9 +434,11 @@ function studentEvidence(
     student_label: entry.label,
     attempt_number: prepared.attempt.attempt_number,
     record: prepared.kind,
-    topic_summary: summary
-      ? { label: summary.label, based_on_interpretable_items: summary.based_on.interpretable_items, items_administered: summary.based_on.administered_items }
-      : prepared.kind === "current_version_fallback" ? { label: "Unavailable / insufficient evidence", based_on_interpretable_items: 0, items_administered: prepared.v8?.items.length ?? 0 } : null,
+    attempt_summary: summary
+      ? { follow_up: summary.follow_up, summary: summary.text, counted_items: summary.counted_items, items_administered: summary.administered_items }
+      : prepared.kind === "current_version_fallback"
+        ? { follow_up: "Not enough evidence", summary: "Interpretation unavailable for this attempt", counted_items: 0, items_administered: prepared.v8?.items.length ?? 0 }
+        : null,
     responses: items.flatMap((item) => {
       const response = prepared.responses.get(item.item_public_id);
       if (!response) return [];

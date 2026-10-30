@@ -1,3 +1,4 @@
+import { ATTEMPT_SUMMARY_VERSION, FOLLOW_UP_CATEGORIES, FOLLOW_UP_RULE_TEXT } from "@/lib/services/student-assessment/interpretation-v8/attempt-summary";
 import {
   ENDORSEMENTS,
   ERROR_SOURCES,
@@ -137,6 +138,16 @@ export const INTERPRETATION_SUMMARIES_COLUMNS = [
   "label_without_pending_with_decisions",
   "pending_review_item_ids_with_decisions",
   "excluded_item_ids_with_decisions",
+  "follow_up",
+  "follow_up_reason",
+  "follow_up_without_pending",
+  "correct_item_count",
+  "reasoning_shown_item_count",
+  "reasoning_brief_item_count",
+  "reasoning_incorrect_item_count",
+  "no_explanation_item_count",
+  "attempt_summary_text",
+  "attempt_summary_version",
   "administered_item_count",
   "counted_item_count",
   "interpretable_item_count",
@@ -274,6 +285,8 @@ export const INTERPRETATION_V8_PROFILE_COLUMNS = [
   "interpretation_generation_mode",
   "interpretation_summary_label",
   "interpretation_summary_label_with_decisions",
+  "interpretation_follow_up",
+  "interpretation_attempt_summary",
   "interpretation_rules_version"
 ] as const;
 
@@ -614,6 +627,16 @@ const TABLE_DOCS: Record<InterpretationV8Table, Record<string, V8ColumnDoc>> = {
     label_without_pending_with_decisions: rule("Rule label with the current decisions, leaving out items still awaiting review; blank when none await review.", "Computed by decisionAdjustedTopicSummary(stored profile, current decisions); its label_without_pending field.", { allowed_values: list(TOPIC_SUMMARY_LABELS) }),
     pending_review_item_ids_with_decisions: rule("Pipe-separated flagged items still without an instructor decision at export time.", "Computed by decisionAdjustedTopicSummary(stored profile, current decisions); its pending_review_item_ids field."),
     excluded_item_ids_with_decisions: rule("Pipe-separated items the instructor has excluded (current decisions), removed from the counted items.", "Computed by decisionAdjustedTopicSummary(stored profile, current decisions); its excluded_item_ids field."),
+    follow_up: rule(`Instructor-facing follow-up for the attempt (${ATTEMPT_SUMMARY_VERSION}, release 29), with the instructor's current item decisions: ${list(FOLLOW_UP_CATEGORIES)}. ${FOLLOW_UP_RULE_TEXT} It replaces the label in instructor views; the labels above are kept for comparison. Never shown to students.`, "Computed by attemptSummary(stored profile, current decisions) in interpretation-v8/attempt-summary.ts.", { allowed_values: list(FOLLOW_UP_CATEGORIES) }),
+    follow_up_reason: rule("Which rule decided follow_up: no_valid_profile, no_counted_items, fewer_than_two_interpretable, fewer_than_half_interpretable, error_or_misconception, reasoning_shown_on_half_or_fewer, reasoning_shown_on_most or flagged_items_change_follow_up.", "Computed by attemptSummary; its follow_up_reason field."),
+    follow_up_without_pending: rule("follow_up without the items still awaiting the instructor's review decision; blank when none await review.", "Computed by attemptSummary; its follow_up_without_pending field.", { allowed_values: list(FOLLOW_UP_CATEGORIES.filter((value) => value !== "Pending item review")) }),
+    correct_item_count: rule("Counted items (current decisions) answered with the keyed option.", "Computed by attemptSummary over the stored items.", { data_type: "integer", unit: "count" }),
+    reasoning_shown_item_count: model("Counted items whose explanation was rated adequate: the key reason stated or clearly implied.", "Computed by attemptSummary over the stored ratings.", { data_type: "integer", unit: "count" }),
+    reasoning_brief_item_count: model("Counted items whose explanation was rated limited: relevant, but the key reason missing or only gestured at.", "Computed by attemptSummary over the stored ratings.", { data_type: "integer", unit: "count" }),
+    reasoning_incorrect_item_count: model("Counted items whose explanation was rated incorrect.", "Computed by attemptSummary over the stored ratings.", { data_type: "integer", unit: "count" }),
+    no_explanation_item_count: model("Counted items with no usable explanation (none written, off task, or a stated guess).", "Computed by attemptSummary over the stored ratings.", { data_type: "integer", unit: "count" }),
+    attempt_summary_text: rule("The one-line summary instructors see, for example \"3 of 4 correct · reasoning shown on 2, brief on 1, none on 1 · possible misconception on Item 3\".", "Computed by attemptSummary; its text field."),
+    attempt_summary_version: version(`Version of the attempt summary rules (${ATTEMPT_SUMMARY_VERSION}).`, "Constant ATTEMPT_SUMMARY_VERSION in interpretation-v8/attempt-summary.ts."),
     administered_item_count: rule("Items administered in the attempt and stored with the profile (n in \"based on k of n items\").", `${STORED}: topic_summary.administered_items.`, { data_type: "integer", unit: "count" }),
     counted_item_count: rule("Counted items at submission (administered items; no decisions existed).", `${STORED}: topic_summary.counted_items.`, { data_type: "integer", unit: "count" }),
     interpretable_item_count: rule("Interpretable counted items at submission (k in \"based on k of n items\").", `${STORED}: topic_summary.interpretable_items.`, { data_type: "integer", unit: "count" }),
@@ -706,6 +729,8 @@ const PROFILE_COLUMN_DOCS: Record<string, V8ColumnDoc> = {
   interpretation_generation_mode: { ...SHARED.generation_mode, definition: "For a v8 profile: " + SHARED.generation_mode.definition + " Blank for earlier profiles." },
   interpretation_summary_label: rule(`For a v8 profile: the topic summary label stored at submission (${list([...TOPIC_SUMMARY_LABELS, PENDING_ITEM_REVIEW_LABEL])}), with no instructor decisions; blank for earlier profiles. See interpretation_summaries.csv.`, `${STORED}: topic_summary.label.`, { allowed_values: list([...TOPIC_SUMMARY_LABELS, PENDING_ITEM_REVIEW_LABEL]) }),
   interpretation_summary_label_with_decisions: rule("For a v8 profile: the label recomputed with the instructor's current item decisions at export time (the dashboard label); blank for earlier profiles.", "Computed by decisionAdjustedTopicSummary(stored profile, current decisions).", { allowed_values: list([...TOPIC_SUMMARY_LABELS, PENDING_ITEM_REVIEW_LABEL]) }),
+  interpretation_follow_up: rule(`For a v8 profile: the instructor-facing follow-up with the instructor's current item decisions (${list(FOLLOW_UP_CATEGORIES)}); see follow_up in interpretation_summaries.csv. Blank for earlier profiles.`, "Computed by attemptSummary(stored profile, current decisions).", { allowed_values: list(FOLLOW_UP_CATEGORIES) }),
+  interpretation_attempt_summary: rule("For a v8 profile: the one-line attempt summary instructors see (answers correct, reasoning shown or brief, possible misconceptions); blank for earlier profiles.", "Computed by attemptSummary(stored profile, current decisions); its text field."),
   interpretation_rules_version: version(`For a v8 profile: the rules version stored with it (${INTERPRETATION_RULES_VERSION}); blank for earlier profiles.`, `${STORED}: rules_version.`)
 };
 

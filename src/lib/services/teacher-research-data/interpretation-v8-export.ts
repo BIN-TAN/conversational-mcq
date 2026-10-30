@@ -1,3 +1,4 @@
+import { attemptSummary } from "@/lib/services/student-assessment/interpretation-v8/attempt-summary";
 import type { Prisma } from "@prisma/client";
 import {
   decisionAdjustedTopicSummary,
@@ -346,6 +347,7 @@ export function interpretationSummaryRows(session: V8ExportSession, decisions: C
   return v8Profiles(session).map(({ profile, stored }) => {
     const summary = stored.topic_summary;
     const adjusted = v8SummaryWithDecisions(stored, decisions);
+    const followUp = attemptSummary(stored, decisionMap(decisions));
     const earlier = stored.attempt?.feedback_seen_before ?? [];
     const contextVersion = stored.attempt?.attempt_context_version ?? null;
     const seen = earlier.map((entry) => ({ entry, ...seenBefore(entry, contextVersion) }));
@@ -365,6 +367,16 @@ export function interpretationSummaryRows(session: V8ExportSession, decisions: C
       label_without_pending_with_decisions: adjusted.label_without_pending,
       pending_review_item_ids_with_decisions: pipe(adjusted.pending_review_item_ids),
       excluded_item_ids_with_decisions: pipe(adjusted.excluded_item_ids),
+      follow_up: followUp.follow_up,
+      follow_up_reason: followUp.follow_up_reason,
+      follow_up_without_pending: followUp.follow_up_without_pending,
+      correct_item_count: followUp.correct_items,
+      reasoning_shown_item_count: followUp.reasoning_shown,
+      reasoning_brief_item_count: followUp.reasoning_brief,
+      reasoning_incorrect_item_count: followUp.reasoning_incorrect,
+      no_explanation_item_count: followUp.no_explanation,
+      attempt_summary_text: followUp.text,
+      attempt_summary_version: followUp.attempt_summary_version,
       administered_item_count: summary.administered_items,
       counted_item_count: summary.counted_items,
       interpretable_item_count: summary.interpretable_items,
@@ -609,15 +621,20 @@ export function interpretationV8ProfileColumns(itemLevelEvidence: unknown, decis
       interpretation_generation_mode: null,
       interpretation_summary_label: null,
       interpretation_summary_label_with_decisions: null,
+      interpretation_follow_up: null,
+      interpretation_attempt_summary: null,
       interpretation_rules_version: null
     };
   }
+  const followUp = attemptSummary(stored, decisionMap(decisions));
   return {
     is_v8: true,
     interpretation_profile_schema: stored.profile_schema,
     interpretation_generation_mode: stored.generation_mode,
     interpretation_summary_label: stored.topic_summary.label,
     interpretation_summary_label_with_decisions: v8SummaryWithDecisions(stored, decisions).label,
+    interpretation_follow_up: followUp.follow_up,
+    interpretation_attempt_summary: followUp.text,
     interpretation_rules_version: stored.rules_version
   };
 }

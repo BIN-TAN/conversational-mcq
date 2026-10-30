@@ -57,12 +57,7 @@ function assertDashboardSurface() {
     "Average elapsed time",
     "Median elapsed time",
     "Response-time data available for",
-    "Initial understanding overview",
-    "Latest understanding overview",
     "Item-level diagnostic view",
-    "Candidate misconception patterns",
-    "candidatePatternRuleText",
-    "Students to follow up",
     "No student data are available for this assessment.",
     "Initial responses: each student&apos;s first submitted attempt, before any feedback.",
     "No initial responses to this item yet.",
@@ -72,10 +67,15 @@ function assertDashboardSurface() {
     "ariaLabel",
     "role=\"list\"",
     "sr-only",
-    "grid items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3",
     "< 1 min"
   ]) {
     assertIncludes(client, expected, "Teacher assessment dashboard client");
+  }
+  // 30 Oct 2026: the overview shows participation and the item-level view only; misconception
+  // patterns are in the instructor report, and attempts are opened from Student sessions.
+  for (const absent of ["Initial understanding overview", "Latest understanding overview", "Candidate misconception patterns",
+    "Students to follow up", "InterpretationV8Panel", "Formative conversations"]) {
+    assert.ok(!client.includes(absent), `The dashboard overview no longer shows ${absent}.`);
   }
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");

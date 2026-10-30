@@ -171,7 +171,7 @@ function assertDashboardCardsAreActionable() {
   assert(header.includes("TeacherPrimaryNav"), "Workspace header should render shared teacher primary navigation.");
   assert(client.includes("Assessment / mini test"), "Dashboard should expose an assessment selector.");
   assert(client.includes("Item-level diagnostic view"), "Dashboard should expose item-level diagnostics.");
-  assert(client.includes("Candidate misconception patterns"), "Dashboard should expose deterministic pattern review.");
+  assert(!client.includes("Candidate misconception patterns"), "Misconception patterns are shown in the instructor report, not on the dashboard overview.");
   assert(!client.includes("Export and readable data"), "Assessment dashboard should not expose dashboard export links.");
   assert(!source.includes("JSON import"), "Standard dashboard should not show a JSON import card or nav link.");
   assert(!source.includes('href="/teacher/content/import-json"'), "Standard dashboard should not link to JSON import.");

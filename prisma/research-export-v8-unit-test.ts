@@ -543,13 +543,16 @@ async function main() {
     assert.equal(v8Row.interpretation_profile_schema, "student-interpretation-profile-v8");
     assert.equal(v8Row.interpretation_summary_label, "Pending item review");
     assert.equal(v8Row.interpretation_summary_label_with_decisions, "Mostly understood");
+    assert.ok(v8Row.interpretation_follow_up, "The instructor-facing follow-up (release 29) is added");
+    assert.match(String(v8Row.interpretation_attempt_summary), / of \d+ correct/);
     assert.equal(v8Row.interpretation_rules_version, "interpretation-rules-v8.1");
     assert.equal(v8Row.interpretation_generation_mode, "live_model");
 
     const legacyRow = { ...profileRow, understanding_category: "partial_understanding_with_misconception", response_profile: "partial_understanding", misconception_indicator_count: 2 };
     const unchanged = v8export.withInterpretationV8ProfileColumns("agent_activity_records", legacyRow, legacyProfile.item_level_evidence, decisions);
     assert.deepEqual({ ...unchanged }, { ...legacyRow, interpretation_profile_schema: null, interpretation_generation_mode: null,
-      interpretation_summary_label: null, interpretation_summary_label_with_decisions: null, interpretation_rules_version: null });
+      interpretation_summary_label: null, interpretation_summary_label_with_decisions: null, interpretation_follow_up: null,
+      interpretation_attempt_summary: null, interpretation_rules_version: null });
 
     const session = v8export.withInterpretationV8ProfileColumns("sessions", { assessment_specific_understanding_category: "insufficient_evidence_for_formative_decision",
       engagement_review_category: "insufficient_process_evidence", evidence_sufficiency: "limited", understanding_label: "Pending item review" }, storedB, noDecisions);

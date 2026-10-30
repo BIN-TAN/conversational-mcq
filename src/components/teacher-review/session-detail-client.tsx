@@ -71,6 +71,8 @@ import { ReviewResourceStatus, useReviewResource } from "./review-resource";
 import { readStoredSessionListQuery, sessionListHref } from "./session-list-query";
 import { ItemContent } from "@/components/item-content";
 import { transcriptLimitationNote } from "@/lib/services/teacher-review/transcript-limitations";
+import { attemptSummary, type FollowUpCategory } from "@/lib/services/student-assessment/interpretation-v8/attempt-summary";
+import type { StoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 
 const tabs = [
   "overview",
@@ -2344,6 +2346,11 @@ function readV8(value: unknown): V8Stored | null {
 
 const readable = (value: string | null | undefined) => (value ? value.replaceAll("_", " ") : "not given");
 
+function followUpTone(value: FollowUpCategory): "neutral" | "good" | "warn" | "bad" {
+  return value === "No follow-up needed" ? "good" : value === "Address errors or misconceptions" ? "bad"
+    : value === "Check reasoning" || value === "Pending item review" ? "warn" : "neutral";
+}
+
 // Interpretation v8 (docs/AI_MODULE_REDESIGN_2026-10-19.md): item ratings from the student's own
 // words, the rule-based label, possible misconceptions kept separate, and the attempt context.
 // No process interpretations are shown; recorded process data stay in the process panel.
@@ -2351,20 +2358,21 @@ function V8ProfileDetails({ profile, stored }: { profile: TeacherStudentProfile;
   const items = [...stored.items].sort((a, b) => a.position - b.position);
   const number = new Map(items.map((item, index) => [item.item_id, index + 1]));
   const fallback = stored.generation_mode === "fallback";
+  // Instructor-facing summary (release 29): accuracy and reasoning reported separately, with the follow-up they suggest.
+  const summary = attemptSummary(stored as unknown as StoredInterpretationV8);
   return (
     <div className="mt-4 space-y-4">
       <div className="grid gap-3 md:grid-cols-3">
-        <Fact labelText="Summary (rules over item ratings)" value={<StatusPill value={stored.topic_summary.label} />} />
-        <Fact labelText="Based on" value={stored.topic_summary.based_on
-          ? `${stored.topic_summary.based_on.interpretable_items} of ${stored.topic_summary.based_on.administered_items} items` : "not recorded"} />
+        <Fact labelText="Follow-up" value={<StatusPill value={summary.follow_up} tone={followUpTone(summary.follow_up)} />} />
+        <Fact labelText="Summary" value={summary.text} />
         <Fact labelText="Attempt" value={stored.attempt
           ? `${stored.attempt.attempt_number} (${stored.attempt.role === "after_feedback" ? "after feedback" : "initial diagnosis"})` : "not recorded"} />
         <Fact labelText="Interpretation" value={fallback ? "Not produced (no claims)" : stored.generation_mode === "local_test" ? "Local test stand-in" : "Model, checked by the application"} />
         <Fact labelText="Created" value={formatDate(profile.created_at)} />
       </div>
       <p className="text-xs leading-5 text-muted">
-        The label stored with this submission is shown here. Dashboard labels also apply your item-review decisions;
-        this profile is never changed.
+        Computed from this attempt&apos;s item ratings; your item-review decisions are applied in the instructor report and
+        the exports. Students do not see this summary, and this profile is never changed.
       </p>
       {fallback ? (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{profile.rationale}</section>

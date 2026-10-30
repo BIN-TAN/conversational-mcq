@@ -283,7 +283,7 @@ function SectionView({ title, empty, counts, findings, link }: {
         <>
           {hasRatings ? (
             <div>
-              <h4 className="text-sm font-semibold text-ink">Summary distribution</h4>
+              <h4 className="text-sm font-semibold text-ink">Follow-up</h4>
               <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
                 {counts.summary_distribution.labels.map((entry) => <li key={entry.label}>{entry.label}: <span className="font-medium">{entry.students}</span></li>)}
               </ul>
