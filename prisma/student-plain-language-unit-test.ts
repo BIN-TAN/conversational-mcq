@@ -33,7 +33,7 @@ check("The feedback and profiling prompts ask for complete, natural, plain langu
   // Each prompt family's version is checked on its own line, apart from the others, so that one
   // family's prompt commit can be reverted without touching another's.
   assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.6");
-  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.7");
+  assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
 
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
     assert.match(prompt, /Write the way a knowledgeable, friendly tutor speaks: complete, natural sentences/);

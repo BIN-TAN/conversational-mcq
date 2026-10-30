@@ -849,7 +849,8 @@
      "extend"
     ],
     "item_numbers_any": [
-     2
+     2,
+     1
     ],
     "focus_status": [
      "difficulty_still_evident",
@@ -860,7 +861,7 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": true,
-    "notes": "A bare letter after the solution was shown is not evidence of mastery; the turn record should not treat it as such without the student's own reasoning."
+    "notes": "A bare letter after the solution was shown is not evidence of mastery; the turn record should not treat it as such without the student's own reasoning. Release 26 (conversation v8.8): the opening lists the points and the tutor goes through them one at a time, so after this answer the reply may close Item 2 and take up Item 1; the record must still not treat the bare letter as corrected reasoning."
    }
   },
   {
@@ -1104,7 +1105,7 @@
     ],
     "max_questions": 1,
     "must_not_mark_corrected": false,
-    "notes": "Release 26 (conversation v8.7): the first point is settled and the student asks to go on, so the reply closes it briefly and takes up the next listed point, Item 2 (the SEM is not subtracted to get the true score). Staying on Items 1 and 4 or only offering the next point is a miss."
+    "notes": "Release 26 (conversation v8.8): the first point is settled and the student asks to go on, so the reply closes it briefly and takes up the next listed point, Item 2, and explains it (the SEM is not subtracted to get the true score). Staying on Items 1 and 4 or only offering the next point is a miss."
    }
   }
  ]

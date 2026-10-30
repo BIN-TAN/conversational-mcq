@@ -164,17 +164,18 @@ async function main() {
     // and several points open with a short overview the student can choose from.
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /then a correct answer the student doubted \(low confidence, or an explanation that says they are unsure\)/);
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /\nMORE THAN ONE POINT\nWhen the evidence shows more than one point worth discussing \(from levels 1 to 4\), begin with a short overview/);
-    // v8.6/v8.7: the overview states what each point concerns in the student's own work, and the
+    // v8.6/v8.8: the overview states what each point concerns in the student's own work, and the
     // conversation goes through the listed points one at a time.
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /so the student sees every point at once/);
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /the idea their explanation or choice relies on, the doubt they expressed, or the question they asked/);
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /say that the next point follows when the student is ready/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the opening listed several points, go through them one at a time/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /do not drop a listed point otherwise/);
+    assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /explain the idea at issue rather than asking the student to explain it/);
     assert.doesNotMatch(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /most important first/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself\./);
     assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.6");
-    assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.7");
+    assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });
 
