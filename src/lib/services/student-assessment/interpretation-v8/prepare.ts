@@ -15,6 +15,7 @@ import { attemptContextForSession } from "./attempts";
 import { callInterpretationV8 } from "./call";
 import { chosenOptionTagsFromPackage, loadInterpretationInputV8 } from "./input-builder";
 import { buildStoredInterpretationV8, INTERPRETATION_V8_PROFILE_SCHEMA, studentProfileDataV8 } from "./profile";
+import { isReinterpretationProfile } from "@/lib/services/interpretation-relabel/calls";
 
 /**
  * Post-submission path of interpretation v8: one profiling call, then the conversation and
@@ -90,7 +91,8 @@ export async function prepareInitialInterpretationV8(input: {
   });
   const existingV8 = existingProfiles.find((profile) => {
     const evidence = profile.item_level_evidence as Record<string, unknown> | null;
-    return evidence?.profile_schema === INTERPRETATION_V8_PROFILE_SCHEMA && evidence?.response_package_id === input.response_package_id;
+    return evidence?.profile_schema === INTERPRETATION_V8_PROFILE_SCHEMA && evidence?.response_package_id === input.response_package_id &&
+      !isReinterpretationProfile(evidence);
   });
 
   let profileId = existingConversation?.initial_student_profile_db_id ?? existingV8?.id ?? null;

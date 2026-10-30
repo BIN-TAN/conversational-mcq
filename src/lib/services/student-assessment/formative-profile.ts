@@ -80,6 +80,7 @@ import {
   resolveTopicDialogueExecutionPlan,
   type FormativeExecutionMode
 } from "./formative-execution-mode";
+import { isReinterpretationProfile } from "@/lib/services/interpretation-relabel/calls";
 
 export const PACKAGE_FEEDBACK_PRESENTER_VERSION = "package-feedback-presenter-v1" as const;
 export const PACKAGE_COMPLETION_OPERATION_VERSION = "package-completion-operation-v1" as const;
@@ -2213,12 +2214,12 @@ export async function reconcilePackageCompletionState(input: {
         }
       }
     });
-    const candidateProfiles = await tx.studentProfile.findMany({
+    const candidateProfiles = (await tx.studentProfile.findMany({
       where: { concept_unit_session_db_id: conceptUnitSession.id },
       orderBy: [{ created_at: "desc" }],
       take: 10,
       select: { id: true, item_level_evidence: true }
-    });
+    })).filter((candidate) => !isReinterpretationProfile(candidate.item_level_evidence));
     const profileWithBundle = candidateProfiles
       .map((candidate) => ({
         profile: candidate,
@@ -3046,10 +3047,11 @@ async function ensureTargetedFeedbackAndRevisionPrompt(input: {
 
   const [responsePackage, profile, decision, activityResponseTurn] = await Promise.all([
     latestInitialResponsePackage(input.concept_unit_session_db_id),
-    prisma.studentProfile.findFirst({
+    prisma.studentProfile.findMany({
       where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
-      orderBy: [{ created_at: "desc" }]
-    }),
+      orderBy: [{ created_at: "desc" }],
+      take: 10
+    }).then((profiles) => profiles.find((entry) => !isReinterpretationProfile(entry.item_level_evidence)) ?? null),
     prisma.formativeDecision.findFirst({
       where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
       orderBy: [{ created_at: "desc" }]

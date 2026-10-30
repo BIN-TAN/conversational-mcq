@@ -64,7 +64,10 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     call.call_status === "succeeded" &&
     ["student_profiling_agent", "formative_conversation_agent"].includes(call.agent_name);
   const status = fallback ? "fallback" : intermediate ? "intermediate" : validated ? "validated" : "unverified";
-  const role = intermediate ? "intermediate" : profile.profile_type === "updated" ? "updated" : "baseline";
+  // A reinterpretation of an earlier attempt under updated rules (release 27) is its own role:
+  // it is the same submitted evidence read again, not a new observation.
+  const relabel = Boolean(evidence.relabel);
+  const role = intermediate ? "intermediate" : profile.profile_type === "updated" ? "updated" : relabel ? "reinterpretation" : "baseline";
   return {
     profile_projection_version: PROFILE_PROJECTION_VERSION,
     profile_record_id: profileRecordIdentity(profile.id),
@@ -84,7 +87,7 @@ export function profileRecordProvenance(profile: ProfileRecord) {
     profile_dimensions_status: status === "fallback" || status === "unverified" ? "unavailable"
       : evidence.evidence_integrated_profile_v2 ? "integrated_dimensions" : "item_level_dimensions",
     profile_native_confidence_alignment: validated ? profile.confidence_alignment : null,
-    profile_confidence_alignment_scope: !validated ? "unavailable" : role === "baseline"
+    profile_confidence_alignment_scope: !validated ? "unavailable" : role === "baseline" || role === "reinterpretation"
       ? "initial_assessment" : call?.agent_name === "formative_conversation_agent" &&
         ["formative-conversation-host-v7.6", "formative-conversation-host-v7.7", "formative-conversation-host-v7.8", "formative-conversation-host-v7.9", "formative-conversation-host-v7.10", "formative-conversation-host-v7.11", "formative-conversation-host-v7.12", "formative-conversation-host-v7.13", "formative-conversation-host-v7.14", "formative-conversation-host-v7.15", "formative-conversation-host-v7.16", "formative-conversation-host-v7.17"].includes(call.prompt_version ?? "")
         ? "carried_forward_not_reassessed" : "legacy_scope_unrecorded",
@@ -136,7 +139,7 @@ export const PROFILE_FIELD_DEFINITIONS: Record<string, string> = {
   current_profile_record_id: "Stable profile_record_id of the latest canonical transition's updated profile, or the initial profile when no validated transition exists. Reusing the baseline is not a new measurement.",
   prior_profile_record_id: "Stable profile_record_id of the prior profile referenced by this canonical transition.",
   updated_profile_record_id: "Stable profile_record_id of the updated profile referenced by this canonical transition.",
-  profile_record_role: "baseline, updated, or intermediate. Integration/planning artifacts are intermediate, not repeated learning measurements.",
+  profile_record_role: "baseline, updated, intermediate or reinterpretation. Integration/planning artifacts are intermediate, not repeated learning measurements. reinterpretation (from release 27) is a one-time reading of the same submitted responses under updated interpretation rules; it is not a new observation, and the baseline profile it replaces in instructor views stays in the data.",
   profile_validation_status: "validated, fallback, intermediate, or unverified. Success requires a successful validated profiling or conversation source call; fallback cautions or an unsuccessful student-profiling source call mark a fallback. Check profile_source_provider: mock means local test output, never live model evidence.",
   profile_provenance_eligible: "Preferred technical eligibility flag: true only for non-intermediate, non-fallback records backed by a successful validated profiling/conversation call. Not independent scientific validation, diagnostic accuracy, student mastery, or learning gain.",
   profile_valid_for_learning_analysis: "Compatibility alias of profile_provenance_eligible. Same technical provenance filter, not a separate measurement or proof of diagnostic validity or student mastery.",

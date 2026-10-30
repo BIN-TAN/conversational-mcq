@@ -6,10 +6,11 @@ import {
   type TeacherReadableTranscriptProjection
 } from "@/lib/services/teacher-review/readable-transcript";
 import { asArray, asRecord, stripInternalKeys } from "@/lib/services/teacher-review/serializers";
-import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import { isUnappliedReinterpretation, readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { createStoreOnlyZip, type ZipEntryInput } from "./zip";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 export const TEACHER_RESEARCH_EXPORT_VERSION = "teacher-research-export-v1" as const;
 
@@ -636,7 +637,7 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
           }
         }
       },
-      agent_calls: { orderBy: [{ created_at: "asc" }] }
+      agent_calls: { where: attemptAgentCallWhere, orderBy: [{ created_at: "asc" }] }
     }
   });
 
@@ -884,7 +885,10 @@ export async function buildTeacherResearchBulkExport(input: BuildTeacherResearch
 
   const profileRows = sessions.flatMap((session) =>
     session.concept_unit_sessions.flatMap((conceptUnitSession) =>
-      conceptUnitSession.student_profiles.map((profile) => {
+      conceptUnitSession.student_profiles
+        // A reinterpretation that was not applied (release 27 preview) is not part of the data.
+        .filter((profile) => !isUnappliedReinterpretation(profile, conceptUnitSession.relabeled_student_profile_db_id))
+        .map((profile) => {
         // Interpretation v8 profiles keep fixed placeholders in the legacy label columns;
         // those are left null here and the v8 summary label is given instead.
         const v8 = readStoredInterpretationV8(profile.item_level_evidence);

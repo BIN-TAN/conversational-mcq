@@ -7,6 +7,7 @@ import { logProcessEvent } from "@/lib/services/process-events";
 import { resolveCanonicalAttemptLifecycle } from "@/lib/services/student-assessment/attempt-lifecycle";
 import { FORMATIVE_CONVERSATION_OPENING_CLIENT_MESSAGE_ID } from "@/lib/services/student-assessment/formative-conversation/opening-contract";
 import { getWorkflowJobConfig, retryDelayMs } from "./config";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 export const INITIAL_PREPARATION_JOB = "prepare_initial_conversation" as const;
 const payloadSchema = z.object({
@@ -229,6 +230,7 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
         assessment_session_db_id: job.assessment_session_db_id,
         concept_unit_session_db_id: job.concept_unit_session_db_id,
         created_at: { gte: job.locked_at ?? job.updated_at },
+        AND: [attemptAgentCallWhere],
         call_status: "failed", OR: [
           { incomplete_reason: "max_output_tokens" }, { error_category: "quota" }
         ]
@@ -241,7 +243,7 @@ export async function processInitialPreparationJob(job: WorkflowJob, options: {
         const failedCall = await prisma.agentCall.findFirst({ where: {
           assessment_session_db_id: job.assessment_session_db_id,
           concept_unit_session_db_id: job.concept_unit_session_db_id,
-          created_at: { gte: job.locked_at ?? job.updated_at }, call_status: "failed"
+          created_at: { gte: job.locked_at ?? job.updated_at }, call_status: "failed", ...attemptAgentCallWhere
         }, orderBy: { created_at: "desc" }, select: { raw_output: true, completed_at: true, created_at: true } });
         const raw = failedCall?.raw_output;
         const failure = raw && typeof raw === "object" && !Array.isArray(raw) ? raw.provider_failure : null;

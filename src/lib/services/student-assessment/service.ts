@@ -122,6 +122,7 @@ import {
   studentSafeExplanationMedia
 } from "./serializers";
 import { StudentAssessmentServiceError } from "./errors";
+import { isReinterpretationProfile } from "@/lib/services/interpretation-relabel/calls";
 
 const DEFAULT_ATTEMPT_NUMBER = 1;
 const MAX_REASONING_LENGTH = 5000;
@@ -3292,10 +3293,12 @@ export async function getStudentSessionState(input: {
         }
       })
     : [];
+  // A reinterpretation saved later for instructors (release 27) is never part of what the student sees.
+  const attemptProfiles = studentProfiles.filter((profile) => !isReinterpretationProfile(profile.item_level_evidence));
   const latestStudentProfile =
-    studentProfiles.find((profile) => evidenceIntegratedProfileFromStoredProfile(profile)) ??
-    studentProfiles.find((profile) => projectStoredStudentProfileIntegration(profile)) ??
-    studentProfiles[0] ??
+    attemptProfiles.find((profile) => evidenceIntegratedProfileFromStoredProfile(profile)) ??
+    attemptProfiles.find((profile) => projectStoredStudentProfileIntegration(profile)) ??
+    attemptProfiles[0] ??
     null;
   const latestEvidenceIntegratedProfile = evidenceIntegratedProfileFromStoredProfile(latestStudentProfile);
   // Release CMCQ-20261024-09: once the answers are submitted, the answer key and explanations

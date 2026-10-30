@@ -14,8 +14,13 @@ import type { InstructorItemDecision } from "./interpretation-v8/rules";
 // v4: interpretation v8 profiles take the label computed by the application's rules from the
 // item ratings (interpretation-v8/rules.ts), including "Pending item review"; earlier
 // profiles keep the v3 mapping from their stored categories.
-export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v4" as const;
+// v5: an applied one-time reinterpretation of the same submitted responses under updated
+// interpretation rules (release 27) takes the place of the original profile.
+export const UNDERSTANDING_SUMMARY_VERSION = "understanding-summary-v5" as const;
 export const learningProfileInclude = { based_on_agent_call: { select: profileSourceCallSelect } } as const;
+// The applied one-time reinterpretation of the attempt (release 27), when there is one: instructor
+// views and exports read their labels from it instead of the profile saved at submission.
+export const relabeledProfileSelect = { relabeled_student_profile: { include: learningProfileInclude } } as const;
 
 // Reuse the transition validator without loading student messages or provider payloads.
 export const learningConversationSelect = {
@@ -40,7 +45,7 @@ export const learningConversationSelect = {
 
 export type LearningProfile = Prisma.StudentProfileGetPayload<{ include: typeof learningProfileInclude }>;
 type LearningSession = {
-  concept_unit_sessions: Array<{ id: string; latest_student_profile: LearningProfile | null }>;
+  concept_unit_sessions: Array<{ id: string; latest_student_profile: LearningProfile | null; relabeled_student_profile: LearningProfile | null }>;
   formative_conversation_sessions: Array<Prisma.FormativeConversationSessionGetPayload<{ select: typeof learningConversationSelect }>>;
 };
 
@@ -64,13 +69,17 @@ type LearningConversation = LearningSession["formative_conversation_sessions"][n
 
 // The profile produced from the submitted mini-test, paired with its conversation. Conversation
 // updates are stored as separate profile records and never replace this profile in reports.
+// An applied one-time reinterpretation (release 27) of the same submitted responses takes the
+// place of the original profile here; the original and the conversation are unchanged.
 function initialLearningProfilePair(session: LearningSession): { profile: LearningProfile; conversation: LearningConversation | null } | null {
   const pairs = session.concept_unit_sessions.flatMap(entry => {
     const conversation = session.formative_conversation_sessions.find(candidate => candidate.concept_unit_session_db_id === entry.id) ?? null;
-    const profile = conversation?.initial_student_profile ?? entry.latest_student_profile;
-    return profile ? [{ profile, conversation }] : [];
+    const original = conversation?.initial_student_profile ?? entry.latest_student_profile;
+    const profile = entry.relabeled_student_profile ?? original;
+    // Ordered by the original profile's time, so a reinterpretation keeps its attempt's place.
+    return profile ? [{ profile, conversation, ordered_at: (original ?? profile).created_at }] : [];
   });
-  return pairs.sort((a, b) => b.profile.created_at.getTime() - a.profile.created_at.getTime() ||
+  return pairs.sort((a, b) => b.ordered_at.getTime() - a.ordered_at.getTime() ||
     a.profile.id.localeCompare(b.profile.id))[0] ?? null;
 }
 
@@ -187,8 +196,8 @@ export const UNDERSTANDING_SUMMARY_DEFINITIONS = {
   understanding_label: "Shared dashboard/export label from the profile produced from the submitted mini-test, before any conversation. From understanding-summary-v4, profiles from interpretation v8 take the label the application computes from the item ratings (see the redesign's summary rules: at least two interpretable items, at least half of the counted items interpretable; Need more work when half or more of the interpretable items are not supported; Mostly understood when none is not supported, at most one is partly supported and supported items are more than half of the counted items; otherwise Still developing). Pending item review means a model-flagged possible item issue could change the label and awaits the instructor. The rest of this definition describes earlier profiles. Updates recommended during the conversation never change it; they are reported in the conversation update variables. Missing, fallback, intermediate, unverified, insufficient or conflicting evidence is unavailable, never a deficit. Supported difficulty/misconception maps to Need more work; native partial/fragile/error ability to Still developing; native mostly-correct or robust understanding otherwise to Mostly understood. An integrated fragile-reasoning focus or uncertain-independence qualifier alone does not override native mostly-correct understanding; the caution is retained separately. Not a grade. The mini-test has no transfer task, so transfer is not assessed; from the 2026-10-19 rule (initial-profile-transfer-labels-blocked-v1) the mini-test profile is saved without transfer labels, so robust_transfer_ready_understanding appears only in mini-test profiles saved before that rule or in conversation updates backed by independent transfer evidence.",
   understanding_reason: "Deterministic mapping reason, not a new AI judgment; see understanding_label and the linked original profile. Reasons starting interpretation_v8_ name the summary rule applied to a v8 profile.",
   understanding_caution: "reasoning_refinement_needed for the stored correct-but-fragile integrated diagnosis; independent_understanding_uncertain for that stored integrated diagnosis; profile_unavailable without eligible provenance; none_added otherwise. This is a retained diagnostic qualifier, not proof that no other limitations exist. Native mostly-correct understanding may coexist with a need to refine some reasoning.",
-  understanding_profile_record_id: "Profile used for this summary; join profile_record_id. This is the conversation's initial profile, otherwise the topic's profile pointer for attempts without a conversation. Multiple topics use the most recently created profile, not an average across topics.",
-  understanding_profile_stage: "baseline for an eligible mini-test profile, unavailable otherwise. updated appears only for legacy attempts whose profile pointer was replaced before conversation updates were stored separately.",
-  understanding_profile_created_at: "Original profile creation time, not the export time. Does not represent a new observation when re-exported."
+  understanding_profile_record_id: "Profile used for this summary; join profile_record_id. This is the conversation's initial profile, otherwise the topic's profile pointer for attempts without a conversation; when a one-time reinterpretation under updated rules was applied (release 27), it is that reinterpretation (profile_record_role reinterpretation) and the original profile stays in the data. Multiple topics use the most recently created profile, not an average across topics.",
+  understanding_profile_stage: "baseline for an eligible mini-test profile, reinterpretation for an applied one-time reinterpretation of the same responses under updated rules (release 27), unavailable otherwise. updated appears only for legacy attempts whose profile pointer was replaced before conversation updates were stored separately.",
+  understanding_profile_created_at: "Creation time of the profile used (for a reinterpretation, when it was made), not the export time. Does not represent a new observation when re-exported."
 } as const;
 export const UNDERSTANDING_SUMMARY_COLUMNS = Object.keys(UNDERSTANDING_SUMMARY_DEFINITIONS) as Array<keyof typeof UNDERSTANDING_SUMMARY_DEFINITIONS>;

@@ -281,6 +281,21 @@ function optionsOf(value: unknown) {
   );
 }
 
+/**
+ * The profiles an item review reads: the attempt's applied one-time reinterpretation (release 27)
+ * when there is one, otherwise its profiles saved at submission. A reinterpretation not applied
+ * (a preview) is never read.
+ */
+export function isProfileOfRecord(profile: {
+  id: string;
+  item_level_evidence: unknown;
+  concept_unit_session: { relabeled_student_profile_db_id: string | null };
+}) {
+  const applied = profile.concept_unit_session.relabeled_student_profile_db_id;
+  if (applied) return profile.id === applied;
+  return !readStoredInterpretationV8(profile.item_level_evidence)?.relabel;
+}
+
 /** Items flagged by the profiling model in this mini test, with what a decision would change. */
 export async function listItemReviews(input: { teacher_user_db_id: string; assessment_public_id: string }) {
   const assessment = await ownedAssessment(input.teacher_user_db_id, input.assessment_public_id);
@@ -293,8 +308,12 @@ export async function listItemReviews(input: { teacher_user_db_id: string; asses
     prisma.studentProfile.findMany({
       where: { profile_type: "initial", concept_unit_session: { assessment_session: { assessment_db_id: assessment.id } } },
       select: {
+        id: true,
         item_level_evidence: true,
-        concept_unit_session: { select: { assessment_session: { select: { attempt_number: true, user: { select: { user_id: true } } } } } }
+        concept_unit_session: { select: {
+          relabeled_student_profile_db_id: true,
+          assessment_session: { select: { attempt_number: true, user: { select: { user_id: true } } } }
+        } }
       }
     }),
     loadItemReviewDecisionRowsForAssessment(assessment.id),
@@ -309,7 +328,7 @@ export async function listItemReviews(input: { teacher_user_db_id: string; asses
   for (const signal of tutorSignals) {
     for (const itemId of signal.item_public_ids) signalsByItem.set(itemId, [...(signalsByItem.get(itemId) ?? []), signal]);
   }
-  const stored = profiles.flatMap((profile) => {
+  const stored = profiles.filter(isProfileOfRecord).flatMap((profile) => {
     const value = readStoredInterpretationV8(profile.item_level_evidence);
     return value && value.generation_mode !== "fallback"
       ? [{ value, student: profile.concept_unit_session.assessment_session.user.user_id, attempt: profile.concept_unit_session.assessment_session.attempt_number }]

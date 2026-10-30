@@ -102,7 +102,34 @@ export type StoredInterpretationV8 = {
   answer_review_v2: unknown;
   /** Repairs and salvage applied to the model output; null or absent when none. */
   output_adjustments?: InterpretationOutputAdjustments | null;
+  /**
+   * Present only on a one-time reinterpretation of an earlier attempt under updated rules
+   * (release 27): the same submitted responses, interpreted again. Absent on every profile
+   * saved at submission.
+   */
+  relabel?: InterpretationRelabelRecord | null;
 };
+
+export type InterpretationRelabelRecord = {
+  relabel_version: "interpretation-relabel-v1";
+  /** Why the attempt was interpreted again, in plain words. */
+  reason: string;
+  reinterpreted_at: string;
+  /** The profile that was the interpretation of record before (profile_record_id form), if any. */
+  previous_profile_record_id: string | null;
+  /** The label the instructor saw before, if any. */
+  previous_label: string | null;
+  /** The previous profile's interpretation version: a v8 prompt version, or "earlier" for pre-v8 profiles. */
+  previous_interpretation_version: string | null;
+};
+
+/**
+ * A reinterpretation that is not applied (a preview, or one replaced by a later run) is never
+ * read as the student's interpretation: exports and views leave it out.
+ */
+export function isUnappliedReinterpretation(profile: { id: string; item_level_evidence: unknown }, appliedProfileId: string | null | undefined) {
+  return Boolean(readStoredInterpretationV8(profile.item_level_evidence)?.relabel) && profile.id !== appliedProfileId;
+}
 
 export function readStoredInterpretationV8(itemLevelEvidence: unknown): StoredInterpretationV8 | null {
   if (!itemLevelEvidence || typeof itemLevelEvidence !== "object" || Array.isArray(itemLevelEvidence)) return null;

@@ -1595,7 +1595,7 @@ const SESSION_DEFINITIONS: Record<string, string> = {
   current_item_index: "Highest authoring item_order among the attempt's item responses; blank without responses. Not the student-facing item position (item_position in item_responses.csv).",
   session_limitations: "Pipe-separated codes: no_item_responses_recorded (the attempt has no item response) and initial_feedback_unavailable (an initial_feedback_skipped or initial_feedback_terminated event exists); blank when neither applies.",
   item_response_count: "Number of item-response rows of the attempt across its topics (rows in item_responses.csv for this session_public_id).",
-  agent_call_count: "Number of model calls (AgentCall rows) linked to the attempt for every AI role and outcome, including failed, blocked, rejected and retried calls; each interpretation v8 attempt is its own call. Restricted exports list them in ai_call_audit.csv.",
+  agent_call_count: "Number of model calls (AgentCall rows) linked to the attempt for every AI role and outcome, including failed, blocked, rejected and retried calls; each interpretation v8 attempt is its own call. Calls of the instructor's one-time reinterpretation of submitted responses (release 27) are not part of the attempt and are not counted. Restricted exports list every call in ai_call_audit.csv (call_purpose).",
   post_activity_evidence_count: "Number of post-activity misconception-evidence records of the legacy activity runtime for the attempt; 0 for attempts without that runtime.",
   conversation_profile_update_count: CONVERSATION_UPDATE_SUMMARY_DEFINITIONS.conversation_profile_update_count,
   understanding_profile_created_at: UNDERSTANDING_SUMMARY_DEFINITIONS.understanding_profile_created_at,

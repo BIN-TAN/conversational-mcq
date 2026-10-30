@@ -109,7 +109,8 @@ async function main() {
     assert.ok(!optionsBody.includes("loadSessions("), "Options must not load full sessions.");
     assert.ok(!optionsBody.includes("data_dictionary"), "The page does not read the data dictionary from options.");
     assert.ok(optionsBody.includes("sessions: countsBySession.map"), "The page reads per-session counts for the session scope.");
-    assert.ok(service.includes("process_events: true,\n      conversation_turns: true,\n      agent_calls: true"));
+    assert.ok(service.includes("process_events: true,\n      conversation_turns: true,\n      agent_calls: { where: attemptAgentCallWhere }"),
+      "Counts come from relation counts; reinterpretation calls (release 27) are not counted.");
     assert.ok(service.includes("turn_latency_row_count: buildTurnLatencyCount(session)"), "Export columns keep latency counts.");
     assert.match(service, /export async function downloadAssessmentCsv[\s\S]*?loadSessions\(input\)/);
     assert.match(service, /export async function downloadStudentAssessmentMatrixCsv[\s\S]*?loadExplorerAssessmentsAndStudents\(input\),\s*loadSessions\(input\)/);

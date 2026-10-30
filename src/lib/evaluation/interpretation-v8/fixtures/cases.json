@@ -1,12 +1,12 @@
 {
- "cases_version": "interpretation-v8-eval-cases-3",
+ "cases_version": "interpretation-v8-eval-cases-4",
  "situations": {
   "S01": "Complete reasoning in the student's own words",
   "S02": "Brief but complete reasoning",
   "S03": "Complete reasoning with grammar or spelling errors (non-native English)",
   "S04": "Copies or closely paraphrases the correct option, which itself states the essential elements",
-  "S05": "Paraphrases an option without the missing essential element",
-  "S06": "Relevant own reasoning with an essential element missing",
+  "S05": "Paraphrases an option without the key reason",
+  "S06": "Relevant own reasoning with the key reason missing or only gestured at",
   "S07": "Correct answer reached with an incorrect rule",
   "S08": "Incorrect answer; explanation paraphrases the chosen distractor",
   "S09": "Incorrect answer; incorrect idea stated firmly in the student's own words",
@@ -31,7 +31,8 @@
   "S28": "Adequate reasoning with long time away from the page (process: context)",
   "S29": "Adequate reasoning with blocked paste attempts (process: context)",
   "S30": "Explanation supports the key but a different option was chosen",
-  "S31": "Answer pattern from choices only (two chosen options share an idea label)"
+  "S31": "Answer pattern from choices only (two chosen options share an idea label)",
+  "S32": "Key reason stated; a supporting point is left out"
  },
  "cases": [
   {
@@ -401,7 +402,8 @@
      "process": {},
      "expected": {
       "quality": [
-       "limited"
+       "limited",
+       "adequate"
       ],
       "beyond_option_text": false,
       "error_source": null,
@@ -914,7 +916,8 @@
      "process": {},
      "expected": {
       "quality": [
-       "limited"
+       "limited",
+       "adequate"
       ],
       "beyond_option_text": true,
       "error_source": null,
@@ -1096,7 +1099,8 @@
      "process": {},
      "expected": {
       "quality": [
-       "limited"
+       "limited",
+       "adequate"
       ],
       "beyond_option_text": true,
       "error_source": null,
@@ -1158,6 +1162,97 @@
     }
    ],
    "forbidden_claim_items": [
+    "R4"
+   ],
+   "optional_claim_items": []
+  },
+  {
+   "case_id": "R-12",
+   "topic_id": "R",
+   "profile": "Gives the key reason on every item and leaves out a supporting point (student-profiling-v8.4)",
+   "responses": [
+    {
+     "item_id": "R1",
+     "situation": "S32",
+     "selected_option": "A",
+     "confidence": "medium",
+     "explanation": "Consistent scores don't show that they predict how people do on the job, so they can't justify the hiring decision.",
+     "tempting_option": null,
+     "tempting_option_reason": null,
+     "process": {},
+     "expected": {
+      "quality": [
+       "adequate"
+      ],
+      "beyond_option_text": true,
+      "error_source": null,
+      "no_usable_reason": null,
+      "side_remark": false
+     }
+    },
+    {
+     "item_id": "R2",
+     "situation": "S32",
+     "selected_option": "C",
+     "confidence": "medium",
+     "explanation": "The SEM only tells you how uncertain the 76 is.",
+     "tempting_option": null,
+     "tempting_option_reason": null,
+     "process": {},
+     "expected": {
+      "quality": [
+       "adequate"
+      ],
+      "beyond_option_text": true,
+      "error_source": null,
+      "no_usable_reason": null,
+      "side_remark": false
+     }
+    },
+    {
+     "item_id": "R3",
+     "situation": "S32",
+     "selected_option": "D",
+     "confidence": "low",
+     "explanation": "Reliability depends on which group took the test.",
+     "tempting_option": null,
+     "tempting_option_reason": null,
+     "process": {},
+     "expected": {
+      "quality": [
+       "adequate"
+      ],
+      "beyond_option_text": true,
+      "error_source": null,
+      "no_usable_reason": null,
+      "side_remark": false
+     }
+    },
+    {
+     "item_id": "R4",
+     "situation": "S32",
+     "selected_option": "B",
+     "confidence": "high",
+     "explanation": "It shows the scores stayed stable across the two testings.",
+     "tempting_option": null,
+     "tempting_option_reason": null,
+     "process": {},
+     "expected": {
+      "quality": [
+       "adequate"
+      ],
+      "beyond_option_text": true,
+      "error_source": null,
+      "no_usable_reason": null,
+      "side_remark": false
+     }
+    }
+   ],
+   "claims": [],
+   "forbidden_claim_items": [
+    "R1",
+    "R2",
+    "R3",
     "R4"
    ],
    "optional_claim_items": []
@@ -1947,7 +2042,8 @@
      "process": {},
      "expected": {
       "quality": [
-       "limited"
+       "limited",
+       "adequate"
       ],
       "beyond_option_text": "either",
       "error_source": null,

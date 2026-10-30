@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { isConfidenceRevisionEvent } from "../student-assessment/response-revision-events";
 import { conversationVisibility, CONVERSATION_VISIBILITY_VERSION } from "../student-assessment/conversation-visibility";
+import { isUnappliedReinterpretation } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { profileRecordProvenance, profileRecordIdentity, profileEvidenceCounts, profileSourceCallSelect, profileReassessmentStatus, profileItemEvidence, PROFILE_PROVENANCE_COLUMNS, PROFILE_FIELD_DEFINITIONS, PROFILE_PROJECTION_VERSION } from "@/lib/services/student-assessment/profile-record";
-import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { observeAttempts } from "@/lib/services/teacher-dashboard/attempt-comparison";
 import { initialProfileTransferRule } from "@/lib/services/student-assessment/initial-profile-transfer-labels";
 import { attemptComparisonExportFiles } from "./attempt-comparison-export";
@@ -121,6 +122,7 @@ import {
   loadItemWordingCorrectionRecords,
   type ItemWordingCorrectionRecord
 } from "./item-wording-corrections-export";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 type CsvPrimitive = string | number | boolean | null;
 type CsvRow = Record<string, CsvPrimitive>;
@@ -277,6 +279,7 @@ const analysisSessionSelect = {
         }
       },
       latest_student_profile: { include: learningProfileInclude },
+      ...relabeledProfileSelect,
       formative_decisions: {
         orderBy: [{ created_at: "desc" }],
         select: {
@@ -324,6 +327,7 @@ const analysisSessionSelect = {
     }
   },
   agent_calls: {
+    where: attemptAgentCallWhere,
     orderBy: [{ created_at: "asc" }],
     select: {
       agent_call_public_id: true,
@@ -909,7 +913,7 @@ function sessionWhere(input: SessionScope): Prisma.AssessmentSessionWhereInput {
 }
 
 async function loadSessions(input: SessionScope, db: Prisma.TransactionClient = prisma) {
-  return db.assessmentSession.findMany({
+  const sessions = await db.assessmentSession.findMany({
     where: sessionWhere(input),
     orderBy: [
       { assessment: { title: "asc" } },
@@ -919,6 +923,13 @@ async function loadSessions(input: SessionScope, db: Prisma.TransactionClient = 
     ],
     select: analysisSessionSelect
   });
+  // A reinterpretation that was never applied (release 27 preview) is not part of the data.
+  for (const session of sessions) {
+    for (const unit of session.concept_unit_sessions) {
+      unit.student_profiles = unit.student_profiles.filter((profile) => !isUnappliedReinterpretation(profile, unit.relabeled_student_profile_db_id));
+    }
+  }
+  return sessions;
 }
 
 async function loadSupplementalRecords(sessionPublicIds: string[], db: Prisma.TransactionClient = prisma) {

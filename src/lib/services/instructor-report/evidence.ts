@@ -114,6 +114,7 @@ export async function loadInstructorReportRecords(db: Db, input: {
             select: { payload: true }
           },
           latest_student_profile: { select: { item_level_evidence: true } },
+          relabeled_student_profile: { select: { item_level_evidence: true } },
           formative_conversation_session: {
             select: {
               status: true,
@@ -158,7 +159,8 @@ export async function loadInstructorReportRecords(db: Db, input: {
       const units = session.concept_unit_sessions;
       const submittedUnit = units.find((unit) => unit.response_packages.length > 0) ?? null;
       const conversation = submittedUnit?.formative_conversation_session ?? units.find((unit) => unit.formative_conversation_session)?.formative_conversation_session ?? null;
-      const profile = conversation?.initial_student_profile ?? submittedUnit?.latest_student_profile ?? null;
+      // An applied one-time reinterpretation under updated rules (release 27) is the interpretation of record.
+      const profile = submittedUnit?.relabeled_student_profile ?? conversation?.initial_student_profile ?? submittedUnit?.latest_student_profile ?? null;
       return {
         student_key: session.user_db_id,
         session_public_id: session.session_public_id,

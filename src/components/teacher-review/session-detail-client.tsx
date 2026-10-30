@@ -2827,7 +2827,22 @@ function FutureAgentSection({
                     Profiling result: {label(profilingAction.status)}
                   </p>
                 ) : null}
-                {conceptUnitSession.latest_student_profile ? (
+                {conceptUnitSession.relabeled_student_profile ? (
+                  <>
+                    <p className="mt-4 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+                      Interpreted again{conceptUnitSession.relabeled_at ? ` on ${formatDate(conceptUnitSession.relabeled_at)}` : ""} under
+                      the updated interpretation rules, from the same submitted answers. The student&apos;s answers, conversation and
+                      feedback are unchanged. The interpretation saved at submission is below.
+                    </p>
+                    <ProfileDetails profile={conceptUnitSession.relabeled_student_profile} />
+                    {conceptUnitSession.latest_student_profile ? (
+                      <details className="mt-4 rounded-md border border-line p-3">
+                        <summary className="cursor-pointer text-sm font-semibold text-ink">Interpretation saved at submission</summary>
+                        <ProfileDetails profile={conceptUnitSession.latest_student_profile} />
+                      </details>
+                    ) : null}
+                  </>
+                ) : conceptUnitSession.latest_student_profile ? (
                   <ProfileDetails profile={conceptUnitSession.latest_student_profile} />
                 ) : conceptUnitSession.can_run_profiling ? (
                   <p className="mt-4 text-sm text-muted">Profiling pending.</p>

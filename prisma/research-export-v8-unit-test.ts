@@ -250,7 +250,7 @@ async function main() {
     assert.equal(rows[0].attempt_role, "initial_diagnosis");
     assert.equal(rows[0].generation_mode, "live_model");
     assert.equal(rows[0].rules_version, "interpretation-rules-v8.1");
-    assert.equal(rows[0].prompt_version, "student-profiling-v8.3");
+    assert.equal(rows[0].prompt_version, "student-profiling-v8.4");
     assert.equal(rows[0].schema_version, "student-interpretation-output-v8");
     assert.equal(rows[0].profile_record_id, "profile_a1");
     assert.equal(rows[0].item_counted_with_decisions, true);
@@ -659,7 +659,8 @@ async function main() {
   await check("The dictionary and notes carry the rating definitions, rules, boundaries, attempts and audit-only records", () => {
     const quality = byName.get("interpretation_item_ratings.explanation_quality")!;
     assert.equal(quality.allowed_values, "adequate; limited; incorrect; no_usable_explanation");
-    assert.match(quality.definition, /Every essential element|every essential element/);
+    assert.match(quality.definition, /the key reason is stated or clearly implied/);
+    assert.match(quality.definition, /not a checklist/);
     assert.match(quality.definition, /paraphrasing a chosen incorrect option is incorrect/);
     assert.match(byName.get("interpretation_item_ratings.item_status")!.definition, /rapid selection/);
     const label = byName.get("interpretation_summaries.stored_label")!;

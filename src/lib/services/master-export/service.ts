@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getServerEnv } from "@/lib/env";
 import { sessionStatuses } from "@/lib/domain/enums";
 import { generatePublicId } from "@/lib/services/ids";
-import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
+import { isUnappliedReinterpretation, readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import { summarizePageVisibility } from "@/lib/services/student-assessment/timing-contract";
 import { stripInternalKeys } from "@/lib/services/teacher-review/serializers";
 import { MasterExportServiceError } from "./errors";
@@ -22,6 +22,7 @@ import {
   storageKeyForExport,
   writeExportFile
 } from "./storage";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 const masterExportOptionsSchema = z.object({
   assessment_public_id: z.string().trim().min(1).optional(),
@@ -226,9 +227,14 @@ function safeProfile(profile: Record<string, unknown>) {
 function profileFields(input: {
   profiles: Array<Record<string, unknown>>;
   latestProfileDbId?: string | null;
+  /** Applied one-time reinterpretation (release 27): it is the initial interpretation of record. */
+  relabeledProfileDbId?: string | null;
 }) {
-  const sorted = sortByCreatedAt(input.profiles);
-  const initial = sorted.find((profile) => profile.profile_type === "initial") ?? sorted[0] ?? null;
+  // A reinterpretation that was not applied (a preview) is not part of the data.
+  const sorted = sortByCreatedAt(input.profiles.filter((profile) =>
+    !isUnappliedReinterpretation({ id: String(profile.id), item_level_evidence: profile.item_level_evidence }, input.relabeledProfileDbId)));
+  const initial = sorted.find((profile) => profile.id === input.relabeledProfileDbId) ??
+    sorted.find((profile) => profile.profile_type === "initial" && !readStoredInterpretationV8(profile.item_level_evidence)?.relabel) ?? sorted[0] ?? null;
   const latest =
     sorted.find((profile) => profile.id === input.latestProfileDbId) ?? sorted.at(-1) ?? null;
   const history = sorted.map(safeProfile);
@@ -796,6 +802,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
             orderBy: { created_at: "asc" }
           },
           agent_calls: {
+            where: attemptAgentCallWhere,
             orderBy: { created_at: "asc" }
           }
         }
@@ -807,6 +814,7 @@ async function buildMasterExportRows(options: MasterExportOptions) {
         orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }]
       },
       agent_calls: {
+        where: attemptAgentCallWhere,
         orderBy: { created_at: "asc" }
       },
       workflow_jobs: {
@@ -901,7 +909,8 @@ async function buildMasterExportRows(options: MasterExportOptions) {
       const conceptUnitEvents = processEvents.map((event) => ({ event_type: event.event_type }));
       const profiles = profileFields({
         profiles: (conceptUnitSession?.student_profiles ?? []) as unknown as Array<Record<string, unknown>>,
-        latestProfileDbId: conceptUnitSession?.latest_student_profile_db_id
+        latestProfileDbId: conceptUnitSession?.latest_student_profile_db_id,
+        relabeledProfileDbId: conceptUnitSession?.relabeled_student_profile_db_id
       });
       const formatives = formativeFields({
         decisions: (conceptUnitSession?.formative_decisions ?? []) as unknown as Array<Record<string, unknown>>,

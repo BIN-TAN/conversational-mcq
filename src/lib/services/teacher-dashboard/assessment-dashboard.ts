@@ -7,7 +7,7 @@ import { notDiagnosticOptions, readTeacherItemMetadata } from "@/lib/services/co
 import { asArray, asRecord } from "@/lib/services/teacher-review/serializers";
 import { observeAttempts, selectSubmittedAttempts } from "./attempt-comparison";
 import { sortStudentsToFollowUp, type StudentFollowUpRow } from "./follow-up";
-import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_LABELS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_LABELS, UNDERSTANDING_SUMMARY_VERSION, type LearningProfile } from "@/lib/services/student-assessment/learning-profile-summary";
 import { loadItemReviewDecisionsForAssessment } from "@/lib/services/item-review/service";
 import { readStoredInterpretationV8 } from "@/lib/services/student-assessment/interpretation-v8/profile";
 import type { InstructorItemDecision } from "@/lib/services/student-assessment/interpretation-v8/rules";
@@ -155,7 +155,8 @@ const dashboardSessionSelect = {
         orderBy: [{ created_at: "asc" }],
         take: 1
       },
-      latest_student_profile: { include: learningProfileInclude }
+      latest_student_profile: { include: learningProfileInclude },
+      ...relabeledProfileSelect
     }
   }
 } satisfies Prisma.AssessmentSessionSelect;
@@ -1366,7 +1367,8 @@ export async function getTeacherAssessmentDashboard(input: {
     students_with_later_attempt: studentsWithLaterAttempt,
     understanding_basis: {
       version: UNDERSTANDING_SUMMARY_VERSION,
-      baseline_count: understandingStages.filter(stage => stage === "baseline").length,
+      // A reinterpretation (release 27) reads the same submitted responses, so it counts as the baseline.
+      baseline_count: understandingStages.filter(stage => stage === "baseline" || stage === "reinterpretation").length,
       updated_count: conversationUpdates.filter(update => (update?.conversation_profile_update_count ?? 0) > 0).length,
       unavailable_count: understandingStages.filter(stage => stage === "unavailable").length
     },

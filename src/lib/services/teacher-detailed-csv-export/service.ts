@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
-import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { summarizePageVisibility } from "@/lib/services/student-assessment/timing-contract";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
@@ -16,6 +16,7 @@ import {
   sourceIdentityRow,
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 export const TEACHER_DETAILED_CSV_EXPORT_VERSION = "teacher-detailed-csv-export-v2" as const;
 
@@ -326,6 +327,7 @@ const detailedSessionSelect = {
         }
       },
       latest_student_profile: { include: learningProfileInclude },
+      ...relabeledProfileSelect,
       formative_decisions: {
         orderBy: { created_at: "desc" },
         take: 1,
@@ -363,6 +365,7 @@ const detailedSessionSelect = {
     }
   },
   agent_calls: {
+    where: attemptAgentCallWhere,
     orderBy: [{ created_at: "asc" }],
     select: {
       agent_name: true,

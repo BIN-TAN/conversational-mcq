@@ -178,7 +178,7 @@ export function validateInterpretationOutputV8(input: InterpretationInputV8, out
       push(path, "unknown_reference", `Unknown reference_id ${entry.reference_id} for this item.`);
     }
     if (entry.explanation_quality === "limited" && !entry.missing_elements?.trim()) {
-      push(path, "missing_elements_required", "A limited rating names the missing essential element.");
+      push(path, "missing_elements_required", "A limited rating names what is missing from the key reason.");
     }
     const answerIncorrect = item.response.answer_correct === false;
     if ((answerIncorrect || entry.explanation_quality === "incorrect") && entry.error_source === null) {

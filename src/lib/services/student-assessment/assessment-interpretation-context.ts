@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { omitProhibitedProviderInputFields } from "@/lib/agents/redaction";
 import { teacherDiagnosticContextForProvider } from "@/lib/services/content/teacher-diagnostic-context";
+import { attemptAgentCallWhere, isReinterpretationProfile } from "@/lib/services/interpretation-relabel/calls";
 
 export const ASSESSMENT_INTERPRETATION_CONTEXT_SCHEMA_VERSION =
   "assessment-interpretation-context-v1" as const;
@@ -757,7 +758,7 @@ export async function buildAuthoritativeFormativeTurnContext(input: {
       client.studentProfile.findMany({
         where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
         orderBy: [{ created_at: "asc" }, { id: "asc" }]
-      }),
+      }).then((entries) => entries.filter((entry) => !isReinterpretationProfile(entry.item_level_evidence))),
       client.formativeDecision.findMany({
         where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
         orderBy: [{ created_at: "asc" }, { id: "asc" }]
@@ -781,7 +782,7 @@ export async function buildAuthoritativeFormativeTurnContext(input: {
         }
       }),
       client.agentCall.findMany({
-        where: { concept_unit_session_db_id: input.concept_unit_session_db_id },
+        where: { concept_unit_session_db_id: input.concept_unit_session_db_id, ...attemptAgentCallWhere },
         orderBy: [{ created_at: "asc" }, { id: "asc" }],
         select: {
           id: true,

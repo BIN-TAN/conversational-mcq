@@ -173,6 +173,9 @@ export type SessionDetailResponse = {
     response_package_count: number;
     can_run_profiling: boolean;
     latest_student_profile: TeacherStudentProfile | null;
+    /** Applied one-time reinterpretation under updated rules (release 27); null when none. */
+    relabeled_student_profile?: TeacherStudentProfile | null;
+    relabeled_at?: string | null;
     can_run_planning: boolean;
     latest_formative_decision: TeacherFormativeDecision | null;
     can_start_followup: boolean;

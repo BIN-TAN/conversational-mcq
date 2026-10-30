@@ -2,7 +2,7 @@ import { stringify } from "csv-stringify/sync";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { buildAbilityEvidencePacketForSession } from "@/lib/services/student-assessment/ability-evidence";
-import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
+import { CONVERSATION_UPDATE_SUMMARY_COLUMNS, CONVERSATION_UPDATE_SUMMARY_DEFINITIONS, conversationUpdateSummary, initialLearningProfile, learningConversationSelect, learningProfileInclude, relabeledProfileSelect, learningProfileSummary, UNDERSTANDING_SUMMARY_COLUMNS, UNDERSTANDING_SUMMARY_DEFINITIONS } from "@/lib/services/student-assessment/learning-profile-summary";
 import { buildEngagementProcessFeatureRows } from "@/lib/services/teacher-review/engagement-process-features";
 import { buildTurnResponseLatencyRows } from "@/lib/services/teacher-review/turn-response-latencies";
 import { ContentServiceError } from "@/lib/services/content/errors";
@@ -14,6 +14,7 @@ import {
   type ExportSourceIdentity
 } from "@/lib/services/teacher-research-export/source-identity";
 import { orderLikeAssessmentLibrary } from "@/lib/assessment-library-order";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 export const TEACHER_SIMPLE_CSV_EXPORT_VERSION = "teacher-simple-csv-export-v3" as const;
 
@@ -171,6 +172,7 @@ const sessionSelect = {
         }
       },
       latest_student_profile: { include: learningProfileInclude },
+      ...relabeledProfileSelect,
       formative_decisions: {
         select: {
           formative_value: true,
@@ -235,6 +237,7 @@ const sessionSelect = {
     orderBy: [{ occurred_at: "asc" }, { created_at: "asc" }]
   },
   agent_calls: {
+    where: attemptAgentCallWhere,
     select: {
       id: true
     }
@@ -744,7 +747,7 @@ const sessionCountSelect = {
     select: {
       process_events: true,
       conversation_turns: true,
-      agent_calls: true,
+      agent_calls: { where: attemptAgentCallWhere },
       formative_conversation_sessions: true
     }
   }

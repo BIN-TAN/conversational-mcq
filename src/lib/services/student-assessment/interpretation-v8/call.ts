@@ -10,6 +10,7 @@ import { createLlmProvider } from "@/lib/llm/providers/provider-factory";
 import type { LlmProvider, StructuredAgentResult } from "@/lib/llm/providers/types";
 import { toPrismaJson } from "@/lib/services/json";
 import {
+  INTERPRETATION_RELABEL_INVOCATION_PREFIX,
   INTERPRETATION_V8_AGENT_NAME,
   INTERPRETATION_V8_AGENT_VERSION,
   INTERPRETATION_V8_PROMPT_HASH,
@@ -97,9 +98,11 @@ export async function callInterpretationV8(input: {
   provider_generation_allowed: boolean;
   /** When the preparation job can retry later: a transient last failure is returned, not salvaged. */
   prefer_deferral_on_transient_failure?: boolean | (() => boolean);
+  /** reinterpretation: a one-time reinterpretation of an earlier attempt (release 27); its calls are keyed apart. */
+  purpose?: "submission" | "reinterpretation";
 }): Promise<InterpretationCallResult> {
   const callPlan = plan(input.provider_generation_allowed);
-  const invocationBase = `interpretation-v8:${input.concept_unit_session_db_id}:${input.response_package_id}`;
+  const invocationBase = `${input.purpose === "reinterpretation" ? INTERPRETATION_RELABEL_INVOCATION_PREFIX : "interpretation-v8:"}${input.concept_unit_session_db_id}:${input.response_package_id}`;
   const common = {
     assessment_session_db_id: input.assessment_session_db_id,
     concept_unit_session_db_id: input.concept_unit_session_db_id,

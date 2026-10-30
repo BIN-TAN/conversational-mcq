@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { moduleForRole } from "@/lib/llm/assessment-modules";
+import { isReinterpretationCall } from "@/lib/services/interpretation-relabel/calls";
 
 /**
  * R3 (docs/RESEARCH_DATA_REVIEW_2026-10-17.md): researcher-only AI audit export.
@@ -25,6 +26,7 @@ export const AI_CALL_AUDIT_DEFINITIONS: Record<string, string> = {
   assessment_public_id: "Mini-test join key.",
   attempt_number: "Attempt number of the session; blank for assessment-level calls.",
   agent_name: "Application AI role that made the call (see docs/AI_ROLES_AND_MODULES.md).",
+  call_purpose: "attempt for calls made while the student took the attempt or for its feedback and conversation; assessment for assessment-level calls such as instructor reports; reinterpretation for an interpretation call made later by the instructor's one-time reinterpretation of the same submitted responses under updated interpretation rules (release 27). Reinterpretation calls are not part of the attempt's process data and are left out of its call and token counts elsewhere.",
   assessment_module: "Dissertation module the role belongs to (item_preparation, item_administration, profiling_and_feedback, formative_conversation, instructor_reporting, utility).",
   provider: "Model provider (openai, or mock for local test output that is never live model evidence).",
   model_name: "Model identifier recorded for the call.",
@@ -121,6 +123,7 @@ function auditRow(call: AuditCall, context: {
     agent_call_public_id: call.agent_call_public_id,
     ...context,
     agent_name: call.agent_name,
+    call_purpose: isReinterpretationCall(call.agent_invocation_key) ? "reinterpretation" : context.session_public_id === null ? "assessment" : "attempt",
     assessment_module: moduleForRole(call.agent_name) ?? "unmapped",
     provider: call.provider,
     model_name: call.model_name,

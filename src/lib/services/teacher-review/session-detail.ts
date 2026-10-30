@@ -25,6 +25,7 @@ import { deriveAutomationState } from "@/lib/workflow/automation";
 import { serializeWorkflowJob, workflowJobSummarySelect } from "@/lib/workflow/jobs";
 import { TeacherReviewServiceError } from "./errors";
 import { serializeDate } from "./serializers";
+import { attemptAgentCallWhere } from "@/lib/services/interpretation-relabel/calls";
 
 function teacherLearningObservations(value: unknown) {
   return Array.isArray(value)
@@ -182,6 +183,29 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               }
             }
           },
+          relabeled_at: true,
+          relabeled_student_profile: {
+            include: {
+              based_on_agent_call: {
+                select: {
+                  agent_name: true,
+                  provider: true,
+                  model_name: true,
+                  agent_version: true,
+                  prompt_version: true,
+                  schema_version: true,
+                  prompt_hash: true,
+                  retry_count: true,
+                  call_status: true,
+                  output_validated: true,
+                  live_call_allowed: true,
+                  blocked_reason: true,
+                  created_at: true,
+                  completed_at: true
+                }
+              }
+            }
+          },
           latest_formative_decision: {
             include: {
               based_on_agent_call: {
@@ -318,7 +342,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
               student_profiles: true,
               formative_decisions: true,
               followup_rounds: true,
-              agent_calls: true
+              agent_calls: { where: attemptAgentCallWhere }
             }
           }
         }
@@ -435,7 +459,7 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       },
       _count: {
         select: {
-          agent_calls: true
+          agent_calls: { where: attemptAgentCallWhere }
         }
       }
     }
@@ -863,6 +887,12 @@ export async function getTeacherReviewSessionDetail(sessionPublicId: string) {
       latest_student_profile: conceptUnitSession.latest_student_profile
         ? serializeStudentProfileForTeacher(conceptUnitSession.latest_student_profile)
         : null,
+      // An applied one-time reinterpretation under updated rules (release 27); the profile above
+      // stays as saved at submission.
+      relabeled_student_profile: conceptUnitSession.relabeled_student_profile
+        ? serializeStudentProfileForTeacher(conceptUnitSession.relabeled_student_profile)
+        : null,
+      relabeled_at: serializeDate(conceptUnitSession.relabeled_at),
       latest_formative_decision: conceptUnitSession.latest_formative_decision
         ? serializeFormativeDecisionForTeacher(conceptUnitSession.latest_formative_decision)
         : null,

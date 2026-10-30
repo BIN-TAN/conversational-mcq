@@ -258,7 +258,7 @@ async function main() {
         row.error_source ?? "none", row.no_usable_reason ?? "", row.side_remark ? "yes" : "no", row.misconception, row.considered_idea ? "yes" : "no"].join(",")).join("\n");
     const parsed = parseCodingSheet(filled);
     assert.deepEqual(parsed.problems, []);
-    assert.equal(parsed.rows.length, 124);
+    assert.equal(parsed.rows.length, cases.cases.flatMap((entry) => entry.responses).length);
     const agreement = coderAgreement(parsed.rows, parsed.rows);
     assert.equal(agreement.fields.explanation_quality.ac1, 1);
     const expectations = expectationsFromReference(cases, parsed.rows);

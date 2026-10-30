@@ -159,7 +159,8 @@ export const SITUATION_TEMPLATES: Record<string, Template> = {
   S28: { answer: "key", quality: ["adequate"], beyond: true, error_source: null, forbidden: true, process: { unfocused_seconds: 300 }, confidence: "medium" },
   S29: { answer: "key", quality: ["adequate"], beyond: true, error_source: null, forbidden: true, process: { blocked_paste_attempts: 2 }, confidence: "medium" },
   S30: { answer: "distractor", quality: ["adequate"], beyond: true, error_source: ["execution_slip", "unclear"], forbidden: true, confidence: "medium" },
-  S31: { answer: "labelled_distractor", quality: ["no_usable_explanation"], beyond: null, error_source: ["unclear", "conceptual"], no_usable_reason: ["not_provided"], forbidden: true, confidence: "medium" }
+  S31: { answer: "labelled_distractor", quality: ["no_usable_explanation"], beyond: null, error_source: ["unclear", "conceptual"], no_usable_reason: ["not_provided"], forbidden: true, confidence: "medium" },
+  S32: { answer: "key", quality: ["adequate"], beyond: true, error_source: null, forbidden: true, confidence: "medium" }
 };
 
 /**

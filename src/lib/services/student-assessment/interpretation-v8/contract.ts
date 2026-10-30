@@ -10,9 +10,11 @@ import { z } from "zod";
  */
 export const INTERPRETATION_V8_AGENT_NAME = "student_profiling_agent" as const;
 export const INTERPRETATION_V8_AGENT_VERSION = "8" as const;
-export const INTERPRETATION_V8_PROMPT_VERSION = "student-profiling-v8.3" as const;
+export const INTERPRETATION_V8_PROMPT_VERSION = "student-profiling-v8.4" as const;
 export const INTERPRETATION_V8_SCHEMA_VERSION = "student-interpretation-output-v8" as const;
 export const INTERPRETATION_V8_INPUT_VERSION = "student-interpretation-input-v8" as const;
+/** Invocation keys of the profiling calls made by a one-time reinterpretation (release 27) start with this. */
+export const INTERPRETATION_RELABEL_INVOCATION_PREFIX = "interpretation-v8-relabel:" as const;
 
 export const INTERPRETATION_V8_INSTRUCTIONS = `ROLE
 You are an evidence-grounded formative assessment interpreter. You interpret what one student's submitted mini-test responses show about the concepts the mini-test assesses. Instructors read your output, and the application uses it to plan feedback. The student does not see it.
@@ -21,12 +23,12 @@ INPUT
 The topic's learning objective and description, and for each item the instructor-reviewed specification: stem, options, correct option, target reasoning, the essential elements a strong explanation should mention, and one distractor rationale per incorrect option, each with a reference ID. The specification and the topic description are the disciplinary reference; distractor rationales are hypotheses about possible misconceptions, not confirmed beliefs of this student. For each item, the student's response: whether an option was selected, the selected option, whether it is correct, the reported confidence, the explanation (and its first version if the student revised it), the option the student found tempting and why, and the item's process indicators, each with its computation, threshold and role. The application has already determined correctness and recorded confidence; do not change or re-derive them. After a rejected attempt, previous_attempt_rejected_for lists the problems to correct.
 
 EXPLANATION QUALITY (one rating for every item in the input, including items with no option selected)
-Judge each explanation against the item's essential elements, on its content, not on where its wording came from. Do not lower a rating for brevity, grammar, unfamiliar wording or low confidence when the content is adequate. A correct answer does not establish correct reasoning.
-- adequate: every essential element is stated or clearly implied, in any wording, including wording taken from an option.
-- limited: relevant and not contradicted, but at least one essential element is missing. When a reading could be limited or incorrect, rate it limited with error source unclear.
-- incorrect: the most plausible reading contradicts the specification, including use of the wrong rule. Paraphrasing a chosen incorrect option is incorrect.
+Judge whether each explanation gives the key reason: the idea that decides the item, the one that makes the correct option right and the others wrong. Read the target reasoning and the essential elements to understand what that key reason is; they describe a strong explanation and are not a checklist. Judge the content, not where its wording came from. Do not lower a rating for brevity, grammar, unfamiliar wording, low confidence, or leaving out supporting points when the key reason is there. A correct answer does not establish correct reasoning.
+- adequate: the key reason is stated or clearly implied, in any wording, including wording taken from an option. The explanation need not mention every essential element.
+- limited: relevant and not contradicted, but the key reason is missing or only gestured at, for example the right concept named without how it decides the item. When a reading could be limited or incorrect, rate it limited with error source unclear.
+- incorrect: the key reason the student gives contradicts the specification, including use of the wrong rule. Paraphrasing a chosen incorrect option is incorrect. An overstatement or extra claim beside a correct key reason is not incorrect: record it as the side remark.
 - no_usable_explanation: the text makes no claim about the item's content: not provided, off task, or a guess with no reasoning. Give the reason. A guess followed by reasoning ("I guessed, but...") is rated on that reasoning.
-Use the side remark only for an incorrect remark outside the essential elements; it does not change the rating.
+Use the side remark for an incorrect or overstated remark beside the key reason; it does not change the rating.
 
 BEYOND THE OPTION TEXT (every rating except no_usable_explanation)
 true when the explanation adds any content beyond the wording of the options; false when it only repeats or paraphrases option text. It records how much of the student's own reasoning the explanation shows and does not change the rating.
@@ -91,13 +93,13 @@ const ItemInterpretationSchema = z.object({
   reference_id: z.string().nullable()
     .describe("Reference ID the explanation is judged against; required when the rating is incorrect."),
   missing_elements: z.string().nullable()
-    .describe("Required when the rating is limited: the essential element or elements not stated."),
+    .describe("Required when the rating is limited: the key reason, or the part of it, that is missing."),
   rationale: z.string().min(1)
     .describe("One or two sentences for the instructor: what the quote shows, judged against the reference. No process indicators here."),
   error_source: z.enum(ERROR_SOURCES).nullable()
     .describe("Required when the answer is incorrect or the rating is incorrect; may also record an execution slip in a correct answer's explanation."),
   side_remark: z.string().nullable()
-    .describe("An incorrect remark outside the essential elements, if any; it does not change the rating."),
+    .describe("An incorrect or overstated remark beside the key reason, if any; it does not change the rating."),
   uncertainty_note: z.string().nullable()
     .describe("What remains uncertain about this item, if anything."),
   process_interpretation: z.object({

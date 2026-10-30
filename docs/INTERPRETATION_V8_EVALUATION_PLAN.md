@@ -38,7 +38,7 @@ The evaluation does not cover the following, which have their own unit tests or 
 
 ## Materials
 
-The shipped set has 12 items in 3 topics and 31 simulated students, giving 124 item responses. This meets the minimum in section 11.1: at least three topics and 120 responses.
+The shipped set has 12 items in 3 topics and 32 simulated students, giving 128 item responses. This meets the minimum in section 11.1: at least three topics and 120 responses.
 
 **Items.** The items are written in the style of EDPY 507, in 3 topics of 4 items each:
 
@@ -58,23 +58,25 @@ Version 2 of the feedback cases also accepts an instructor flag for item S4 in F
 
 Version 3 of the cases (`interpretation-v8-eval-cases-3`) follows the clarified definition of ideas considered but not endorsed: an incorrect idea the student mentions without holding it now, in a tempting-option reason the student does not call true, a question, or an earlier view the student says they revised. Five responses (R-03/R3, V-05/V3 and S-03/S3, which ask about an idea, and R-07/R1 and S-05/S2, which describe a revised view) now expect a considered idea. A misconception claim on any of them remains a critical error.
 
+Version 4 of the cases (`interpretation-v8-eval-cases-4`, release 27) follows the key-reason rule of student-profiling-v8.4: an explanation is adequate when it gives the key reason that decides the item, and the essential elements describe a strong explanation rather than a checklist. Situation S32 (key reason stated, a supporting point left out) is new, with student R-12, who gives only the key reason on all four items and is expected to receive adequate ratings and Mostly understood. Four brief explanations that state or nearly state the key reason (R-04/R2, R-09/R2 and R-11/R2 on the SEM, V-08/V3 on content evidence) now accept adequate as well as limited. S05 and S06 now describe an explanation without the key reason; their other responses still expect limited, so the cases continue to check that a label or a half-reason is not rated adequate.
+
 **Simulated students.** Each simulated student answers all four items of one topic with a profile, for example "states that reliability establishes validity". Each response is written to show one situation (next section). Each response records the expected rating (with acceptable alternatives where two readings are defensible), the beyond-option-text flag, the error source, the no-usable reason and any side remark. Each student also lists the misconceptions and considered ideas expected, the items where a claim would be a critical error, and the items where a claim is defensible either way.
 
 The expected item statuses and summary labels are computed from the expected ratings by the application's own rules, so they cannot disagree with the rules.
 
 | Expected | Count |
 | --- | ---: |
-| Ratings: adequate / limited / incorrect / no usable explanation | 63 / 14 / 17 / 30 |
-| Summary labels: Mostly understood / Still developing / Need more work / Unavailable / Pending item review | 7 / 10 / 11 / 2 / 1 |
+| Ratings: adequate / limited / incorrect / no usable explanation | 67 / 14 / 17 / 30 |
+| Summary labels: Mostly understood / Still developing / Need more work / Unavailable / Pending item review | 8 / 10 / 11 / 2 / 1 |
 | Possible misconceptions (endorsed or tentative) | 23 |
 | Ideas considered but not endorsed (tempting-option reasons, questions, revised earlier views) | 8 |
-| Items where any misconception claim is a critical error | 39 |
+| Items where any misconception claim is a critical error | 43 |
 
 The reviewer's four-item example is student R-11: one item supported, one correct but limited, one misconception and one execution slip. It is expected to give Still developing with one misconception listed.
 
 ## Situations and expected categories
 
-There are 31 situations, each a distinct way of expressing reasoning. Each situation appears 1 to 13 times across the three topics. The report scores every situation separately, so a weakness shows up as a situation rather than disappearing into an overall average.
+There are 32 situations, each a distinct way of expressing reasoning. Each situation appears 1 to 13 times across the three topics. The report scores every situation separately, so a weakness shows up as a situation rather than disappearing into an overall average.
 
 "Critical" means any misconception claim on that item is a critical error and must never happen. Process situations (S16, S27 to S29) check that process data are used only in the roles the design allows, and never change a rating or create a claim on their own.
 
@@ -84,8 +86,8 @@ There are 31 situations, each a distinct way of expressing reasoning. Each situa
 | S02 | Brief but complete reasoning | adequate | none | none | 9 |
 | S03 | Complete reasoning with grammar or spelling errors | adequate | none | none | 4 |
 | S04 | Copies the correct option, which itself states the essential elements | adequate; adds nothing beyond option text | none | none | 5 |
-| S05 | Paraphrases an option and misses an essential element | limited; adds nothing beyond option text | none | none | 3 |
-| S06 | Own relevant reasoning with an essential element missing | limited | none | none | 7 |
+| S05 | Paraphrases an option without the key reason | limited (one response also accepts adequate); adds nothing beyond option text | none | none | 3 |
+| S06 | Own relevant reasoning with the key reason missing or only gestured at | limited (three responses also accept adequate) | none | none | 7 |
 | S07 | Correct answer reached with an incorrect rule | incorrect | conceptual | misconception, endorsed | 4 |
 | S08 | Wrong answer; paraphrases the chosen distractor | incorrect | conceptual | misconception, endorsed | 4 |
 | S09 | Wrong answer; incorrect idea stated firmly in own words | incorrect | conceptual | misconception, endorsed | 4 |
@@ -111,6 +113,7 @@ There are 31 situations, each a distinct way of expressing reasoning. Each situa
 | S29 | Adequate reasoning, blocked paste attempts | adequate | none | critical | 3 |
 | S30 | Explanation supports the key, another option chosen | adequate | execution slip or unclear | critical | 3 |
 | S31 | Two wrong choices share an idea label, no explanations | no usable (not provided) | unclear or conceptual | critical; an answer pattern is listed | 2 |
+| S32 | Key reason stated; a supporting point left out (from v8.4) | adequate | none | critical | 4 |
 
 A rating listed with "or" accepts either reading. The first listed is the reference used for kappa and AC1. Item statuses follow from these ratings by rule. For example, S12 and S30 give "partly supported", S15 gives "not supported", and S16 gives "not interpretable".
 
@@ -254,6 +257,8 @@ Go-live needs every criterion below to pass on the decision run, scored against 
 
 **Focus and strategy labels in replies (from formative-conversation-v8.3).** The v8.2 decision run (21 Oct 2026) missed the expected reply focus mainly because the conversation prompt listed no focus types: replies about a listed misconception that spans two items were recorded as shared_difficulty (2 of 6 such replies in v8.1, 5 of 6 in v8.2), and one reply used invite_explanation, which the conversation prompt did not list. v8.3 defines each focus type and strategy in the turn record, as the opening prompt does by priority, and limits a reply to one question. The fixtures and their expected sets are unchanged.
 
+**The key reason, not every essential element (student-profiling-v8.4, release 27).** Pilot data to 30 Oct 2026 showed almost every brief but correct explanation rated limited, because v8.3 required every essential element. v8.4 asks whether the explanation gives the key reason that decides the item, read from the target reasoning and the essential elements, which describe a strong explanation and are not a checklist; missing supporting points do not lower the rating, and an overstatement beside a correct key reason is a side remark, not an incorrect rating. The cases (interpretation-v8-eval-cases-4) add S32 and student R-12 and accept adequate for four borderline brief explanations; the other limited responses stay limited, so the decision run also shows whether v8.4 has become too lenient. The approved prompt hash changes, so a decision run compares v8.4 with v8.3 before the new hash is approved. After approval, the instructor can interpret earlier attempts again from the same submitted responses (Data, Update earlier interpretations); the new labels are previews until the instructor applies them, the original interpretations are kept, and the responses, process data, conversations and feedback do not change.
+
 **Every point in the overview, then one at a time (formative-opening-v8.6, formative-conversation-v8.8, release 26).** At the researcher's request after the pilot sessions of 30 Oct 2026: the order of the points matters less than the student seeing all of them. The overview now says, for each point, what it concerns in the student's own work (the idea their explanation or choice relies on, the doubt they expressed, or the question they asked), not only a topic name, and says that the points will be taken one at a time. In the conversation, when a point is settled the reply closes it and names the next point; when the student asks to go on or only acknowledges, the reply takes up that point and explains it, as the opening did for the first, and a listed point is dropped only when the student chooses otherwise or stops. A first decision run of the wording without "explains it" (conversation v8.7, 30 Oct 2026, feedback-eval-26) passed every gate except one: one reply out of 69 asked two questions (F11, a rhetorical question inside an explanation), and two F12 replies opened Item 4 with a question labelled invite_explanation; v8.8 adds the explanation. F18's expected items now also allow Item 1, because moving to the next listed point after the student's answer is intended; the check that matters there, that the bare letter is not recorded as corrected reasoning, is unchanged. Focus types, strategies, the turn record and the output contract are unchanged. The feedback cases (feedback-v8-eval-cases-5) add F23 (the student settles the first point and asks to go on: the reply takes up Item 2). The feedback prompt hash changes, so a decision run of all 23 cases is compared with the v8.5/v8.6 run before the new hash is approved; the openings of F01, F05 and F22 are also read for an overview that states each point.
 
 **Options not tied to an idea (formative-opening-v8.5, formative-conversation-v8.6, release 22).** The instructor may mark an incorrect option as plausible but not tied to a specific idea, with what rules it out. Both prompts now describe such options in their input, and when a student chose one and their own words show no specific idea, the tutor shows how to reach the correct answer without suggesting a misconception (explain, not invite_explanation, even when the student wrote no explanation); an idea the student does state is still addressed. Nothing else in the prompts, the focus types, the strategies or the output contract changes. The feedback cases (feedback-v8-eval-cases-4) add F21 (no explanation, untied option: expected explain) and F22 (F05 with the percentile option untied: the stated idea is still addressed, with an overview). The interpretation prompt is unchanged, so its approved hash stays. The feedback prompt hash changes, so a decision run of all 22 cases is compared with the v8.4/v8.5 run of 29 Oct 2026 (feedback-eval-21c) before the new hash is approved.
@@ -293,7 +298,7 @@ A live run needs `--allow-live`, which switches live calls on for that run only.
 | File | What it holds |
 | --- | --- |
 | src/lib/evaluation/interpretation-v8/fixtures/item-bank.json | 12 items in 3 topics, with keys, target reasoning, essential elements, option rationales and idea labels |
-| src/lib/evaluation/interpretation-v8/fixtures/cases.json | 31 simulated students, 124 responses, situations and expected categories |
+| src/lib/evaluation/interpretation-v8/fixtures/cases.json | 32 simulated students, 128 responses, situations and expected categories |
 | src/lib/evaluation/interpretation-v8/fixtures/feedback-cases.json | 18 feedback cases and their expected sets |
 | src/lib/evaluation/interpretation-v8/case-model.ts | Schemas, the production-shaped profiling input, expected outcomes, fixture checks |
 | src/lib/evaluation/interpretation-v8/feedback-case-model.ts | The production-shaped feedback input for each case |
@@ -323,7 +328,7 @@ Outputs go to `.data/interpretation-v8-evaluation/`, which git ignores. `--bank`
 
 The responses are simulated. They were written to show one situation each, so they are cleaner than real student writing, and good results here are necessary for go-live but not sufficient. After go-live, the shares of fallback profiles, pending item reviews and rejected outputs are checked after each mini-test, as section 11.1 says. A sample of real responses should be coded the same way once the first EDPY 507 mini-test has run.
 
-- **Sample size.** 124 responses give wide intervals for rare situations. For example, 0 of 90 fallbacks still allows a true rate of up to about 4%. Per-situation results are signals for revision, not estimates.
+- **Sample size.** 128 responses give wide intervals for rare situations. For example, 0 of 90 fallbacks still allows a true rate of up to about 4%. Per-situation results are signals for revision, not estimates.
 - **One author.** The same person wrote the items, the responses and the expected categories. The blind reference coding is the guard against that author's view of what each response shows.
 - **Model and settings.** Results hold for the model, settings and prompt hashes recorded in `settings.json`. Changing any of them means running again.
 - **Feedback.** Feedback is judged on single turns with fixed context, not on whole conversations. Whether feedback helps learning is a question for the study, not for this evaluation.

@@ -4,7 +4,7 @@ import {
   readStoredInterpretationV8,
   type StoredInterpretationV8
 } from "@/lib/services/student-assessment/interpretation-v8/profile";
-import { INTERPRETATION_V8_AGENT_NAME, InterpretationOutputV8Schema, INTERPRETATION_V8_SCHEMA_VERSION } from "@/lib/services/student-assessment/interpretation-v8/contract";
+import { INTERPRETATION_RELABEL_INVOCATION_PREFIX, INTERPRETATION_V8_AGENT_NAME, InterpretationOutputV8Schema, INTERPRETATION_V8_SCHEMA_VERSION } from "@/lib/services/student-assessment/interpretation-v8/contract";
 import type { InstructorItemDecision, TopicSummary } from "@/lib/services/student-assessment/interpretation-v8/rules";
 import {
   FEEDBACK_V8_AGENT_NAME,
@@ -72,6 +72,8 @@ export type V8ProfilingCall = {
   schema_version: string | null;
   input_payload: unknown;
   output_payload: unknown;
+  /** reinterpretation for the calls of a one-time reinterpretation (release 27); submission otherwise. */
+  purpose?: "submission" | "reinterpretation";
 };
 
 export type V8FeedbackCall = {
@@ -192,7 +194,8 @@ function attemptIdentity(session: V8ExportSession, profile: V8ExportProfile, sto
     family_attempt_number: session.family_attempt_number,
     attempt_role: stored.attempt?.role ?? null,
     concept_unit_public_id: profile.concept_unit_public_id,
-    profile_record_id: profile.profile_record_id
+    profile_record_id: profile.profile_record_id,
+    interpretation_record: stored.relabel ? "reinterpretation" : "submission"
   };
 }
 
@@ -311,7 +314,9 @@ export function v8SummaryWithDecisions(stored: StoredInterpretationV8, decisions
  * A salvaged output is stored on its call as succeeded, so it counts as one rejected output.
  */
 export function profilingGeneration(session: V8ExportSession, profile: V8ExportProfile, stored: StoredInterpretationV8) {
-  const calls = session.profiling_calls;
+  // A reinterpretation counts only its own calls, and a submission profile only the calls made at submission.
+  const purpose = stored.relabel ? "reinterpretation" : "submission";
+  const calls = session.profiling_calls.filter((call) => (call.purpose ?? "submission") === purpose);
   const source = calls.find((call) => call.agent_call_public_id === profile.source_agent_call_public_id) ?? null;
   const salvaged = Boolean(stored.output_adjustments?.salvage);
   const rejected = calls.filter((call) => call.call_status === "invalid_output").length + (salvaged ? 1 : 0);
@@ -680,7 +685,7 @@ export async function loadInterpretationV8CallRecords(tx: Prisma.TransactionClie
       orderBy: [{ created_at: "asc" }],
       select: {
         agent_call_public_id: true, call_status: true, output_validated: true, provider: true, model_name: true, prompt_hash: true,
-        created_at: true, prompt_version: true, schema_version: true, input_payload: true, output_payload: true
+        created_at: true, prompt_version: true, schema_version: true, input_payload: true, output_payload: true, agent_invocation_key: true
       }
     }),
     tx.agentCall.findMany({
@@ -709,7 +714,11 @@ export async function loadInterpretationV8CallRecords(tx: Prisma.TransactionClie
     })
   ]);
   return {
-    profiling_calls: profilingCalls.map((call): V8ProfilingCall => ({ ...call, call_status: String(call.call_status) })),
+    profiling_calls: profilingCalls.map(({ agent_invocation_key: key, ...call }): V8ProfilingCall => ({
+      ...call,
+      call_status: String(call.call_status),
+      purpose: key?.startsWith(INTERPRETATION_RELABEL_INVOCATION_PREFIX) ? "reinterpretation" : "submission"
+    })),
     feedback_calls: feedbackCalls.map(({ formative_conversation_session: conversation, ...call }): V8FeedbackCall => ({
       ...call,
       call_status: String(call.call_status),

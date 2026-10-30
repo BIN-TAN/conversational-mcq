@@ -33,7 +33,7 @@ expect({ ability_profile: "misconception_based_understanding", integrated_diagno
 expect({ evidence_sufficiency: "insufficient", integrated_diagnostic_profile: "correct_but_independence_uncertain" }, "Unavailable / insufficient evidence");
 const independentCaution = learningProfileSummary({ ...profile, integrated_diagnostic_profile: "correct_but_independence_uncertain" });
 assert.equal(independentCaution.understanding_caution, "independent_understanding_uncertain");
-assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v4");
+assert.equal(independentCaution.understanding_summary_version, "understanding-summary-v5");
 for (const integrated_diagnostic_profile of ["insufficient_evidence_for_formative_decision", "low_engagement_limits_interpretability", "conflicting_evidence_needs_clarification"]) expect({ integrated_diagnostic_profile }, "Unavailable / insufficient evidence");
 expect({ ability_profile: "insufficient_evidence" }, "Unavailable / insufficient evidence");
 expect({ evidence_sufficiency: "insufficient" }, "Unavailable / insufficient evidence");
@@ -83,4 +83,22 @@ assert.equal(conversationUpdateSummary(unvalidated).conversation_profile_update,
 const withoutConversation = { concept_unit_sessions: [{ id: "unit-session", latest_student_profile: profile }], formative_conversation_sessions: [] } as unknown as Parameters<typeof initialLearningProfile>[0];
 assert.equal(initialLearningProfile(withoutConversation)?.id, profile.id);
 assert.equal(conversationUpdateSummary(withoutConversation).conversation_profile_update_count, 0);
+// Release 27: an applied one-time reinterpretation of the same responses takes the place of the
+// original profile in instructor views and exports; the conversation and the original stay.
+const relabelProfile = { ...profile, id: "synthetic-relabel-profile", created_at: new Date("2026-10-30T20:00:00Z"),
+  item_level_evidence: { ...v8Evidence("Mostly understood", "supported_majority_none_unsupported"),
+    relabel: { relabel_version: "interpretation-relabel-v1", reason: "rules update", reinterpreted_at: "2026-10-30T20:00:00Z",
+      previous_profile_record_id: null, previous_label: "Still developing", previous_interpretation_version: "earlier" } } };
+const relabeledSession = {
+  concept_unit_sessions: [{ id: "unit-session", latest_student_profile: profile, relabeled_student_profile: relabelProfile }],
+  formative_conversation_sessions: [{ concept_unit_session_db_id: "unit-session", initial_student_profile: profile, profile_transitions: [] }]
+} as unknown as Parameters<typeof initialLearningProfile>[0];
+assert.equal(initialLearningProfile(relabeledSession)?.id, relabelProfile.id, "The applied reinterpretation is the profile of record");
+const relabeledSummary = learningProfileSummary(initialLearningProfile(relabeledSession));
+assert.equal(relabeledSummary.understanding_label, "Mostly understood");
+assert.equal(relabeledSummary.understanding_profile_stage, "reinterpretation");
+assert.equal(latestLearningProfile(relabeledSession)?.id, profile.id, "The conversation's own profile is unchanged");
+assert.equal(initialLearningProfile({ ...relabeledSession, concept_unit_sessions: [{ id: "unit-session", latest_student_profile: profile, relabeled_student_profile: null }] } as unknown as typeof relabeledSession)?.id,
+  profile.id, "Without an applied reinterpretation the original profile is used");
+checks += 5;
 console.log(`Learning-profile summary checks passed: ${checks + 18}.`);

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { FileUp, Table2 } from "lucide-react";
+import { FileUp, RefreshCcw, Table2 } from "lucide-react";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 
@@ -32,6 +32,14 @@ export default async function TeacherDataPage() {
           >
             <FileUp className="h-5 w-5 text-accent" aria-hidden="true" />
             <h2 className="mt-4 text-lg font-semibold text-ink">Summative outcomes</h2>
+          </Link>
+
+          <Link
+            className="rounded-lg border border-line bg-white p-5 shadow-soft transition hover:border-accent"
+            href="/teacher/data/interpretation-update"
+          >
+            <RefreshCcw className="h-5 w-5 text-accent" aria-hidden="true" />
+            <h2 className="mt-4 text-lg font-semibold text-ink">Update earlier interpretations</h2>
           </Link>
         </section>
       </div>
