@@ -401,6 +401,8 @@ saved_question: the student's question in neutral words, when there is one
 
 Saved questions feed the first level of the focus priority in section 7.
 
+The application enforces rule 4 itself: when the model defers a reply that also states a reason in a sentence that is not a question, the reply is accepted and the question stays saved (application_override reason_given_with_question). Asking again for a reason the student already gave reads as if they had not answered (pilot, 30 October 2026).
+
 ### 9.4 Student profiling
 
 This builds on your draft. The changes: no engagement labels, process data as indicators with roles, reference IDs, rating definitions tied to each item's essential elements, a record of ideas considered but not endorsed, and no overall label.

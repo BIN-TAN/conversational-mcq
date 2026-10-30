@@ -199,6 +199,21 @@ async function main() {
     const deferred = fromModel("defer_question", {}, "What does theta mean?", null);
     assert.equal(deferred.should_advance, false);
     assert.ok(deferred.deferred_concern_summary, "A deferred question is always saved");
+    // Pilot, Test 9 Item 2: the model deferred a reply that gave its reason first. The application
+    // accepts it and keeps the question, rather than asking for a reason already given.
+    const pilot = "The item slopes and locations differing suggests varying a parameters and c parameters which makes me think 3PL is the best fit. However I don't know is the ICC above 0 is bad necessarily for low-ability end";
+    const overridden = fromModel("defer_question", {}, pilot, "Is an ICC above zero at the low-ability end a problem?");
+    assert.equal(overridden.should_advance, true);
+    assert.equal(overridden.collection_action, "accept");
+    assert.equal(overridden.model_action, "defer_question");
+    assert.equal(overridden.application_override, "reason_given_with_question");
+    assert.equal(overridden.deferred_concern_summary, "Is an ICC above zero at the low-ability end a problem?");
+    // A question alone, even one that uses reason words, is still deferred.
+    for (const question of ["Does a higher a mean a steeper curve?", "Can you tell me if the c parameter is more important here?", "Is it B because the slope is steeper?"]) {
+      const result = fromModel("defer_question", {}, question, "Asked about the item.");
+      assert.equal(result.should_advance, false, question);
+      assert.equal(result.application_override, "none", question);
+    }
   });
 
   await check("Fixed student wording is plain, neutral and free of hints, correctness and internal terms", () => {

@@ -162,7 +162,8 @@ export type ItemAdministrationCollectionOverride =
   | "clarification_already_used"
   | "fallback_prompt_already_given"
   | "prompt_limit_reached"
-  | "empty_response";
+  | "empty_response"
+  | "reason_given_with_question";
 
 export type ItemAdministrationTutorResult = {
   tutor_version: typeof ITEM_ADMINISTRATION_TUTOR_VERSION;
@@ -526,6 +527,17 @@ function givesAReason(text: string) {
 /** Words that name what the student wants to edit ("my reason", "my choice"); they state no reason. */
 const EDIT_OBJECT_PATTERN = /\b(reasons?|answers?|choices?|chose|choose|picked|options?|explanations?)\b/gi;
 
+/**
+ * A reason stated in a sentence that is not itself a question: "X suggests Y, which makes me
+ * think 3PL fits. However I don't know if ..." states one; "Does a higher a mean a steeper
+ * curve?" does not.
+ */
+function statesAReasonBesideAQuestion(text: string) {
+  return text
+    .split(/(?<=[.!?。！？；;])\s+|\n+/)
+    .some((sentence) => !asksAQuestion(sentence) && givesAReason(sentence));
+}
+
 /** A reason given alongside an edit request, with the edited object's name set aside. */
 function givesAReasonBesideAnEdit(text: string) {
   return givesAReason(text.replace(EDIT_OBJECT_PATTERN, " "));
@@ -699,6 +711,9 @@ function cleanSavedQuestion(value: string | null | undefined) {
  *   item and step, the next non-empty reply is accepted as it is.
  * - Whatever the model proposes, a student is never held at one step: after two prompts for this
  *   item and step, the next non-empty reply is accepted as it is.
+ * - A reply that states a reason is accepted even when it also asks a question (rule 4); the
+ *   question is saved for after the mini-test. Asking again for a reason already given reads as
+ *   if the student had not answered.
  * - A deferred question is always saved.
  */
 /** Prompts for one item and step after which the next non-empty reply is always accepted. */
@@ -720,6 +735,14 @@ export function applyItemAdministrationCollectionRules(input: {
 
   if (!normalize(input.text)) {
     return { collection_action: "redirect", application_override: "empty_response", saved_question: null };
+  }
+
+  if (input.proposed_action === "defer_question" && statesAReasonBesideAQuestion(input.text)) {
+    return {
+      collection_action: "accept",
+      application_override: "reason_given_with_question",
+      saved_question: savedQuestion ?? DEFAULT_SAVED_QUESTION
+    };
   }
 
   if (input.proposed_action !== "accept" && (input.prior_neutral_clarification_count ?? 0) >= 1) {
