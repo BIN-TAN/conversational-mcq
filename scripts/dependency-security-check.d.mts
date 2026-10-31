@@ -12,3 +12,12 @@ export declare function validateAuditResult(result: {
   critical: number;
   total: number;
 };
+export declare function validateFullAuditWithExceptions(
+  result: { error?: unknown; status: number | null; stdout: string },
+  lock: unknown,
+  exceptionsFile: unknown,
+  today?: string
+): {
+  counts: { info: number; low: number; moderate: number; high: number; critical: number; total: number };
+  accepted: string[];
+};

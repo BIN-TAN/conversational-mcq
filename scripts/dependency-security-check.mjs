@@ -48,6 +48,45 @@ export function validateAuditResult(result) {
   return counts;
 }
 
+/** The advisory ID (GHSA-...) of an npm audit "via" entry. */
+function advisoryId(via) {
+  const match = typeof via?.url === "string" ? via.url.match(/GHSA-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}/i) : null;
+  return match ? match[0] : null;
+}
+
+/**
+ * Full audit with reviewed exceptions for development-only packages (lint tooling). Every
+ * advisory in the report must be listed in config/dependency-audit-exceptions.json for its
+ * package and severity, still before its review_by date, and every package the report names
+ * must be marked dev in the lock (never installed in the runtime image). Anything else fails
+ * exactly as validateAuditResult does. The production audit is checked separately with no
+ * exceptions.
+ */
+export function validateFullAuditWithExceptions(result, lock, exceptionsFile, today = new Date().toISOString().slice(0, 10)) {
+  const report = readAuditResult(result);
+  const counts = report.metadata.vulnerabilities;
+  if (counts.total === 0) return { counts, accepted: [] };
+  const exceptions = Array.isArray(exceptionsFile?.exceptions) ? exceptionsFile.exceptions : [];
+  assert(lock.packages && typeof lock.packages === "object" && !Array.isArray(lock.packages), "dependency_audit_lock_packages_missing");
+  const accepted = new Set();
+  for (const [name, finding] of Object.entries(report.vulnerabilities)) {
+    const locations = Object.entries(lock.packages).filter(([node]) => node.split("node_modules/").at(-1) === name);
+    assert(locations.length > 0 && locations.every(([, entry]) => entry?.dev === true), "dependency_audit_exception_not_dev_only");
+    for (const via of finding?.via ?? []) {
+      if (typeof via === "string") continue;
+      const id = advisoryId(via);
+      const exception = exceptions.find((entry) => entry?.advisory === id && entry?.package === (via.name ?? name));
+      assert(id && exception, "dependency_audit_moderate_findings");
+      assert(exception.severity === via.severity, "dependency_audit_exception_severity_changed");
+      assert(typeof exception.review_by === "string" && /^\d{4}-\d{2}-\d{2}$/.test(exception.review_by), "dependency_audit_exception_invalid");
+      assert(today <= exception.review_by, "dependency_audit_exception_expired");
+      accepted.add(id);
+    }
+  }
+  assert(accepted.size > 0, "dependency_audit_findings_present");
+  return { counts, accepted: [...accepted].sort() };
+}
+
 export function verifyPrunedBuildDependencies(root, lock, exists = existsSync) {
   assert(lock.packages && typeof lock.packages === "object" && !Array.isArray(lock.packages), "dependency_audit_lock_packages_missing");
   // npm marks dependencies used only for development with dev:true. Check the
@@ -110,15 +149,18 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const audit = (omitDev) => spawnSync(process.execPath, [npmCli, "audit", "--json", ...(omitDev ? ["--omit=dev"] : [])], {
       encoding: "utf8", timeout: 90_000, maxBuffer: 8 * 1024 * 1024
     });
-    // Both production and full dependency audits must report zero findings.
+    // The production audit must report zero findings; the full audit may carry only reviewed,
+    // listed advisories in development-only packages (config/dependency-audit-exceptions.json).
     const production = validateAuditResult(audit(true));
     if (process.argv.includes("--runtime")) {
       verifyPrunedBuildDependencies(process.cwd(), lock);
       const directoriesScanned = verifyNoInstalledBraces(process.cwd());
       console.log(JSON.stringify({ status: "passed", scope: "pruned_runtime", vulnerabilities: production, build_only_nodes: "absent", braces: "absent", package_directories_scanned: directoriesScanned }));
     } else {
-      const vulnerabilities = validateAuditResult(audit(false));
-      console.log(JSON.stringify({ status: "passed", scope: "all_dependencies", vulnerabilities, production_vulnerabilities: production, publisher_integrity: "pinned_in_lockfile" }));
+      // Development-only findings pass only when reviewed and listed, until their review date.
+      const exceptions = JSON.parse(readFileSync("config/dependency-audit-exceptions.json", "utf8"));
+      const { counts: vulnerabilities, accepted } = validateFullAuditWithExceptions(audit(false), lock, exceptions);
+      console.log(JSON.stringify({ status: "passed", scope: "all_dependencies", vulnerabilities, accepted_dev_only_advisories: accepted, production_vulnerabilities: production, publisher_integrity: "pinned_in_lockfile" }));
     }
   } catch (error) {
     // No environment, npm configuration, or unfiltered registry output in logs.

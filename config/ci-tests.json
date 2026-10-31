@@ -30,6 +30,7 @@
     "prisma/research-export-v8-unit-test.ts",
     "prisma/interpretation-relabel-unit-test.ts",
     "prisma/attempt-summary-unit-test.ts",
+    "prisma/dependency-audit-exceptions-unit-test.ts",
     "prisma/student-answering-ux-unit-test.ts",
     "prisma/student-plain-language-unit-test.ts",
     "prisma/structured-output-format-unit-test.ts",

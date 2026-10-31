@@ -1,0 +1,13 @@
+{
+  "$comment": "Reviewed advisories accepted for development-only packages (lint tooling that never ships in the runtime image). The production audit must still report zero findings, every affected package must be marked dev in package-lock.json, and each entry stops applying after review_by, so the build fails again until it is reviewed. See scripts/dependency-security-check.mjs.",
+  "exceptions": [
+    {
+      "advisory": "GHSA-g3hv-75wg-m249",
+      "package": "minimatch",
+      "severity": "moderate",
+      "reviewed_on": "2026-10-30",
+      "review_by": "2026-12-01",
+      "reason": "Denial of service when an attacker supplies a glob pattern (published 27 Oct 2026, reviewed in the GitHub database 30 Oct 2026; patched only in minimatch 11.0.1). The affected copies (3.1.5 and 10.2.5) are used only by ESLint and its plugins during linting, with the project's own patterns; they are not installed in the runtime image and no student or instructor input reaches them. ESLint 9 needs the minimatch 3 API, so an override to 11 would break linting."
+    }
+  ]
+}
