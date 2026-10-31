@@ -75,7 +75,7 @@ function assertDashboardSurface() {
   // patterns are in the instructor report, and attempts are opened from Student sessions.
   for (const absent of ["Initial understanding overview", "Latest understanding overview", "Candidate misconception patterns",
     "Students to follow up", "InterpretationV8Panel", "Formative conversations"]) {
-    assert.ok(!client.includes(absent), `The dashboard overview no longer shows ${absent}.`);
+    assertExcludes(client, absent, "Teacher assessment dashboard overview");
   }
 
   assertExcludes(client, "Assessment-level diagnostic overview", "Teacher assessment dashboard client");
