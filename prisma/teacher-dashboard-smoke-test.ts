@@ -197,7 +197,8 @@ function assertDashboardSurface() {
     assertExcludes(dashboard, forbidden, "Teacher dashboard");
     assertExcludes(client, forbidden, "Teacher assessment dashboard client");
   }
-  assertIncludes(client, "Evidence behind these labels", "Understanding evidence disclosure");
+  // 30 Oct 2026: the overview no longer shows understanding labels, so their disclosure is gone too.
+  assertExcludes(client, "Evidence behind these labels", "Teacher assessment dashboard client");
   // D12: the understanding label always comes from the mini-test profile. The dashboard shows
   // each student's first submitted attempt and most recent submitted attempt (20 Oct 2026);
   // conversation-recommended updates stay in the research export, not on the dashboard.
