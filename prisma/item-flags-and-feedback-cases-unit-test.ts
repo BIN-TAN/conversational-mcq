@@ -20,7 +20,7 @@ import {
   FeedbackCaseFileSchema,
   feedbackCaseStudent
 } from "../src/lib/evaluation/interpretation-v8/feedback-case-model";
-import { acknowledgesAllCorrect, itemNumbersNamed, overviewNamesEveryPoint, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
+import { acknowledgesAllCorrect, itemNumbersNamed, overviewNamesEveryPoint, readability, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
 import { FEEDBACK_V8_CONTRACT_VERSION, type FeedbackV8Output } from "../src/lib/services/student-assessment/feedback-v8/contract";
 
 let passed = 0;
@@ -119,6 +119,9 @@ async function main() {
       ["F01: expects_all_correct_acknowledgement must be false (every answer is not correct)"]);
     assert.equal(acknowledgesAllCorrect("You chose the correct option on every item, and your explanation for Item 1 clearly separates reliability from validity. Two points could make your reasoning more complete."), true);
     assert.equal(acknowledgesAllCorrect("All of your answers were right. Your reasoning on Item 2 was especially clear."), true);
+    // Release 33: "correctly" also counts (two release 32 openings said "You answered every item correctly").
+    assert.equal(acknowledgesAllCorrect("This mini-test checked reliability. You answered every item correctly, and Item 1 was clear."), true);
+    assert.equal(acknowledgesAllCorrect("This mini-test checked reliability. You chose correctly on every item."), true);
     assert.equal(acknowledgesAllCorrect("Your explanation for Item 3 is right about the group. There are two points to look at."), false);
     assert.equal(acknowledgesAllCorrect("This mini-test checked how item parameters shape an ICC. You chose the correct option on every item. Two points could make your reasoning more complete."), true,
       "What the mini-test checked may come first");
@@ -139,6 +142,28 @@ async function main() {
     assert.equal(named("All-correct openings").value, 0.5, "F07 says so, F02 does not");
     assert.equal(named("Openings that say every answer was correct").value, 1, "F01's student did not answer every item correctly");
     assert.equal(named("Openings that say every answer was correct").pass, false);
+  });
+
+  await check("openings report readability: length, words per sentence and long sentences (opening v8.9)", () => {
+    const short = readability("This mini-test checked item information. You chose the right option on every item.\n\nTwo points could make your reasoning clearer.");
+    assert.deepEqual(short, { words: 20, sentences: 3, words_per_sentence: 6.667, long_sentences: 0 });
+    const long = readability("This mini-test checked how item characteristics affect measurement precision at a particular ability level, how information connects to measurement error, and how to choose items for a test's purpose.");
+    assert.equal(long.sentences, 1);
+    assert.equal(long.long_sentences, 1);
+    assert.equal(readability("").words_per_sentence, null);
+    const output = (message: string): FeedbackV8Output => ({
+      contract_version: FEEDBACK_V8_CONTRACT_VERSION, student_visible_message: message,
+      focus: { item_numbers: [1], focus_type: "single_item", concept: "Limited reasoning" }, strategy: "clarify",
+      student_evidence: [], focus_status: null, instructor_review: { flag: "none", reason: null }
+    });
+    const record = (id: string, message: string) => ({
+      kind: "feedback" as const, feedback_case_id: id, run: 1, engine: "local" as const, model_name: "test", prompt_hash: "x",
+      status: "validated" as const, reason: null, attempts: [], output: output(message), started_at: "", completed_at: ""
+    });
+    const report = scoreFeedback({ cases: feedback, records: [record("F02", "Short and clear. One idea each."), record("F07", Array(260).fill("word").join(" ") + ".")] });
+    const named = (start: string) => report.criteria.find((entry) => entry.name.startsWith(start))!;
+    assert.equal(named("Openings of at most 250 words").value, 0.5);
+    assert.equal(named("Opening sentences over 25 words").value, 0.333);
   });
 
   await check("tutor flags are tied to the items they name, by the student's item numbers", async () => {

@@ -32,7 +32,7 @@ const source = (file: string) => readFileSync(path.join(process.cwd(), file), "u
 check("The feedback and profiling prompts ask for complete, natural, plain language", () => {
   // Each prompt family's version is checked on its own line, apart from the others, so that one
   // family's prompt commit can be reverted without touching another's.
-  assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.8");
+  assert.equal(feedback.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.9");
   assert.equal(feedback.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
 
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
@@ -40,7 +40,7 @@ check("The feedback and profiling prompts ask for complete, natural, plain langu
     assert.match(prompt, /Do not use stock phrases \(such as "Great question!" or "I hope this helps"\), empty praise or sentence fragments\./);
     assert.match(prompt, /Explain a technical term when you use it, with a short example where it helps\./);
   }
-  assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Length is fine when it serves the student\./);
+  assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Keep sentences short and the message within the length above\./);
   assert.match(interpretation.INTERPRETATION_V8_INSTRUCTIONS, /write rationales and notes as complete sentences\./);
 
   assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.5");

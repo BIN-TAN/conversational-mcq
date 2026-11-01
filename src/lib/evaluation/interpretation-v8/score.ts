@@ -644,7 +644,30 @@ export function overviewNamesEveryPoint(message: string, points: readonly (reado
  */
 export function acknowledgesAllCorrect(message: string) {
   const opening = message.split(/(?<=[.!?])\s+/).slice(0, 4).join(" ");
-  return /\b(?:every|all|each|both)\b[^.!?]*\b(?:correct|right)\b|\b(?:correct|right)\b[^.!?]*\b(?:every|all|each|both)\b(?:\s+(?:of\s+)?(?:the\s+|your\s+)?(?:items?|questions?|answers?))/i.test(opening);
+  return /\b(?:every|all|each|both)\b[^.!?]*\b(?:correct(?:ly)?|right)\b|\b(?:correct(?:ly)?|right)\b[^.!?]*\b(?:every|all|each|both)\b(?:\s+(?:of\s+)?(?:the\s+|your\s+)?(?:items?|questions?|answers?))/i.test(opening);
+}
+
+function median(values: number[]) {
+  if (!values.length) return null;
+  const sorted = [...values].sort((left, right) => left - right);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+/**
+ * Opening v8.9: simple readability measures of a student-facing message. Sentences end at
+ * . ! ? or a line break; words are letter or number runs. Formulas count as words.
+ */
+export function readability(message: string) {
+  const sentences = message.split(/(?<=[.!?])\s+|\n+/).map((sentence) => sentence.trim()).filter(Boolean);
+  const words = (text: string) => text.match(/[A-Za-z\u00C0-\u024F][A-Za-z\u00C0-\u024F'\u2019-]*|\d+(?:\.\d+)?/g) ?? [];
+  const wordCount = words(message).length;
+  return {
+    words: wordCount,
+    sentences: sentences.length,
+    words_per_sentence: sentences.length ? round(wordCount / sentences.length) : null,
+    long_sentences: sentences.filter((sentence) => words(sentence).length > 25).length
+  };
 }
 
 export function questionsAsked(message: string) {
@@ -688,6 +711,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       validated: true,
       checks,
       questions,
+      readability: readability(output.student_visible_message),
       process_words_for_review: (output.student_visible_message.match(new RegExp(PROCESS_WORDS, "gi")) ?? []).map((word) => word.toLowerCase()),
       stock_phrases: stockPhrases(output.student_visible_message),
       message: output.student_visible_message,
@@ -699,6 +723,8 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     const expecting = delivered.filter((row) => byId.get(row.feedback_case_id)?.expected.expects_overview);
     return expecting.length ? round(expecting.filter((row) => row.checks!.overview).length / expecting.length) : null;
   };
+  const openings = scored.filter((row) => row.mode === "opening");
+  const openingSentences = openings.reduce((sum, row) => sum + row.readability!.sentences, 0);
   const acknowledgementShare = (delivered: typeof scored) => {
     const expecting = delivered.filter((row) => byId.get(row.feedback_case_id)?.expected.expects_all_correct_acknowledgement);
     return expecting.length ? round(expecting.filter((row) => row.checks!.all_correct_acknowledgement).length / expecting.length) : null;
@@ -722,7 +748,15 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     criterion("All-correct openings that say every answer was correct (share)", ">=", 0.8,
       acknowledgementShare(scored), "Proposed threshold (opening v8.8); reported, not a go-live gate."),
     criterion("Openings that say every answer was correct when one was not", "<=", 0,
-      scored.filter((row) => !row.checks!.no_false_all_correct).length)
+      scored.filter((row) => !row.checks!.no_false_all_correct).length),
+    criterion("Openings of at most 250 words (share)", ">=", 0.9,
+      openings.length ? openings.filter((row) => row.readability!.words <= 250).length / openings.length : null,
+      "Proposed threshold (opening v8.9); reported, not a go-live gate."),
+    criterion("Median words per sentence in openings", "<=", 17, median(openings.map((row) => row.readability!.words_per_sentence ?? 0)),
+      "Proposed threshold (opening v8.9); reported, not a go-live gate."),
+    criterion("Opening sentences over 25 words (share)", "<=", 0.1,
+      openingSentences ? openings.reduce((sum, row) => sum + row.readability!.long_sentences, 0) / openingSentences : null,
+      "Proposed threshold (opening v8.9); reported, not a go-live gate.")
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
   const byMode = (mode: "opening" | "reply") => {
