@@ -117,7 +117,14 @@ export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
       const unfocusedWithin = studentTime !== null && start ? coveredWithin(attention.unfocused, attention.openUnfocusedFrom, start.monotonic_ms, s.monotonic_ms) : null;
       if (studentTime !== null && (hiddenWithin === null || unfocusedWithin === null)) flags.push("unpaired_attention_observation");
       const requestTime = span(s, finished, "request_endpoint_missing_or_invalid");
-      const controlsTime = span(finished, controls, "controls_endpoint_missing_or_invalid");
+      // A hidden page does not draw, so "controls ready" is only observed when the student
+      // returns: the wait would count the student's time away as system time. Left blank.
+      const hiddenDuringWait = finished && controls && finished.observation_sequence < controls.observation_sequence
+        ? coveredWithin(attention.hidden, attention.openHiddenFrom, s.monotonic_ms, controls.monotonic_ms) : 0;
+      const pageHiddenDuringWait = hiddenDuringWait === null || hiddenDuringWait > 0 ||
+        list.some(e => e.observation_kind === "hidden" && e.observation_sequence > s.observation_sequence && !!controls && e.observation_sequence < controls.observation_sequence);
+      if (pageHiddenDuringWait) flags.push("page_hidden_during_system_wait");
+      const controlsTime = pageHiddenDuringWait ? null : span(finished, controls, "controls_endpoint_missing_or_invalid");
       const totalTime = requestTime !== null && controlsTime !== null ? delta(s, controls) : null;
       const matching = outcomes.filter(e => record(e.payload).submission_id === s.submission_id);
       const acceptedValues = new Set(matching.map(e => record(e.payload).accepted));
@@ -140,7 +147,8 @@ export function deriveResponseSubmissions(events: ResponseStageEvent[]) {
         request_result: finished?.result ?? null,
         accepted: outcomeValid && typeof record(matching[0].payload).accepted === "boolean" ? record(matching[0].payload).accepted : null,
         validation_rejected: outcomeValid && typeof record(matching[0].payload).validation_rejected === "boolean" ? record(matching[0].payload).validation_rejected : null,
-        timing_quality_status: flags.length ? "partial" : "valid", timing_limitations: flags.join("|") };
+        // A blank system wait (page hidden during it) leaves the student's timings valid.
+        timing_quality_status: flags.some(flag => flag !== "page_hidden_during_system_wait") ? "partial" : "valid", timing_limitations: flags.join("|") };
     });
   });
 }
@@ -171,7 +179,15 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
     if (submissions.some(e => !bySubmission.has(e.submission_id!))) limitations.push("server_outcome_missing");
     const wait = (kind: "request_finished" | "controls_ready") => {
       if (!ready || sequenceGap) return null;
-      const spans = submissions.map(s => delta(s, list.find(e => e.observation_kind === kind && e.submission_id === s.submission_id)));
+      const ends = submissions.map(s => [s, list.find(e => e.observation_kind === kind && e.submission_id === s.submission_id)] as const);
+      // A hidden page does not draw, so "controls ready" is only observed when the student returns;
+      // the wait would then include the student's time away. Left blank rather than overstated.
+      if (kind === "controls_ready" && ends.some(([s, end]) => end && list.some(e => e.observation_kind === "hidden" &&
+        e.observation_sequence > s.observation_sequence && e.observation_sequence < end.observation_sequence))) {
+        limitations.push("page_hidden_during_system_wait");
+        return null;
+      }
+      const spans = ends.map(([s, end]) => delta(s, end));
       if (spans.some(d => d === null)) { limitations.push(`${kind}_missing`); return null; }
       return spans.reduce<number>((sum, d) => sum + (d ?? 0), 0);
     };
@@ -224,7 +240,8 @@ export function deriveResponseStageVisits(events: ResponseStageEvent[]) {
       validation_rejection_count: [...bySubmission.values()].filter(e => record(e.payload).validation_rejected === true).length,
       request_failure_count: list.filter(e => e.observation_kind === "request_finished" && e.result === "request_failed").length,
       input_change_count: Math.max(0, ...list.map(e => e.input_change_count ?? 0)),
-      timing_quality_status: limitations.length ? "partial" : "valid", timing_limitations: [...new Set(limitations)].join("|"),
+      // A blank system wait (page hidden during it) leaves the student's timings valid.
+      timing_quality_status: limitations.some(limitation => limitation !== "page_hidden_during_system_wait") ? "partial" : "valid", timing_limitations: [...new Set(limitations)].join("|"),
       observation_version: RESPONSE_OBSERVATION_VERSION
     };
   }).sort((a, b) => (a.ready_at ?? "").localeCompare(b.ready_at ?? ""));

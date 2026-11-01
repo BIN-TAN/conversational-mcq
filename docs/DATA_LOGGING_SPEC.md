@@ -1888,6 +1888,12 @@ thinking or active typing. `request_wait_ms` ends when the request finishes;
 `system_wait_ms` ends when usable controls are visible again, including UI
 refresh and rendering. These waiting intervals, hidden time, and stage elapsed
 time overlap and must not be added together or treated as pure student work.
+A hidden browser page does not draw, so "controls ready" is only observed once
+the student returns. When the page was hidden between a submission and its
+controls-ready receipt, `system_wait_ms` and `post_request_controls_wait_ms`
+are left blank with the limitation `page_hidden_during_system_wait`, instead of
+counting the time away as system waiting; the student's own timings for that
+visit stay valid.
 
 Explicit assessment pause/end actions remain in the authoritative lifecycle
 log and also close the active visit. Returns create new visits. Gaps between
@@ -2127,6 +2133,7 @@ Missing data remain null, not zero. The export's `definitions` describes:
   including pre-input time and pauses; not pure typing time.
 - `system_wait_ms`: sum of observed submission-to-usable-controls intervals.
   These overlap stage/item elapsed intervals, so must not be added to them.
+  Blank when the page was hidden during the wait (`page_hidden_during_system_wait`).
   Background initial preparation and free-text generation are separate events.
 - Conversation input edits: input-change events for submitted messages, not
   answer revisions or changes of belief. They overlap whole-page typing counts.

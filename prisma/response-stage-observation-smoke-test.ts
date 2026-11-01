@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { parse } from "csv-parse/sync";
 import { createResponseStageRecorder } from "../src/components/student-assessment/response-stage-recorder";
-import { deriveResponseStageVisits, summarizeItemStageVisits, type ResponseStageEvent } from "../src/lib/services/student-assessment/response-stage-data";
+import { deriveResponseStageVisits, deriveResponseSubmissions, summarizeItemStageVisits, type ResponseStageEvent } from "../src/lib/services/student-assessment/response-stage-data";
 import { deriveItemTiming } from "../src/lib/services/student-assessment/timing-contract";
 import { responseStageExportFiles } from "../src/lib/services/teacher-research-data/response-stage-export";
 import { ResponseObservationPayloadSchema } from "../src/lib/student-assessment-ui/response-observation";
@@ -100,4 +100,33 @@ assert.equal(csv("response_revision_history.csv")[0].new_value, "'=Updated reaso
 assert.equal(csv("response_stage_visits.csv")[0].research_student_id, "research-1");
 assert(csv("response_stage_data_dictionary.csv").some(r => r.variable_name === "system_wait_ms"));
 assert(!files.find(f => f.path === "response_stage_events.csv")!.data.includes("Earlier reasoning"));
-console.log("PASS response-stage timing, retries, revisions, clocks, visibility, missing data, exports and privacy; provider calls: 0");
+// A hidden page does not draw, so "controls ready" is only observed when the student returns.
+// A wait that overlaps a hidden page is left blank instead of counting the time away as system time.
+{
+  let now = 1000;
+  const hiddenEvents: ResponseStageEvent[] = [], hiddenTab = randomUUID();
+  const r = createResponseStageRecorder({ now: () => now, wallNow: () => new Date(1800000000000 + now).toISOString(), newId: randomUUID,
+    send: e => { hiddenEvents.push({ ...e, event_source: "frontend", occurred_at: e.client_occurred_at, payload: {
+      ...e.payload, client_event_id: randomUUID(), browser_tab_id: hiddenTab, client_occurred_at: e.client_occurred_at } }); } });
+  const go = (stage: "answer" | "reasoning") => r.ready({ item_public_id: "item-h", response_stage: stage, response_phase: "initial" });
+  const send = () => { const a = r.submit()!; hiddenEvents.push({ event_type: "response_stage_outcome", event_source: "backend", item_public_id: "item-h",
+    occurred_at: new Date(1800000000000 + now), payload: { ...a.link, accepted: true, validation_rejected: false } }); return a; };
+  go("answer"); now = 3000; const a = send();
+  now = 3500; r.observe("hidden"); now = 140000; a.finish(); now = 148000; r.observe("visible"); now = 148100; r.controlsReady(); go("reasoning");
+  now = 150000; r.input(20); now = 160000; const b = send(); now = 161000; b.finish(); now = 161200; r.controlsReady(); r.close();
+  const hv = deriveResponseStageVisits(hiddenEvents);
+  assert.equal(hv[0].response_elapsed_ms, 2000, "Student answer time is unaffected.");
+  assert.equal(hv[0].system_wait_ms, null, "Time away during the wait is not system wait.");
+  assert(hv[0].timing_limitations.split("|").includes("page_hidden_during_system_wait"));
+  assert.equal(hv[0].timing_quality_status, "valid", "Student timings of the visit stay usable.");
+  assert.equal(hv[1].system_wait_ms, 1200, "A later wait with the page visible is kept.");
+  assert.equal(summarizeItemStageVisits(hv).system_wait_ms, null);
+  const hs = deriveResponseSubmissions(hiddenEvents);
+  assert.equal(hs[0].submission_system_wait_ms, null);
+  assert.equal(hs[0].post_request_controls_wait_ms, null);
+  assert(hs[0].timing_limitations.split("|").includes("page_hidden_during_system_wait"));
+  assert.equal(hs[0].student_response_elapsed_ms, 2000);
+  assert.equal(hs[1].submission_system_wait_ms, 1200);
+  assert.equal(hs[1].timing_quality_status, "valid");
+}
+console.log("PASS response-stage timing, retries, revisions, clocks, visibility, missing data, hidden waits, exports and privacy; provider calls: 0");
