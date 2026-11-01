@@ -144,7 +144,7 @@ async function main() {
     assert.equal(named("Openings that say every answer was correct").pass, false);
   });
 
-  await check("openings report readability: length, words per sentence and long sentences (opening v8.9)", () => {
+  await check("openings report readability: words per sentence and long sentences (opening v8.9)", () => {
     const short = readability("This mini-test checked item information. You chose the right option on every item.\n\nTwo points could make your reasoning clearer.");
     assert.deepEqual(short, { words: 20, sentences: 3, words_per_sentence: 6.667, long_sentences: 0 });
     const long = readability("This mini-test checked how item characteristics affect measurement precision at a particular ability level, how information connects to measurement error, and how to choose items for a test's purpose.");
@@ -162,7 +162,7 @@ async function main() {
     });
     const report = scoreFeedback({ cases: feedback, records: [record("F02", "Short and clear. One idea each."), record("F07", Array(260).fill("word").join(" ") + ".")] });
     const named = (start: string) => report.criteria.find((entry) => entry.name.startsWith(start))!;
-    assert.equal(named("Openings of at most 250 words").value, 0.5);
+    assert.equal(report.criteria.some((entry) => entry.name.includes("250 words")), false, "Length is not limited");
     assert.equal(named("Opening sentences over 25 words").value, 0.333);
   });
 

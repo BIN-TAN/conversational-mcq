@@ -165,25 +165,23 @@ async function main() {
     // v8.8 (1 Nov 2026): the opening reads like a teacher's note on the whole mini-test, written for the
     // student rather than from a template, and still names every point so the student sees them all.
     const opening = contract.FEEDBACK_V8_OPENING_INSTRUCTIONS;
-    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as short connected paragraphs like a teacher's note: no headings, no labels for the parts and no bulleted lists; name the points to work on in sentences\. The parts below are what the message covers, in this order, not a template/);
+    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note: no headings, no labels for the parts and no bulleted lists; name the points to work on in sentences\. The parts below are what the message covers, in this order, not a template/);
     const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- How to improve:", "- The first point:", "- A closing invitation in your own words:"];
     parts.forEach((part, index) => {
       assert.ok(opening.includes(part), part);
       if (index) assert.ok(opening.indexOf(parts[index - 1]) < opening.indexOf(part), `${part} follows ${parts[index - 1]}`);
     });
-    assert.match(opening, /drawn from the learning objective\. Do not list every objective\./);
-    // v8.9: readable on first reading (the first live v8.8 opening was dense).
-    assert.match(opening, /Keep the whole message to about 200 words, and never more than 250\. Use short sentences with one idea each, most under 20 words\./);
-    assert.match(opening, /write out an abbreviation instead of using it alone \("test characteristic curve", not "TCC"\)/);
-    assert.match(opening, /Use a formula only in the first point, and only when the item needs one\./);
-    assert.match(opening, /in plain words without a formula/);
-    assert.match(opening, /in one short paragraph that explains one idea at a time/);
+    assert.match(opening, /drawn from the learning objective/);
+    // v8.9 (1 Nov 2026): easy-to-read sentences; length and the other parts are as in v8.8.
+    assert.match(opening, /\nMake every sentence easy to read on first reading\. Use simple sentence structures with one main idea per sentence, and split a sentence that strings together several clauses, a list or a contrast into shorter sentences\.\n/);
+    assert.match(opening, /Length is fine when it serves the student\./);
+    assert.doesNotMatch(opening, /never more than 250|about 200 words/);
     assert.match(opening, /When the student chose the correct option on every item, say so warmly\./);
     assert.match(opening, /never invent strengths/);
     assert.match(opening, /name every point so the student sees them all at once/);
     assert.match(opening, /the idea their explanation or choice relies on, the doubt they expressed, or the question they asked/);
     assert.match(opening, /A point about a correct answer is a way to make the reasoning more complete or precise, not an error\./);
-    assert.match(opening, /one short, concrete suggestion the student can use the next time they meet this kind of item/);
+    assert.match(opening, /one concrete suggestion the student can use the next time they meet this kind of item/);
     assert.match(opening, /Do not give a score or a count of correct answers/);
     assert.match(opening, /^INPUT\nThe topic's title, learning objective and description, /m);
     assert.doesNotMatch(opening, /MORE THAN ONE POINT|say that the next point follows when the student is ready|WHEN EVERY ANSWER IS CORRECT/);

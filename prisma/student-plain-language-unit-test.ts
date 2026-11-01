@@ -38,9 +38,11 @@ check("The feedback and profiling prompts ask for complete, natural, plain langu
   for (const prompt of [feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS]) {
     assert.match(prompt, /Write the way a knowledgeable, friendly tutor speaks: complete, natural sentences/);
     assert.match(prompt, /Do not use stock phrases \(such as "Great question!" or "I hope this helps"\), empty praise or sentence fragments\./);
-    assert.match(prompt, /Explain a technical term when you use it, with a short example where it helps\./);
   }
-  assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Keep sentences short and the message within the length above\./);
+  // Opening v8.9: a term or abbreviation is explained when this student may not know it.
+  assert.match(feedback.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /Explain a technical term when you use it, with a short example where it helps\./);
+  assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Explain a technical term or write out an abbreviation when this student may not know it, judging from their own responses, with a short example where it helps; a term the student used correctly needs no explanation\./);
+  assert.match(feedback.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Length is fine when it serves the student\./);
   assert.match(interpretation.INTERPRETATION_V8_INSTRUCTIONS, /write rationales and notes as complete sentences\./);
 
   assert.equal(interpretation.INTERPRETATION_V8_PROMPT_VERSION, "student-profiling-v8.5");
