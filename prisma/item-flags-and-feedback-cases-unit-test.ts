@@ -108,7 +108,7 @@ async function main() {
     assert.equal(criterion(withoutOverview).pass, false);
   });
 
-  await check("an all-correct opening begins with encouragement that says so (opening v8.7, cases-6)", () => {
+  await check("an all-correct opening says every answer was correct (opening v8.8, cases-6)", () => {
     const expecting = feedback.cases.filter((entry) => entry.expected.expects_all_correct_acknowledgement).map((entry) => entry.feedback_case_id);
     assert.deepEqual(expecting, ["F02", "F04", "F07", "F10", "F19", "F20"], "Every opening whose student answered every item correctly");
     const f07 = feedbackById.get("F07")!;
@@ -120,8 +120,10 @@ async function main() {
     assert.equal(acknowledgesAllCorrect("You chose the correct option on every item, and your explanation for Item 1 clearly separates reliability from validity. Two points could make your reasoning more complete."), true);
     assert.equal(acknowledgesAllCorrect("All of your answers were right. Your reasoning on Item 2 was especially clear."), true);
     assert.equal(acknowledgesAllCorrect("Your explanation for Item 3 is right about the group. There are two points to look at."), false);
-    assert.equal(acknowledgesAllCorrect("There are two points to look at. Item 1: your explanation links a to steepness. You chose the correct option on every item."), false,
-      "The encouragement comes first, not after the overview");
+    assert.equal(acknowledgesAllCorrect("This mini-test checked how item parameters shape an ICC. You chose the correct option on every item. Two points could make your reasoning more complete."), true,
+      "What the mini-test checked may come first");
+    assert.equal(acknowledgesAllCorrect("This mini-test checked ICCs. There are two points. Item 1 concerns steepness. Item 2 concerns the lower tail. Start with Item 1. You chose the correct option on every item."), false,
+      "Saying so only at the end of the message does not count");
     const output = (message: string): FeedbackV8Output => ({
       contract_version: FEEDBACK_V8_CONTRACT_VERSION, student_visible_message: message,
       focus: { item_numbers: [1], focus_type: "single_item", concept: "Limited reasoning" }, strategy: "clarify",

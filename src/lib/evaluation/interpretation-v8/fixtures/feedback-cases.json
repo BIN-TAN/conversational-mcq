@@ -87,7 +87,7 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Says specifically what was right; offers an optional extension; invents no weakness. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "Says specifically what was right; offers an optional extension; invents no weakness. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },
@@ -166,7 +166,7 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Invites the student to explain one item in their own words, without judgment and without implying the answers were guessed. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "Invites the student to explain one item in their own words, without judgment and without implying the answers were guessed. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },
@@ -295,7 +295,7 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Either asks one neutral clarifying question about limited reasoning, or explains the endorsed idea in Question 3. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "Either asks one neutral clarifying question about limited reasoning, or explains the endorsed idea in Question 3. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },
@@ -399,7 +399,7 @@
     ],
     "max_questions": 2,
     "must_not_mark_corrected": false,
-    "notes": "Explains the SEM idea from the tempting-option reason; does not treat the rejected idea in Question 1 as a misconception. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "Explains the SEM idea from the tempting-option reason; does not treat the rejected idea in Question 1 as a misconception. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },
@@ -903,7 +903,7 @@
     "max_questions": 2,
     "must_not_mark_corrected": false,
     "expects_overview": false,
-    "notes": "The student doubted a correct answer (opening v8.4): the message takes up Item 3, says what made the reasoning right and answers the doubt, rather than offering an extension or asking for a restatement. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "The student doubted a correct answer (opening v8.4): the message takes up Item 3, says what made the reasoning right and answers the doubt, rather than offering an extension or asking for a restatement. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },
@@ -943,7 +943,7 @@
     "max_questions": 2,
     "must_not_mark_corrected": false,
     "expects_overview": false,
-    "notes": "An inaccurate idea in a tempting-option reason under a correct answer (opening v8.4): the message takes up Item 4 and explains why .85 is not the share of a score free of error, rather than an extension. Release 32 (opening v8.7): every answer is correct, so the opening begins with encouragement that says so.",
+    "notes": "An inaccurate idea in a tempting-option reason under a correct answer (opening v8.4): the message takes up Item 4 and explains why .85 is not the share of a score free of error, rather than an extension. Release 32 (opening v8.8): every answer is correct, so the opening says so among what went well.",
     "expects_all_correct_acknowledgement": true
    }
   },

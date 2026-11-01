@@ -84,8 +84,8 @@ export const FeedbackCaseSchema = z.object({
      */
     overview_points: z.array(z.array(z.number().int().min(1)).min(1)).default([]),
     /**
-     * Opening v8.7: the student chose the correct option on every item, so the opening should
-     * begin with encouragement that says so. Must match the simulated student (checked below).
+     * Opening v8.8: the student chose the correct option on every item, so the opening should say
+     * so among what went well. Must match the simulated student (checked below).
      */
     expects_all_correct_acknowledgement: z.boolean().default(false),
     notes: z.string().default("")

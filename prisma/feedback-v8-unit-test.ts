@@ -160,31 +160,36 @@ async function main() {
       assert.match(prompt, /Refer to items as the student saw them: Item 1, Item 2\./);
       assert.doesNotMatch(prompt, /Question 2/);
     }
-    // Doubt shown by low confidence or an unsure explanation is addressed, also for correct answers,
-    // and several points open with a short overview the student can choose from.
+    // Doubt shown by low confidence or an unsure explanation is addressed, also for correct answers.
     assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /then a correct answer the student doubted \(low confidence, or an explanation that says they are unsure\)/);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /\nMORE THAN ONE POINT\nWhen the evidence shows more than one point worth discussing \(from levels 1 to 4\), begin with a short overview/);
-    // v8.6/v8.8: the overview states what each point concerns in the student's own work, and the
-    // conversation goes through the listed points one at a time.
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /so the student sees every point at once/);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /the idea their explanation or choice relies on, the doubt they expressed, or the question they asked/);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /say that the next point follows when the student is ready/);
+    // v8.8 (1 Nov 2026): the opening reads like a teacher's note on the whole mini-test, written for the
+    // student rather than from a template, and still names every point so the student sees them all.
+    const opening = contract.FEEDBACK_V8_OPENING_INSTRUCTIONS;
+    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note: no headings, no labels for the parts and no bulleted lists; name the points to work on in sentences\. The parts below are what the message covers, in this order, not a template/);
+    const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- How to improve:", "- The first point:", "- A closing invitation in your own words:"];
+    parts.forEach((part, index) => {
+      assert.ok(opening.includes(part), part);
+      if (index) assert.ok(opening.indexOf(parts[index - 1]) < opening.indexOf(part), `${part} follows ${parts[index - 1]}`);
+    });
+    assert.match(opening, /drawn from the learning objective/);
+    assert.match(opening, /When the student chose the correct option on every item, say so warmly\./);
+    assert.match(opening, /never invent strengths/);
+    assert.match(opening, /name every point so the student sees them all at once/);
+    assert.match(opening, /the idea their explanation or choice relies on, the doubt they expressed, or the question they asked/);
+    assert.match(opening, /A point about a correct answer is a way to make the reasoning more complete or precise, not an error\./);
+    assert.match(opening, /one concrete suggestion the student can use the next time they meet this kind of item/);
+    assert.match(opening, /Do not give a score or a count of correct answers/);
+    assert.match(opening, /^INPUT\nThe topic's title, learning objective and description, /m);
+    assert.doesNotMatch(opening, /MORE THAN ONE POINT|say that the next point follows when the student is ready|WHEN EVERY ANSWER IS CORRECT/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the opening listed several points, go through them one at a time/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /do not drop a listed point otherwise/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /explain the idea at issue rather than asking the student to explain it/);
-    assert.doesNotMatch(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /most important first/);
+    assert.doesNotMatch(opening, /most important first/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself\./);
-    // v8.7 (1 Nov 2026): an all-correct mini-test opens with specific encouragement, before any
-    // overview, with no count or score; the points that follow are about completing the reasoning.
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /\nWHEN EVERY ANSWER IS CORRECT\nWhen the student chose the correct option on every item, begin, before any overview, with one or two sentences of sincere encouragement/);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Give no count or score\./);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /not as errors/);
-    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /apart from the encouragement for a mini-test with every answer correct/);
-    assert.ok(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS.indexOf("WHEN EVERY ANSWER IS CORRECT") < contract.FEEDBACK_V8_OPENING_INSTRUCTIONS.indexOf("CHOOSING THE STRATEGY"));
     assert.deepEqual(studentFacingTextProblems("You chose the correct option on every item, and your explanation for Item 1 clearly links a larger a to a steeper curve."), [],
       "The encouragement passes the student-facing checks");
     assert.deepEqual(studentFacingTextProblems("You got 4 out of 4 questions right."), ["score_repeated"], "A count is still rejected");
-    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.7");
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.8");
     assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });

@@ -638,11 +638,12 @@ export function overviewNamesEveryPoint(message: string, points: readonly (reado
 }
 
 /**
- * Opening v8.7: whether the first two sentences tell the student that every answer was correct
+ * Opening v8.8: whether the opening part of the message (its first four sentences: what the
+ * mini-test checked, then what went well) tells the student that every answer was correct
  * ("You chose the correct option on every item", "All of your answers were right").
  */
 export function acknowledgesAllCorrect(message: string) {
-  const opening = message.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ");
+  const opening = message.split(/(?<=[.!?])\s+/).slice(0, 4).join(" ");
   return /\b(?:every|all|each|both)\b[^.!?]*\b(?:correct|right)\b|\b(?:correct|right)\b[^.!?]*\b(?:every|all|each|both)\b(?:\s+(?:of\s+)?(?:the\s+|your\s+)?(?:items?|questions?|answers?))/i.test(opening);
 }
 
@@ -675,7 +676,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       // Opening v8.4: several points open with an overview that names every point, each by
       // at least one of its item numbers (expected.overview_points).
       overview: !expected.expects_overview || overviewNamesEveryPoint(output.student_visible_message, expected.overview_points),
-      // Opening v8.7: an all-correct mini-test opens with encouragement that says so; any other
+      // Opening v8.8: an all-correct mini-test says so among what went well; any other
       // opening must not claim that every answer was correct.
       all_correct_acknowledgement: !expected.expects_all_correct_acknowledgement || acknowledgesAllCorrect(output.student_visible_message),
       no_false_all_correct: mode !== "opening" || expected.expects_all_correct_acknowledgement || !acknowledgesAllCorrect(output.student_visible_message)
@@ -718,8 +719,8 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       scored.length ? 1 - (share((checks) => checks.natural_language) ?? 1) : null),
     criterion("Openings with several points that give an overview (share)", ">=", 0.8,
       overviewShare(scored), "Proposed threshold (opening v8.4); reported, not a go-live gate."),
-    criterion("All-correct openings that begin with encouragement saying so (share)", ">=", 0.8,
-      acknowledgementShare(scored), "Proposed threshold (opening v8.7); reported, not a go-live gate."),
+    criterion("All-correct openings that say every answer was correct (share)", ">=", 0.8,
+      acknowledgementShare(scored), "Proposed threshold (opening v8.8); reported, not a go-live gate."),
     criterion("Openings that say every answer was correct when one was not", "<=", 0,
       scored.filter((row) => !row.checks!.no_false_all_correct).length)
   ];
