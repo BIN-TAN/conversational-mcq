@@ -637,6 +637,15 @@ export function overviewNamesEveryPoint(message: string, points: readonly (reado
   return points.length >= 2 && points.every((point) => point.some((number) => named.has(number)));
 }
 
+/**
+ * Opening v8.7: whether the first two sentences tell the student that every answer was correct
+ * ("You chose the correct option on every item", "All of your answers were right").
+ */
+export function acknowledgesAllCorrect(message: string) {
+  const opening = message.split(/(?<=[.!?])\s+/).slice(0, 2).join(" ");
+  return /\b(?:every|all|each|both)\b[^.!?]*\b(?:correct|right)\b|\b(?:correct|right)\b[^.!?]*\b(?:every|all|each|both)\b(?:\s+(?:of\s+)?(?:the\s+|your\s+)?(?:items?|questions?|answers?))/i.test(opening);
+}
+
 export function questionsAsked(message: string) {
   const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
   return (unquoted.match(/\?/g) ?? []).length;
@@ -665,7 +674,11 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       natural_language: stockPhrases(output.student_visible_message).length === 0,
       // Opening v8.4: several points open with an overview that names every point, each by
       // at least one of its item numbers (expected.overview_points).
-      overview: !expected.expects_overview || overviewNamesEveryPoint(output.student_visible_message, expected.overview_points)
+      overview: !expected.expects_overview || overviewNamesEveryPoint(output.student_visible_message, expected.overview_points),
+      // Opening v8.7: an all-correct mini-test opens with encouragement that says so; any other
+      // opening must not claim that every answer was correct.
+      all_correct_acknowledgement: !expected.expects_all_correct_acknowledgement || acknowledgesAllCorrect(output.student_visible_message),
+      no_false_all_correct: mode !== "opening" || expected.expects_all_correct_acknowledgement || !acknowledgesAllCorrect(output.student_visible_message)
     };
     return {
       feedback_case_id: record.feedback_case_id,
@@ -685,6 +698,10 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     const expecting = delivered.filter((row) => byId.get(row.feedback_case_id)?.expected.expects_overview);
     return expecting.length ? round(expecting.filter((row) => row.checks!.overview).length / expecting.length) : null;
   };
+  const acknowledgementShare = (delivered: typeof scored) => {
+    const expecting = delivered.filter((row) => byId.get(row.feedback_case_id)?.expected.expects_all_correct_acknowledgement);
+    return expecting.length ? round(expecting.filter((row) => row.checks!.all_correct_acknowledgement).length / expecting.length) : null;
+  };
   const share = (pick: (checks: NonNullable<(typeof rows)[number]["checks"]>) => boolean) =>
     scored.length ? round(scored.filter((row) => pick(row.checks!)).length / scored.length) : null;
   const failed = rows.filter((row) => !row.validated).length;
@@ -700,7 +717,11 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
     criterion("Messages with a stock phrase (share)", "<=", GO_LIVE_THRESHOLDS.feedback_stock_phrase_max,
       scored.length ? 1 - (share((checks) => checks.natural_language) ?? 1) : null),
     criterion("Openings with several points that give an overview (share)", ">=", 0.8,
-      overviewShare(scored), "Proposed threshold (opening v8.4); reported, not a go-live gate.")
+      overviewShare(scored), "Proposed threshold (opening v8.4); reported, not a go-live gate."),
+    criterion("All-correct openings that begin with encouragement saying so (share)", ">=", 0.8,
+      acknowledgementShare(scored), "Proposed threshold (opening v8.7); reported, not a go-live gate."),
+    criterion("Openings that say every answer was correct when one was not", "<=", 0,
+      scored.filter((row) => !row.checks!.no_false_all_correct).length)
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
   const byMode = (mode: "opening" | "reply") => {

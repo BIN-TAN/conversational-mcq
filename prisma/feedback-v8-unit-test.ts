@@ -174,7 +174,17 @@ async function main() {
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /explain the idea at issue rather than asking the student to explain it/);
     assert.doesNotMatch(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /most important first/);
     assert.match(contract.FEEDBACK_V8_CONVERSATION_INSTRUCTIONS, /When the student doubts a correct answer or says they are unsure, say what makes it right and address the doubt itself\./);
-    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.6");
+    // v8.7 (1 Nov 2026): an all-correct mini-test opens with specific encouragement, before any
+    // overview, with no count or score; the points that follow are about completing the reasoning.
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /\nWHEN EVERY ANSWER IS CORRECT\nWhen the student chose the correct option on every item, begin, before any overview, with one or two sentences of sincere encouragement/);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /Give no count or score\./);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /not as errors/);
+    assert.match(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS, /apart from the encouragement for a mini-test with every answer correct/);
+    assert.ok(contract.FEEDBACK_V8_OPENING_INSTRUCTIONS.indexOf("WHEN EVERY ANSWER IS CORRECT") < contract.FEEDBACK_V8_OPENING_INSTRUCTIONS.indexOf("CHOOSING THE STRATEGY"));
+    assert.deepEqual(studentFacingTextProblems("You chose the correct option on every item, and your explanation for Item 1 clearly links a larger a to a steeper curve."), [],
+      "The encouragement passes the student-facing checks");
+    assert.deepEqual(studentFacingTextProblems("You got 4 out of 4 questions right."), ["score_repeated"], "A count is still rejected");
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.7");
     assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });

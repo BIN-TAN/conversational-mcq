@@ -20,7 +20,7 @@ import {
   FeedbackCaseFileSchema,
   feedbackCaseStudent
 } from "../src/lib/evaluation/interpretation-v8/feedback-case-model";
-import { itemNumbersNamed, overviewNamesEveryPoint, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
+import { acknowledgesAllCorrect, itemNumbersNamed, overviewNamesEveryPoint, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
 import { FEEDBACK_V8_CONTRACT_VERSION, type FeedbackV8Output } from "../src/lib/services/student-assessment/feedback-v8/contract";
 
 let passed = 0;
@@ -40,7 +40,7 @@ async function main() {
 
   await check("the feedback cases (version 4 since release 22) pass their structural checks", () => {
     assert.equal(feedback.feedback_cases_version, FEEDBACK_EVALUATION_CASES_VERSION);
-    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-5");
+    assert.equal(FEEDBACK_EVALUATION_CASES_VERSION, "feedback-v8-eval-cases-6");
     assert.deepEqual(checkFeedbackFixtures(caseById, feedback, bank), []);
     for (const id of ["F19", "F20", "F21", "F22", "F23"]) assert(feedbackById.has(id), id);
     // Release 22: an option treated as not tied to an idea loses its rationale and is listed with what rules it out.
@@ -106,6 +106,37 @@ async function main() {
     const criterion = (report: ReturnType<typeof scoreFeedback>) => report.criteria.find((entry) => entry.name.startsWith("Openings with several points"))!;
     assert.equal(criterion(withOverview).pass, true);
     assert.equal(criterion(withoutOverview).pass, false);
+  });
+
+  await check("an all-correct opening begins with encouragement that says so (opening v8.7, cases-6)", () => {
+    const expecting = feedback.cases.filter((entry) => entry.expected.expects_all_correct_acknowledgement).map((entry) => entry.feedback_case_id);
+    assert.deepEqual(expecting, ["F02", "F04", "F07", "F10", "F19", "F20"], "Every opening whose student answered every item correctly");
+    const f07 = feedbackById.get("F07")!;
+    assert.deepEqual(checkFeedbackFixtures(caseById, { ...feedback, cases: [{ ...f07, expected: { ...f07.expected, expects_all_correct_acknowledgement: false } }] }, bank),
+      ["F07: expects_all_correct_acknowledgement must be true (every answer is correct)"]);
+    const f01 = feedbackById.get("F01")!;
+    assert.deepEqual(checkFeedbackFixtures(caseById, { ...feedback, cases: [{ ...f01, expected: { ...f01.expected, expects_all_correct_acknowledgement: true } }] }, bank),
+      ["F01: expects_all_correct_acknowledgement must be false (every answer is not correct)"]);
+    assert.equal(acknowledgesAllCorrect("You chose the correct option on every item, and your explanation for Item 1 clearly separates reliability from validity. Two points could make your reasoning more complete."), true);
+    assert.equal(acknowledgesAllCorrect("All of your answers were right. Your reasoning on Item 2 was especially clear."), true);
+    assert.equal(acknowledgesAllCorrect("Your explanation for Item 3 is right about the group. There are two points to look at."), false);
+    assert.equal(acknowledgesAllCorrect("There are two points to look at. Item 1: your explanation links a to steepness. You chose the correct option on every item."), false,
+      "The encouragement comes first, not after the overview");
+    const output = (message: string): FeedbackV8Output => ({
+      contract_version: FEEDBACK_V8_CONTRACT_VERSION, student_visible_message: message,
+      focus: { item_numbers: [1], focus_type: "single_item", concept: "Limited reasoning" }, strategy: "clarify",
+      student_evidence: [], focus_status: null, instructor_review: { flag: "none", reason: null }
+    });
+    const runRecord = (id: string, message: string) => ({
+      kind: "feedback" as const, feedback_case_id: id, run: 1, engine: "local" as const, model_name: "test", prompt_hash: "x",
+      status: "validated" as const, reason: null, attempts: [], output: output(message), started_at: "", completed_at: ""
+    });
+    const praise = "You chose the correct option on every item, and your explanation for Item 1 names the key idea. How would you connect it to Item 2?";
+    const report = scoreFeedback({ cases: feedback, records: [runRecord("F07", praise), runRecord("F01", praise), runRecord("F02", "Your explanation for Item 1 is clear. Would you like to try a new case?")] });
+    const named = (start: string) => report.criteria.find((entry) => entry.name.startsWith(start))!;
+    assert.equal(named("All-correct openings").value, 0.5, "F07 says so, F02 does not");
+    assert.equal(named("Openings that say every answer was correct").value, 1, "F01's student did not answer every item correctly");
+    assert.equal(named("Openings that say every answer was correct").pass, false);
   });
 
   await check("tutor flags are tied to the items they name, by the student's item numbers", async () => {

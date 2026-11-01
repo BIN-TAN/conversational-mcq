@@ -24,7 +24,7 @@ import {
  * coding rather than from a model profile, so the feedback model is judged on its own: the
  * focus it chooses, the strategy, the turn record and the audience rules.
  */
-export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-5" as const;
+export const FEEDBACK_EVALUATION_CASES_VERSION = "feedback-v8-eval-cases-6" as const;
 export const EVALUATION_MAX_STUDENT_TURNS = 6;
 
 const QuoteSource = z.enum(["explanation", "explanation_first_version", "tempting_option_reason"]);
@@ -83,6 +83,11 @@ export const FeedbackCaseSchema = z.object({
      * opening must name at least one item of every point. Required when expects_overview.
      */
     overview_points: z.array(z.array(z.number().int().min(1)).min(1)).default([]),
+    /**
+     * Opening v8.7: the student chose the correct option on every item, so the opening should
+     * begin with encouragement that says so. Must match the simulated student (checked below).
+     */
+    expects_all_correct_acknowledgement: z.boolean().default(false),
     notes: z.string().default("")
   })
 });
@@ -260,6 +265,14 @@ export function checkFeedbackFixtures(baseCases: ReadonlyMap<string, EvaluationC
     }
     for (const entry of feedbackCase.considered_ideas) {
       if (!responses.get(entry.item_id)?.tempting_option_reason?.includes(entry.quote)) problems.push(`${id}: considered-idea quote is not in ${entry.item_id}`);
+    }
+    if (bank) {
+      const allCorrect = base.responses.every((response) => response.selected_option === itemOf(bank, response.item_id).key);
+      const expected = feedbackCase.expected.expects_all_correct_acknowledgement;
+      if (feedbackCase.mode === "opening" && expected !== allCorrect) {
+        problems.push(`${id}: expects_all_correct_acknowledgement must be ${allCorrect} (every answer ${allCorrect ? "is" : "is not"} correct)`);
+      }
+      if (feedbackCase.mode === "reply" && expected) problems.push(`${id}: only an opening expects the all-correct acknowledgement`);
     }
     if (feedbackCase.mode === "opening" && feedbackCase.transcript.length) problems.push(`${id}: an opening case has no transcript`);
     if (feedbackCase.mode === "reply") {
