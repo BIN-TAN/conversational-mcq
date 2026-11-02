@@ -192,7 +192,7 @@ function tabLabel(tab: Tab) {
 
   if (tab === "process_data") return "Process data";
   if (tab === "assessment_log") return "Assessment log";
-  if (tab === "future_agent_data") return "Advanced records";
+  if (tab === "future_agent_data") return "Technical records";
   if (tab === "overview") return "Overview";
   if (tab === "item_responses") return "Item responses";
 
@@ -618,6 +618,7 @@ export function TeacherSessionDetailClient({ sessionPublicId }: { sessionPublicI
           ) : null}
           {activeTab === "formative_conversation" ? (
             <FormativeConversationEvidenceSection
+              conceptUnitSessions={detail.concept_unit_sessions}
               conversations={detail.formative_conversations}
               itemResponses={itemResponses}
               sessionPublicId={detail.session.session_public_id}
@@ -815,16 +816,134 @@ function FormativeLearningProfileSummary({
   );
 }
 
+function ConversationTurns({
+  conversation,
+  outcomesByEvidenceTurn
+}: {
+  conversation: FormativeConversationProjection;
+  outcomesByEvidenceTurn: Map<number, string[]>;
+}) {
+  const messageNumbers = new Map(conversation.timeline.map((turn, index) => [turn.sequence_index, index + 1]));
+  return (
+  <div className="mt-3 space-y-3">
+    {conversation.timeline.map((turn) => {
+      const evidenceOutcomes =
+        outcomesByEvidenceTurn.get(turn.sequence_index) ?? [];
+      return (
+        <div
+          className="rounded-md border border-line bg-slate-50 p-3"
+          key={turn.turn_reference}
+        >
+          <div className="flex flex-wrap justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-accent">
+                {turn.actor === "student" ? "Student" : "Tutor"} ·
+                Message {messageNumbers.get(turn.sequence_index)}
+              </span>
+              {evidenceOutcomes.map((outcome) => (
+                <span
+                  className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-900"
+                  key={`${turn.turn_reference}-${outcome}`}
+                >
+                  Evidence for {outcome}
+                </span>
+              ))}
+            </div>
+            <time className="text-xs text-muted">
+              {formatDate(turn.created_at)}
+            </time>
+          </div>
+          {turn.actor === "tutor" ? (
+            <SafeTutorMessageMarkdown
+              className="mt-2 text-ink"
+              message={turn.message_text}
+            />
+          ) : (
+            <>
+              <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
+                {turn.message_text}
+              </p>
+              {turn.assistant_response_status &&
+              turn.assistant_response_status !== "completed" ? (
+                <div
+                  className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
+                  data-testid="teacher-incomplete-tutor-generation"
+                >
+                  <p className="font-semibold">
+                    {turn.assistant_response_status === "failed"
+                      ? "Tutor response incomplete"
+                      : "Tutor response pending"}
+                  </p>
+                  <p className="mt-1">
+                    The student message is preserved, but no
+                    completed tutor turn is recorded
+                    {turn.assistant_response_last_failed_at
+                      ? ` as of ${formatDate(
+                          turn.assistant_response_last_failed_at
+                        )}`
+                      : ""}
+                    .
+                  </p>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      );
+    })}
+  </div>
+  );
+}
+
+type ConceptUnitSessionDetail = SessionDetailResponse["concept_unit_sessions"][number];
+
+const interpretationProfile = (unit: ConceptUnitSessionDetail) => unit.relabeled_student_profile ?? unit.latest_student_profile ?? null;
+const isV8Unit = (unit: ConceptUnitSessionDetail) => {
+  const profile = interpretationProfile(unit);
+  return Boolean(profile && readV8(profile.item_level_evidence));
+};
+
+/** The interpretation of record, with the one saved at submission when it was interpreted again. */
+function InterpretationRecord({ unit }: { unit: ConceptUnitSessionDetail }) {
+  if (unit.relabeled_student_profile) {
+    return (
+      <>
+        <p className="mt-4 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          Interpreted again{unit.relabeled_at ? ` on ${formatDate(unit.relabeled_at)}` : ""} under
+          the updated interpretation rules, from the same submitted answers. The student&apos;s answers, conversation and
+          feedback are unchanged. The interpretation saved at submission is below.
+        </p>
+        <ProfileDetails profile={unit.relabeled_student_profile} />
+        {unit.latest_student_profile ? (
+          <details className="mt-4 rounded-md border border-line p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">Interpretation saved at submission</summary>
+            <ProfileDetails profile={unit.latest_student_profile} />
+          </details>
+        ) : null}
+      </>
+    );
+  }
+  return unit.latest_student_profile ? <ProfileDetails profile={unit.latest_student_profile} /> : null;
+}
+
 export function FormativeConversationEvidenceSection({
   conversations,
+  conceptUnitSessions = [],
   itemResponses,
   sessionPublicId
 }: {
   conversations: SessionDetailResponse["formative_conversations"];
+  conceptUnitSessions?: ConceptUnitSessionDetail[];
   itemResponses: ItemResponsesResponse | null;
   sessionPublicId: string;
 }) {
-  if (conversations.length === 0) {
+  // Interpretation v8 (Oct 2026): the mini-test interpretation is the starting point and is never
+  // changed by the conversation, so the page shows it with the conversation and nothing else.
+  // Earlier sessions keep their profile-update trajectory below.
+  const v8Units = conceptUnitSessions.filter(isV8Unit);
+  const v8UnitIds = new Set(v8Units.map((unit) => unit.concept_unit_public_id));
+  const legacyConversations = conversations.filter((conversation) => !v8UnitIds.has(conversation.concept_unit_public_id));
+  if (conversations.length === 0 && v8Units.length === 0) {
     return (
       <EmptyState title="No formative conversation evidence is recorded for this session." />
     );
@@ -832,7 +951,42 @@ export function FormativeConversationEvidenceSection({
 
   return (
     <section className="space-y-5" data-testid="teacher-formative-conversation-review">
-      {conversations.map((conversation) => {
+      {v8Units.map((unit) => {
+        const conversation = conversations.find((entry) => entry.concept_unit_public_id === unit.concept_unit_public_id) ?? null;
+        return (
+          <article className="rounded-lg border border-line bg-white p-5 shadow-soft" key={unit.concept_unit_public_id}>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-ink">{unit.title}</h3>
+                <p className="mt-1 text-sm text-muted">The mini-test interpretation and the conversation that followed.</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusPill value={conversation ? formativeConversationPhaseLabel(conversation.status) : "not_started"} />
+                <a
+                  className="inline-flex h-8 items-center rounded-md border border-line bg-white px-3 text-xs font-semibold text-ink hover:border-accent"
+                  href={`/teacher/data/research?section=dataset&session_public_id=${encodeURIComponent(sessionPublicId)}`}
+                >
+                  Export session evidence
+                </a>
+              </div>
+            </div>
+            <section className="mt-5 border-t border-line pt-5" data-testid="teacher-mini-test-interpretation">
+              <h4 className="text-base font-semibold text-ink">Mini-test interpretation</h4>
+              <InterpretationRecord unit={unit} />
+            </section>
+            <section className="mt-6 border-t border-line pt-5" data-testid="teacher-formative-conversation-trajectory">
+              <h4 className="text-base font-semibold text-ink">Conversation</h4>
+              <p className="mt-1 text-sm text-muted">The conversation supports the student; it does not change the interpretation above.</p>
+              {conversation && conversation.timeline.length ? (
+                <ConversationTurns conversation={conversation} outcomesByEvidenceTurn={new Map()} />
+              ) : (
+                <p className="mt-3 text-sm text-muted">No conversation messages are recorded yet.</p>
+              )}
+            </section>
+          </article>
+        );
+      })}
+      {legacyConversations.map((conversation) => {
         const latestTransition =
           conversation.profile_evolution[
             conversation.profile_evolution.length - 1
@@ -1034,73 +1188,7 @@ export function FormativeConversationEvidenceSection({
               <h4 className="text-base font-semibold text-ink">
                 Conversation
               </h4>
-              <div className="mt-3 space-y-3">
-                {conversation.timeline.map((turn) => {
-                  const evidenceOutcomes =
-                    outcomesByEvidenceTurn.get(turn.sequence_index) ?? [];
-                  return (
-                    <div
-                      className="rounded-md border border-line bg-slate-50 p-3"
-                      key={turn.turn_reference}
-                    >
-                      <div className="flex flex-wrap justify-between gap-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="text-xs font-semibold uppercase tracking-wide text-accent">
-                            {turn.actor === "student" ? "Student" : "Tutor"} ·
-                            Message {messageNumbers.get(turn.sequence_index)}
-                          </span>
-                          {evidenceOutcomes.map((outcome) => (
-                            <span
-                              className="rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-900"
-                              key={`${turn.turn_reference}-${outcome}`}
-                            >
-                              Evidence for {outcome}
-                            </span>
-                          ))}
-                        </div>
-                        <time className="text-xs text-muted">
-                          {formatDate(turn.created_at)}
-                        </time>
-                      </div>
-                      {turn.actor === "tutor" ? (
-                        <SafeTutorMessageMarkdown
-                          className="mt-2 text-ink"
-                          message={turn.message_text}
-                        />
-                      ) : (
-                        <>
-                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-ink">
-                            {turn.message_text}
-                          </p>
-                          {turn.assistant_response_status &&
-                          turn.assistant_response_status !== "completed" ? (
-                            <div
-                              className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-950"
-                              data-testid="teacher-incomplete-tutor-generation"
-                            >
-                              <p className="font-semibold">
-                                {turn.assistant_response_status === "failed"
-                                  ? "Tutor response incomplete"
-                                  : "Tutor response pending"}
-                              </p>
-                              <p className="mt-1">
-                                The student message is preserved, but no
-                                completed tutor turn is recorded
-                                {turn.assistant_response_last_failed_at
-                                  ? ` as of ${formatDate(
-                                      turn.assistant_response_last_failed_at
-                                    )}`
-                                  : ""}
-                                .
-                              </p>
-                            </div>
-                          ) : null}
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <ConversationTurns conversation={conversation} outcomesByEvidenceTurn={outcomesByEvidenceTurn} />
             </section>
 
             <section
@@ -1336,12 +1424,39 @@ export function Overview({
     detail.formative_conversations[0] ??
     null;
   const usesFormativeConversation = Boolean(formativeConversation);
+  // Release 35: what the instructor needs first is the attempt summary; the item-by-item
+  // interpretation is under Formative conversation. Background processing is folded away
+  // unless something needs attention, and the topic table appears only for several topics.
+  const summaries = detail.concept_unit_sessions.flatMap((unit) => {
+    const profile = interpretationProfile(unit);
+    const stored = profile ? readV8(profile.item_level_evidence) : null;
+    return stored ? [{ unit, summary: attemptSummary(stored as unknown as StoredInterpretationV8) }] : [];
+  });
+  const automationNeedsAttention = detail.automation.automation_state === "automatic_failed" ||
+    Boolean(detail.automation.automation_exception_reason) ||
+    detail.automation.workflow_jobs.some((job) => !["completed", "cancelled"].includes(job.status)) ||
+    Boolean(automationAction);
 
   return (
     <section className="space-y-5">
+      {summaries.length ? (
+        <section className="rounded-lg border border-line bg-white p-5" data-testid="teacher-overview-attempt-summary">
+          <h3 className="font-semibold text-ink">Attempt summary</h3>
+          <p className="mt-1 text-sm text-muted">For the instructor only. The item-by-item interpretation is under Formative conversation.</p>
+          <div className="mt-3 space-y-3">
+            {summaries.map(({ unit, summary }) => (
+              <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-4" key={unit.concept_unit_public_id}>
+                <StatusPill value={summary.follow_up} tone={followUpTone(summary.follow_up)} />
+                <p className="text-sm leading-6 text-ink">
+                  {summaries.length > 1 ? <span className="font-semibold">{unit.title}: </span> : null}
+                  {summary.text}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-3">
-        <Fact labelText="Student user ID" value={detail.student.user_id} />
-        <Fact labelText="Assessment" value={detail.assessment.title} />
         <Fact
           labelText="Assessment reference"
           value={
@@ -1367,13 +1482,7 @@ export function Overview({
         <Fact labelText="Started" value={<time title={detail.session.started_at ?? undefined}>{formatDate(detail.session.started_at)}</time>} />
         <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
         <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
-        <Fact labelText="Current topic" value={detail.current_concept_unit?.title ?? "Not recorded"} />
-        <Fact labelText="Topics with questions submitted" value={`${detail.summary.completed_concept_unit_count} / ${detail.summary.concept_unit_count}`} />
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
-        <Fact
-          labelText="Response collection"
-          value={label(detail.session.response_collection_mode_snapshot)}
-        />
         <Fact
           labelText="Needs review"
           value={
@@ -1387,17 +1496,6 @@ export function Overview({
             )
           }
         />
-        <Fact
-          labelText="Content lock"
-          value={
-            detail.summary.assessment_content_locked ? (
-              <StatusPill value="locked_after_student_session" tone="warn" />
-            ) : (
-              <StatusPill value="not_locked" tone="neutral" />
-            )
-          }
-        />
-        <Fact labelText="Response packages" value={detail.summary.response_package_count} />
       </div>
 
       <section className="rounded-lg border border-line bg-white p-5">
@@ -1438,11 +1536,16 @@ export function Overview({
         ) : null}
       </section>
 
-      <section className="rounded-lg border border-line bg-white p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <details className="group rounded-lg border border-line bg-white p-5" open={automationNeedsAttention}>
+        <summary className="cursor-pointer font-semibold text-ink">
+          Background processing{" "}
+          <span className="ml-2 text-sm font-normal text-muted">
+            {automationNeedsAttention ? "needs attention" : "all steps completed"}
+          </span>
+        </summary>
+        <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="font-semibold text-ink">Automation</h3>
-            <p className="mt-1 text-sm leading-6 text-muted">
+            <p className="text-sm leading-6 text-muted">
               {usesFormativeConversation
                 ? "Background processing records are retained for audit. The active learning path is shown under Formative conversation."
                 : "Automatic jobs prepare profiling, planning, and follow-up startup after the initial item set. Manual sessions keep teacher-triggered controls."}
@@ -1519,7 +1622,7 @@ export function Overview({
             Automation action: {label(automationAction.status)}
           </p>
         ) : null}
-        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+        <div className={`mt-5 grid gap-3 ${detail.automation.workflow_overrides.length ? "lg:grid-cols-2" : ""}`}>
           <div>
             <h4 className="text-sm font-semibold text-ink">Background steps (newest first)</h4>
             {detail.automation.workflow_jobs.length === 0 ? (
@@ -1546,11 +1649,10 @@ export function Overview({
               </div>
             )}
           </div>
+          {detail.automation.workflow_overrides.length ? (
           <div>
             <h4 className="text-sm font-semibold text-ink">Instructor actions</h4>
-            {detail.automation.workflow_overrides.length === 0 ? (
-              <p className="mt-2 text-sm text-muted">No instructor actions recorded.</p>
-            ) : (
+            {(
               <div className="mt-2 space-y-2">
                 {detail.automation.workflow_overrides.map((override) => (
                   <div className="rounded-md border border-line p-3 text-sm" key={override.override_public_id}>
@@ -1564,9 +1666,11 @@ export function Overview({
               </div>
             )}
           </div>
+          ) : null}
         </div>
-      </section>
+      </details>
 
+      {detail.concept_unit_sessions.length > 1 ? (
       <section className="overflow-hidden rounded-lg border border-line bg-white">
         <div className="border-b border-line p-4">
           <h3 className="font-semibold text-ink">Topic progress</h3>
@@ -1583,7 +1687,6 @@ export function Overview({
                   {usesFormativeConversation ? "Conversation" : "Follow-up"}
                 </th>
                 <th className="px-4 py-3">Responses</th>
-                <th className="px-4 py-3">Packages</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -1639,9 +1742,6 @@ export function Overview({
                     <td className="px-4 py-3">
                       {conceptUnitSession.item_response_count}
                     </td>
-                    <td className="px-4 py-3">
-                      {conceptUnitSession.response_package_count}
-                    </td>
                   </tr>
                 );
               })}
@@ -1649,6 +1749,7 @@ export function Overview({
           </table>
         </div>
       </section>
+      ) : null}
     </section>
   );
 }
@@ -2771,9 +2872,19 @@ function FutureAgentSection({
   } | null;
 }) {
   const counts = detail.future_agent_data;
+  // Release 35: interpretation v8 profiles are shown under Formative conversation. This tab keeps
+  // earlier-design records, manual controls when they apply, and the audit for research.
+  const profilingUnits = detail.concept_unit_sessions.filter((unit) => !isV8Unit(unit) || unit.can_run_profiling);
+  const showPlanning = counts.formative_decision_count > 0 || detail.concept_unit_sessions.some((unit) => unit.latest_formative_decision || unit.can_run_planning);
+  const showFollowup = counts.followup_round_count > 0 || detail.concept_unit_sessions.some((unit) =>
+    unit.can_start_followup || unit.can_run_followup_update || unit.followup_update_cycles.length > 0 || unit.concept_progression_records.length > 0);
 
   return (
     <section className="space-y-4">
+      <p className="text-sm leading-6 text-muted">
+        Technical records for audit and research. The mini-test interpretation is under Formative conversation.
+      </p>
+      {profilingUnits.length ? (
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
@@ -2785,7 +2896,7 @@ function FutureAgentSection({
           <StatusPill value={counts.student_profile_count > 0 ? "profiles_available" : "profiling_not_generated"} />
         </div>
         <div className="mt-4 space-y-4">
-          {detail.concept_unit_sessions.map((conceptUnitSession) => {
+          {profilingUnits.map((conceptUnitSession) => {
             const actionMatches =
               profilingAction?.concept_unit_public_id === conceptUnitSession.concept_unit_public_id;
             const isRunning = actionMatches && profilingAction?.status === "running";
@@ -2835,23 +2946,8 @@ function FutureAgentSection({
                     Profiling result: {label(profilingAction.status)}
                   </p>
                 ) : null}
-                {conceptUnitSession.relabeled_student_profile ? (
-                  <>
-                    <p className="mt-4 rounded-md border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
-                      Interpreted again{conceptUnitSession.relabeled_at ? ` on ${formatDate(conceptUnitSession.relabeled_at)}` : ""} under
-                      the updated interpretation rules, from the same submitted answers. The student&apos;s answers, conversation and
-                      feedback are unchanged. The interpretation saved at submission is below.
-                    </p>
-                    <ProfileDetails profile={conceptUnitSession.relabeled_student_profile} />
-                    {conceptUnitSession.latest_student_profile ? (
-                      <details className="mt-4 rounded-md border border-line p-3">
-                        <summary className="cursor-pointer text-sm font-semibold text-ink">Interpretation saved at submission</summary>
-                        <ProfileDetails profile={conceptUnitSession.latest_student_profile} />
-                      </details>
-                    ) : null}
-                  </>
-                ) : conceptUnitSession.latest_student_profile ? (
-                  <ProfileDetails profile={conceptUnitSession.latest_student_profile} />
+                {interpretationProfile(conceptUnitSession) ? (
+                  <InterpretationRecord unit={conceptUnitSession} />
                 ) : conceptUnitSession.can_run_profiling ? (
                   <p className="mt-4 text-sm text-muted">Profiling pending.</p>
                 ) : (
@@ -2864,6 +2960,8 @@ function FutureAgentSection({
           })}
         </div>
       </section>
+      ) : null}
+      {showPlanning ? (
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
@@ -2949,6 +3047,8 @@ function FutureAgentSection({
           })}
         </div>
       </section>
+      ) : null}
+      {showFollowup ? (
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
@@ -3070,16 +3170,17 @@ function FutureAgentSection({
           })}
         </div>
       </section>
+      ) : null}
       <div className="grid gap-3 md:grid-cols-4">
-        <Fact labelText="Student profile rows" value={counts.student_profile_count} />
-        <Fact labelText="Formative decision rows" value={counts.formative_decision_count} />
-        <Fact labelText="Follow-up round rows" value={counts.followup_round_count} />
-        <Fact labelText="Agent call rows" value={counts.agent_call_count} />
+        <Fact labelText="Model calls" value={counts.agent_call_count} />
+        <Fact labelText="Student profile records" value={counts.student_profile_count} />
+        {counts.formative_decision_count > 0 ? <Fact labelText="Formative decision records" value={counts.formative_decision_count} /> : null}
+        {counts.followup_round_count > 0 ? <Fact labelText="Follow-up round records" value={counts.followup_round_count} /> : null}
       </div>
-      <section className="rounded-lg border border-line bg-white p-5">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+      <details className="rounded-lg border border-line bg-white p-5">
+        <summary className="cursor-pointer text-base font-semibold text-ink">Operational agent audit</summary>
+        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
-            <h3 className="text-lg font-semibold text-ink">Operational agent audit</h3>
             <p className="mt-1 text-sm leading-6 text-muted">
               Read-only effective-result records show backend safeguards and fallback use. Raw
               provider output, API keys, local environment values, and internal UUIDs are not shown.
@@ -3156,7 +3257,7 @@ function FutureAgentSection({
             ))}
           </div>
         )}
-      </section>
+      </details>
     </section>
   );
 }
