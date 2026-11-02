@@ -166,7 +166,7 @@ async function main() {
     // student rather than from a template, and still names every point so the student sees them all.
     const opening = contract.FEEDBACK_V8_OPENING_INSTRUCTIONS;
     assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note, with no headings and no labels for the parts\. The one exception is the points to work on: when there are two or more, put them in a short numbered list, one point per line, in the order you will take them up; a single point stays in a sentence\. The parts below are what the message covers, in this order, not a template/);
-    const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- How to improve:", "- The first point:", "- A closing invitation in your own words:"];
+    const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- The first point:", "- A closing invitation in your own words:"];
     parts.forEach((part, index) => {
       assert.ok(opening.includes(part), part);
       if (index) assert.ok(opening.indexOf(parts[index - 1]) < opening.indexOf(part), `${part} follows ${parts[index - 1]}`);
@@ -181,7 +181,9 @@ async function main() {
     assert.match(opening, /name every point so the student sees them all at once/);
     assert.match(opening, /the idea their explanation or choice relies on, the doubt they expressed, or the question they asked/);
     assert.match(opening, /A point about a correct answer is a way to make the reasoning more complete or precise, not an error\./);
-    assert.match(opening, /one concrete suggestion the student can use the next time they meet this kind of item/);
+    // v8.11 (1 Nov 2026): no suggestion for next time and no general advice for future items.
+    assert.doesNotMatch(opening, /How to improve|one concrete suggestion/);
+    assert.match(opening, /Do not add general advice for future items, such as what to check, name or link next time; the points and the first point already say what to work on\./);
     assert.match(opening, /Do not give a score or a count of correct answers/);
     assert.match(opening, /^INPUT\nThe topic's title, learning objective and description, /m);
     assert.doesNotMatch(opening, /MORE THAN ONE POINT|say that the next point follows when the student is ready|WHEN EVERY ANSWER IS CORRECT/);
@@ -193,7 +195,7 @@ async function main() {
     assert.deepEqual(studentFacingTextProblems("You chose the correct option on every item, and your explanation for Item 1 clearly links a larger a to a steeper curve."), [],
       "The encouragement passes the student-facing checks");
     assert.deepEqual(studentFacingTextProblems("You got 4 out of 4 questions right."), ["score_repeated"], "A count is still rejected");
-    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.10");
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.11");
     assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });

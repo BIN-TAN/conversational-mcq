@@ -20,7 +20,7 @@ import {
   FeedbackCaseFileSchema,
   feedbackCaseStudent
 } from "../src/lib/evaluation/interpretation-v8/feedback-case-model";
-import { acknowledgesAllCorrect, itemNumbersNamed, overviewNamesEveryPoint, readability, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
+import { acknowledgesAllCorrect, givesGeneralAdvice, itemNumbersNamed, overviewNamesEveryPoint, readability, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
 import { FEEDBACK_V8_CONTRACT_VERSION, type FeedbackV8Output } from "../src/lib/services/student-assessment/feedback-v8/contract";
 
 let passed = 0;
@@ -164,6 +164,27 @@ async function main() {
     const named = (start: string) => report.criteria.find((entry) => entry.name.startsWith(start))!;
     assert.equal(report.criteria.some((entry) => entry.name.includes("250 words")), false, "Length is not limited");
     assert.equal(named("Opening sentences over 25 words").value, 0.333);
+  });
+
+  await check("openings report general advice for future items (opening v8.11)", () => {
+    assert.equal(givesGeneralAdvice("For future items, first name the quantity or assumption being judged."), true);
+    assert.equal(givesGeneralAdvice("Next time, link each relevant parameter to a feature of the curves."), true);
+    assert.equal(givesGeneralAdvice("For similar items, name the key detail in the situation."), true);
+    assert.equal(givesGeneralAdvice("For future score questions, first identify what the number describes."), true);
+    assert.equal(givesGeneralAdvice("In Item 2, you linked a larger a to a steeper curve. We'll take these points one at a time."), false);
+    const output = (message: string): FeedbackV8Output => ({
+      contract_version: FEEDBACK_V8_CONTRACT_VERSION, student_visible_message: message,
+      focus: { item_numbers: [1], focus_type: "single_item", concept: "Limited reasoning" }, strategy: "clarify",
+      student_evidence: [], focus_status: null, instructor_review: { flag: "none", reason: null }
+    });
+    const record = (id: string, message: string) => ({
+      kind: "feedback" as const, feedback_case_id: id, run: 1, engine: "local" as const, model_name: "test", prompt_hash: "x",
+      status: "validated" as const, reason: null, attempts: [], output: output(message), started_at: "", completed_at: ""
+    });
+    const report = scoreFeedback({ cases: feedback, records: [record("F02", "Your work was clear. Next time, check the curves."), record("F07", "Your work was clear in Item 1.")] });
+    const named = report.criteria.find((entry) => entry.name.startsWith("Openings with general advice"))!;
+    assert.equal(named.value, 0.5);
+    assert.equal(named.pass, false);
   });
 
   await check("tutor flags are tied to the items they name, by the student's item numbers", async () => {

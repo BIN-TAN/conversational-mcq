@@ -670,6 +670,14 @@ export function readability(message: string) {
   };
 }
 
+/**
+ * Opening v8.11: whether the message gives general advice for future items ("For future items,
+ * first name…", "Next time, link…", "For similar items…"), which the opening no longer includes.
+ */
+export function givesGeneralAdvice(message: string) {
+  return /\b(?:for (?:future|similar|later|new)\b[^.!?\n]{0,30}\b(?:items?|questions?|problems?)|next time|in (?:the )?future|when you (?:next )?(?:meet|see|face|answer) (?:a |an )?(?:similar|item like|question like|this kind))\b/i.test(message);
+}
+
 export function questionsAsked(message: string) {
   const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
   return (unquoted.match(/\?/g) ?? []).length;
@@ -712,6 +720,7 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       checks,
       questions,
       readability: readability(output.student_visible_message),
+      general_advice: givesGeneralAdvice(output.student_visible_message),
       process_words_for_review: (output.student_visible_message.match(new RegExp(PROCESS_WORDS, "gi")) ?? []).map((word) => word.toLowerCase()),
       stock_phrases: stockPhrases(output.student_visible_message),
       message: output.student_visible_message,
@@ -753,7 +762,10 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       "Proposed threshold (opening v8.9); reported, not a go-live gate."),
     criterion("Opening sentences over 25 words (share)", "<=", 0.1,
       openingSentences ? openings.reduce((sum, row) => sum + row.readability!.long_sentences, 0) / openingSentences : null,
-      "Proposed threshold (opening v8.9); reported, not a go-live gate.")
+      "Proposed threshold (opening v8.9); reported, not a go-live gate."),
+    criterion("Openings with general advice for future items (share)", "<=", 0.1,
+      openings.length ? round(openings.filter((row) => row.general_advice).length / openings.length) : null,
+      "Proposed threshold (opening v8.11); reported, not a go-live gate.")
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.
   const byMode = (mode: "opening" | "reply") => {
