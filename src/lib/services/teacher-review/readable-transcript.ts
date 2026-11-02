@@ -5,6 +5,7 @@ import { buildTurnResponseLatencyRows } from "./turn-response-latencies";
 import { conversationVisibility } from "../student-assessment/conversation-visibility";
 import { presentedItemPositions } from "./presented-item-positions";
 import { transcriptLimitationNote } from "./transcript-limitations";
+import { sanitizeReadableMessageText } from "./readable-transcript-text";
 
 export type TeacherReadableTranscriptTurn = {
   turn_index: number;
@@ -196,13 +197,6 @@ export function withoutRepeatedTemptingLine(text: string | null | undefined, pre
 
 function hasStructuredPayload(value: unknown) {
   return Object.keys(asRecord(value)).length > 0 || Array.isArray(value);
-}
-
-function sanitizeReadableMessageText(value: string) {
-  return value
-    .replace(/\b(correct option|answer key)\b/gi, "[restricted item key]")
-    .replace(/\bcorrectness\s*:/gi, "[restricted correctness]:")
-    .replace(/\bdistractor rationales?\b/gi, "[restricted item metadata]");
 }
 
 export async function getTeacherReadableTranscript(

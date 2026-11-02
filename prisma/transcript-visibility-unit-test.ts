@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { conversationVisibility } from "../src/lib/services/student-assessment/conversation-visibility";
 import { TRANSCRIPT_LIMITATION_NOTES, transcriptLimitationNote } from "../src/lib/services/teacher-review/transcript-limitations";
+import { sanitizeReadableMessageText } from "../src/lib/services/teacher-review/readable-transcript-text";
 
 let passed = 0;
 async function check(name: string, run: () => void | Promise<void>) {
@@ -61,6 +62,21 @@ async function main() {
     const service = source("src/lib/services/student-assessment/service.ts");
     assert(service.includes('if (!feedbackTurn && !usesFormativeConversation) safeWarnings.push("package_feedback_turn_missing");'));
     assert(service.includes('feedback_status: feedbackTurn ? "existing" : usesFormativeConversation ? "not_applicable" : "missing",'));
+  });
+
+  await check("the readable transcript masks a stated answer key but keeps encouragement as the student saw it (release 39)", () => {
+    const praise = "You chose the correct option on every item. In Item 1, you linked information to the cut score.";
+    assert.equal(sanitizeReadableMessageText(praise), praise);
+    assert.equal(sanitizeReadableMessageText("Every answer was correct."), "Every answer was correct.");
+    assert.equal(sanitizeReadableMessageText("The correct option is B, because the cSEM is 1/sqrt(I)."), "[restricted item key], because the cSEM is 1/sqrt(I).");
+    assert.equal(sanitizeReadableMessageText("Here the correct answer was (C)."), "Here [restricted item key].");
+    assert.equal(sanitizeReadableMessageText("Option D is the correct answer."), "[restricted item key].");
+    assert.equal(sanitizeReadableMessageText("Check the answer key."), "Check the [restricted item key].");
+    assert.equal(sanitizeReadableMessageText("correctness: correct"), "[restricted correctness]: correct");
+    assert.equal(sanitizeReadableMessageText("The correct option is Brief."), "The correct option is Brief.", "A word starting with a letter is not an option");
+    const service = source("src/lib/services/teacher-review/readable-transcript.ts");
+    assert(service.includes('import { sanitizeReadableMessageText } from "./readable-transcript-text";'));
+    assert(!service.includes("correct option|answer key"), "The broad mask is gone");
   });
 
   console.log(`${passed} transcript visibility checks passed; no database or provider calls.`);

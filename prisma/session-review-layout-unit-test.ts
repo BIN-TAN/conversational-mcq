@@ -71,4 +71,11 @@ check("Technical records hide earlier-design sections that do not apply", () => 
   assert.ok(!technical.includes("Agent call rows"));
 });
 
+check("Readable transcript shows items as the student saw them, tables and formulas included (release 39)", () => {
+  const readable = between("function ReadableTranscriptSection(", "function TranscriptSection(");
+  assert.match(readable, /turn\.speaker === "agent" && turn\.phase_label === "Initial item administration" \? \(/);
+  assert.match(readable, /<ItemContent className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink" text=\{turn\.message_text\} \/>/);
+  assert.match(readable, /<SafeTutorMessageMarkdown/, "Feedback and conversation turns keep the tutor message renderer");
+});
+
 console.log(`\n${passed} session review layout checks passed; no database or provider calls.`);

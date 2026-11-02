@@ -1903,7 +1903,10 @@ function ReadableTranscriptSection({
               <summary className="cursor-pointer">Record reference</summary>
               <p className="mt-1 break-all">Source turn {turn.source_turn_sequence_index}{turn.item_public_id ? ` / ${turn.item_public_id}` : ""}</p>
             </details> : null}
-            {turn.speaker === "agent" ? (
+            {turn.speaker === "agent" && turn.phase_label === "Initial item administration" ? (
+              // Items and their prompts render as the student saw them, tables and formulas included.
+              <ItemContent className="mt-3 whitespace-pre-wrap text-sm leading-6 text-ink" text={turn.message_text} />
+            ) : turn.speaker === "agent" ? (
               <SafeTutorMessageMarkdown
                 className="mt-3 text-ink"
                 message={turn.message_text}
