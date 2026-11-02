@@ -958,7 +958,6 @@ export function FormativeConversationEvidenceSection({
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-ink">{unit.title}</h3>
-                <p className="mt-1 text-sm text-muted">The mini-test interpretation and the conversation that followed.</p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <StatusPill value={conversation ? formativeConversationPhaseLabel(conversation.status) : "not_started"} />
@@ -976,7 +975,6 @@ export function FormativeConversationEvidenceSection({
             </section>
             <section className="mt-6 border-t border-line pt-5" data-testid="teacher-formative-conversation-trajectory">
               <h4 className="text-base font-semibold text-ink">Conversation</h4>
-              <p className="mt-1 text-sm text-muted">The conversation supports the student; it does not change the interpretation above.</p>
               {conversation && conversation.timeline.length ? (
                 <ConversationTurns conversation={conversation} outcomesByEvidenceTurn={new Map()} />
               ) : (
@@ -1442,7 +1440,6 @@ export function Overview({
       {summaries.length ? (
         <section className="rounded-lg border border-line bg-white p-5" data-testid="teacher-overview-attempt-summary">
           <h3 className="font-semibold text-ink">Attempt summary</h3>
-          <p className="mt-1 text-sm text-muted">For the instructor only. The item-by-item interpretation is under Formative conversation.</p>
           <div className="mt-3 space-y-3">
             {summaries.map(({ unit, summary }) => (
               <div className="flex flex-col gap-2 md:flex-row md:items-start md:gap-4" key={unit.concept_unit_public_id}>
@@ -1481,31 +1478,13 @@ export function Overview({
         />
         <Fact labelText="Started" value={<time title={detail.session.started_at ?? undefined}>{formatDate(detail.session.started_at)}</time>} />
         <Fact labelText="Last activity" value={<time title={detail.session.last_activity_at ?? undefined}>{formatDate(detail.session.last_activity_at)}</time>} />
-        <Fact labelText="Completed" value={<time title={detail.session.completed_at ?? undefined}>{formatDate(detail.session.completed_at)}</time>} />
         <Fact labelText="Item responses" value={detail.summary.item_response_count} />
-        <Fact
-          labelText="Needs review"
-          value={
-            detail.session.needs_review ? (
-              <div>
-                <StatusPill value="needs_review" tone="bad" />
-                <p className="mt-2 text-xs text-muted">{plainReviewReason(detail.session.needs_review_reason)}</p>
-              </div>
-            ) : (
-              <StatusPill value="not_flagged" tone="good" />
-            )
-          }
-        />
       </div>
 
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h3 className="font-semibold text-ink">Attempt controls</h3>
-            <p className="mt-1 text-sm leading-6 text-muted">
-              Close a stuck or test attempt without deleting records. The prior attempt remains
-              auditable, and a new attempt may be started only when the assessment policy allows it.
-            </p>
           </div>
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-red-50 px-4 text-sm font-semibold text-red-900 transition hover:border-red-300 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1544,13 +1523,7 @@ export function Overview({
           </span>
         </summary>
         <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="text-sm leading-6 text-muted">
-              {usesFormativeConversation
-                ? "Background processing records are retained for audit. The active learning path is shown under Formative conversation."
-                : "Automatic jobs prepare profiling, planning, and follow-up startup after the initial item set. Manual sessions keep teacher-triggered controls."}
-            </p>
-          </div>
+          <div />
           <div className="flex flex-wrap gap-2">
             <StatusPill value={detail.automation.workflow_mode_snapshot} />
             <StatusPill value={detail.session.response_collection_mode_snapshot} />
@@ -1862,13 +1835,6 @@ function ReadableTranscriptSection({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h3 className="font-semibold text-emerald-950">Readable transcript</h3>
-            <p className="mt-1">
-              Conversation and recorded student actions. Technical details remain in the Assessment log.
-            </p>
-            <p className="mt-1">
-              Elapsed intervals start when a prompt was recorded. They can overlap and include
-              time away; they are not active working time.
-            </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <a
@@ -2471,10 +2437,6 @@ function V8ProfileDetails({ profile, stored }: { profile: TeacherStudentProfile;
         <Fact labelText="Interpretation" value={fallback ? "Not produced (no claims)" : stored.generation_mode === "local_test" ? "Local test stand-in" : "Model, checked by the application"} />
         <Fact labelText="Created" value={formatDate(profile.created_at)} />
       </div>
-      <p className="text-xs leading-5 text-muted">
-        Computed from this attempt&apos;s item ratings; your item-review decisions are applied in the instructor report and
-        the exports. Students do not see this summary, and this profile is never changed.
-      </p>
       {fallback ? (
         <section className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">{profile.rationale}</section>
       ) : null}
@@ -2881,9 +2843,6 @@ function FutureAgentSection({
 
   return (
     <section className="space-y-4">
-      <p className="text-sm leading-6 text-muted">
-        Technical records for audit and research. The mini-test interpretation is under Formative conversation.
-      </p>
       {profilingUnits.length ? (
       <section className="rounded-lg border border-line bg-white p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">

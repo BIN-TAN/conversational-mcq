@@ -1,5 +1,5 @@
 /**
- * Release 35 (1 Nov 2026): the instructor's session review shows what an instructor needs and
+ * Releases 35–36 (1 Nov 2026): the instructor's session review shows what an instructor needs and
  * does not repeat it across tabs. Checked from the component source, without a database:
  * - Overview: the attempt summary first; no facts already in the header or other tabs; background
  *   processing folded away unless something needs attention; the topic table only for several topics.
@@ -42,12 +42,23 @@ check("Formative conversation shows the v8 interpretation with the conversation,
   assert.match(section, /const v8Units = conceptUnitSessions\.filter\(isV8Unit\)/);
   assert.match(section, /data-testid="teacher-mini-test-interpretation"/);
   assert.match(section, /<InterpretationRecord unit=\{unit\} \/>/);
-  assert.match(section, /The conversation supports the student; it does not change the interpretation above\./);
   const v8Part = section.slice(section.indexOf("{v8Units.map("), section.indexOf("{legacyConversations.map("));
   for (const legacy of ["Starting evidence", "Validated change", "Profile evolution", "formative decision", "Remaining concern"]) {
     assert.ok(!v8Part.includes(legacy), `The v8 view still shows ${legacy}`);
   }
   assert.match(source, /conceptUnitSessions=\{detail\.concept_unit_sessions\}/);
+});
+
+check("No explanatory statements on the instructor's tabs (release 36)", () => {
+  for (const removed of ["For the instructor only. The item-by-item interpretation", "Close a stuck or test attempt without deleting records",
+    "Conversation and recorded student actions. Technical details remain", "Elapsed intervals start when a prompt was recorded",
+    "Background processing records are retained for audit", "Computed from this attempt&apos;s item ratings",
+    "Technical records for audit and research", "The conversation supports the student; it does not change",
+    "The mini-test interpretation and the conversation that followed"]) {
+    assert.ok(!source.includes(removed), `Still shows: ${removed}`);
+  }
+  const overview = between("export function Overview(", "function ItemResponsesSection(");
+  for (const removed of ['labelText="Completed"', 'labelText="Needs review"']) assert.ok(!overview.includes(removed), removed);
 });
 
 check("Technical records hide earlier-design sections that do not apply", () => {
