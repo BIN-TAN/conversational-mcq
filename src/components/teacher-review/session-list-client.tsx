@@ -19,7 +19,7 @@ import {
   type SessionListFilters,
   type SessionListSortField
 } from "./session-list-query";
-import { EmptyState, ErrorState, formatDate, label, LoadingState, plainReviewReason, StatusPill } from "./ui";
+import { EmptyState, ErrorState, formatDate, label, LoadingState, StatusPill } from "./ui";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -355,9 +355,6 @@ export function TeacherSessionListClient() {
                   <th className="px-4 py-3">Assessment</th>
                   <th className="px-4 py-3">Attempt</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Phase</th>
-                  <th className="px-4 py-3">Automation</th>
-                  <th className="px-4 py-3">Topics with questions submitted</th>
                   <th className="px-4 py-3" aria-sort={ariaSort("last_activity_at")}>
                     <button
                       className="inline-flex items-center gap-1 font-semibold"
@@ -368,17 +365,6 @@ export function TeacherSessionListClient() {
                       <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
                     </button>
                   </th>
-                  <th className="px-4 py-3" aria-sort={ariaSort("completed_at")}>
-                    <button
-                      className="inline-flex items-center gap-1 font-semibold"
-                      onClick={() => sortBy("completed_at")}
-                      type="button"
-                    >
-                      Completed
-                      <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </th>
-                  <th className="px-4 py-3">Review</th>
                   <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
@@ -414,54 +400,9 @@ export function TeacherSessionListClient() {
                       <StatusPill value={session.session_status} />
                     </td>
                     <td className="px-4 py-3">
-                      <StatusPill value={teacherPhaseLabel(session.current_phase, session.formative_conversation_status)} tone="warn" />
-                    </td>
-                    <td className="px-4 py-3">
-                      <StatusPill value={session.automation_state} tone={session.automation_state === "automatic_failed" ? "bad" : "neutral"} />
-                      <p className="mt-1 text-xs text-muted">
-                        {session.workflow_mode_snapshot === "automatic" ? "Automatic" : "Manual review"}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        Answers: {label(session.response_collection_mode_snapshot)}
-                      </p>
-                      {session.failed_workflow_job_count > 0 || session.pending_workflow_job_count > 0 ? (
-                        <p className="mt-1 text-xs text-muted">
-                          Background steps: {session.pending_workflow_job_count} waiting, {session.failed_workflow_job_count} failed
-                        </p>
-                      ) : null}
-                    </td>
-                    <td className="px-4 py-3">
-                      <p className="font-medium text-ink">
-                        {session.completed_concept_unit_count} / {session.concept_unit_count}
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        {session.item_response_count} item responses
-                      </p>
-                      <p className="mt-1 text-xs text-muted">
-                        Current: {session.current_concept_unit_title ?? "Not recorded"}
-                      </p>
-                    </td>
-                    <td className="px-4 py-3">
                       <time title={session.last_activity_at ?? undefined}>
                         {formatDate(session.last_activity_at)}
                       </time>
-                    </td>
-                    <td className="px-4 py-3">
-                      <time title={session.completed_at ?? undefined}>
-                        {formatDate(session.completed_at)}
-                      </time>
-                    </td>
-                    <td className="px-4 py-3">
-                      {session.needs_review ? (
-                        <div>
-                          <StatusPill value="needs_review" tone="bad" />
-                          <p className="mt-1 max-w-48 text-xs text-muted">
-                            {plainReviewReason(session.needs_review_reason)}
-                          </p>
-                        </div>
-                      ) : (
-                        <StatusPill value="not_flagged" tone="good" />
-                      )}
                     </td>
                     <td className="px-4 py-3">
                       <Link
