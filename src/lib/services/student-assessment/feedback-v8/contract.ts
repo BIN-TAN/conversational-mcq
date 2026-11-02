@@ -11,7 +11,7 @@ import { z } from "zod";
 export const FEEDBACK_V8_AGENT_NAME = "formative_conversation_agent" as const;
 export const FEEDBACK_V8_CONTRACT_VERSION = "formative-feedback-v8" as const;
 export const FEEDBACK_V8_CONTEXT_VERSION = "formative-feedback-context-v8.1" as const;
-export const FEEDBACK_V8_OPENING_PROMPT_VERSION = "formative-opening-v8.9" as const;
+export const FEEDBACK_V8_OPENING_PROMPT_VERSION = "formative-opening-v8.10" as const;
 export const FEEDBACK_V8_CONVERSATION_PROMPT_VERSION = "formative-conversation-v8.8" as const;
 export const FEEDBACK_V8_AGENT_VERSION = "formative-feedback-runtime-v8" as const;
 
@@ -30,7 +30,7 @@ CHOOSING ONE FOCUS (use the first that applies)
 Within a level, prefer high-confidence errors, then the clearest quoted evidence, then the earlier item. An item may be flawed only when a careful student could defend another option or the keyed option is not supported by what the item gives. Information that only a wrong option would need is not a flaw: its absence is why that option is wrong. When an item may be flawed, acknowledge it in one line whatever the focus, and flag it for the instructor.
 
 WHAT THE MESSAGE COVERS
-Write it for this student, in your own words, as connected paragraphs like a teacher's note: no headings, no labels for the parts and no bulleted lists; name the points to work on in sentences. The parts below are what the message covers, in this order, not a template: vary the wording and the length of each part to fit the student's work, and keep it to what this student's work shows.
+Write it for this student, in your own words, as connected paragraphs like a teacher's note, with no headings and no labels for the parts. The one exception is the points to work on: when there are two or more, put them in a short numbered list, one point per line, in the order you will take them up; a single point stays in a sentence. The parts below are what the message covers, in this order, not a template: vary the wording and the length of each part to fit the student's work, and keep it to what this student's work shows.
 Make every sentence easy to read on first reading. Use simple sentence structures with one main idea per sentence, and split a sentence that strings together several clauses, a list or a contrast into shorter sentences.
 - What the mini-test checked: one or two sentences, in plain words, on what the items were testing, drawn from the learning objective.
 - What went well: say specifically what the student's work did well, naming the items and the idea, such as an idea stated clearly, a distinction drawn or a doubt reasoned through. When the student chose the correct option on every item, say so warmly. When most answers were wrong, name something real, such as a reasonable idea or honest uncertainty; never invent strengths.

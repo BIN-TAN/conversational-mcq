@@ -165,7 +165,7 @@ async function main() {
     // v8.8 (1 Nov 2026): the opening reads like a teacher's note on the whole mini-test, written for the
     // student rather than from a template, and still names every point so the student sees them all.
     const opening = contract.FEEDBACK_V8_OPENING_INSTRUCTIONS;
-    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note: no headings, no labels for the parts and no bulleted lists; name the points to work on in sentences\. The parts below are what the message covers, in this order, not a template/);
+    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note, with no headings and no labels for the parts\. The one exception is the points to work on: when there are two or more, put them in a short numbered list, one point per line, in the order you will take them up; a single point stays in a sentence\. The parts below are what the message covers, in this order, not a template/);
     const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- How to improve:", "- The first point:", "- A closing invitation in your own words:"];
     parts.forEach((part, index) => {
       assert.ok(opening.includes(part), part);
@@ -193,7 +193,7 @@ async function main() {
     assert.deepEqual(studentFacingTextProblems("You chose the correct option on every item, and your explanation for Item 1 clearly links a larger a to a steeper curve."), [],
       "The encouragement passes the student-facing checks");
     assert.deepEqual(studentFacingTextProblems("You got 4 out of 4 questions right."), ["score_repeated"], "A count is still rejected");
-    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.9");
+    assert.equal(contract.FEEDBACK_V8_OPENING_PROMPT_VERSION, "formative-opening-v8.10");
     assert.equal(contract.FEEDBACK_V8_CONVERSATION_PROMPT_VERSION, "formative-conversation-v8.8");
     assert.equal(contract.FeedbackV8OutputSchema.safeParse(goodReply).success, true);
   });
