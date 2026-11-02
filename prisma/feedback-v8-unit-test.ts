@@ -165,7 +165,7 @@ async function main() {
     // v8.8 (1 Nov 2026): the opening reads like a teacher's note on the whole mini-test, written for the
     // student rather than from a template, and still names every point so the student sees them all.
     const opening = contract.FEEDBACK_V8_OPENING_INSTRUCTIONS;
-    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note, with no headings and no labels for the parts\. The one exception is the points to work on: when there are two or more, put them in a short numbered list, one point per line, in the order you will take them up; a single point stays in a sentence\. The parts below are what the message covers, in this order, not a template/);
+    assert.match(opening, /\nWHAT THE MESSAGE COVERS\nWrite it for this student, in your own words, as connected paragraphs like a teacher's note, with no headings and no labels for the parts\. The one exception is the points to work on: when there are two or more, put them in a numbered list, one point per list item, in the order you will take them up; a single point stays in its own short paragraph\. The parts below are what the message covers, in this order, not a template/);
     const parts = ["- What the mini-test checked:", "- What went well:", "- What to work on:", "- The first point:", "- A closing invitation in your own words:"];
     parts.forEach((part, index) => {
       assert.ok(opening.includes(part), part);
@@ -183,6 +183,10 @@ async function main() {
     assert.match(opening, /A point about a correct answer is a way to make the reasoning more complete or precise, not an error\./);
     // v8.11 (1 Nov 2026): no suggestion for next time and no general advice for future items.
     assert.doesNotMatch(opening, /How to improve|one concrete suggestion/);
+    // Each listed point says a little more than a title: what it concerns and why it is worth a closer look.
+    assert.match(opening, /in one to three short sentences, what it concerns in their own work \(the idea their explanation or choice relies on, the doubt they expressed, or the question they asked\) and why it is worth a closer look/);
+    assert.match(opening, /Do not explain or correct it in full here; that comes when the point is taken up\./);
+    assert.doesNotMatch(opening, /in one plain sentence/);
     assert.match(opening, /Do not add general advice for future items, such as what to check, name or link next time; the points and the first point already say what to work on\./);
     assert.match(opening, /Do not give a score or a count of correct answers/);
     assert.match(opening, /^INPUT\nThe topic's title, learning objective and description, /m);

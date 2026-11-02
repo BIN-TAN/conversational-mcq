@@ -678,6 +678,13 @@ export function givesGeneralAdvice(message: string) {
   return /\b(?:for (?:future|similar|later|new)\b[^.!?\n]{0,30}\b(?:items?|questions?|problems?)|next time|in (?:the )?future|when you (?:next )?(?:meet|see|face|answer) (?:a |an )?(?:similar|item like|question like|this kind))\b/i.test(message);
 }
 
+/**
+ * Opening v8.11: the word count of each numbered point in a message (lines starting "1." or "1)").
+ */
+export function listedPointWords(message: string) {
+  return [...message.matchAll(/^\s*\d+[.)]\s+(.+)$/gm)].map((match) => readability(match[1]).words);
+}
+
 export function questionsAsked(message: string) {
   const unquoted = message.replace(/"[^"\n]*"/g, "").replace(/\u201C[^\u201D\n]*\u201D/g, "");
   return (unquoted.match(/\?/g) ?? []).length;
@@ -765,6 +772,9 @@ export function scoreFeedback(input: { cases: FeedbackCaseFile; records: Feedbac
       "Proposed threshold (opening v8.9); reported, not a go-live gate."),
     criterion("Openings with general advice for future items (share)", "<=", 0.1,
       openings.length ? round(openings.filter((row) => row.general_advice).length / openings.length) : null,
+      "Proposed threshold (opening v8.11); reported, not a go-live gate."),
+    criterion("Median words per listed point in openings", ">=", 20,
+      median(openings.flatMap((row) => listedPointWords(row.message!))),
       "Proposed threshold (opening v8.11); reported, not a go-live gate.")
   ];
   // Opening messages (appendix Table C4) and conversation replies (Table C5) separately.

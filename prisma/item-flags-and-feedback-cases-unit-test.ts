@@ -20,7 +20,7 @@ import {
   FeedbackCaseFileSchema,
   feedbackCaseStudent
 } from "../src/lib/evaluation/interpretation-v8/feedback-case-model";
-import { acknowledgesAllCorrect, givesGeneralAdvice, itemNumbersNamed, overviewNamesEveryPoint, readability, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
+import { acknowledgesAllCorrect, givesGeneralAdvice, itemNumbersNamed, listedPointWords, overviewNamesEveryPoint, readability, scoreFeedback } from "../src/lib/evaluation/interpretation-v8/score";
 import { FEEDBACK_V8_CONTRACT_VERSION, type FeedbackV8Output } from "../src/lib/services/student-assessment/feedback-v8/contract";
 
 let passed = 0;
@@ -185,6 +185,10 @@ async function main() {
     const named = report.criteria.find((entry) => entry.name.startsWith("Openings with general advice"))!;
     assert.equal(named.value, 0.5);
     assert.equal(named.pass, false);
+    assert.deepEqual(listedPointWords("Two points:\n1. Item 3: You asked whether reliability stays with a test.\n2) Item 1: Your explanation treats reliability as validity.\nThe rest."), [10, 8]);
+    assert.deepEqual(listedPointWords("No list here. In 2026 scores rose."), []);
+    const points = report.criteria.find((entry) => entry.name.startsWith("Median words per listed point"))!;
+    assert.equal(points.value, null, "No listed points in these openings");
   });
 
   await check("tutor flags are tied to the items they name, by the student's item numbers", async () => {
