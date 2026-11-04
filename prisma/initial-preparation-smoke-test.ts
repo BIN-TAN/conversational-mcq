@@ -6,6 +6,7 @@ import { prisma } from "../src/lib/db";
 import { createResponseCollectionFixture, cleanupResponseCollectionFixture } from "./response-collection-smoke-fixture";
 import { cleanupSmokeStudentSessions } from "./student-mvp-smoke-helpers";
 import { submitInitialConceptUnitForPreparation, getStudentReviewResponses, getStudentSessionState, endStudentAssessmentAttempt } from "../src/lib/services/student-assessment/service";
+import { recordOtherAiToolUse } from "../src/lib/services/student-assessment/ai-use-report";
 import { claimInitialPreparationJob, processInitialPreparationJob, renewInitialPreparationLease } from "../src/lib/workflow/initial-preparation";
 import { getOwnedInitialPreparationStatus } from "../src/lib/workflow/initial-preparation-status";
 import { claimNextWorkflowJob } from "../src/lib/workflow/jobs";
@@ -328,6 +329,24 @@ async function main() {
   pass("recovery after successful generation reuses validated results without duplicate calls or opening");
   assert.deepEqual((await prisma.responsePackage.findUniqueOrThrow({ where: { id: source.id } })).payload, source.payload);
   pass("standalone worker completes the validated mock pipeline; replay does not repeat work or rewrite evidence");
+  // Release 40: one AI-use question per attempt, asked after the answers are submitted.
+  const aiUse = await fixture("ai_use");
+  assert.equal((await getStudentSessionState(aiUse.input)).ai_use_question?.needed, false, "Not asked before submission");
+  await assert.rejects(recordOtherAiToolUse({ ...aiUse.input, used: true }), /submit your answers first/);
+  await submitInitialConceptUnitForPreparation(aiUse.input);
+  const asked = await getStudentSessionState(aiUse.input);
+  assert.equal(asked.ai_use_question?.needed, true, "Asked once the answers are submitted");
+  assert.equal(asked.ai_use_question?.question, "Did you use another AI tool while answering the questions?");
+  await assert.rejects(recordOtherAiToolUse({ ...aiUse.input, student_user_db_id: aiUse.teacher.id, used: false }));
+  assert.deepEqual(await recordOtherAiToolUse({ ...aiUse.input, used: true }), { recorded: true, already_answered: false });
+  assert.deepEqual(await recordOtherAiToolUse({ ...aiUse.input, used: false }), { recorded: false, already_answered: true });
+  const stored = await prisma.assessmentSession.findUniqueOrThrow({ where: { id: aiUse.session.id },
+    select: { other_ai_tool_use: true, other_ai_tool_use_reported_at: true } });
+  assert.equal(stored.other_ai_tool_use, true, "The first answer stands");
+  assert.ok(stored.other_ai_tool_use_reported_at);
+  assert.equal((await getStudentSessionState(aiUse.input)).ai_use_question?.needed, false, "Not asked again");
+  assert.equal((await getStudentSessionState(ended.input)).ai_use_question?.needed, false, "An ended attempt is not asked");
+  pass("the AI-use question is asked once after submission, keeps the first answer and skips ended attempts");
   assert.equal(networkCalls, 0);
   assert.equal(await prisma.agentCall.count({ where: { assessment_session_db_id: { in: fixtures.map((f) => f.session.id) }, provider: "openai" } }), 0);
   pass("zero provider calls and zero network requests in the test process");

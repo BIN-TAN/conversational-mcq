@@ -101,6 +101,18 @@ try {
   await page.getByTestId("continue-to-feedback").click();
   assert.equal((await submission).status(), 202);
   console.log(`http_submission_acknowledgement_ms=${Date.now() - started}`);
+  // Release 40: one question after submission, answered once and stored with the attempt.
+  const aiUseDialog = page.getByTestId("ai-use-question-dialog");
+  await aiUseDialog.waitFor();
+  assert((await aiUseDialog.innerText()).includes("Did you use another AI tool while answering the questions?"));
+  assert((await aiUseDialog.innerText()).includes("your instructor will not see it"));
+  await page.screenshot({ path: join(output, "ai-use-question-desktop.png") });
+  await page.getByTestId("ai-use-answer-yes").click();
+  await aiUseDialog.waitFor({ state: "hidden" });
+  assert.equal((await db.assessmentSession.findUniqueOrThrow({ where: { id: fixture.session.id },
+    select: { other_ai_tool_use: true } })).other_ai_tool_use, true);
+  pass("after submission the AI-use question is asked once and its answer is stored with the attempt");
+  await page.addLocatorHandler(aiUseDialog, async () => { await page.getByTestId("ai-use-answer-no").click(); });
   await page.getByTestId("initial-preparation-status").waitFor();
   assert.equal(await page.getByTestId("initial-preparation-wait-notice").innerText(), "Your feedback may take a minute or more to prepare. You can look over your answers while you wait.");
   pass("longer preparation is explained before submission and during waiting without a completion-time guarantee");

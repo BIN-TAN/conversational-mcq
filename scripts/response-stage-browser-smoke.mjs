@@ -55,7 +55,7 @@ try {
   }
   browser = await chromium.launch({ headless: true });
   const ctx = await context(fixture.student);
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); await page.addLocatorHandler(page.getByTestId("ai-use-question-dialog"), async () => { await page.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   page.on("pageerror", e => browserErrors.push(String(e)));
   page.on("response", r => { if (r.url().endsWith("/events") && !r.ok()) eventErrors.push(r.status()); });
   const api = `/api/student/sessions/${fixture.activeSession}`;
@@ -135,7 +135,7 @@ try {
   assert([403, 404].includes(forbidden.status()));
   const foreignWrite = await outsider.request.post(base + api + "/events", { headers: { origin: base }, data: { events: [{ event_type: "navigation_event", payload: { reason: "synthetic_isolation_check" } }] } });
   assert([403, 404].includes(foreignWrite.status()));
-  const historyPage = await outsider.newPage();
+  const historyPage = await outsider.newPage(); await historyPage.addLocatorHandler(historyPage.getByTestId("ai-use-question-dialog"), async () => { await historyPage.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   const historyCount = await db.processEvent.count({ where: { assessment_session: { session_public_id: fixture.historySession } } });
   await historyPage.goto(`${base}/student/assessment/${fixture.historySession}?review=1`, { waitUntil: "networkidle" });
   await wait(300);
@@ -143,7 +143,7 @@ try {
   checks.push("student isolation and read-only history does not generate process activity");
 
   const teacher = await context(fixture.teacher);
-  const teacherPage = await teacher.newPage();
+  const teacherPage = await teacher.newPage(); await teacherPage.addLocatorHandler(teacherPage.getByTestId("ai-use-question-dialog"), async () => { await teacherPage.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   await teacherPage.goto(`${base}/teacher/sessions/${fixture.activeSession}`, { waitUntil: "networkidle" });
   await teacherPage.getByRole("button", { name: "Process data", exact: true }).click();
   await teacherPage.getByText("Response stages and interruptions", { exact: true }).click();

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { RESPONSE_OBSERVATION_VERSION, ResponseObservationLinkSchema, ResponseObservationPayloadSchema } from "@/lib/student-assessment-ui/response-observation";
 import { ASSESSMENT_ATTEMPT_POLICY_VERSION, assessmentFamily, assertAttemptChanceAvailable, readAttemptChances } from "./attempt-chances";
 import { studentTurnId } from "./student-turn-id";
+import { AI_USE_QUESTION_NOTE, AI_USE_QUESTION_TEXT, aiUseQuestionNeeded } from "./ai-use-report";
 import { enqueueWorkflowJob } from "@/lib/workflow/jobs";
 import { getInitialPreparationStatus } from "@/lib/workflow/initial-preparation-status";
 import {
@@ -3435,6 +3436,17 @@ export async function getStudentSessionState(input: {
         : null,
     activity_runtime: activityRuntime,
     formative_conversation: formativeConversation,
+    // Release 40: one question after the answers are submitted; the answer is research data only.
+    ai_use_question: {
+      needed: aiUseQuestionNeeded({
+        answered: session.other_ai_tool_use !== null,
+        terminal: attemptLifecycle.terminal,
+        current_topic_submitted: Boolean(conceptUnitSession?.initial_completed_at),
+        current_topic_is_last: publishedConceptUnits.length <= 1 || conceptUnitIndex === publishedConceptUnits.length - 1
+      }),
+      question: AI_USE_QUESTION_TEXT,
+      note: AI_USE_QUESTION_NOTE
+    },
     package_results: packageResultsExposed
       ? withExplanationMedia(
           latestEvidenceIntegratedProfile

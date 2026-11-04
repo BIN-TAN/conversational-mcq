@@ -43,6 +43,7 @@ import {
   retryFormativeConversationOpening,
   retryFormativeConversationResponse,
   saveConfidence,
+  saveOtherAiToolUse,
   saveOption,
   saveReasoning,
   saveTemptingOption,
@@ -2630,6 +2631,11 @@ export function AssessmentSessionClient({
   const [inFlowEditDraft, setInFlowEditDraft] = useState<InFlowEditDraft | null>(null);
   const [editingReviewItemId, setEditingReviewItemId] = useState<string | null>(null);
   const [reviewEditDraft, setReviewEditDraft] = useState<PackageReviewEditDraft | null>(null);
+  // Release 40: the AI-use question after submission. Closed for this page view after two
+  // failed saves, so the student is never held at it.
+  const [aiUseSaving, setAiUseSaving] = useState(false);
+  const [aiUseFailures, setAiUseFailures] = useState(0);
+  const [aiUseClosed, setAiUseClosed] = useState(false);
   const [endConversationDialogOpen, setEndConversationDialogOpen] =
     useState(false);
   const [endAssessmentDialogOpen, setEndAssessmentDialogOpen] = useState(false);
@@ -3637,6 +3643,26 @@ export function AssessmentSessionClient({
     })();
   }
 
+  function handleAiUseAnswer(used: boolean) {
+    if (!state || aiUseSaving) return;
+    const sessionPublicId = state.session_public_id;
+    void (async () => {
+      setAiUseSaving(true);
+      try {
+        await saveOtherAiToolUse({ sessionPublicId, used });
+        setState((current) => current && current.ai_use_question
+          ? { ...current, ai_use_question: { ...current.ai_use_question, needed: false } }
+          : current);
+      } catch {
+        const failures = aiUseFailures + 1;
+        setAiUseFailures(failures);
+        if (failures >= 2) setAiUseClosed(true);
+      } finally {
+        setAiUseSaving(false);
+      }
+    })();
+  }
+
   function handleStartReviewEdit(item: StudentReviewItem) {
     setEditingReviewItemId(item.item_public_id);
     setReviewEditDraft(buildReviewEditDraft(item));
@@ -4395,6 +4421,46 @@ export function AssessmentSessionClient({
                 type="button"
               >
                 Back to my assessments
+              </button>
+            </div>
+          </div>
+        </ModalDialog>
+      ) : null}
+      {!readOnlyReview && state.ai_use_question?.needed && !aiUseClosed ? (
+        <ModalDialog
+          labelledBy="ai-use-question-title"
+          onClose={() => undefined}
+          busy={aiUseSaving}
+          testId="ai-use-question-dialog"
+        >
+          <div className="w-full max-w-md rounded-2xl border border-line bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-semibold text-ink" id="ai-use-question-title">
+              {state.ai_use_question.question}
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted">{state.ai_use_question.note}</p>
+            {aiUseFailures > 0 ? (
+              <p className="mt-3 text-sm leading-6 text-ink" role="alert" data-testid="ai-use-question-error">
+                Your answer could not be saved. Please choose again.
+              </p>
+            ) : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="rounded-full border border-line bg-white px-5 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="ai-use-answer-yes"
+                disabled={aiUseSaving}
+                onClick={() => handleAiUseAnswer(true)}
+                type="button"
+              >
+                Yes
+              </button>
+              <button
+                className="rounded-full border border-line bg-white px-5 py-2 text-sm font-semibold text-ink hover:border-accent disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="ai-use-answer-no"
+                disabled={aiUseSaving}
+                onClick={() => handleAiUseAnswer(false)}
+                type="button"
+              >
+                No
               </button>
             </div>
           </div>

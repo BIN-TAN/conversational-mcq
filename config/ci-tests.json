@@ -31,6 +31,7 @@
     "prisma/interpretation-relabel-unit-test.ts",
     "prisma/attempt-summary-unit-test.ts",
     "prisma/session-review-layout-unit-test.ts",
+    "prisma/ai-use-question-unit-test.ts",
     "prisma/dependency-audit-exceptions-unit-test.ts",
     "prisma/student-answering-ux-unit-test.ts",
     "prisma/student-plain-language-unit-test.ts",

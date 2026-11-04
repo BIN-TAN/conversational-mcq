@@ -693,6 +693,15 @@ export function completeInitialConceptUnit(input: {
   );
 }
 
+// Release 40: the yes or no answer to "Did you use another AI tool while answering the questions?".
+export function saveOtherAiToolUse(input: { sessionPublicId: string; used: boolean }) {
+  return post(
+    `/api/student/sessions/${input.sessionPublicId}/ai-use`,
+    { used: input.used },
+    (value) => value as { recorded: boolean; already_answered: boolean }
+  );
+}
+
 export function fetchPreparationStatus(sessionPublicId: string, signal?: AbortSignal) {
   return get(`/api/student/sessions/${sessionPublicId}/preparation`, (value) => ({
     preparation: StudentSessionStateSchema.shape.preparation.parse((value as { preparation: unknown }).preparation)

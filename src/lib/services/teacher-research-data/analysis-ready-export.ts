@@ -179,6 +179,8 @@ const analysisSessionSelect = {
   started_at: true,
   last_activity_at: true,
   completed_at: true,
+  other_ai_tool_use: true,
+  other_ai_tool_use_reported_at: true,
   created_at: true,
   updated_at: true,
   user: {
@@ -1028,6 +1030,9 @@ function evidenceStageFields(session: AnalysisSession) {
     conversation_started: conversationStarted,
     conversation_student_message_count: studentMessages,
     finish_chosen: finishChosen,
+    // Release 40: self-reported use of another AI tool while answering the questions (research dataset only).
+    other_ai_tool_use: session.other_ai_tool_use === null ? null : session.other_ai_tool_use ? "yes" : "no",
+    other_ai_tool_use_reported_at: iso(session.other_ai_tool_use_reported_at),
     evidence_stage: stage
   };
 }

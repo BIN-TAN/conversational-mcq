@@ -78,7 +78,7 @@ try {
   assert(ready, "local_server_not_ready");
   browser = await chromium.launch({ headless: true });
   const ctx = await context(fixture.teacher);
-  const page = await ctx.newPage();
+  const page = await ctx.newPage(); await page.addLocatorHandler(page.getByTestId("ai-use-question-dialog"), async () => { await page.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   const designPath = `/teacher/content/assessments/${fixture.draftId}/item-design`;
   const apiPath = `/api/teacher/assessments/${fixture.draftId}/item-design`;
   await page.goto(base + "/teacher/content", { waitUntil: "networkidle" });
@@ -218,7 +218,7 @@ try {
   });
   await check("student waiting notices claim saving only once confirmed; IME and cancellation work", async () => {
     const studentContext = await context(fixture.student, { width: 390, height: 844 });
-    const student = await studentContext.newPage();
+    const student = await studentContext.newPage(); await student.addLocatorHandler(student.getByTestId("ai-use-question-dialog"), async () => { await student.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
     await student.clock.install();
     const sessionApi = `/api/student/sessions/${fixture.activeSession}`;
     const now = new Date().toISOString();
@@ -273,7 +273,7 @@ try {
   });
   await check("student past attempts stay read-only on mobile", async () => {
     const history = await context(fixture.historyStudent, { width: 390, height: 844 });
-    const student = await history.newPage();
+    const student = await history.newPage(); await student.addLocatorHandler(student.getByTestId("ai-use-question-dialog"), async () => { await student.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
     await student.goto(base + "/student/assessment", { waitUntil: "networkidle" });
     await student.getByRole("button", { name: /Review previous attempt/ }).click();
     await student.getByRole("button", { name: "Review attempt", exact: true }).click();
@@ -285,7 +285,7 @@ try {
   for (const width of [1440, 390]) {
     await check(`ended attempt opened without review link remains read-only at ${width}px`, async () => {
       const ctx = await context(fixture.historyStudent, { width, height: 900 });
-      const page = await ctx.newPage();
+      const page = await ctx.newPage(); await page.addLocatorHandler(page.getByTestId("ai-use-question-dialog"), async () => { await page.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
       await page.route(`${base}/api/student/sessions/${fixture.historySession}/state`, async route => {
         const response = await route.fetch();
         const state = await response.json();

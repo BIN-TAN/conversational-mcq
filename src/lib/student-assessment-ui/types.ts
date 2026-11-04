@@ -339,6 +339,7 @@ export const StudentSessionStateSchema = z.object({
     .optional(),
   activity_runtime: StudentActivityRuntimeProjectionSchema.nullable().optional(),
   formative_conversation: StudentFormativeConversationSchema.nullable().optional(),
+  ai_use_question: z.object({ needed: z.boolean(), question: z.string(), note: z.string() }).nullable().optional(),
   package_results: PackageResultsSchema.nullable().optional(),
   progression: StudentProgressionSchema.nullable().optional(),
   learning_profile: StudentLearningProfileSchema.nullable().optional(),

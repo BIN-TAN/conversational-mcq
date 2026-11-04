@@ -111,6 +111,8 @@ export const SESSIONS_COLUMNS = [
   "conversation_started",
   "conversation_student_message_count",
   "finish_chosen",
+  "other_ai_tool_use",
+  "other_ai_tool_use_reported_at",
   "evidence_stage",
   "attempt_lifecycle_status",
   "terminal_reason",
@@ -1592,6 +1594,8 @@ const SESSION_DEFINITIONS: Record<string, string> = {
   session_status: "Stored attempt status at export time: not_started, active, paused, completed, student_exited (ended by the student or an instructor) or needs_review. attempt_lifecycle_status separates the actors.",
   current_phase: "Stored state-machine phase of the attempt at export time (for example session_completed or student_exited); a workflow position, not a learning measure.",
   session_completion_status: "Compatibility copy of session_status.",
+  other_ai_tool_use: "The student's answer to \"Did you use another AI tool while answering the questions?\" (ai-use-question-v1), asked once per attempt after the answers are submitted (release 40); it covers answering the mini-test questions, not the conversation: yes or no; blank when the attempt was not asked (attempts before release 40, or an attempt that ended before the question) or the student did not answer. Self-report. Research dataset only: instructor pages never show it, and interpretation, feedback and the attempt summary do not use it.",
+  other_ai_tool_use_reported_at: "When the student answered other_ai_tool_use (ISO 8601 UTC); blank when other_ai_tool_use is blank.",
   current_item_index: "Highest authoring item_order among the attempt's item responses; blank without responses. Not the student-facing item position (item_position in item_responses.csv).",
   session_limitations: "Pipe-separated codes: no_item_responses_recorded (the attempt has no item response) and initial_feedback_unavailable (an initial_feedback_skipped or initial_feedback_terminated event exists); blank when neither applies.",
   item_response_count: "Number of item-response rows of the attempt across its topics (rows in item_responses.csv for this session_public_id).",
@@ -2870,7 +2874,8 @@ const RESEARCH_RELEVANT_MODEL_FIELDS: Record<string, readonly string[]> = {
     "id", "session_public_id", "user_db_id", "assessment_db_id", "attempt_number", "status", "current_phase",
     "workflow_mode_snapshot", "response_collection_mode_snapshot", "current_concept_unit_db_id", "resume_phase",
     "resume_context", "needs_review", "needs_review_reason", "automation_paused_at", "automation_exception_reason",
-    "started_at", "last_activity_at", "completed_at", "created_at", "updated_at"
+    "started_at", "last_activity_at", "completed_at", "other_ai_tool_use", "other_ai_tool_use_reported_at",
+    "created_at", "updated_at"
   ],
   ConceptUnitSession: [
     "id", "assessment_session_db_id", "concept_unit_db_id", "status", "initial_started_at", "initial_completed_at",

@@ -1,5 +1,26 @@
 # Data Logging Specification
 
+## Self-reported use of another AI tool (2026-11-04, release 40)
+
+After a student submits the answers of a mini-test (the attempt's last topic), one dialog asks
+"Did you use another AI tool while answering the questions?" with the buttons Yes and No (ai-use-question-v1). It covers answering the questions, not the
+conversation that follows.
+The note under the question reads "Your answer is not used for your feedback, and your instructor
+will not see it."
+
+- **Stored:** `AssessmentSession.other_ai_tool_use` (true, false or null) and
+  `other_ai_tool_use_reported_at`, once per attempt. The first answer stands; a repeated request
+  changes nothing. Earlier attempts keep null.
+- **When it is asked:** once the answers are submitted and while the attempt is open, so it appears
+  while feedback is prepared or during the conversation. A finished or ended attempt is not asked.
+  If the answer cannot be saved twice in a row, the dialog closes for that page view, so the
+  student is never held at it; it appears again on the next visit to the open attempt.
+- **Exported:** `sessions.csv` of the research dataset, columns `other_ai_tool_use` (yes, no or
+  blank) and `other_ai_tool_use_reported_at`.
+- **Not used or shown:** instructor pages (dashboard, session review, readable transcript, process
+  data), interpretation, feedback and the attempt summary never read it. It is not a process event
+  or a conversation turn.
+
 ## Assistance qualification carry-forward (2026-10-07)
 
 Host `formative-conversation-host-v7.16` receives optional `assistance_history`, version

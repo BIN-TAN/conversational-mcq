@@ -36,7 +36,7 @@ try {
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   await context.route("**/*", route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
-  const page = await context.newPage();
+  const page = await context.newPage(); await page.addLocatorHandler(page.getByTestId("ai-use-question-dialog"), async () => { await page.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   page.setDefaultTimeout(20000);
   const errors = [];
   page.on("pageerror", error => errors.push(String(error)));
@@ -66,7 +66,7 @@ try {
   await db.user.create({ data: { user_id: userId, user_id_normalized: userId,
     role: "student", account_status: "active", access_code_hash: demo.access_code_hash,
     created_by_teacher_user_id: demo.created_by_teacher_user_id } });
-  const chat = await student.newPage();
+  const chat = await student.newPage(); await chat.addLocatorHandler(chat.getByTestId("ai-use-question-dialog"), async () => { await chat.getByTestId("ai-use-answer-no").click(); }); // Release 40: answer the AI-use question if it appears.
   chat.setDefaultTimeout(20000);
   chat.on("pageerror", error => errors.push(String(error)));
   await chat.goto(base + "/student/login");

@@ -51,7 +51,7 @@ try{
   const payload=Buffer.from(JSON.stringify({user_db_id:u.id,user_id:u.user_id,role:u.role,auth_version:u.auth_version,iat:now,exp:now+3600})).toString('base64url');
   await ctx.addCookies([{name:'cmcq_session',value:payload+'.'+createHmac('sha256',secret).update(payload).digest('base64url'),url:base,httpOnly:true,sameSite:'Lax'}]);
   await ctx.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-  const page=await ctx.newPage();page.on('pageerror',e=>report.errors.push(String(e)));
+  const page=await ctx.newPage(); await page.addLocatorHandler(page.getByTestId("ai-use-question-dialog"), async () => { await page.getByTestId("ai-use-answer-no").click(); });page.on('pageerror',e=>report.errors.push(String(e)));
   const require=createRequire(import.meta.url);let axePath;try{axePath=require.resolve('axe-core/axe.min.js');}catch{}
   const path=`/student/assessment/${fixture.activeSession}`;
   async function inspect(label){
